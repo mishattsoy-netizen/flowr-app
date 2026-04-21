@@ -1,4 +1,4 @@
-# AGENTS.md - Flowr 4.2.0
+# AGENTS.md - Flowr 4.4.0
 
 ## Developer Commands
 - `npm run dev`: Start development server

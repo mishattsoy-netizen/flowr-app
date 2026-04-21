@@ -14,7 +14,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const setEntities          = useStore(s => s.setEntities);
   const setTasks             = useStore(s => s.setTasks);
   const setWorkspaces        = useStore(s => s.setWorkspaces);
-  const setFlowRouterConfig  = useStore(s => s.setFlowRouterConfig);
+
   const setLifeData          = useStore(s => s.setLifeData);
   const setKnowledgeData     = useStore(s => s.setKnowledgeData);
   const getEntities          = () => useStore.getState().entities;
@@ -57,7 +57,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       // This prevents foreign key violations when seeding or creating entities.
       const hasPersonalWs = data.workspaces.some(w => w.id === 'ws-personal');
       if (!hasPersonalWs && supabase) {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
           const s = useStore.getState();
           const personalWs = s.workspaces.find(w => w.id === 'ws-personal');
@@ -81,9 +81,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       if (data.tasks.length > 0)      setTasks(data.tasks);
       if (data.workspaces.length > 0) setWorkspaces(data.workspaces);
 
-      if (data.settings['flow-router-config']) {
-        setFlowRouterConfig(data.settings['flow-router-config']);
-      }
+
     });
 
     // 2. Realtime subscription
@@ -91,7 +89,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       setEntities, getEntities,
       setTasks, getTasks,
       setWorkspaces, getWorkspaces,
-      setFlowRouterConfig,
     });
 
     return () => {

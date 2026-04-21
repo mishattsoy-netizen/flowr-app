@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 // Use Node.js runtime for better local networking support
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const targetUrl = req.headers.get('x-target-url');
     if (!targetUrl) {
       return NextResponse.json({ error: "Missing x-target-url header" }, { status: 400 });
@@ -50,6 +62,17 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const targetUrl = req.headers.get('x-target-url');
     if (!targetUrl) {
       return NextResponse.json({ error: "Missing x-target-url header" }, { status: 400 });
@@ -74,6 +97,9 @@ export async function GET(req: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      return NextResponse.json({ error: "Local AI model (Ollama) is not running on port 11434." }, { status: 503 });
+    }
     console.error("Local Proxy GET Error:", error);
     return NextResponse.json({ error: "Failed to connect to local endpoint." }, { status: 500 });
   }

@@ -14,7 +14,7 @@
  */
 
 import { supabase } from './supabase';
-import type { Entity, AppTask, FlowRouterConfig, Workspace } from '@/data/store';
+import type { Entity, AppTask, Workspace } from '@/data/store';
 
 // ─── Row ↔ Store mappers ──────────────────────────────────────────────────────
 
@@ -137,14 +137,14 @@ export async function loadFromSupabase(): Promise<{
 
   const [{ data: entityRows }, { data: taskRows }, { data: workspaceRows }, { data: settingRows }] =
     await Promise.all([
-      supabase.from('entities').select('*'),
-      supabase.from('tasks').select('*'),
-      supabase.from('workspaces').select('*'),
-      supabase.from('settings').select('*'),
+      supabase!.from('entities').select('*'),
+      supabase!.from('tasks').select('*'),
+      supabase!.from('workspaces').select('*'),
+      supabase!.from('settings').select('*'),
     ]);
 
   const settings: Record<string, any> = {};
-  (settingRows ?? []).forEach(row => {
+  (settingRows ?? []).forEach((row: any) => {
     settings[row.key] = row.value;
   });
 
@@ -179,7 +179,7 @@ export async function upsertWorkspace(workspace: Workspace) {
 
 export async function deleteWorkspaceFromDB(id: string) {
   if (!supabase) return;
-  const { error } = await supabase.from('workspaces').delete().eq('id', id);
+  const { error } = await supabase!.from('workspaces').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteWorkspace:', error.message);
 }
 
@@ -205,7 +205,7 @@ export async function upsertEntity(entity: Entity) {
 
 export async function deleteEntityFromDB(id: string) {
   if (!supabase) return;
-  const { error } = await supabase.from('entities').delete().eq('id', id);
+  const { error } = await supabase!.from('entities').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteEntity:', error.message);
 }
 
@@ -231,7 +231,7 @@ export async function upsertTask(task: AppTask) {
 
 export async function deleteTaskFromDB(id: string) {
   if (!supabase) return;
-  const { error } = await supabase.from('tasks').delete().eq('id', id);
+  const { error } = await supabase!.from('tasks').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteTask:', error.message);
 }
 
@@ -244,7 +244,6 @@ type StoreSetters = {
   getTasks:      () => AppTask[];
   setWorkspaces: (workspaces: Workspace[]) => void;
   getWorkspaces: () => Workspace[];
-  setFlowRouterConfig: (config: FlowRouterConfig) => void;
 };
 
 export function subscribeRealtime(store: StoreSetters) {
@@ -253,24 +252,11 @@ export function subscribeRealtime(store: StoreSetters) {
   const channel = supabase
     .channel('flowr-realtime')
 
-    // ── settings ──
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'settings' },
-      ({ new: row }) => {
-        if (!row || typeof row !== 'object') return;
-        const r = row as { key: string; value: any };
-        if (r.key === 'flow-router-config') {
-          store.setFlowRouterConfig(r.value as FlowRouterConfig);
-        }
-      }
-    )
-
     // ── entities ──
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'entities' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const entity = rowToEntity(row as Record<string, any>);
         const current = store.getEntities();
         if (!current.find(e => e.id === entity.id)) {
@@ -281,7 +267,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'entities' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const updated = rowToEntity(row as Record<string, any>);
         store.setEntities(
           store.getEntities().map(e => (e.id === updated.id ? updated : e))
@@ -291,7 +277,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'entities' },
-      ({ old: row }) => {
+      ({ old: row }: any) => {
         store.setEntities(store.getEntities().filter(e => e.id !== (row as any).id));
       }
     )
@@ -300,7 +286,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'workspaces' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const ws = rowToWorkspace(row as Record<string, any>);
         const current = store.getWorkspaces();
         if (!current.find(w => w.id === ws.id)) {
@@ -311,7 +297,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'workspaces' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const updated = rowToWorkspace(row as Record<string, any>);
         store.setWorkspaces(
           store.getWorkspaces().map(w => (w.id === updated.id ? updated : w))
@@ -321,7 +307,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'workspaces' },
-      ({ old: row }) => {
+      ({ old: row }: any) => {
         store.setWorkspaces(store.getWorkspaces().filter(w => w.id !== (row as any).id));
       }
     )
@@ -330,7 +316,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'tasks' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const task = rowToTask(row as Record<string, any>);
         const current = store.getTasks();
         if (!current.find(t => t.id === task.id)) {
@@ -341,7 +327,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'tasks' },
-      ({ new: row }) => {
+      ({ new: row }: any) => {
         const updated = rowToTask(row as Record<string, any>);
         store.setTasks(
           store.getTasks().map(t => (t.id === updated.id ? updated : t))
@@ -351,7 +337,7 @@ export function subscribeRealtime(store: StoreSetters) {
     .on(
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'tasks' },
-      ({ old: row }) => {
+      ({ old: row }: any) => {
         store.setTasks(store.getTasks().filter(t => t.id !== (row as any).id));
       }
     )

@@ -39,12 +39,15 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${crimsonPro.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased`}
+      className={`${crimsonPro.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <SupabaseProvider>
           {children}
         </SupabaseProvider>
+        <Script id="remove-preload" strategy="afterInteractive">
+          {`document.documentElement.classList.remove('preload');`}
+        </Script>
         <Script
           src="https://js.puter.com/v2/"
           strategy="afterInteractive"

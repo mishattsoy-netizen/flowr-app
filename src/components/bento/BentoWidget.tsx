@@ -39,7 +39,7 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
     <div
       ref={ref}
       className={clsx(
-        'h-full relative group/bento-widget transition-all duration-200',
+        'h-full relative group/bento-widget transition-[background-color,border-color,box-shadow,transform,opacity] duration-200',
         editMode && 'cursor-grab active:cursor-grabbing select-none [&>section]:border-bone-30 [&>section]:border-2 [&>div]:border-bone-30 [&>div]:border-2'
       )}
     >

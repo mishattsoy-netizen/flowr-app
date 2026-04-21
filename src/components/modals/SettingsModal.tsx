@@ -1,10 +1,10 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon } from 'lucide-react';
+import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { AdminPanel } from '../admin/AdminPanel';
+
 
 
 
@@ -18,7 +18,7 @@ import { AdminPanel } from '../admin/AdminPanel';
 
 
 export function SettingsModal() {
-  const { modal, closeModal, theme, toggleTheme, interfaceSize, setInterfaceSize, setIsAdminPanelOpen } = useStore();
+  const { modal, closeModal, theme, toggleTheme, interfaceSize, setInterfaceSize } = useStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
   const [isVisible, setIsVisible] = useState(false);
 
@@ -50,7 +50,7 @@ export function SettingsModal() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
-    { id: 'admin', label: 'Admin Terminal', icon: Zap },
+    { id: 'admin', label: 'Admin Suite', icon: ShieldCheck },
   ];
 
   return (
@@ -85,8 +85,7 @@ export function SettingsModal() {
                   key={tab.id}
                   onClick={() => {
                     if (tab.id === 'admin') {
-                      closeModal();
-                      setIsAdminPanelOpen(true);
+                      window.location.href = '/admin';
                       return;
                     }
                     setActiveTab(tab.id as SettingsTab);
@@ -243,7 +242,7 @@ export function SettingsModal() {
           </div>
         </div>
       </div>
-      <AdminPanel />
+
     </div>
   );
 }

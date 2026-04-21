@@ -224,7 +224,7 @@ export type FlowIntentCategory = 'tool_call' | 'web_search' | 'complex' | 'mediu
 export interface FlowRouterModel {
   id: string;
   label: string;
-  provider: 'openrouter' | 'gemini' | 'groq' | 'local';
+  provider: 'openrouter' | 'gemini' | 'google' | 'groq' | 'local' | 'vault' | 'cloudflare' | 'huggingface';
   enabled: boolean;
   dailyLimit: number | null;
 }
@@ -318,40 +318,13 @@ export interface AppState {
 
   aiMessages: AIMessage[];
   aiApiKey: string | null;
-  aiGeminiKey: string | null;
-  aiGeminiKeys: string[];
-  aiGeminiKeyConfigs: { key: string; projectId?: string; }[];
-  aiGeminiKeyIndex: number;
-  geminiQuotaModels: string[];
-  geminiModelIndex: number;
-  aiGroqKey: string | null;
-  aiModel: string;
   isAIAssistantOpen: boolean;
   isAIAssistantExtended: boolean;
   isAILoading: boolean;
-  aiRuntime: 'cloud' | 'local';
-  localEndpoint: string;
-  localModel: string;
-  localModels: string[];
   aiCursor: AICursor | null;
   aiBehaviorMode: 'fast' | 'thinking' | 'auto';
-  priorityModels: PriorityModel[];
-  aiCloudModels: CloudModel[];
-  aiRequestLog: AIRequestLog[];
-  aiRoutingMode: 'hybrid' | 'manual';
-  hybridManualModel: string | null;
-  flowRouterConfig: FlowRouterConfig;
-  isAdminPanelOpen: boolean;
-  isLocalEnabled: boolean;
-  isLocalOnline: boolean;
   imageProvider: 'pollinations' | 'puter';
 
-  aiFlowrMode: 'auto' | 'manual';
-  aiGemmaMode: 'auto' | 'manual';
-  aiFlowrManualId: string;
-  aiGemmaManualId: string;
-  aiProjectQuotas: Record<string, ProjectQuota>;
-  geminiQuotaLink: string;
   aiAbortController: AbortController | null;
 
   toggleTheme: () => void;
@@ -368,58 +341,17 @@ export interface AppState {
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
 
   setAIKey: (key: string | null) => void;
-  setAiGeminiKey: (key: string | null) => void;
-  setAiGeminiKeys: (keys: string[]) => void;
-  setAiGeminiKeyConfigs: (configs: { key: string; projectId?: string; }[]) => void;
-  rotateGeminiKey: () => void;
-  rotateGeminiModel: () => void;
-  setAiGeminiKeyIndex: (index: number) => void;
-  setGeminiModelIndex: (index: number) => void;
-  setAiGroqKey: (key: string | null) => void;
-  setAIModel: (model: string) => void;
-  setAIFlowrMode: (mode: 'auto' | 'manual') => void;
-  setAIGemmaMode: (mode: 'auto' | 'manual') => void;
-  setAIFlowrManualId: (id: string) => void;
-  setAIGemmaManualId: (id: string) => void;
-  setIsLocalEnabled: (enabled: boolean) => void;
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
   toggleAIAssistantExtended: () => void;
-  syncProjectQuotas: (data: ProjectQuota) => void;
-  setGeminiQuotaLink: (link: string) => void;
   sendAIMessage: (content: string, agentEnabled?: boolean, attachments?: AIAttachment[]) => Promise<void>;
   stopAIGeneration: () => void;
   add_note: (title: string, content: string, parentId?: string | null) => void;
-
-  setIsAdminPanelOpen: (open: boolean) => void;
-  updateCloudModel: (index: number, updates: Partial<CloudModel>) => void;
-  updatePriorityModel: (index: number, updates: Partial<PriorityModel>) => void;
-  logAIRequest: (entry: Omit<AIRequestLog, "timestamp">) => void;
-  updateModelStatus: (id: string, status: ModelStatus) => void;
-  refreshModelStatus: () => Promise<void>;
   setAIBehaviorMode: (mode: 'fast' | 'thinking' | 'auto') => void;
-  setAIRoutingMode: (mode: 'hybrid' | 'manual') => void;
-  setHybridManualModel: (model: string | null) => void;
-  setFlowRouterEnabled: (enabled: boolean) => void;
-  setFlowPreferKeyRotation: (prefer: boolean) => void;
-  updateFlowCategory: (key: FlowIntentCategory, models: FlowRouterModel[]) => void;
-  toggleFlowModel: (categoryKey: FlowIntentCategory, modelId: string, enabled: boolean) => void;
-  reorderFlowModels: (categoryKey: FlowIntentCategory, models: FlowRouterModel[]) => void;
-  resetFlowRouterCategory: (categoryKey: FlowIntentCategory) => void;
-  resetFlowRouterConfig: () => void;
-  setFlowRouterConfig: (config: FlowRouterConfig) => void;
-  resetAIConfiguration: () => void;
-  setAIRuntime: (runtime: 'cloud' | 'local') => void;
-  setLocalEndpoint: (endpoint: string) => void;
-  setLocalModel: (model: string) => void;
   clearAIChat: () => void;
   setAIHistory: (messages: AIMessage[]) => void;
   setIsAIAssistantExtended: (extended: boolean) => void;
   setAICursor: (cursor: AICursor | null) => void;
-  fetchLocalModels: () => Promise<void>;
-  checkLocalStatus: () => Promise<void>;
-  testAIConnection: () => Promise<{ success: boolean; message: string; provider?: string }>;
-  getDailyUsageForModel: (modelId: string) => number;
 
   setWorkspaces: (workspaces: Workspace[]) => void;
   setActiveWorkspaceId: (id: string) => void;

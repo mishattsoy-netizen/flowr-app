@@ -3,13 +3,14 @@
 import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Zap } from 'lucide-react';
-import { useState, useRef, useEffect, memo, useMemo, useCallback } from 'react';
+import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2 } from 'lucide-react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
 import { AIAvatar } from './components/AIAvatar';
 import { ChatAudioPlayer } from './components/ChatAudioPlayer';
 import { ChatMessage } from './components/ChatMessage';
+import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import clsx from 'clsx';
 
 const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) => {
@@ -19,49 +20,21 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const setAIAssistantOpen = useStore(state => state.setAIAssistantOpen);
   const toggleAIAssistantExtended = useStore(state => state.toggleAIAssistantExtended);
   const aiMessages = useStore(state => state.aiMessages);
-  const aiApiKey = useStore(state => state.aiApiKey);
-  const aiModel = useStore(state => state.aiModel);
-  const setAIModel = useStore(state => state.setAIModel);
   const stopAIGeneration = useStore(state => state.stopAIGeneration);
   const openModal = useStore(state => state.openModal);
   const sendAIMessage = useStore(state => state.sendAIMessage);
   const clearAIChat = useStore(state => state.clearAIChat);
   const isAILoading = useStore(state => state.isAILoading);
-  const aiRuntime = useStore(state => state.aiRuntime);
-  const setAIRuntime = useStore(state => state.setAIRuntime);
-  const localEndpoint = useStore(state => state.localEndpoint);
-  const localModel = useStore(state => state.localModel);
-  const localModels = useStore(state => state.localModels);
-  const setLocalModel = useStore(state => state.setLocalModel);
-  const fetchLocalModels = useStore(state => state.fetchLocalModels);
   const activeEntityId = useStore(state => state.activeEntityId);
   const updateEntityContent = useStore(state => state.updateEntityContent);
-  const checkLocalStatus = useStore(state => state.checkLocalStatus);
-  const aiCloudModels = useStore(state => state.aiCloudModels);
-  const priorityModels = useStore(state => state.priorityModels);
-  const aiRoutingMode = useStore(state => state.aiRoutingMode);
-  const setAIRoutingMode = useStore(state => state.setAIRoutingMode);
-  const hybridManualModel = useStore(state => state.hybridManualModel);
-  const setHybridManualModel = useStore(state => state.setHybridManualModel);
-  const aiFlowrMode = useStore(state => state.aiFlowrMode);
-  const aiGemmaMode = useStore(state => state.aiGemmaMode);
-  const aiFlowrManualId = useStore(state => state.aiFlowrManualId);
-  const aiGemmaManualId = useStore(state => state.aiGemmaManualId);
-  const setAIFlowrMode = useStore(state => state.setAIFlowrMode);
-  const setAIGemmaMode = useStore(state => state.setAIGemmaMode);
-  const setAIFlowrManualId = useStore(state => state.setAIFlowrManualId);
-  const setAIGemmaManualId = useStore(state => state.setAIGemmaManualId);
-  const flowRouterConfig = useStore(state => state.flowRouterConfig);
 
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isHoveringToggle, setIsHoveringToggle] = useState(false);
+  const [, setIsHoveringToggle] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [attachments, setAttachments] = useState<AIAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [showHybridPicker, setShowHybridPicker] = useState(false);
-  const [showLocalPicker, setShowLocalPicker] = useState(false);
   const [isScrollable, setIsScrollable] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -81,49 +54,9 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   } = useVoiceRecorder();
   const [showMicSettings, setShowMicSettings] = useState(false);
   const [micSettingsPos, setMicSettingsPos] = useState({ x: 0, y: 0 });
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [, setIsTranscribing] = useState(false);
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
-  const isHybrid = aiModel === 'flowr/hybrid-free';
-  const cloudModels = useMemo(() => aiCloudModels.filter(m => !m.isDisabled), [aiCloudModels]);
-  const isFreeModel = aiModel?.includes(':free') || aiModel?.startsWith('flowr/');
-  const isKeyRequired = aiRuntime === 'cloud' && !aiApiKey && !isFreeModel;
-
-  const groupedRouterModels = useMemo(() => {
-    if (!flowRouterConfig?.categories) return {};
-
-    const allModels: Record<string, any> = {};
-    flowRouterConfig.categories.forEach(cat => {
-      if (cat.hidden) return;
-      cat.models.forEach(m => {
-        if (!allModels[m.id]) {
-          allModels[m.id] = { ...m, categoryLabel: cat.label };
-        }
-      });
-    });
-
-    const grouped: Record<string, any[]> = {};
-    Object.values(allModels).forEach(m => {
-      const provider = (m.provider || 'other').toUpperCase();
-      if (!grouped[provider]) grouped[provider] = [];
-      grouped[provider].push(m);
-    });
-
-    const order = ['GROQ', 'GEMINI', 'GOOGLE', 'OPENROUTER', 'LOCAL'];
-    const sortedGroups: Record<string, any[]> = {};
-    Object.keys(grouped)
-      .sort((a, b) => {
-        const idxA = order.indexOf(a);
-        const idxB = order.indexOf(b);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA !== -1) return -1;
-        if (idxB !== -1) return 1;
-        return a.localeCompare(b);
-      })
-      .forEach(key => { sortedGroups[key] = grouped[key]; });
-
-    return sortedGroups;
-  }, [flowRouterConfig]);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -172,14 +105,6 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
       window.removeEventListener('resize', checkScrollability);
     };
   }, [checkScrollability, isAILoading]);
-
-  useEffect(() => {
-    if (isAIAssistantOpen && aiRuntime === 'local') {
-      checkLocalStatus();
-      const interval = setInterval(() => checkLocalStatus(), 8000);
-      return () => clearInterval(interval);
-    }
-  }, [isAIAssistantOpen, aiRuntime, checkLocalStatus]);
 
   // Handle click outside for floating mode
   useEffect(() => {
@@ -260,8 +185,17 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           formData.append('file', blob, 'recording.webm');
           formData.append('model', 'whisper-large-v3-turbo');
 
+          const headers: Record<string, string> = {};
+          if (isSupabaseEnabled) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          }
+
           const response = await fetch('/api/groq/transcribe', {
             method: 'POST',
+            headers,
             body: formData
           });
 
@@ -446,10 +380,10 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               <h1 className="text-[26px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Pro", serif' }}>
                 AI Agent
               </h1>
-              <div className={clsx("w-1.5 h-1.5 rounded-full mt-1 shadow-[0_0_8px_rgba(34,197,94,0.4)]", (isMounted && (aiRuntime === 'local' || aiApiKey || isFreeModel)) ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
+              <div className={clsx("w-1.5 h-1.5 rounded-full mt-1 shadow-[0_0_8px_rgba(34,197,94,0.4)]", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
             </div>
             <p className="text-[10px] font-bold text-bone-30 tracking-[0.1em] uppercase mt-1">
-              {aiModel.split('/').pop()?.replace(/:free$/, '').split(/[-_]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') || 'Standard Model'}
+              Flowr AI
             </p>
           </div>
 
@@ -517,7 +451,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           <div ref={messagesEndRef} className={clsx("shrink-0", aiMessages.length > 0 ? "h-6" : "h-0")} />
         </div>
 
-        <div className={clsx("relative h-0 overflow-visible z-[100]", (!isScrollable || showHybridPicker) && "hidden")}>
+        <div className={clsx("relative h-0 overflow-visible z-[100]", !isScrollable && "hidden")}>
           <div className="absolute bottom-6 right-6 flex flex-col gap-1.5 pointer-events-none">
             <button
               onClick={() => {
@@ -682,201 +616,9 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             </button>
 
             <div className="flex items-center gap-2 ml-auto min-w-0">
-              <button
-                onClick={() => setAIRuntime(aiRuntime === 'local' ? 'cloud' : 'local')}
-                className="flex-shrink-0 flex items-center gap-2 px-3 h-8 rounded-full border bg-bone-6 border-bone-6 text-bone-60 font-semibold hover:text-foreground"
-              >
-                <span className="text-[11px] tracking-tight">
-                  {aiRuntime === 'local' ? 'Local' : 'Cloud'}
-                </span>
-              </button>
-
-              <div className="relative min-w-0">
-                <button
-                  onClick={() => setShowHybridPicker(p => !p)}
-                  className="max-w-[140px] flex items-center gap-1.5 px-3 h-8 rounded-full bg-bone-6 border border-bone-6 text-[11px] font-semibold text-bone-60 hover:text-foreground group"
-                >
-                  <StarIcon className="w-3 h-3 text-bone-60 group-hover:text-bone-100" />
-                  <span
-                    className="max-w-[75px] text-fade"
-                  >
-                    {aiRuntime === 'local'
-                      ? (localModel || 'Select Local Model')
-                      : aiModel === 'flowr/flow-1.0'
-                        ? (aiFlowrMode === 'auto' ? 'Flowr Router' : priorityModels.find(m => m.id === aiFlowrManualId)?.name || 'Flowr Manual')
-                        : aiModel === 'flowr/gemma4-hybrid'
-                          ? (aiGemmaMode === 'auto' ? 'Gemma 4 Hybrid' : (aiGemmaManualId.includes('31b') ? 'Gemma 31B' : 'Gemma 26B'))
-                          : (cloudModels.find(m => m.id === aiModel)?.label || aiModel.split('/').pop()?.replace(/-/g, ' '))}
-                  </span>
-                  <ChevronUp strokeWidth={2} className={clsx("w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100", showHybridPicker ? "" : "rotate-180")} />
-                </button>
-
-                {showHybridPicker && (
-                  <div className="absolute bottom-full mb-3 right-0 w-80 bg-[#121213] border border-white/10 rounded-2xl overflow-hidden z-[110]">
-                    <div className="p-3 space-y-4 max-h-[480px] overflow-y-auto scrollbar-hide">
-                      {aiRuntime === 'local' ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between px-1 mb-1">
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/30">Local Models (Ollama)</span>
-                            <button onClick={fetchLocalModels} className="text-[8px] font-black text-accent hover:underline uppercase tracking-wider">Refresh</button>
-                          </div>
-                          {localModels.length === 0 ? (
-                            <div className="text-[10px] text-muted-foreground/40 text-center py-4 italic">No local models found. Make sure Ollama is running at {localEndpoint}.</div>
-                          ) : (
-                            <div className="grid grid-cols-1 gap-1">
-                              {localModels.map(mName => (
-                                <button
-                                  key={mName}
-                                  onClick={() => { setLocalModel(mName); setShowHybridPicker(false); }}
-                                  className={clsx(
-                                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left border",
-                                    localModel === mName ? "bg-[#1a1a1b] border-white/15" : "bg-white/[0.02] border-white/5 hover:bg-hover hover:border-white/10"
-                                  )}
-                                >
-                                  <div className={clsx(
-                                    "p-1.5 rounded-lg",
-                                    localModel === mName ? "bg-accent/20 text-accent" : "bg-white/5 text-muted-foreground/40"
-                                  )}>
-                                    <Zap strokeWidth={2} className="w-3.5 h-3.5" />
-                                  </div>
-                                  <div className="flex-1 overflow-hidden">
-                                    <div className="text-[12px] font-bold text-foreground">{mName}</div>
-                                    <div className="text-[10px] text-muted-foreground/50">Local Instance</div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between px-1 mb-1">
-                              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/30">Flowr Router</span>
-                              <div className="flex bg-black p-0.5 rounded-full border border-white/5">
-                                <button
-                                  onClick={() => setAIFlowrMode('auto')}
-                                  className={clsx("px-2.5 py-0.5 rounded-full text-[8px] font-black", aiFlowrMode === 'auto' ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground/40 hover:text-white")}
-                                >AUTO</button>
-                                <button
-                                  onClick={() => setAIFlowrMode('manual')}
-                                  className={clsx("px-2.5 py-0.5 rounded-full text-[8px] font-black", aiFlowrMode === 'manual' ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground/40 hover:text-white")}
-                                >MANUAL</button>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => { setAIModel('flowr/flow-1.0'); setShowHybridPicker(false); }}
-                              className={clsx(
-                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left group border",
-                                aiModel === 'flowr/flow-1.0' ? "bg-[#1a1a1b] border-white/15" : "bg-white/[0.02] border-white/5 hover:bg-hover hover:border-white/10"
-                              )}
-                            >
-                              <div className={clsx(
-                                "p-1.5 rounded-lg",
-                                aiModel === 'flowr/flow-1.0' ? "bg-accent/20 text-accent" : "bg-white/5 text-muted-foreground/40"
-                              )}>
-                                <StarIcon className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="flex-1 overflow-hidden">
-                                <div className="text-[12px] font-bold text-foreground">Flow 1.0 (Intelligent)</div>
-                                <div className="text-[10px] text-muted-foreground/50">Hybrid routing via high-speed endpoints</div>
-                              </div>
-                            </button>
-
-                            {aiFlowrMode === 'manual' && (
-                              <div className="space-y-4 pt-1">
-                                {Object.entries(groupedRouterModels).map(([provider, models]) => (
-                                  <div key={provider} className="space-y-1">
-                                    <div className="flex items-center gap-2 px-3">
-                                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-accent/50">{provider}</span>
-                                      <div className="h-px flex-1 bg-white/5" />
-                                    </div>
-                                    <div className="grid grid-cols-1 px-1">
-                                      {models.map((m) => (
-                                        <button
-                                          key={m.id}
-                                          onClick={() => { setAIFlowrManualId(m.id); setAIModel('flowr/flow-1.0'); setShowHybridPicker(false); }}
-                                          className={clsx(
-                                            "w-full px-3 py-1.5 rounded-lg text-left text-[11px] flex items-center justify-between group/item",
-                                            aiFlowrManualId === m.id && aiModel === 'flowr/flow-1.0'
-                                              ? "bg-white/5 text-white"
-                                              : "text-muted-foreground/50 hover:text-foreground hover:bg-hover"
-                                          )}
-                                        >
-                                          <span className="truncate font-medium">{m.label}</span>
-                                          {aiFlowrManualId === m.id && aiModel === 'flowr/flow-1.0' && (
-                                            <div className="w-1 h-1 rounded-full bg-accent" />
-                                          )}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-2 pt-2 border-t border-white/5">
-                            <div className="flex items-center justify-between px-1 mb-1">
-                              <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground/30">Gemma Studio</span>
-                              <div className="flex bg-black p-0.5 rounded-full border border-white/5">
-                                <button
-                                  onClick={() => setAIGemmaMode('auto')}
-                                  className={clsx("px-2.5 py-0.5 rounded-full text-[8px] font-black", aiGemmaMode === 'auto' ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground/40 hover:text-white")}
-                                >AUTO</button>
-                                <button
-                                  onClick={() => setAIGemmaMode('manual')}
-                                  className={clsx("px-2.5 py-0.5 rounded-full text-[8px] font-black", aiGemmaMode === 'manual' ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground/40 hover:text-white")}
-                                >MANUAL</button>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => { setAIModel('flowr/gemma4-hybrid'); setShowHybridPicker(false); }}
-                              className={clsx(
-                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left group border",
-                                aiModel === 'flowr/gemma4-hybrid' ? "bg-[#1a1a1b] border-white/15" : "bg-white/[0.02] border-white/5 hover:bg-hover hover:border-white/10"
-                              )}
-                            >
-                              <div className={clsx(
-                                "p-1.5 rounded-lg",
-                                aiModel === 'flowr/gemma4-hybrid' ? "bg-accent/20 text-accent" : "bg-white/5 text-muted-foreground/40"
-                              )}>
-                                <StarIcon className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="flex-1 overflow-hidden">
-                                <div className="text-[12px] font-bold text-foreground">Gemma 4 Hybrid</div>
-                                <div className="text-[10px] text-muted-foreground/50">Gemma Studio (31B/26B dynamic)</div>
-                              </div>
-                            </button>
-
-                            {aiGemmaMode === 'manual' && (
-                              <div className="flex gap-1 px-1 mt-1">
-                                {[
-                                  { id: 'google/gemma-4-31b-it:free', label: '31B (INTELLIGENT)' },
-                                  { id: 'google/gemma-4-26b-a4b-it:free', label: '26B (FAST)' }
-                                ].map((m, idx) => (
-                                  <button
-                                    key={m.id || `gemma-manual-${idx}`}
-                                    onClick={() => { setAIGemmaManualId(m.id); setAIModel('flowr/gemma4-hybrid'); setShowHybridPicker(false); }}
-                                    className={clsx(
-                                      "flex-1 px-3 py-1.5 rounded-lg text-center text-[10px] flex flex-col items-center gap-0.5",
-                                      aiGemmaManualId === m.id && aiModel === 'flowr/gemma4-hybrid'
-                                        ? "bg-white/5 text-white"
-                                        : "bg-white/[0.02] text-muted-foreground/40 hover:text-foreground hover:bg-hover"
-                                    )}
-                                  >
-                                    <span className="font-black uppercase tracking-tight">{m.label.split(' ')[0]}</span>
-                                    <span className="text-[7px] opacity-40 font-bold">{m.label.split(' ')[1]}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-bone-6 border border-bone-6 text-[11px] font-semibold text-bone-60">
+                <StarIcon className="w-3 h-3 text-bone-60" />
+                <span>Flowr AI</span>
               </div>
             </div>
           </div>

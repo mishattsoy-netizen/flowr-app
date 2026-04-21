@@ -6,6 +6,7 @@ import {
   upsertTask,
   deleteTaskFromDB,
 } from '@/lib/sync';
+import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 
 // Re-export all types so all consumers import paths remain valid
 export type {
@@ -24,17 +25,14 @@ export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 
 // Internal type imports (used within this file's store implementation)
 import type {
-  Entity, EditorBlock, AIMessage, FlowIntentCategory,
-  FlowRouterConfig, AppState, Workspace, WidgetConfig,
+  Entity, EditorBlock, AIMessage,
+  AppState, Workspace, WidgetConfig,
 } from './store.types';
 
+
 import {
-  DEFAULT_FLOW_ROUTER_CONFIG, FLOW_ROUTER_VERSION,
-  PRIORITY_MODELS, INITIAL_CLOUD_MODELS
-} from './store.constants';
-import {
-  generateId, getDescendantIds, classifyIntent, validateNoteContent,
-  extractTextualToolCalls, robustParseJSON, markdownToBlocks, blocksToMarkdown
+  generateId, getDescendantIds, validateNoteContent,
+  robustParseJSON, markdownToBlocks, blocksToMarkdown
 } from './store.helpers';
 
 // ─── Store ─────── (types/constants/helpers moved to store.types.ts / store.constants.ts / store.helpers.ts) ───
@@ -124,86 +122,19 @@ export const useStore = create<AppState>()(
       defaultDashboardLayout: DEFAULT_DASHBOARD_LAYOUT,
       isDashboardEditing: false,
       aiMessages: [],
-      aiRuntime: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_runtime') as 'cloud' | 'local') || 'cloud',
       aiApiKey: null,
-      aiGeminiKey: null,
-      aiGeminiKeys: (typeof window !== 'undefined' ? (() => { try { return JSON.parse(localStorage.getItem('flowr_gemini_keys') || '[]'); } catch { return []; } })() : []),
-      aiGeminiKeyIndex: 0,
-      geminiQuotaModels: [
-        'gemini-2.5-flash',
-        'gemini-3.1-flash-lite',
-        'gemini-2.5-pro',
-      ],
-      geminiModelIndex: 0,
-      aiGroqKey: null,
-      aiModel: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_model')) || 'flowr/hybrid-free',
       imageProvider: (typeof window !== 'undefined' && localStorage.getItem('flowr_image_provider') as 'pollinations' | 'puter') || 'pollinations',
       isAIAssistantOpen: false,
       isAIAssistantExtended: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_extended') === 'true'),
       isAILoading: false,
-      localEndpoint: 'http://127.0.0.1:11434',
-      localModel: 'qwen3.5:9b',
-      localModels: [],
       aiCursor: null,
       aiBehaviorMode: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_behavior') as 'fast' | 'thinking' | 'auto') || 'auto',
-      aiRoutingMode: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_model')) === 'flowr/hybrid-free' ? 'hybrid' : 'manual',
-      hybridManualModel: null,
-      flowRouterConfig: (typeof window !== 'undefined' ? (() => {
-        try {
-          const s = localStorage.getItem('flowr_flow_router');
-          if (!s) return JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG));
-          const stored = JSON.parse(s);
-          // Version mismatch → wipe stale config, use fresh defaults
-          if (stored.version !== FLOW_ROUTER_VERSION) {
-            localStorage.removeItem('flowr_flow_router');
-            return JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG));
-          }
-          return stored;
-        } catch { return JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG)); }
-      })() : JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG))),
-      priorityModels: JSON.parse(JSON.stringify(PRIORITY_MODELS)),
-      aiCloudModels: JSON.parse(JSON.stringify(INITIAL_CLOUD_MODELS)),
-      aiRequestLog: [],
-      isAdminPanelOpen: false,
-      isLocalEnabled: true,
-      isLocalOnline: false,
-
-      aiFlowrMode: 'auto',
-      aiGemmaMode: 'auto',
-      aiFlowrManualId: 'meta-llama/llama-3.3-70b-instruct:free',
-      aiGemmaManualId: 'google/gemma-4-31b-it:free',
-      aiProjectQuotas: {},
-      geminiQuotaLink: 'https://aistudio.google.com/app/plan',
       aiAbortController: null,
-      aiGeminiKeyConfigs: [],
 
       // ─── Actions ─────────────────────────────────────────
-      setIsAdminPanelOpen: (open) => set({ isAdminPanelOpen: open }),
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
       setIsDashboardEditing: (editing) => set({ isDashboardEditing: editing }),
       resetDashboardLayout: () => set((s) => ({ dashboardLayout: s.defaultDashboardLayout })),
-      syncProjectQuotas: (data) => set((s) => ({
-        aiProjectQuotas: { ...s.aiProjectQuotas, [data.projectId]: data }
-      })),
-      setAiGeminiKeyConfigs: (aiGeminiKeyConfigs) => set({ aiGeminiKeyConfigs }),
-      setIsLocalEnabled: (enabled) => set({ isLocalEnabled: enabled }),
-      setGeminiQuotaLink: (link) => set({ geminiQuotaLink: link }),
-
-      logAIRequest: (entry) => set(state => ({
-        aiRequestLog: [
-          {
-            ...entry,
-            id: entry.id || crypto.randomUUID(),
-            timestamp: new Date().toISOString()
-          },
-          ...state.aiRequestLog
-        ].slice(0, 500)
-      })),
-
-      setAIFlowrMode: (mode) => set({ aiFlowrMode: mode }),
-      setAIGemmaMode: (mode) => set({ aiGemmaMode: mode }),
-      setAIFlowrManualId: (id) => set({ aiFlowrManualId: id }),
-      setAIGemmaManualId: (id) => set({ aiGemmaManualId: id }),
 
       stopAIGeneration: () => {
         const { aiAbortController } = get();
@@ -226,18 +157,6 @@ export const useStore = create<AppState>()(
           tags: []
         });
       },
-
-      updateCloudModel: (index, updates) => set(state => {
-        const models = [...state.aiCloudModels];
-        models[index] = { ...models[index], ...updates };
-        return { aiCloudModels: models };
-      }),
-
-      updatePriorityModel: (index, updates) => set(state => {
-        const models = [...state.priorityModels];
-        models[index] = { ...models[index], ...updates };
-        return { priorityModels: models };
-      }),
 
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setInterfaceSize: (interfaceSize) => set({ interfaceSize }),
@@ -292,92 +211,6 @@ export const useStore = create<AppState>()(
         else localStorage.removeItem('flowr_ai_key');
         set({ aiApiKey });
       },
-      setAiGeminiKey: (aiGeminiKey) => {
-        if (aiGeminiKey) localStorage.setItem('flowr_gemini_key', aiGeminiKey);
-        else localStorage.removeItem('flowr_gemini_key');
-        set({ aiGeminiKey });
-      },
-      setAiGeminiKeys: (keys) => {
-        const clean = keys.map(k => k.trim()).filter(Boolean).slice(0, 5);
-        localStorage.setItem('flowr_gemini_keys', JSON.stringify(clean));
-        // Also keep the primary key in sync with slot 0
-        if (clean[0]) localStorage.setItem('flowr_gemini_key', clean[0]);
-        set({ aiGeminiKeys: clean, aiGeminiKey: clean[0] ?? null, aiGeminiKeyIndex: 0 });
-      },
-      rotateGeminiKey: () => {
-        const state = get();
-        const keys = state.aiGeminiKeys.length > 0 ? state.aiGeminiKeys : (state.aiGeminiKey ? [state.aiGeminiKey] : []);
-        if (keys.length <= 1) return;
-
-        let nextIndex = (state.aiGeminiKeyIndex + 1) % keys.length;
-
-        // Smart Rotation: Look ahead for a key with quota
-        for (let i = 0; i < keys.length; i++) {
-          const candidateIdx = (state.aiGeminiKeyIndex + i + 1) % keys.length;
-          const key = keys[candidateIdx];
-          const config = state.aiGeminiKeyConfigs?.find(c => c.key === key);
-
-          if (config?.projectId) {
-            const quota = state.aiProjectQuotas[config.projectId];
-            if (quota) {
-              const isExhausted = quota.quotas.every(q => {
-                const u = parseInt(q.usage.replace(/,/g, '')) || 0;
-                const l = parseInt(q.limit.replace(/,/g, '')) || 1;
-                return u >= l;
-              });
-              if (!isExhausted) {
-                nextIndex = candidateIdx;
-                break;
-              }
-            } else {
-              nextIndex = candidateIdx; // No quota data yet, assume fresh
-              break;
-            }
-          } else {
-            nextIndex = candidateIdx; // Not linked, assume fresh
-            break;
-          }
-        }
-
-        console.warn(`[Flowr AI] Gemini quota hit - rotating key ${state.aiGeminiKeyIndex} → ${nextIndex}`);
-        set({ aiGeminiKeyIndex: nextIndex, aiGeminiKey: keys[nextIndex] });
-      },
-      setAiGeminiKeyIndex: (index) => {
-        const state = get();
-        const keys = state.aiGeminiKeys.length > 0 ? state.aiGeminiKeys : (state.aiGeminiKey ? [state.aiGeminiKey] : []);
-        if (index < 0 || index >= keys.length) return;
-        set({ aiGeminiKeyIndex: index, aiGeminiKey: keys[index] });
-      },
-      rotateGeminiModel: () => {
-        const state = get();
-        const nextIndex = (state.geminiModelIndex + 1) % state.geminiQuotaModels.length;
-        console.warn(`[Flowr AI] Gemini model quota hit — rotating model ${state.geminiQuotaModels[state.geminiModelIndex]} → ${state.geminiQuotaModels[nextIndex]}`);
-        set({ geminiModelIndex: nextIndex });
-      },
-      setGeminiModelIndex: (index) => {
-        const state = get();
-        if (index < 0 || index >= state.geminiQuotaModels.length) return;
-        set({ geminiModelIndex: index });
-      },
-      setAiGroqKey: (aiGroqKey) => {
-        if (aiGroqKey) localStorage.setItem('flowr_groq_key', aiGroqKey);
-        else localStorage.removeItem('flowr_groq_key');
-        set({ aiGroqKey });
-      },
-      setAIModel: (model) => {
-
-        localStorage.setItem('flowr_ai_model', model);
-        // Hybrid uses our custom priority pool, others use manual with possible fallback
-        const mode = model === 'flowr/hybrid-free' ? 'hybrid' : 'manual';
-        set({
-          aiModel: model,
-          aiRoutingMode: mode
-        });
-      },
-      setImageProvider: (provider: string) => {
-        // Legacy cleanup: set was only used for pollinations/puter
-        set({});
-      },
       toggleAIAssistant: () => set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),
       setAIAssistantOpen: (open) => set({ isAIAssistantOpen: open }),
       clearAIChat: () => set({ aiMessages: [] }),
@@ -392,218 +225,9 @@ export const useStore = create<AppState>()(
           return { isAIAssistantExtended: newState };
         });
       },
-      setAIRuntime: (runtime) => {
-        localStorage.setItem('flowr_ai_runtime', runtime);
-        set({ aiRuntime: runtime });
-      },
-      setLocalEndpoint: (localEndpoint) => {
-        localStorage.setItem('flowr_local_endpoint', localEndpoint);
-        set({ localEndpoint });
-      },
-      setLocalModel: (localModel) => {
-        localStorage.setItem('flowr_local_model', localModel);
-        set({ localModel });
-      },
-      fetchLocalModels: async () => {
-        if (!get().isLocalEnabled) return;
-        try {
-          const target = `${get().localEndpoint.replace(/\/$/, '')}/api/tags`;
-          const response = await fetch(`/api/local`, {
-            headers: { 'x-target-url': target }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const models = (data.models || []).map((m: any) => m.name);
-            set({ localModels: models, isLocalOnline: true });
-          } else {
-            set({ isLocalOnline: false });
-          }
-        } catch (e) {
-          set({ localModels: [], isLocalOnline: false });
-        }
-      },
-      checkLocalStatus: async () => {
-        if (!get().isLocalEnabled) {
-          set({ isLocalOnline: false });
-          return;
-        }
-        try {
-          // Fast ping to the tags endpoint via proxy
-          const target = `${get().localEndpoint.replace(/\/$/, '')}/api/tags`;
-          const response = await fetch(`/api/local`, {
-            headers: { 'x-target-url': target }
-          });
-          const online = response.ok;
-          set({ isLocalOnline: online });
-
-          // If we just came online or models are empty, fetch them
-          if (online && get().localModels.length === 0) {
-            get().fetchLocalModels();
-          }
-        } catch (e) {
-          set({ isLocalOnline: false });
-        }
-      },
       setAIBehaviorMode: (aiBehaviorMode) => {
         localStorage.setItem('flowr_ai_behavior', aiBehaviorMode);
         set({ aiBehaviorMode });
-      },
-      setAIRoutingMode: (mode) => set({ aiRoutingMode: mode }),
-      setHybridManualModel: (hybridManualModel) => set({ hybridManualModel }),
-      setFlowRouterEnabled: (enabled) => set((s) => {
-        const next = { ...s.flowRouterConfig, enabled };
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        return { flowRouterConfig: next };
-      }),
-      setFlowPreferKeyRotation: (preferKeyRotation) => set((s) => {
-        const next = { ...s.flowRouterConfig, preferKeyRotation };
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        return { flowRouterConfig: next };
-      }),
-      updateFlowCategory: (key, models) => set((s) => {
-        const next = { ...s.flowRouterConfig, categories: s.flowRouterConfig.categories.map(c => c.key === key ? { ...c, models } : c) };
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        return { flowRouterConfig: next };
-      }),
-      toggleFlowModel: (categoryKey, modelId, enabled) => set((s) => {
-        const next = { ...s.flowRouterConfig, categories: s.flowRouterConfig.categories.map(c => c.key === categoryKey ? { ...c, models: c.models.map(m => m.id === modelId ? { ...m, enabled } : m) } : c) };
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        return { flowRouterConfig: next };
-      }),
-      reorderFlowModels: (categoryKey, models) => set((s) => {
-        const next = { ...s.flowRouterConfig, categories: s.flowRouterConfig.categories.map(c => c.key === categoryKey ? { ...c, models } : c) };
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        return { flowRouterConfig: next };
-      }),
-      getDailyUsageForModel: (modelId) => {
-        const state = get();
-        const today = new Date().toISOString().split('T')[0];
-        return state.aiRequestLog.filter(log =>
-          log.model === modelId &&
-          log.status === 'success' &&
-          log.timestamp.startsWith(today)
-        ).length;
-      },
-      setFlowRouterConfig: (next: FlowRouterConfig) => {
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        set({ flowRouterConfig: next });
-        import('@/lib/sync').then(m => m.upsertSetting('flow-router-config', next));
-      },
-      resetFlowRouterCategory: (categoryKey) => set(state => {
-        const defaultCategory = DEFAULT_FLOW_ROUTER_CONFIG.categories.find(c => c.key === categoryKey);
-        if (!defaultCategory) return state;
-
-        const next = {
-          ...state.flowRouterConfig,
-          categories: state.flowRouterConfig.categories.map(c =>
-            c.key === categoryKey ? { ...c, models: JSON.parse(JSON.stringify(defaultCategory.models)) } : c
-          )
-        };
-
-        localStorage.setItem('flowr_flow_router', JSON.stringify(next));
-        import('@/lib/sync').then(m => m.upsertSetting('flow-router-config', next));
-        return { flowRouterConfig: next };
-      }),
-      resetFlowRouterConfig: () => {
-        const next = JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG));
-        get().setFlowRouterConfig(next);
-      },
-      resetAIConfiguration: () => {
-        // Factory Reset AI
-        localStorage.removeItem('flowr_ai_key');
-        localStorage.removeItem('flowr_gemini_key');
-        localStorage.removeItem('flowr_gemini_keys');
-        localStorage.removeItem('flowr_groq_key');
-        localStorage.removeItem('flowr_ai_model');
-        localStorage.removeItem('flowr_flow_router');
-        localStorage.removeItem('flowr_ai_behavior');
-
-        set({
-          aiApiKey: null,
-          aiGeminiKey: null,
-          aiGeminiKeys: [],
-          aiGeminiKeyIndex: 0,
-          aiGroqKey: null,
-          aiModel: 'flowr/hybrid-free',
-          aiBehaviorMode: 'auto',
-          aiRoutingMode: 'hybrid',
-          flowRouterConfig: JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG)),
-          aiRequestLog: []
-        });
-      },
-      updateModelStatus: (id, status) => set((s) => ({
-        priorityModels: s.priorityModels.map(m => m.id === id ? { ...m, status } : m)
-      })),
-      refreshModelStatus: async () => {
-        const apiKey = get().aiApiKey || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
-        if (!apiKey) {
-          set((s) => ({
-            priorityModels: s.priorityModels.map(m => ({ ...m, status: 'offline' }))
-          }));
-          return;
-        }
-        try {
-          const res = await fetch('https://openrouter.ai/api/v1/models', {
-            headers: { 'Authorization': `Bearer ${apiKey}` }
-          });
-          if (!res.ok) throw new Error('Failed to fetch models');
-          const data = await res.json();
-          const available = data.data || [];
-          set((s) => ({
-            priorityModels: s.priorityModels.map(pModel => {
-              const remote = available.find((m: any) => m.id === pModel.id);
-              if (!remote) return { ...pModel, status: 'offline' };
-              const promptPrice = parseFloat(remote.pricing?.prompt || "0");
-              const compPrice = parseFloat(remote.pricing?.completion || "0");
-              if (promptPrice === 0 && compPrice === 0) return { ...pModel, status: 'free' };
-              if (promptPrice > 0 || compPrice > 0) return { ...pModel, status: 'paid' };
-              return { ...pModel, status: 'limited' };
-            })
-          }));
-        } catch (error) {
-          console.error('Error refreshing model status:', error);
-          set((s) => ({
-            priorityModels: s.priorityModels.map(m => ({ ...m, status: 'offline' }))
-          }));
-        }
-      },
-      testAIConnection: async () => {
-        const state = get();
-        const { aiApiKey, aiGeminiKey, aiGroqKey } = state;
-        if (state.aiRuntime === 'cloud' && !aiApiKey && !aiGeminiKey && !aiGroqKey) {
-          return { success: false, message: "No Cloud Keys provided (OpenRouter, Gemini, or Groq)." };
-        }
-        if (state.aiRuntime === 'local') {
-          try {
-            const target = `${state.localEndpoint.replace(/\/$/, '')}/v1/models`;
-            const res = await fetch(`/api/local`, { headers: { 'x-target-url': target } });
-            if (res.ok) return { success: true, message: "Local connection established." };
-            return { success: false, message: "Local endpoint reachable but returned error." };
-          } catch (e) {
-            return { success: false, message: "Local endpoint unreachable." };
-          }
-        }
-
-        // Cloud Test
-        try {
-          if (aiApiKey) {
-            const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${aiApiKey}` }
-            });
-            if (res.ok) return { success: true, message: "OpenRouter connection established." };
-          }
-          if (aiGeminiKey) {
-            // Basic check for Gemini key format or simple ping
-            return { success: true, message: "Gemini Key detected and saved." };
-          }
-          if (aiGroqKey) {
-            return { success: true, message: "Groq Key detected and saved." };
-          }
-          return { success: false, message: "Invalid or missing keys." };
-        } catch (e) {
-          return { success: false, message: "Cloud endpoints unreachable." };
-        }
       },
 
       sendAIMessage: async (content, agentEnabled = false, attachments = []) => {
@@ -622,9 +246,18 @@ export const useStore = create<AppState>()(
         void agentEnabled;
 
         try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          if (isSupabaseEnabled) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          }
+
           const res = await fetch('/api/ai/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ prompt: content }),
           });
 
@@ -1026,16 +659,12 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 14,
+      version: 15,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
         if (version < 7) {
-          state = {
-            ...state,
-            aiCloudModels: INITIAL_CLOUD_MODELS,
-            priorityModels: PRIORITY_MODELS
-          };
+          // v7: legacy model chain migration (no-op for v15+ users)
         }
         if (version < 8) {
           state = {
@@ -1059,27 +688,10 @@ export const useStore = create<AppState>()(
           }
         }
         if (version < 11) {
-          // Synchronize core model lists with current April 2026 global defaults
-          state = {
-            ...state,
-            flowRouterConfig: JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG)),
-            priorityModels: JSON.parse(JSON.stringify(PRIORITY_MODELS)),
-            aiCloudModels: JSON.parse(JSON.stringify(INITIAL_CLOUD_MODELS))
-          };
+          // v11: reset stale model configs (no-op for v15+ users)
         }
         if (version < 12) {
-          // Fix stale model IDs (gemini-3.1-flash-lite → gemini-3.1-flash-lite-preview)
-          // We only reset if the current config seems to be the old one (to avoid overwriting user edits)
-          const currentConfig = state.flowRouterConfig;
-          const hasOldId = JSON.stringify(currentConfig).includes('gemini-3.1-flash-lite');
-
-          if (hasOldId || !currentConfig) {
-            state = {
-              ...state,
-              flowRouterConfig: JSON.parse(JSON.stringify(DEFAULT_FLOW_ROUTER_CONFIG)),
-              priorityModels: JSON.parse(JSON.stringify(PRIORITY_MODELS)),
-            };
-          }
+          // v12: reset stale model IDs (no-op for v15+ users)
         }
         if (version < 13) {
           // Phase 01: introduce Workspace model — assign all existing entities/tasks to ws-personal
@@ -1183,28 +795,8 @@ export const useStore = create<AppState>()(
         dashboardLayout: state.dashboardLayout,
         defaultDashboardLayout: state.defaultDashboardLayout,
         aiMessages: state.aiMessages.slice(-20), // Only persist the last 20 messages to keep disk footprint low
-        aiRuntime: state.aiRuntime,
-        localEndpoint: state.localEndpoint,
-        localModel: state.localModel,
-        aiCloudModels: state.aiCloudModels,
-        priorityModels: state.priorityModels,
-        isLocalEnabled: state.isLocalEnabled,
-        aiRequestLog: state.aiRequestLog.slice(0, 50), // Only persist the last 50 logs to keep disk footprint low
-        aiApiKey: state.aiApiKey,
-        aiGeminiKey: state.aiGeminiKey,
-        aiGeminiKeys: state.aiGeminiKeys,
-        aiGeminiKeyIndex: state.aiGeminiKeyIndex,
-        geminiQuotaModels: state.geminiQuotaModels,
-        geminiModelIndex: state.geminiModelIndex,
-        aiGroqKey: state.aiGroqKey,
-        aiModel: state.aiModel,
         aiBehaviorMode: state.aiBehaviorMode,
-        aiRoutingMode: state.aiRoutingMode,
-        hybridManualModel: state.hybridManualModel,
-        flowRouterConfig: state.flowRouterConfig,
-        aiProjectQuotas: state.aiProjectQuotas,
-        aiGeminiKeyConfigs: state.aiGeminiKeyConfigs,
-        geminiQuotaLink: state.geminiQuotaLink,
+        aiApiKey: state.aiApiKey,
       }),
     }
   )

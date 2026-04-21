@@ -382,7 +382,6 @@ const handleDragEnd = useCallback((event: DragEndEvent) => {
                   />
                 </button>
               </Tooltip>
-              
               <Tooltip content="Tracker">
                 <button
                   onClick={() => setActiveEntityId('tracker')}
@@ -402,6 +401,8 @@ const handleDragEnd = useCallback((event: DragEndEvent) => {
                   />
                 </button>
               </Tooltip>
+
+
 
               <div className="w-8 h-px bg-border my-1" />
 
@@ -483,7 +484,6 @@ const handleDragEnd = useCallback((event: DragEndEvent) => {
                         </div>
                         <span className={clsx("ml-[10px] flex-1 truncate text-left text-[14px] font-medium", activeEntityId === 'dashboard' ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]")}>Dashboard</span>
                       </button>
-
                       {/* Tracker */}
                       <button
                         onClick={() => setActiveEntityId('tracker')}
@@ -501,6 +501,8 @@ const handleDragEnd = useCallback((event: DragEndEvent) => {
                         </div>
                         <span className={clsx("ml-[10px] flex-1 truncate text-left text-[14px] font-medium", activeEntityId === 'tracker' ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]")}>Tracker</span>
                       </button>
+
+
 
 
 

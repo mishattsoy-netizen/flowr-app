@@ -258,3 +258,87 @@ alter table guides enable row level security;
 create policy "guides: owner via workspace" on guides for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
 
 alter publication supabase_realtime add table resources, snippets, guides;
+
+-- ─── Phase 04: Telegram Bot & AI Admin ───────────────────────
+
+create table if not exists limit_presets (
+    id serial primary key,
+    name text not null,
+    daily_msg_limit int default 50,
+    daily_image_limit int default 5,
+    has_vision boolean default true,
+    has_web_search boolean default true,
+    has_image_gen boolean default true,
+    is_default boolean default false,
+    created_at timestamptz default now()
+);
+
+-- Note: We rename `users` to `telegram_users` to avoid conflict with auth.users
+create table if not exists telegram_users (
+    telegram_id bigint primary key,
+    workspace_id text references workspaces(id) on delete set null,
+    username text,
+    access_mode text default 'DEV_POOL', -- 'DEV_POOL' or 'BYOK'
+    encrypted_gemini_key text,
+    iv text,
+    preset_id int references limit_presets(id),
+    messages_used_today int default 0,
+    images_used_today int default 0,
+    is_blocked boolean default false,
+    last_active timestamptz default now()
+);
+
+create table if not exists vault (
+    key_id text primary key, -- e.g., 'GEMINI_PRIMARY', 'HF_TOKEN'
+    encrypted_value text not null,
+    iv text not null,
+    description text,
+    updated_at timestamptz default now()
+);
+
+create table if not exists message_logs (
+    id bigserial primary key,
+    telegram_id bigint references telegram_users(telegram_id),
+    topic_tag text,
+    type text, -- 'text' or 'image'
+    usage_type text default 'chat', -- 'chat' | 'tool' | 'search' | 'vision'
+    role text default 'user', -- 'user' | 'model'
+    content text,
+    created_at timestamptz default now()
+);
+
+create table if not exists router_chains (
+    category text primary key,
+    model_list jsonb not null default '[]',
+    system_prompt text,
+    updated_at timestamptz default now()
+);
+
+alter table telegram_users enable row level security;
+alter table message_logs enable row level security;
+alter table router_chains enable row level security;
+alter table vault enable row level security;
+
+-- Only Admins (Service Role) can manage vault
+create policy "vault: service role only" on vault for all using (false) with check (false);
+
+-- Optional: Allow users to read router chains
+-- ─── Phase 05: Bento Dashboards ─────────────────────────────
+
+create table if not exists bento_layouts (
+  user_id      uuid        not null references auth.users(id) on delete cascade,
+  context_id   text        not null,
+  layout       jsonb       not null default '[]',
+  updated_at   timestamptz not null default now(),
+  primary key (user_id, context_id)
+);
+
+alter table bento_layouts enable row level security;
+
+create policy "bento_layouts: owner full access" 
+  on bento_layouts for all 
+  using (user_id = auth.uid()) 
+  with check (user_id = auth.uid());
+
+alter publication supabase_realtime add table bento_layouts;
+

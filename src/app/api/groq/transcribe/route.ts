@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGroqKey } from '@/lib/supabase-server';
+import { getProviderKeys } from '@/lib/vault';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as Blob;
     const model = formData.get('model') as string || 'whisper-large-v3-turbo';
 
-    const apiKey = await getGroqKey();
+    const keys = await getProviderKeys('GROQ');
+    const apiKey = keys[0] || null;
     if (!apiKey) {
-      return NextResponse.json({ error: "Groq API Key not configured. Add it to app_secrets in Supabase." }, { status: 401 });
+      return NextResponse.json({ error: "Groq API Key not configured. Add it to the Vault in Admin Suite." }, { status: 401 });
     }
     if (!file) {
       return NextResponse.json({ error: "No audio file provided." }, { status: 400 });

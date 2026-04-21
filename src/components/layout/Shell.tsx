@@ -16,7 +16,7 @@ import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
-import { AdminPanel } from '../admin/AdminPanel';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { SmoothScroll } from './SmoothScroll';
@@ -303,7 +303,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {hasHydrated && !isAIAssistantExtended && (
         <AIAssistant key="ai-assistant-floating" isFloating />
       )}
-      <AdminPanel />
+
     </div>
   );
 }

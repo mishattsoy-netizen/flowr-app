@@ -17,26 +17,23 @@ export async function RouterPageContent({ platform }: { platform: 'app' | 'teleg
 
   return (
     <div className="space-y-[10px] animate-in fade-in duration-500">
-      <div className="flex flex-col gap-1.5 mb-2">
-        <h1 className="text-3xl font-bold tracking-tight text-bone-100 font-instrument">Router Orchestration</h1>
-        <p className="text-bone-60 text-[11px] font-bold tracking-tight opacity-60">
-          {platform === 'app' ? 'Web app' : 'Telegram bot'} — real-time switching matrix for multi-agent model chains.
+      <div className="flex flex-col gap-0.5 mb-2">
+        <h1 className="text-3xl font-black tracking-tight text-bone-100 font-instrument text-chromatic">Router Orchestration</h1>
+        <p className="text-bone-60 text-[10px] font-black tracking-[0.05em] opacity-40 uppercase">
+          {platform === 'app' ? 'Web app' : 'Telegram bot'} — multi-agent switching matrix.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-[10px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {routers.map((router: any) => {
           const Icon = CATEGORY_ICONS[router.category] || Cpu
           return (
-            <div key={router.id} className="space-y-[6px]">
-              <div className="flex items-center gap-2.5 px-6 pt-2">
-                <Icon className="w-3.5 h-3.5 text-accent" strokeWidth={1.5} />
-                <h3 className="text-[10px] font-black text-bone-60 tracking-[0.1em] uppercase opacity-50">
-                  {router.category.replace(/_/g, ' ')} Registry
-                </h3>
-              </div>
-              <RouterManager chain={router} />
-            </div>
+            <RouterManager 
+              key={router.id} 
+              chain={router} 
+              title={`${router.category.replace(/_/g, ' ')} Registry`}
+              category={router.category}
+            />
           )
         })}
       </div>

@@ -9,7 +9,7 @@ export async function loadBentoLayout(contextId: string): Promise<BentoLayoutIte
     return local ? JSON.parse(local) : null;
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase!.auth.getUser();
   if (!user) {
     const local = localStorage.getItem(localKey);
     return local ? JSON.parse(local) : null;
@@ -35,7 +35,7 @@ export async function saveBentoLayout(contextId: string, layout: BentoLayoutItem
   localStorage.setItem(localKey, JSON.stringify(layout));
 
   if (!supabase) return;
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase!.auth.getUser();
   if (!user) return;
 
   const { error } = await supabase
