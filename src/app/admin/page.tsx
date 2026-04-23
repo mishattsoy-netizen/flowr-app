@@ -27,9 +27,9 @@ export default async function AdminOverview() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 widget relative overflow-hidden">
-          <h2 className="text-[10px] font-black text-bone-60 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-[10px]">
+        <div className="lg:col-span-2 bg-panel border border-white/5 rounded-big p-6 relative overflow-hidden">
+          <h2 className="text-[10px] font-bold text-bone-60 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
             <div className="w-1 h-1 bg-accent rounded-full" />
             Traffic activity telemetry
           </h2>
@@ -38,8 +38,8 @@ export default async function AdminOverview() {
           </div>
         </div>
 
-        <div className="widget flex flex-col">
-          <h2 className="text-[10px] font-black text-bone-60 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
+        <div className="bg-panel border border-white/5 rounded-big p-6 flex flex-col">
+          <h2 className="text-[10px] font-bold text-bone-60 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
              <div className="w-1 h-1 bg-bone-100 rounded-full" />
              Recent events log
           </h2>
@@ -60,19 +60,19 @@ export default async function AdminOverview() {
 function MetricCard({ title, value, change, icon: Icon, accent = false }: any) {
   return (
     <div className={cn(
-      "p-6 instrument-hover cursor-pointer relative overflow-hidden",
-      accent ? "widget-accent" : "widget"
+      "bg-panel border border-white/5 rounded-big p-5 h-full flex flex-col cursor-pointer relative overflow-hidden transition-all duration-200 hover:bg-[var(--bone-6)]",
+      accent ? "bg-accent/5 border-accent/20" : ""
     )}>
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[10px] font-black text-bone-60 tracking-[0.1em] uppercase opacity-40">{title}</span>
+        <span className="text-[11px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase opacity-40">{title}</span>
         <Icon 
-          className={cn("w-4 h-4", accent ? "text-accent fill-accent/10" : "text-bone-60/40")} 
+          className={cn("w-4 h-4", accent ? "text-accent fill-accent/10" : "text-muted-foreground/40")} 
           strokeWidth={1.5}
         />
       </div>
       <div className="space-y-1">
-        <h3 className={cn("text-3xl font-black tracking-tighter leading-none font-crimson text-chromatic", accent ? "text-accent" : "text-bone-100")}>{value}</h3>
-        <p className="text-[10px] text-bone-60 font-bold tracking-tight opacity-30">{change}</p>
+        <h3 className={cn("text-3xl font-display text-chromatic", accent ? "text-accent" : "text-foreground")}>{value}</h3>
+        <p className="text-[10px] text-muted-foreground font-bold tracking-tight opacity-30">{change}</p>
       </div>
     </div>
   )
@@ -80,9 +80,9 @@ function MetricCard({ title, value, change, icon: Icon, accent = false }: any) {
 
 function EventLog({ message, time }: { message: string, time: string }) {
   return (
-    <div className="flex items-center justify-between text-[11px] font-medium p-2.5 -mx-1.5 rounded-[var(--radius-8)] hover:bg-bone-6 group cursor-pointer transition-all duration-200">
-      <span className="text-bone-60 group-hover:text-bone-100">{message}</span>
-      <span className="text-bone-60 opacity-20 font-mono text-[9px] group-hover:opacity-40 transition-colors">{time}</span>
+    <div className="flex items-center justify-between text-[13px] font-medium p-2.5 -mx-1.5 rounded-lg hover:bg-hover group cursor-pointer transition-all duration-200">
+      <span className="text-muted-foreground group-hover:text-foreground">{message}</span>
+      <span className="text-muted-foreground opacity-20 font-mono text-[10px] group-hover:opacity-40 transition-colors">{time}</span>
     </div>
   )
 }

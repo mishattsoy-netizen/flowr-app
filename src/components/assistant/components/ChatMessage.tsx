@@ -229,7 +229,7 @@ export const ChatMessage = memo(({
             className="max-w-[92%] px-5 py-3 text-[13.5px] leading-relaxed rounded-2xl bg-red-500/5 shadow-lg shadow-red-500/5"
             style={{ background: 'color-mix(in srgb, var(--color-background) 92%, rgb(239 68 68) 8%)' }}
           >
-            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-red-400/60 mb-2">System Alert</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-red-400/60 mb-2">System Alert</p>
             <p className="text-foreground/90 font-medium">{errorText}</p>
           </div>
         </div>

@@ -291,7 +291,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       ) : block.type === 'section' ? (
         <div className="w-full h-full relative">
           <div className="absolute -top-7 left-0 flex items-center gap-1.5 px-2 py-0.5 bg-sidebar rounded-t-lg border border-b-0 border-border">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Frame</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-50">Frame</span>
             <span className="text-xs font-bold truncate max-w-[150px]">{block.content || 'Untitled'}</span>
           </div>
         </div>
@@ -299,7 +299,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         <div className="bg-[var(--bone-10)]/80 backdrop-blur-xl border border-[var(--bone-20)] rounded-2xl p-4 w-full h-full">
           <div className="flex items-center gap-2 mb-3 text-accent">
             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Comment</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Comment</span>
           </div>
           <textarea
             className="w-full bg-transparent text-sm leading-relaxed outline-none resize-none min-h-[80px] text-foreground/80 placeholder:text-muted-foreground/30"

@@ -3,7 +3,7 @@
 import { Entity, EntityType, useStore } from '@/data/store';
 import { FileText, Frame, Layers, Folder, MoreHorizontal, LayoutGrid, List, ArrowDown, Type, Layout } from 'lucide-react';
 import { getEntityIcon } from '@/data/icons';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Tooltip } from '@/components/layout/Tooltip';
 import clsx from 'clsx';
 
@@ -87,18 +87,18 @@ function SortableFileItem({
         setEditingEntityId(child.id, 'widget');
       }}
       className={clsx(
-        "group/item relative flex items-center gap-3 rounded-[var(--radius-medium)] cursor-pointer transition-[background-color,border-color,color,box-shadow,opacity] duration-200",
+        "group/item relative flex items-center gap-3 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-300",
         isGrid 
-          ? "flex-col p-4 bg-[var(--bone-5)] border border-[var(--bone-10)] hover:border-accent hover:shadow-sm" 
+          ? "flex-col p-3 bg-[var(--bone-5)] border border-[var(--bone-10)] hover:border-accent/40 hover:bg-[var(--bone-6)] hover:shadow-lg hover:-translate-y-0.5" 
           : "px-3 py-2 text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
-        activeEntityId === child.id && (isGrid ? "border-accent ring-1 ring-accent/20" : "bg-[var(--bone-6)] text-[var(--bone-100)]")
+        activeEntityId === child.id && (isGrid ? "border-accent bg-[var(--bone-6)] ring-1 ring-accent/20" : "bg-[var(--bone-6)] text-[var(--bone-100)]")
       )}
     >
       <div className={clsx(
-        "shrink-0",
-        isGrid ? "w-10 h-10 flex items-center justify-center bg-[var(--bone-10)] rounded-xl text-accent group-hover/item:scale-110 transition-transform" : ""
+        "shrink-0 transition-transform duration-300",
+        isGrid ? "w-12 h-12 flex items-center justify-center bg-[var(--bone-10)] rounded-xl text-accent group-hover/item:scale-110 group-hover/item:bg-[var(--bone-15)]" : ""
       )}>
-        {getIcon(child.type, isGrid ? "w-6 h-6" : "w-5 h-5 text-[var(--bone-60)] group-hover/item:text-[var(--bone-100)]", child)}
+        {getIcon(child.type, isGrid ? "w-7 h-7" : "w-5 h-5 text-[var(--bone-60)] group-hover/item:text-[var(--bone-100)]", child)}
       </div>
 
       <div className={clsx("min-w-0 flex-1", isGrid ? "text-center w-full" : "text-left")}>
@@ -126,7 +126,7 @@ function SortableFileItem({
             className="bg-[var(--color-panel)] border border-accent rounded px-1 outline-none text-xs font-medium text-foreground w-full py-0.5"
           />
         ) : (
-          <span className={clsx("font-medium truncate block", isGrid ? "text-xs" : "text-sm")}>
+          <span className={clsx("font-medium truncate block transition-colors", isGrid ? "text-[11px]" : "text-sm", activeEntityId === child.id ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover/item:text-[var(--bone-100)]")}>
             {child.title}
           </span>
         )}
@@ -146,7 +146,7 @@ function SortableFileItem({
           }}
           className={clsx(
             "opacity-0 group-hover/item:opacity-100 flex items-center justify-center hover:bg-[var(--bone-10)] rounded-[var(--radius-small)] text-[var(--bone-40)] hover:text-foreground transition-all",
-            isGrid ? "absolute top-2 right-2 w-6 h-6" : "w-7 h-7"
+            isGrid ? "absolute top-1 right-1 w-6 h-6" : "w-7 h-7"
           )}
         >
           <MoreHorizontal className="w-3.5 h-3.5" />
@@ -169,6 +169,11 @@ export function AllFilesWidget({ entity: propEntity, contextId, data, onUpdateDa
 
   const [sortMode, setSortMode] = useState<'modified' | 'alpha' | 'category' | 'manual'>(data?.sortMode || 'modified');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(data?.viewMode || 'grid');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -234,7 +239,7 @@ export function AllFilesWidget({ entity: propEntity, contextId, data, onUpdateDa
     <section className="bg-sidebar border border-[var(--bone-10)] group/widget rounded-[var(--radius-big)] widget-shadow h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-[var(--bone-5)] bg-[var(--color-panel)]/50 backdrop-blur-md sticky top-0 z-10">
-        <h2 className="text-[13px] font-bold text-[var(--bone-40)] uppercase tracking-wider">
+        <h2 className="text-[13px] font-semibold text-[var(--bone-40)] uppercase tracking-wider">
           {entity?.title || 'All Files'}
         </h2>
         
@@ -288,39 +293,70 @@ export function AllFilesWidget({ entity: propEntity, contextId, data, onUpdateDa
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
         {children.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={children.map(c => c.id)}
-              strategy={viewMode === 'grid' ? rectSortingStrategy : undefined}
+          isMounted ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              <div className={clsx(
-                "gap-3",
-                viewMode === 'grid' ? "grid grid-cols-3" : "flex flex-col"
-              )}>
-                {children.map(child => (
-                  <SortableFileItem 
-                    key={child.id}
-                    child={child}
-                    isGrid={viewMode === 'grid'}
-                    activeEntityId={activeEntityId}
-                    setActiveEntityId={setActiveEntityId}
-                    editingEntity={editingEntity}
-                    setEditingEntityId={setEditingEntityId}
-                    renameEntity={renameEntity}
-                    openContextMenu={openContextMenu}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={children.map(c => c.id)}
+                strategy={viewMode === 'grid' ? rectSortingStrategy : undefined}
+              >
+                <div className={clsx(
+                  "gap-3",
+                  viewMode === 'grid' ? "grid grid-cols-[repeat(auto-fill,minmax(90px,1fr))]" : "flex flex-col"
+                )}>
+                  {children.map(child => (
+                    <SortableFileItem 
+                      key={child.id}
+                      child={child}
+                      isGrid={viewMode === 'grid'}
+                      activeEntityId={activeEntityId}
+                      setActiveEntityId={setActiveEntityId}
+                      editingEntity={editingEntity}
+                      setEditingEntityId={setEditingEntityId}
+                      renameEntity={renameEntity}
+                      openContextMenu={openContextMenu}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div className={clsx(
+              "gap-3",
+              viewMode === 'grid' ? "grid grid-cols-[repeat(auto-fill,minmax(90px,1fr))]" : "flex flex-col"
+            )}>
+              {children.map(child => (
+                <div
+                  key={child.id}
+                  className={clsx(
+                    "group/item relative flex items-center gap-3 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-300",
+                    viewMode === 'grid' 
+                      ? "flex-col p-3 bg-[var(--bone-5)] border border-[var(--bone-10)]" 
+                      : "px-3 py-2 text-[var(--bone-60)]"
+                  )}
+                >
+                  <div className={clsx(
+                    "shrink-0",
+                    viewMode === 'grid' ? "w-12 h-12 flex items-center justify-center bg-[var(--bone-10)] rounded-xl text-accent" : ""
+                  )}>
+                    {getIcon(child.type, viewMode === 'grid' ? "w-7 h-7" : "w-5 h-5 text-[var(--bone-60)]", child)}
+                  </div>
+                  <div className={clsx("min-w-0 flex-1", viewMode === 'grid' ? "text-center w-full" : "text-left")}>
+                    <span className={clsx("font-medium truncate block", viewMode === 'grid' ? "text-[11px]" : "text-sm", "text-[var(--bone-60)]")}>
+                      {child.title}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-3 opacity-40">
             <Layout className="w-10 h-10 text-[var(--bone-20)]" />
-            <p className="text-sm text-muted-foreground italic">No files found here</p>
+            <p className="text-sm text-muted-foreground">No files found here</p>
           </div>
         )}
       </div>

@@ -197,10 +197,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* 1. Left Sidebar Section */}
       <div 
         className={clsx(
-          "h-full overflow-hidden shrink-0 flex flex-row relative border-r border-border transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          "h-full overflow-hidden shrink-0 flex flex-row relative border-r border-[var(--bone-15)]",
           currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
         )}
-        style={{ width: currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px` }}
+        style={{ 
+          width: currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px`,
+          transition: (isResizingLeft || isResizingRight) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), border-color 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
       >
         {!currentSidebarCollapsed && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm md:hidden cursor-pointer" onClick={toggleSidebar} />
@@ -219,13 +222,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
               document.body.style.userSelect = 'none';
             }}
             className={clsx(
-              "hidden md:block w-2 h-full cursor-col-resize absolute right-0 top-0 z-50 transition-colors group",
+              "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors group",
               isResizingLeft ? "bg-accent/10" : ""
             )}
           >
             <div className={clsx(
               "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-colors",
-              isResizingLeft ? "bg-accent" : "opacity-0"
+              isResizingLeft ? "bg-accent" : "bg-white/10 opacity-0 group-hover:opacity-100"
             )} />
           </div>
         )}

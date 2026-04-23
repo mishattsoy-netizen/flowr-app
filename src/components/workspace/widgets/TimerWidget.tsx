@@ -100,7 +100,7 @@ export function TimerWidget({ data, onUpdateData }: { data?: any; onUpdateData: 
               />
             </svg>
           )}
-          <span className="text-2xl font-mono text-foreground font-bold tracking-wider">
+          <span className="text-2xl font-mono text-foreground font-semibold tracking-wider">
             {formatTime(seconds)}
           </span>
         </div>

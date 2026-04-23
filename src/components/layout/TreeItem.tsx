@@ -16,9 +16,10 @@ interface TreeItemProps {
   depth: number;
   idOverride?: string;
   isDragOverlay?: boolean;
+  disableNesting?: boolean;
 }
 
-export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride, isDragOverlay }: TreeItemProps) {
+export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride, isDragOverlay, disableNesting }: TreeItemProps) {
   const entities = useStore(state => state.entities);
   const activeEntityId = useStore(state => state.activeEntityId);
   const collapsedIds = useStore(state => state.collapsedIds);
@@ -98,7 +99,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
   const hasChildren = children.length > 0;
   const isPinned = idOverride?.startsWith('pinned-');
-  const isCollapsible = hasChildren && !isPinned;
+  const isCollapsible = hasChildren && !isPinned && !disableNesting;
   const isCollapsed = collapsedIds.includes(entity.id);
   const isActive = activeEntityId === entity.id;
 
@@ -164,7 +165,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             <div 
               onClick={handleChevronClick}
               onPointerDown={(e) => e.stopPropagation()}
-              className="absolute inset-0 -m-1.25 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-[var(--radius-small)] hover:bg-[var(--bone-6)] cursor-pointer"
+              className="absolute inset-0 -m-1.25 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-[var(--radius-small)] hover:bg-[var(--bone-10)] cursor-pointer"
             >
               {isCollapsed 
                 ? <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-60)] group-hover:text-[var(--bone-100)]" /> 
@@ -198,12 +199,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       ref={setNodeRef}
       style={style}
       className={clsx(
-        isWorkspace && "mb-0.5 rounded-[var(--radius-8)] border",
+        isWorkspace && "rounded-[var(--radius-small)] transition-all duration-0",
         isWorkspace && isExpanded && "group/workspace",
-        isWorkspace && blockActive ? "bg-[var(--bone-6)] border-transparent" : "border-transparent",
-        isWorkspace && !blockActive && "hover:bg-[var(--bone-5)]",
-        isDragging && "bg-[var(--bone-6)] rounded-[var(--radius-8)]",
-        isDropTarget && isFolder && "bg-[var(--bone-6)] rounded-[var(--radius-8)]",
         "relative"
       )}
     >
@@ -213,17 +210,19 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         {...listeners}
         data-selected={isActive || undefined}
         className={clsx(
-          "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none",
-          "px-3 rounded-[var(--radius-8)]",
-          isWorkspace ? "py-[3px]" : "py-0.5",
-          isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] hover:text-[var(--bone-100)]",
+          "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0",
+          "px-3 rounded-[var(--radius-small)]",
+          "py-[3px]",
+          isActive 
+            ? "bg-[var(--bone-15)] text-[var(--bone-100)]" 
+            : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
           isWorkspace && !isActive && "group-hover/workspace:text-[var(--bone-100)]",
           isWorkspace ? "text-[14px] font-medium" : "text-[13.5px]",
         )}
-        style={{ paddingLeft: `${depth * 18 + 6}px`, paddingRight: '6px' }}
+        style={{ paddingLeft: `${depth * 18 + 12}px`, paddingRight: '12px' }}
       >
         <div className="w-5 shrink-0 flex items-center justify-center">
-          {getIcon(entity.type)}
+          {(!disableNesting && isCollapsible) ? getIcon(entity.type) : getIcon(entity.type)}
         </div>
 
         {isEditing ? (
@@ -251,14 +250,14 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           {(entity.type === 'workspace' || entity.type === 'collection' || entity.type === 'folder') && (
             <button
                onClick={handlePlusClick}
-               className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+               className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)]"
             >
               <Plus strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
           )}
           <button
              onClick={handleOptionsClick}
-             className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+             className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)]"
           >
             <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -277,7 +276,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         />
       )}
 
-      {children.length > 0 && !isPinned && (
+      {children.length > 0 && !isPinned && !disableNesting && (
         <div 
           className={clsx(
             "grid transition-all duration-100 ease-out",
@@ -285,10 +284,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           )}
         >
           <div className="overflow-hidden">
-            <div className={clsx("relative flex flex-col gap-0.5", isExpanded && "mt-0.5")}>
+            <div className={clsx("relative flex flex-col gap-[3px]", isExpanded && "mt-[3px]")}>
               <div 
-                className="absolute top-0 bottom-0 w-[2px] bg-[var(--bone-10)]" 
-                style={{ left: `${depth * 18 + 15}px` }}
+                className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-10)]" 
+                style={{ left: `${depth * 18 + 14.5}px` }}
               />
               {children.map((child) => (
                 <TreeItem 

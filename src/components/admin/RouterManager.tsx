@@ -250,7 +250,10 @@ export default function RouterManager({
   }
 
   return (
-    <div className="bg-panel border border-white/5 rounded-big relative shadow-lg flex flex-col p-2">
+    <div className={cn(
+      "bg-panel border border-white/5 rounded-big px-5 pb-5 pt-4 h-full flex flex-col relative",
+      hasChanges ? "ring-1 ring-accent/20" : ""
+    )}>
       {/* Integrated Header */}
       {title && (
         <div className="px-2 py-2 mb-1 flex items-center justify-between">
@@ -260,7 +263,7 @@ export default function RouterManager({
                 {React.createElement(CATEGORY_ICONS[category], { className: "w-3 h-3", strokeWidth: 2.5 })}
               </div>
             )}
-            <h3 className="text-[10px] font-black text-bone-100 tracking-[0.1em] uppercase opacity-30">
+            <h3 className="text-[11px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase opacity-40">
               {title}
             </h3>
           </div>
@@ -269,7 +272,7 @@ export default function RouterManager({
 
       <div className="flex flex-col gap-1">
         {models.map((model, index) => (
-          <div key={`${model.id}-${index}`} className="group flex items-center gap-3 px-3 py-2 rounded-medium hover:bg-white/[0.03] transition-all">
+          <div key={`${model.id}-${index}`} className="group flex items-center gap-3 px-3 py-2 rounded-medium hover:bg-[var(--bone-6)] transition-all">
             {/* Left: Model & Provider Pair */}
             <div className="flex-1 min-w-0 flex items-center gap-3">
               <div className={cn("flex-1 min-w-0 flex items-center gap-2", !model.is_enabled && "opacity-25 grayscale")}>
@@ -347,7 +350,7 @@ export default function RouterManager({
       <div className="mt-2 px-2 py-2 flex justify-between items-center border-t border-white/[0.03]">
         <button 
           onClick={addModel}
-          className="text-[9px] flex items-center gap-2 text-bone-60 hover:text-bone-100 hover:bg-white/[0.03] font-bold tracking-[0.02em] px-3 py-1.5 rounded-medium uppercase transition-all"
+          className="text-[9px] flex items-center gap-2 text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] font-bold tracking-[0.02em] px-3 py-1.5 rounded-medium uppercase transition-all"
         >
           <Plus className="w-3 h-3" /> Add node registry
         </button>
@@ -356,17 +359,17 @@ export default function RouterManager({
           <div className="flex items-center gap-4 animate-in slide-in-from-right-2 duration-300">
             <button 
               onClick={() => setModels(chain.model_list)}
-              className="text-[10px] font-black tracking-[0.05em] text-bone-60 hover:text-rose-500 uppercase"
+              className="text-[10px] font-bold tracking-[0.05em] text-bone-60 hover:text-rose-500 uppercase"
             >
               Reset
             </button>
-            <button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-accent text-background px-4 py-1.5 rounded-medium text-[9px] font-bold tracking-[0.02em] hover:brightness-110 shadow-lg uppercase transition-all"
-            >
-              {isSaving ? 'Syncing...' : 'Commit changes'}
-            </button>
+               <button 
+                 onClick={handleSave}
+                 disabled={isSaving}
+                 className="bg-accent text-background px-4 py-1.5 rounded-[var(--radius-medium)] text-[11px] font-bold tracking-wide hover:brightness-110 transition-all uppercase"
+               >
+                 {isSaving ? 'Syncing...' : 'Commit changes'}
+               </button>
           </div>
         )}
       </div>

@@ -285,22 +285,32 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
       {/* Header with view tabs */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <span className="text-sm font-semibold text-foreground">Database</span>
-        <div className="flex items-center bg-background border border-border/50 rounded-full p-0.5">
-          {VIEW_TABS.map(tab => (
-            <button
-              key={tab.type}
-              onClick={() => setViewType(tab.type)}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ",
-                viewType === tab.type
-                  ? "bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+        <div className="relative flex items-center p-0.5 bg-background rounded-[8px] border border-border/50 no-drag min-w-[280px]">
+          {/* Sliding Background Pill */}
+          <div 
+            className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--bone-10)] shadow-sm transition-all duration-300 ease-out"
+            style={{ 
+              left: `calc(${VIEW_TABS.findIndex(t => t.type === viewType) * 25}% + ${VIEW_TABS.findIndex(t => t.type === viewType) === 0 ? '3px' : '1px'})`,
+              width: 'calc(25% - 4px)'
+            }}
+          />
+          
+          {VIEW_TABS.map(tab => {
+            const isActive = viewType === tab.type;
+            return (
+              <button
+                key={tab.type}
+                onClick={() => setViewType(tab.type)}
+                className={clsx(
+                  "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1 rounded-[6px] transition-colors duration-200",
+                  isActive ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.icon}
+                <span className="text-[11px] font-semibold">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

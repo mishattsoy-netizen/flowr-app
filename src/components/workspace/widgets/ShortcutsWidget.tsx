@@ -102,11 +102,11 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
             
             <div className="flex gap-2 justify-end">
               <button onClick={() => setIsAdding(false)} className="text-[10px] text-muted-foreground">Cancel</button>
-              <button onClick={handleAdd} className="text-[10px] text-accent font-bold">Add</button>
+              <button onClick={handleAdd} className="text-[10px] text-accent font-semibold">Add</button>
             </div>
           </div>
         ) : shortcuts.length > 0 ? (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-3">
             {shortcuts.map(s => {
               let Icon = ExternalLink;
               let isInternal = s.type === 'entity';
@@ -126,20 +126,20 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
                         window.open(s.value, '_blank');
                       }
                     }}
-                    className="w-full aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[var(--bone-5)] border border-[var(--bone-10)] hover:border-accent hover:bg-[var(--bone-6)] transition-all duration-200"
+                    className="w-full aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[var(--bone-5)] border border-[var(--bone-10)] hover:border-accent/40 hover:bg-[var(--bone-6)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-[var(--bone-5)] flex items-center justify-center text-accent group-hover/shortcut:scale-110 transition-transform">
-                      <Icon className="w-4 h-4" />
+                    <div className="w-10 h-10 rounded-xl bg-[var(--bone-10)] flex items-center justify-center text-accent group-hover/shortcut:scale-110 group-hover/shortcut:bg-[var(--bone-15)] transition-all duration-300">
+                      <Icon className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-medium text-muted-foreground group-hover/shortcut:text-foreground truncate w-full px-1 text-center">
+                    <span className="text-[10px] font-medium text-[var(--bone-60)] group-hover/shortcut:text-[var(--bone-100)] truncate w-full px-1 text-center transition-colors">
                       {s.label}
                     </span>
                   </button>
                   <button
                     onClick={() => removeShortcut(s.id)}
-                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/shortcut:opacity-100 transition-opacity"
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/90 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/shortcut:opacity-100 transition-all duration-200 shadow-md backdrop-blur-md"
                   >
-                    <X className="w-2.5 h-2.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               );
@@ -148,7 +148,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-2 opacity-40">
             <Layout className="w-8 h-8 text-muted-foreground/20" />
-            <p className="text-[11px] text-muted-foreground font-medium italic text-center">No shortcuts yet</p>
+            <p className="text-[11px] text-muted-foreground font-medium text-center">No shortcuts yet</p>
           </div>
         )}
       </div>

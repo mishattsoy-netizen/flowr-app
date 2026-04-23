@@ -15,7 +15,15 @@ export interface Resource { id: string; title: string; url: string; topicId?: st
 export interface Snippet { id: string; title: string; content: string; topicId?: string; tags: string[]; workspaceId?: string; }
 export interface Guide { id: string; title: string; steps: any[]; topicId?: string; tags: string[]; workspaceId?: string; }
 
-export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'mixed' | 'workspace';
+export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'mixed' | 'workspace' | 'divider';
+
+export type SidebarSectionId = 'pinned' | 'unsorted' | 'workspaces';
+export type SortMode = 'lastModified' | 'alphabetical' | 'manual';
+
+export interface SidebarSectionSettings {
+  sortMode: SortMode;
+  itemLimit: number;
+}
 
 
 
@@ -113,10 +121,13 @@ export interface EditorBlock {
   toSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
+/** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
 export type WidgetType = 'header' | 'all-files' | 'folders' | 'tasks' | 'upcoming-tasks' | 'overdue-tasks' | 'inbox-tasks' | 'pinned' | 'recent' | 'quick-links' | 'timer' | 'clock' | 'habit-grid' | 'mood' | 'journal' | 'goals' | 'routines' | 'planner' | 'today-overview' | 'knowledge-topic-browser' | 'knowledge-search' | 'knowledge-tags';
 
+/** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
 export type WidgetSize = 'S' | 'M' | 'L';
 
+/** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
 export interface WidgetConfig {
   id: string;
   type: WidgetType;
@@ -173,7 +184,7 @@ export type ModalType =
   | { kind: 'journalDetail'; id: string | null }
   | { kind: 'routineDetail'; id: string | null };
 
-export type EditingSource = 'sidebar' | 'header' | 'view' | 'favorites' | 'recent';
+export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders';
 
 export interface AIAttachment {
   type: 'image' | 'audio' | 'file';
@@ -328,7 +339,15 @@ export interface AppState {
 
   aiAbortController: AbortController | null;
   copiedBlock: EditorBlock | null;
+  sidebarSectionSettings: Record<SidebarSectionId, SidebarSectionSettings>;
+  hiddenEntityIds: string[];
 
+  // Actions
+  setDashboardLayout: (layout: WidgetConfig[]) => void;
+  setIsDashboardEditing: (editing: boolean) => void;
+  resetDashboardLayout: () => void;
+  stopAIGeneration: () => void;
+  add_note: (title: string, content: string, parentId?: string | null) => void;
   toggleTheme: () => void;
   setInterfaceSize: (size: 'small' | 'regular' | 'big') => void;
   toggleSidebar: () => void;
@@ -341,48 +360,43 @@ export interface AppState {
   setMixedLayoutSplit: (split: number) => void;
   toggleFullWidth: () => void;
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
-
+  setWorkspaces: (workspaces: Workspace[]) => void;
+  setActiveWorkspaceId: (id: string | null) => void;
+  createWorkspace: (input: Partial<Workspace>) => string;
+  updateWorkspace: (id: string, patch: Partial<Workspace>) => void;
+  deleteWorkspace: (id: string) => void;
   setAIKey: (key: string | null) => void;
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
-  toggleAIAssistantExtended: () => void;
-  sendAIMessage: (content: string, agentEnabled?: boolean, attachments?: AIAttachment[]) => Promise<void>;
-  stopAIGeneration: () => void;
-  add_note: (title: string, content: string, parentId?: string | null) => void;
-  setAIBehaviorMode: (mode: 'fast' | 'thinking' | 'auto') => void;
   clearAIChat: () => void;
   setAIHistory: (messages: AIMessage[]) => void;
   setIsAIAssistantExtended: (extended: boolean) => void;
   setAICursor: (cursor: AICursor | null) => void;
+  toggleAIAssistantExtended: () => void;
+  setAIBehaviorMode: (mode: 'fast' | 'thinking' | 'auto') => void;
   setAIClassificationModelId: (id: string) => void;
-
-  setWorkspaces: (workspaces: Workspace[]) => void;
-  setActiveWorkspaceId: (id: string) => void;
-
-  createWorkspace: (input: Partial<Workspace>) => string;
-  updateWorkspace: (id: string, patch: Partial<Workspace>) => void;
-  deleteWorkspace: (id: string) => void;
-
-
+  sendAIMessage: (content: string, agentEnabled?: boolean, attachments?: AIAttachment[]) => Promise<void>;
   setActiveEntityId: (id: string | null) => void;
-  setNavigationState: (id: string | null, history: string[], index: number) => void;
-  goBack: () => void;
-  goForward: () => void;
-
-  addTab: (id: string) => void;
+  addTab: (id?: string) => void;
   removeTab: (id: string) => void;
   setActiveTab: (id: string | null) => void;
   setOpenTabs: (ids: string[]) => void;
-
-  addEntity: (entity: Entity) => void;
+  setNavigationState: (id: string | null, history: string[], index: number) => void;
+  goBack: () => void;
+  goForward: () => void;
+  addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => void;
   deleteEntity: (id: string) => void;
   moveEntity: (id: string, newParentId: string | null, newWorkspaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
   renameEntity: (id: string, newTitle: string) => void;
   duplicateEntity: (id: string) => void;
   setEntityIcon: (id: string, icon: string) => void;
-  setEditingEntityId: (id: string | null, source?: EditingSource) => void;
-
+  setEditingEntityId: (id: string | null, source?: EditingSource | null) => void;
+  setSectionSortMode: (sectionId: SidebarSectionId, mode: SortMode) => void;
+  setSectionItemLimit: (sectionId: SidebarSectionId, limit: number) => void;
+  toggleEntityVisibility: (id: string) => void;
+  moveEntityInList: (id: string, direction: 'up' | 'down') => void;
+  insertSidebarDivider: (parentId: string | null) => void;
   updateEntityContent: (id: string, content: EditorBlock[]) => void;
   addTagToEntity: (id: string, tag: string) => void;
   removeTagFromEntity: (id: string, tag: string) => void;
@@ -393,34 +407,18 @@ export interface AppState {
   updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => void;
   deleteCanvasBlock: (id: string) => void;
   moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => void;
-
   toggleFavorite: (id: string) => void;
   toggleCollapsed: (id: string) => void;
-
-  addTask: (task: AppTask) => void;
+  addTask: (task: Partial<AppTask> & { title: string }) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   updateTask: (id: string, updates: Partial<AppTask>) => void;
-
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
-  setDashboardLayout: (layout: WidgetConfig[]) => void;
-  setIsDashboardEditing: (editing: boolean) => void;
-  resetDashboardLayout: () => void;
-
-  sortEntities: (criteria: 'title' | 'date') => void;
-  sortTasks: (criteria: 'title' | 'date') => void;
-
+  sortEntities: (criteria: 'title' | 'lastModified') => void;
+  sortTasks: (criteria: 'title' | 'dueDate') => void;
   updateBlockPosition: (id: string, x: number, y: number) => void;
-
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;
-
-  openModal: (modal: ModalType) => void;
-  closeModal: () => void;
-
-  openContextMenu: (entityId: string, x: number, y: number, source: EditingSource) => void;
-  closeContextMenu: () => void;
-
   addHabit: (habit: Habit) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
@@ -436,8 +434,7 @@ export interface AppState {
   updateRoutine: (id: string, updates: Partial<Routine>) => void;
   deleteRoutine: (id: string) => void;
   checkRoutineStep: (routineId: string, stepId: string, date: string, done: boolean) => void;
-  setLifeData: (data: Partial<Pick<AppState, 'lifeHabits' | 'lifeHabitChecks' | 'lifeMoods' | 'lifeJournals' | 'lifeGoals' | 'lifeRoutines' | 'lifeRoutineChecks'>>) => void;
-
+  setLifeData: (data: Partial<AppState>) => void;
   addResource: (resource: Resource) => void;
   updateResource: (id: string, updates: Partial<Resource>) => void;
   deleteResource: (id: string) => void;
@@ -447,8 +444,12 @@ export interface AppState {
   addGuide: (guide: Guide) => void;
   updateGuide: (id: string, updates: Partial<Guide>) => void;
   deleteGuide: (id: string) => void;
-  setKnowledgeData: (data: Partial<Pick<AppState, 'knowledgeResources' | 'knowledgeSnippets' | 'knowledgeGuides'>>) => void;
-
+  setKnowledgeData: (data: Partial<AppState>) => void;
+  openModal: (modal: ModalType) => void;
+  closeModal: () => void;
+  openContextMenu: (entityId: string, x: number, y: number, source: EditingSource) => void;
+  closeContextMenu: () => void;
   copyBlock: (block: EditorBlock) => void;
   pasteBlock: (entityId: string, afterBlockId: string) => void;
 }
+

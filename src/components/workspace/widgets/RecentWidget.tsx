@@ -65,7 +65,7 @@ export function RecentWidget() {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-2 opacity-50">
             <Clock className="w-8 h-8 text-[var(--bone-20)]" />
-            <p className="text-[11px] text-muted-foreground italic">No recent pages yet.</p>
+            <p className="text-[11px] text-muted-foreground">No recent pages yet.</p>
           </div>
         )}
       </div>

@@ -107,7 +107,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
     <div className="w-full bg-background/20 border border-border/30 rounded-2xl max-h-64 overflow-y-auto scrollbar-none overflow-hidden">
       {renderTree(null, 0)}
       {allContainers.length === 0 && (
-        <div className="text-xs text-muted-foreground italic p-3 text-center">No available workspaces</div>
+        <div className="text-xs text-muted-foreground p-3 text-center">No available workspaces</div>
       )}
     </div>
   );

@@ -9,8 +9,8 @@
 }
 
 :root {
-  --color-background: #1A1A19;
-  --color-panel: #1F1F1E;
+  --color-background: #1a1a1a;
+  --color-panel: #272725;
   --bone-5: rgba(233, 233, 226, 0.05);
   --bone-2: rgba(233, 233, 226, 0.02);
   --bone-3: rgba(233, 233, 226, 0.03);
@@ -91,6 +91,7 @@ html[data-interface-size="big"] {
   --color-bone-100: var(--bone-100);
   --color-bone-hover: var(--bone-5);
   --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
 
   --radius-sm: var(--radius-small);
   --radius-8: var(--radius-8);
@@ -99,18 +100,21 @@ html[data-interface-size="big"] {
   --radius-small: var(--radius-small);
   --radius-big: var(--radius-big);
   --radius-lg: var(--radius-big);
+  --radius-xl: var(--radius-big);
+  --radius-2xl: var(--radius-big);
+  --radius-3xl: var(--radius-big);
 }
 
 @utility widget {
   @apply bg-panel border border-white/5 rounded-big p-6;
   transition: background-color 200ms, border-color 200ms, box-shadow 200ms;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 @utility widget-accent {
   @apply bg-accent/5 border border-accent/20 rounded-big p-6;
   transition: background-color 200ms, border-color 200ms, box-shadow 200ms;
-  box-shadow: 0 4px 20px -2px rgba(224, 153, 82, 0.05);
+  box-shadow: none;
 }
 
 @utility instrument-hover {
@@ -119,7 +123,7 @@ html[data-interface-size="big"] {
 
   &:hover {
     @apply bg-white/[0.02] -translate-y-0.5 border-white/10;
-    box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.4);
+    box-shadow: none;
   }
 }
 
@@ -223,7 +227,7 @@ html[data-interface-size="big"] {
 }
 
 @utility btn-accent {
-  @apply flex items-center justify-center gap-2.5 bg-[var(--accent)] text-[var(--on-accent)] px-6 py-2.5 rounded-[var(--radius-medium)] font-bold text-sm tracking-wide;
+  @apply flex items-center justify-center gap-2 bg-[var(--accent)] text-[var(--on-accent)] px-4 py-1.5 rounded-[var(--radius-medium)] font-bold text-xs tracking-wide;
 
   &:hover {
     @apply opacity-90;
@@ -231,7 +235,7 @@ html[data-interface-size="big"] {
 }
 
 @utility btn-task {
-  @apply flex items-center justify-center gap-2.5 bg-[#E09952] text-[var(--bone-100)] px-6 py-2.5 rounded-[var(--radius-medium)] font-bold text-sm tracking-wide;
+  @apply flex items-center justify-center gap-2 bg-[#E09952] text-[var(--bone-100)] px-4 py-1.5 rounded-[var(--radius-medium)] font-bold text-xs tracking-wide;
 
   &:hover {
     @apply opacity-90;
@@ -275,11 +279,15 @@ html[data-interface-size="big"] {
 }
 
 @utility popup-glass-big {
-  @apply bg-panel/95 backdrop-blur-2xl border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.3)] rounded-[var(--radius-big)];
+  background-color: var(--color-panel);
+  @apply border border-white/10 rounded-[var(--radius-big)];
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 @utility popup-glass-small {
-  @apply bg-[#1a1a1a]/98 backdrop-blur-2xl border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.3)] rounded-[var(--radius-regular)];
+  background-color: var(--color-panel);
+  @apply border border-white/10 rounded-[var(--radius-regular)];
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 @utility popup-item {
@@ -317,6 +325,28 @@ html[data-interface-size="big"] {
 
 @utility panel-glass {
   background-color: var(--color-panel);
+}
+
+/* ─── Nested Widget Handling ─── */
+.nested-in-stack section,
+.nested-in-stack .group\/widget {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* Hide child headers if they exist inside a stack */
+.nested-in-stack section>div:first-child:not(.flex-1),
+.nested-in-stack .group\/widget>div:first-child:not(.flex-1) {
+  display: none !important;
+}
+
+/* Ensure child content fills the stack */
+.nested-in-stack section,
+.nested-in-stack .group\/widget {
+  height: 100% !important;
+  padding: 0 !important;
 }
 
 
@@ -370,10 +400,25 @@ html {
   font-size: 100%;
 }
 
-/* Minimalist Custom Scrollbars */
+/* Minimalist Custom Scrollbars - Universal */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+}
+
+/* Firefox only (Webkit will use the rules above) */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bone-15) transparent;
+  }
+}
+
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
 ::-webkit-scrollbar-track {
@@ -381,15 +426,19 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-outer);
+  background: var(--bone-15);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
+  background: var(--bone-30);
 }
 
-/* Scrollbar hide utility */
+::-webkit-scrollbar-corner {
+  display: none !important;
+}
+
+/* Scrollbar Utilities */
 @utility scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -409,8 +458,13 @@ html {
 }
 
 .scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-outer) transparent;
+  /* Removed scrollbar-width: thin to allow full -webkit customization in Chrome */
+}
+
+.scrollbar-thin::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -422,12 +476,45 @@ html {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--border-outer);
+  background: var(--bone-15);
   border-radius: 10px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
+  background: var(--bone-30);
+}
+
+.custom-scrollbar {
+  /* Removed scrollbar-width: thin to allow full -webkit customization in Chrome */
+}
+
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--bone-15);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--bone-30);
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Animation definitions removed for instant UI */
@@ -816,48 +903,21 @@ body.is-dragging-widget [data-widget-id] * {
   pointer-events: none !important;
 }
 
-/* Bento edit mode — dashed widget outlines */
-.bento-edit-mode .react-grid-item {
-  outline: 1px dashed hsl(var(--border));
-  outline-offset: -1px;
-}
-
 /* Disable bento transitions by default to prevent load-time "flying" widgets */
-.react-grid-item {
-  transition: none !important;
+.bento-widget-cell {
+  transition: none;
 }
 
-/* Enable transitions ONLY when in edit mode for smooth dragging/resizing */
-.bento-edit-mode .react-grid-item {
-  transition: transform 200ms ease, width 200ms ease, height 200ms ease, opacity 200ms ease !important;
+/* Enable transitions ONLY in edit mode */
+.bento-edit-mode .bento-widget-cell {
+  transition: flex 200ms ease, height 200ms ease, opacity 200ms ease;
 }
 
-/* Disable transitions during drag/resize to make it snappy */
-.react-grid-item.react-draggable-dragging,
-.react-grid-item.resizing {
-  transition: none !important;
-  z-index: 100 !important;
-}
-
+/* Suppress all transitions during initial load */
 .bento-no-transitions,
-.bento-no-transitions *,
-.bento-no-transitions .react-grid-item,
-.bento-no-transitions .react-grid-item *,
-.bento-no-transitions [class*="react-grid-item"],
-.bento-no-transitions [class*="react-grid-item"] * {
+.bento-no-transitions * {
   transition: none !important;
-  transition-property: none !important;
-  transition-duration: 0s !important;
-  transition-delay: 0s !important;
   animation: none !important;
-}
-
-/* Override react-grid-layout placeholder color */
-.react-grid-item.react-grid-placeholder {
-  background: hsl(var(--accent) / 0.15) !important;
-  border: 1px dashed hsl(var(--accent)) !important;
-  border-radius: 0.75rem !important;
-  opacity: 1 !important;
 }
 
 /* --- Calendar Fixes --- */

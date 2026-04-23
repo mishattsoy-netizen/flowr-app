@@ -16,9 +16,11 @@
 
 - **Display headings:** Crimson Pro (`font-display`) — used for page titles, greeting headers
 - **UI text:** DM Sans (`font-sans`, `font-ui`) — used for labels, body, controls
+- **Letter spacing:** Prefer `tracking-normal` (0) for UI labels and switcher tabs. Avoid `tracking-tight` or `tracking-tighter`.
 - **UI labels:** DM Sans with `letter-spacing: 0.06em` (`font-ui-label`) — used for small uppercase labels
 - **Monospace:** DM Mono (`font-mono`) — used for code, vault values
 - **Calendar/pickers:** User explicitly rejects Crimson Pro — use `font-ui` (DM Sans) only
+- **Font weights:** Preferred "strong" weight is **SemiBold** (`600`, `font-semibold`). Use **Bold** (`700`) only for large display numbers (clocks, timers). Never use **Extra Bold** (`800`) or **Black** (`900`).
 
 ## User Likes
 
@@ -28,6 +30,8 @@
 - Subtle hover backgrounds (`hover:bg-white/5`) over bordered buttons
 - Compact, tight spacing
 - `font-ui-label` for small uppercase labels (Today, Clear, etc.)
+- **Sliding transitions:** Specifically for the background "pill" in tab switchers (`transition-all duration-[150ms] ease-out`).
+- **Instant response:** Navigation components (sidebar, workspaces, switcher items) must have **no transition delay** (`duration-0`). State changes (hover, selection) should be sharp and immediate. Other UI interactions (hover, button clicks) should also remain sharp.
 
 ## User Dislikes
 
@@ -36,6 +40,7 @@
 - Heavy borders on selected elements
 - Scale transforms on selected items
 - Oversized UI elements
+- Heavy font weights (Extra Bold, Black, 800+)
 
 ## Technical Trends
 

@@ -53,7 +53,7 @@ export default function PresetForm({ preset, onSuccess }: { preset?: any, onSucc
   return (
     <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-500">
       <div className="space-y-1.5">
-        <label className="text-[9px] font-black text-bone-60 tracking-tight uppercase opacity-50">Tier label</label>
+        <label className="text-[9px] font-bold text-bone-60 tracking-tight uppercase opacity-50">Tier label</label>
         <input 
           required
           value={form.name}
@@ -65,7 +65,7 @@ export default function PresetForm({ preset, onSuccess }: { preset?: any, onSucc
 
       <div className="grid grid-cols-1 gap-4">
         <div className="space-y-3 bg-background/30 p-4 rounded-medium border border-white/5">
-          <label className="text-[9px] font-black text-bone-60 flex items-center justify-between tracking-tight uppercase opacity-50">
+          <label className="text-[9px] font-bold text-bone-60 flex items-center justify-between tracking-tight uppercase opacity-50">
             Messages
             <span className="text-accent font-mono text-[10px]">{form.msg_limit}</span>
           </label>
@@ -79,7 +79,7 @@ export default function PresetForm({ preset, onSuccess }: { preset?: any, onSucc
           />
         </div>
         <div className="space-y-3 bg-background/30 p-4 rounded-medium border border-white/5">
-          <label className="text-[9px] font-black text-bone-60 flex items-center justify-between tracking-tight uppercase opacity-50">
+          <label className="text-[9px] font-bold text-bone-60 flex items-center justify-between tracking-tight uppercase opacity-50">
             Images
             <span className="text-accent font-mono text-[10px]">{form.image_limit}</span>
           </label>
@@ -117,7 +117,7 @@ export default function PresetForm({ preset, onSuccess }: { preset?: any, onSucc
 
       <button 
         disabled={loading}
-        className="btn-primary w-full py-3.5 text-[10px] font-black tracking-tight font-instrument uppercase"
+        className="btn-primary w-full py-3.5 text-[10px] font-bold tracking-tight font-instrument uppercase"
       >
         {loading ? 'Synching...' : preset ? 'Update Tier' : 'Initialize Preset'}
       </button>

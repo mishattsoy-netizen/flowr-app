@@ -58,17 +58,17 @@ export function TasksWidget({ entity: propEntity, contextId }: { entity?: Entity
         {workspaceTasks.length > 0 ? (
           <div className="space-y-1">
             {incomplete.map(t => (
-              <div key={t.id} className="group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] ">
+              <div key={t.id} className="group flex items-center gap-3 px-3 py-2 rounded-[var(--radius-medium)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-all duration-200">
                 <button
                   onClick={() => toggleTask(t.id)}
-                  className="w-4 h-4 rounded-[3px] border border-[var(--bone-30)] hover:border-[var(--bone-60)] flex items-center justify-center shrink-0 "
+                  className="w-4.5 h-4.5 rounded-[5px] border-2 border-[var(--bone-20)] group-hover:border-[var(--bone-40)] hover:!border-accent flex items-center justify-center shrink-0 transition-all bg-[var(--bone-5)]"
                 />
-                <span className="flex-1 text-sm text-foreground text-fade">{t.title}</span>
+                <span className="flex-1 text-sm text-foreground text-fade font-medium">{t.title}</span>
                 {t.dueDate && (
-                  <span className="text-[11px] text-[var(--bone-30)] shrink-0">{formatDate(t.dueDate)}</span>
+                  <span className="text-[10px] font-bold text-[var(--bone-30)] uppercase tracking-wider shrink-0">{formatDate(t.dueDate)}</span>
                 )}
                 {t.color && (
-                  <span className="w-2 h-2 rounded-full shrink-0 opacity-60" style={{ backgroundColor: t.color }} />
+                  <span className="w-2 h-2 rounded-full shrink-0 opacity-60 shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: t.color, boxShadow: `0 0 10px ${t.color}44` }} />
                 )}
               </div>
             ))}
@@ -91,7 +91,7 @@ export function TasksWidget({ entity: propEntity, contextId }: { entity?: Entity
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <p className="text-sm text-muted-foreground italic">No tasks.</p>
+            <p className="text-sm text-muted-foreground">No tasks.</p>
           </div>
         )}
       </div>

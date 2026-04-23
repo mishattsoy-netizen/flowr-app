@@ -44,9 +44,14 @@ export function WorkspaceSwitcher() {
             <button
               key={ws.id}
               onClick={() => { setActiveWorkspaceId(ws.id); setOpen(false); }}
-              className="flex items-center w-full px-3 py-2 text-sm hover:bg-[var(--bone-6)] text-left gap-2"
+              className={clsx(
+                "flex items-center w-full px-3 py-2 text-sm text-left gap-2 transition-all duration-0",
+                ws.id === activeWorkspaceId
+                  ? "bg-[var(--bone-15)] text-foreground"
+                  : "hover:bg-[var(--bone-6)] text-foreground/80 hover:text-foreground"
+              )}
             >
-              <span className="flex-1 text-fade text-foreground">{ws.name}</span>
+              <span className="flex-1 text-fade">{ws.name}</span>
               {ws.id === activeWorkspaceId && (
                 <Check strokeWidth={2} className="w-3.5 h-3.5 text-accent shrink-0" />
               )}

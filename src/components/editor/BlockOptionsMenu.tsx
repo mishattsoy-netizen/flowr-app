@@ -296,7 +296,7 @@ export function BlockOptionsMenu({
               </div>
             ))
           ) : (
-            <div className="p-8 text-center text-xs text-muted-foreground italic">
+            <div className="p-8 text-center text-xs text-muted-foreground">
               No types found for &ldquo;{turnIntoSearch}&rdquo;
             </div>
           )}

@@ -16,7 +16,7 @@ export type {
   EditingSource, AIAttachment, AIMessage, AICursor, ModelStatus,
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
-  WorkspaceType, Workspace,
+  WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
 } from './store.types';
 
 // Re-export constants and helpers needed by external consumers
@@ -26,7 +26,7 @@ export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 // Internal type imports (used within this file's store implementation)
 import type {
   Entity, EditorBlock, AIMessage,
-  AppState, Workspace, WidgetConfig,
+  AppState, Workspace, WidgetConfig, AppTask,
 } from './store.types';
 
 
@@ -133,7 +133,13 @@ export const useStore = create<AppState>()(
       aiBehaviorMode: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_behavior') as 'fast' | 'thinking' | 'auto') || 'auto',
       aiClassificationModelId: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_classification_model')) || DEFAULT_CLASSIFICATION_MODEL_ID,
       aiAbortController: null,
-
+      sidebarSectionSettings: {
+        pinned: { sortMode: 'lastModified', itemLimit: 10 },
+        unsorted: { sortMode: 'lastModified', itemLimit: 10 },
+        workspaces: { sortMode: 'lastModified', itemLimit: 10 },
+      },
+      hiddenEntityIds: [],
+  
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
       setIsDashboardEditing: (editing) => set({ isDashboardEditing: editing }),
@@ -437,14 +443,16 @@ export const useStore = create<AppState>()(
         
         // Enforce flat hierarchy for workspaces and collections
         const isRootOnly = entity.type === 'workspace' || entity.type === 'collection';
-        const finalParentId = isRootOnly ? null : entity.parentId;
+        const finalParentId = isRootOnly ? null : (entity.parentId ?? null);
 
         const finalEntity = { 
           ...entity, 
+          id: entity.id || generateId(),
           parentId: finalParentId,
           workspaceId: entity.workspaceId || activeWorkspaceId,
-          sortOrder: entity.sortOrder ?? (maxSortOrder + 1)
-        };
+          sortOrder: entity.sortOrder ?? (maxSortOrder + 1),
+          lastModified: entity.lastModified || Date.now()
+        } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));
         upsertEntity(finalEntity);
       },
@@ -522,7 +530,42 @@ export const useStore = create<AppState>()(
       },
 
       setEditingEntityId: (id, source) => set({ editingEntity: id && source ? { id, source } : null }),
-
+      setSectionSortMode: (sectionId, mode) => set(s => ({
+        sidebarSectionSettings: {
+          ...s.sidebarSectionSettings,
+          [sectionId]: { ...s.sidebarSectionSettings[sectionId], sortMode: mode }
+        }
+      })),
+      setSectionItemLimit: (sectionId, limit) => set(s => ({
+        sidebarSectionSettings: {
+          ...s.sidebarSectionSettings,
+          [sectionId]: { ...s.sidebarSectionSettings[sectionId], itemLimit: limit }
+        }
+      })),
+      toggleEntityVisibility: (id) => set(s => ({
+        hiddenEntityIds: s.hiddenEntityIds.includes(id) ? s.hiddenEntityIds.filter(hid => hid !== id) : [...s.hiddenEntityIds, id]
+      })),
+      moveEntityInList: (id, direction) => set(s => {
+        const entities = [...s.entities];
+        const idx = entities.findIndex(e => e.id === id);
+        if (idx === -1) return {};
+        
+        const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (newIdx < 0 || newIdx >= entities.length) return {};
+        
+        const [moved] = entities.splice(idx, 1);
+        entities.splice(newIdx, 0, moved);
+        
+        return {
+          entities: entities.map((e, i) => ({ ...e, sortOrder: i }))
+        };
+      }),
+      insertSidebarDivider: (parentId) => {
+        const id = generateId();
+        const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999 };
+        set(s => ({ entities: [...s.entities, divider] }));
+        upsertEntity(divider);
+      },
       updateEntityContent: (id, content) => {
         set((state) => ({ entities: state.entities.map(e => e.id === id ? { ...e, content, lastModified: Date.now() } : e) }));
         const updated = get().entities.find(e => e.id === id);
@@ -573,7 +616,12 @@ export const useStore = create<AppState>()(
 
       addTask: (task) => {
         const activeWorkspaceId = get().activeWorkspaceId;
-        const finalTask = { ...task, workspaceId: task.workspaceId || activeWorkspaceId };
+        const finalTask = { 
+          id: generateId(),
+          completed: false,
+          ...task, 
+          workspaceId: task.workspaceId || activeWorkspaceId 
+        } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
         upsertTask(finalTask);
       },
@@ -789,7 +837,11 @@ export const useStore = create<AppState>()(
           getItem: (name: string) => {
             const str = localStorage.getItem(name);
             if (!str) return null;
-            return JSON.parse(str);
+            try {
+              return JSON.parse(str);
+            } catch (e) {
+              return null;
+            }
           },
           setItem: (name: string, value: unknown) => {
             if (debounceTimer) clearTimeout(debounceTimer);
@@ -843,8 +895,9 @@ export const useStore = create<AppState>()(
         aiBehaviorMode: state.aiBehaviorMode,
         aiApiKey: state.aiApiKey,
         copiedBlock: state.copiedBlock,
+        sidebarSectionSettings: state.sidebarSectionSettings,
+        hiddenEntityIds: state.hiddenEntityIds,
       }),
     }
   )
 );
-

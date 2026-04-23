@@ -38,13 +38,13 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId }:
         open ? 'w-[280px]' : 'w-0'
       )}
     >
-      <div className="w-[280px] h-full flex flex-col p-5">
-        <div className="mb-6">
+      <div className="w-[280px] h-full flex flex-col px-1">
+        <div className="p-4 pb-0 mb-6">
           <h3 className="text-lg font-display font-semibold text-foreground">Add Widgets</h3>
-          <p className="text-xs text-muted-foreground mt-1">Drag and drop into your layout</p>
+          <p className="text-xs text-muted-foreground mt-1">Click to add to your layout</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-8 pr-2 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto space-y-8 px-4 pb-5 scrollbar-thin">
           {categories.map(category => {
             const widgets = groupedRegistry[category];
             if (!widgets || widgets.length === 0) return null;
@@ -61,13 +61,16 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId }:
                     <div
                       key={type}
                       draggable
-                      onDragStart={() => onDragStart(type)}
+                       onDragStart={(e) => {
+                         e.dataTransfer.setData('application/flowr-widget-type', type);
+                         onDragStart(type);
+                       }}
                       onDragEnd={onDragEnd}
                       onClick={() => onAdd(type)}
-                      className="group w-full text-left p-3 rounded-xl border border-border/40 bg-[var(--bone-2)] hover:border-accent/30 hover:bg-white hover:shadow-sm cursor-grab active:cursor-grabbing select-none transition-all duration-200"
+                      className="group w-full text-left p-3 rounded-xl border border-border/40 bg-[var(--bone-2)] hover:border-accent/20 hover:bg-[var(--bone-8)] cursor-grab active:cursor-grabbing select-none"
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <p className="text-sm font-semibold text-foreground group-hover:text-accent transition-colors">{entry.label}</p>
+                        <p className="text-sm font-semibold text-foreground group-hover:text-accent">{entry.label}</p>
                         <span className="text-[10px] font-medium text-muted-foreground/60 bg-[var(--bone-6)] px-1.5 py-0.5 rounded">
                           {entry.defaultW}×{entry.defaultH}
                         </span>

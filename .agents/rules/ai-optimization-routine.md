@@ -10,7 +10,7 @@ This routine is triggered when I explicitly say **`/ai-optimization`**, **"optim
 
 ## Purpose
 
-Review the current **Operational & Architectural Structure** of the Flowr AI agent (both cloud and local models) and produce an **ultimate optimization plan** that improves the chat experience for end users.
+Review the current **Operational & Architectural Structure** of the Flowr AI agent and produce an **ultimate optimization plan** that improves the chat experience for end users.
 
 The source of truth for the current system is:
 **`APP_AI_OPERATIONAL_OVERVIEW.txt`** (project root)

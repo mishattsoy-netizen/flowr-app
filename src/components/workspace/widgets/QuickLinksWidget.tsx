@@ -66,7 +66,7 @@ export function QuickLinksWidget({ data, onUpdateData }: { data?: any; onUpdateD
 
         {links.length === 0 && !isAdding && (
           <div className="h-full flex items-center justify-center">
-            <p className="text-sm text-muted-foreground italic">No links added.</p>
+            <p className="text-sm text-muted-foreground">No links added.</p>
           </div>
         )}
 

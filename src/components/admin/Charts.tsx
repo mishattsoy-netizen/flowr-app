@@ -126,7 +126,7 @@ export function UsageTypeBarChart({ data }: { data: any[] }) {
             type="category" 
             axisLine={false} 
             tickLine={false} 
-            tick={{ fill: 'var(--bone-30)', fontSize: 10, fontWeight: '900', letterSpacing: '0.1em' }}
+            tick={{ fill: 'var(--bone-30)', fontSize: 10, fontWeight: '700', letterSpacing: '0.1em' }}
             width={80}
           />
           <Tooltip 

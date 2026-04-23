@@ -36,7 +36,7 @@ export default function PresetsList({ initialPresets = [] }: { initialPresets: a
         <div key={preset.id} className="widget p-6 instrument-hover group">
           <div className="flex items-start justify-between mb-6">
             <div className="space-y-0.5">
-              <h3 className="text-xl font-black text-bone-100 tracking-tight leading-none">{preset.name}</h3>
+              <h3 className="text-xl font-bold text-bone-100 tracking-tight leading-none">{preset.name}</h3>
               <p className="text-[9px] text-bone-60 font-bold tracking-tight opacity-40">System usage configuration</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -54,27 +54,27 @@ export default function PresetsList({ initialPresets = [] }: { initialPresets: a
 
           <div className="grid grid-cols-2 gap-3.5 mb-6">
             <div className="p-3.5 rounded-medium bg-background border border-white/5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[8px] font-black text-bone-60 tracking-[0.05em] uppercase opacity-60">
+              <div className="flex items-center gap-1.5 text-[8px] font-bold text-bone-60 tracking-[0.05em] uppercase opacity-60">
                 <MessageSquare className="w-2.5 h-2.5" />
                 Messages
               </div>
-              <div className="text-lg font-black text-bone-100 tracking-tight leading-none">
+              <div className="text-lg font-bold text-bone-100 tracking-tight leading-none">
                 {preset.daily_msg_limit} <span className="text-[9px] opacity-20 font-bold ml-1">/ day</span>
               </div>
             </div>
             <div className="p-3.5 rounded-medium bg-background border border-white/5 space-y-1">
-              <div className="flex items-center gap-1.5 text-[8px] font-black text-bone-60 tracking-[0.05em] uppercase opacity-60">
+              <div className="flex items-center gap-1.5 text-[8px] font-bold text-bone-60 tracking-[0.05em] uppercase opacity-60">
                 <ImageIcon className="w-2.5 h-2.5" />
                 Images
               </div>
-              <div className="text-lg font-black text-bone-100 tracking-tight leading-none">
+              <div className="text-lg font-bold text-bone-100 tracking-tight leading-none">
                 {preset.allow_image_generation ? 'Enabled' : 'Locked'}
               </div>
             </div>
           </div>
 
           <button className="w-full flex items-center justify-between p-3.5 rounded-regular bg-white/[0.02] border border-white/5 text-bone-60 hover:text-bone-100 hover:border-white/10 hover:bg-bone-hover group/btn transition-colors">
-            <span className="text-[10px] font-black tracking-[0.05em] uppercase">Edit configuration</span>
+            <span className="text-[10px] font-bold tracking-[0.05em] uppercase">Edit configuration</span>
             <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
 

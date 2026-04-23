@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2 } from 'lucide-react';
+import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command } from 'lucide-react';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
@@ -27,6 +27,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const isAILoading = useStore(state => state.isAILoading);
   const activeEntityId = useStore(state => state.activeEntityId);
   const updateEntityContent = useStore(state => state.updateEntityContent);
+  const aiApiKey = useStore(state => state.aiApiKey);
 
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,6 +56,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const [showMicSettings, setShowMicSettings] = useState(false);
   const [micSettingsPos, setMicSettingsPos] = useState({ x: 0, y: 0 });
   const [, setIsTranscribing] = useState(false);
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [activeCommandIndex, setActiveCommandIndex] = useState(0);
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
 
@@ -263,6 +266,40 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
     if (files.length > 0) await processFiles(files);
   };
 
+  const commands = [
+    { id: 'image', label: 'Generate Image', icon: <ImageIcon className="w-3.5 h-3.5" />, description: 'Create an image from text', prefix: '/image ' },
+    { id: 'search', label: 'Web Search', icon: <Globe className="w-3.5 h-3.5" />, description: 'Search the internet for info', prefix: '/search ' },
+    { id: 'note', label: 'Create Note', icon: <FileText className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
+    { id: 'task', label: 'Add Task', icon: <CheckSquare className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
+    { id: 'weather', label: 'Weather', icon: <Cloud className="w-3.5 h-3.5" />, description: 'Check current weather', prefix: '/weather ' },
+    { id: 'crypto', label: 'Crypto Price', icon: <Coins className="w-3.5 h-3.5" />, description: 'Get cryptocurrency prices', prefix: '/crypto ' },
+    { id: 'stock', label: 'Stock Price', icon: <TrendingUp className="w-3.5 h-3.5" />, description: 'Get stock market data', prefix: '/stock ' },
+    { id: 'clear', label: 'Clear Chat', icon: <Eraser className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setInput(''); } },
+  ];
+
+  const filteredCommands = input.startsWith('/') 
+    ? commands.filter(c => c.label.toLowerCase().includes(input.slice(1).toLowerCase()) || c.id.includes(input.slice(1).toLowerCase()))
+    : [];
+
+  useEffect(() => {
+    if (input.startsWith('/')) {
+      setShowCommandMenu(true);
+      setActiveCommandIndex(0);
+    } else {
+      setShowCommandMenu(false);
+    }
+  }, [input]);
+
+  const handleCommandSelect = (cmd: typeof commands[0]) => {
+    if (cmd.prefix) {
+      setInput(cmd.prefix);
+      textareaRef.current?.focus();
+    } else if (cmd.action) {
+      cmd.action();
+    }
+    setShowCommandMenu(false);
+  };
+
   const handleAddImageToWorkspace = useCallback((url: string) => {
     if (!activeEntityId || activeEntityId === 'dashboard') return;
     const newBlock: EditorBlock = { id: generateId(), type: 'image', content: '', mediaUrl: url, mediaWidth: 4, mediaCaption: 'AI Generated', align: 'left' };
@@ -302,7 +339,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             }}
           >
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Mic Settings</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Mic Settings</span>
               <Settings2 strokeWidth={2} className="w-3 h-3 text-muted-foreground/40" />
             </div>
 
@@ -332,7 +369,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
             <div className="pt-3 border-t border-white/5 space-y-2">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-black uppercase text-muted-foreground/40">Input Test</span>
+                <span className="text-[9px] font-bold uppercase text-muted-foreground/40">Input Test</span>
                 <div className="flex gap-0.5">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                     <div
@@ -513,7 +550,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           </div>
         )}
 
-        <div className="px-4 pb-8 pt-4 shrink-0 bg-sidebar border-t border-[var(--bone-10)]">
+        <div className="px-4 pb-8 pt-4 shrink-0 bg-sidebar border-t border-[var(--bone-10)] relative">
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
 
           <div className="flex items-center gap-2">
@@ -523,6 +560,27 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
+                  if (showCommandMenu && filteredCommands.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setActiveCommandIndex(i => Math.min(i + 1, filteredCommands.length - 1));
+                      return;
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setActiveCommandIndex(i => Math.max(i - 1, 0));
+                      return;
+                    }
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault();
+                      handleCommandSelect(filteredCommands[activeCommandIndex]);
+                      return;
+                    }
+                    if (e.key === 'Escape') {
+                      setShowCommandMenu(false);
+                      return;
+                    }
+                  }
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
                 onInput={(e) => {
@@ -535,6 +593,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 className="flex-1 bg-transparent text-foreground text-[13px] placeholder:text-muted-foreground/30 focus:outline-none resize-none leading-relaxed py-0 custom-scrollbar"
                 style={{ height: 'auto', maxHeight: '120px', overflowY: 'auto' }}
               />
+
+
               {isAILoading ? (
                 <button
                   onClick={stopAIGeneration}
@@ -587,6 +647,44 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             </div>
           </div>
 
+          {showCommandMenu && filteredCommands.length > 0 && (
+            <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#1a1a1b] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[120] p-1.5">
+              <div className="px-3 py-2 border-b border-white/5 mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">AI Commands & Tools</span>
+                <Command className="w-3 h-3 text-muted-foreground/40" />
+              </div>
+              <div className="max-h-64 overflow-y-auto scrollbar-hide">
+                {filteredCommands.map((cmd, i) => (
+                  <button
+                    key={cmd.id}
+                    onClick={() => handleCommandSelect(cmd)}
+                    onMouseEnter={() => setActiveCommandIndex(i)}
+                    className={clsx(
+                      "w-full px-3 py-2.5 rounded-xl text-left flex items-center gap-3 transition-all group",
+                      i === activeCommandIndex ? "bg-white/5 text-foreground" : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.02]"
+                    )}
+                  >
+                    <div className={clsx(
+                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                      i === activeCommandIndex ? "bg-accent/20 text-accent" : "bg-white/5 text-muted-foreground/40"
+                    )}>
+                      {cmd.icon}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[12px] font-bold tracking-tight">{cmd.label}</span>
+                      <span className="text-[10px] text-muted-foreground/40 truncate">{cmd.description}</span>
+                    </div>
+                    {i === activeCommandIndex && (
+                      <div className="ml-auto flex items-center gap-1 opacity-40">
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/10">ENTER</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mt-3 px-1 relative">
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -602,6 +700,21 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               title="Mention page or workspace"
             >
               <span className="text-[14px] font-bold leading-none">@</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (!input.startsWith('/')) {
+                  setInput('/');
+                  textareaRef.current?.focus();
+                } else {
+                  setShowCommandMenu(!showCommandMenu);
+                }
+              }}
+              className="p-1 px-1.5 text-bone-60 hover:text-foreground"
+              title="Commands and tools"
+            >
+              <Slash strokeWidth={2.5} className="w-3.5 h-3.5" />
             </button>
 
             <button

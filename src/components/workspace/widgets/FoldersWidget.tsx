@@ -40,7 +40,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
                     setEditingEntityId(folder.id, 'sidebar');
                   }}
                   className={clsx(
-                    "group/item flex items-center gap-2.5 px-3 py-1.5 rounded-[var(--radius-medium)] cursor-pointer",
+                    "group/item flex items-center gap-2.5 px-3 py-1.5 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-200",
                     activeEntityId === folder.id ? "bg-[var(--bone-6)] text-[var(--bone-100)]" : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
                   )}
                   role="button"
@@ -93,7 +93,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <p className="text-sm text-muted-foreground italic">No folders.</p>
+            <p className="text-sm text-muted-foreground">No folders.</p>
           </div>
         )}
       </div>
