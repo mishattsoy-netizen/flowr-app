@@ -106,7 +106,7 @@ export function SettingsModal() {
 
           {/* Version Info */}
           <div className="pt-4 border-t border-border mt-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest text-center">Flowr 3.4 - Build 2405</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest text-center">Flowr 4.4.1 - Build 2304</p>
           </div>
         </div>
 
