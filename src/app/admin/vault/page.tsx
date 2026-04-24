@@ -1,6 +1,8 @@
 import { getVaultKeys } from './actions'
 import VaultProviderWidget from '@/components/admin/VaultProviderWidget'
+import CloudflareVaultWidget from '@/components/admin/CloudflareVaultWidget'
 
+const CLOUDFLARE_KEY_IDS = ['CLOUDFLARE_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']
 const KNOWN_PROVIDERS = ['gemini', 'groq', 'openrouter']
 
 function detectProvider(keyId: string): string {
@@ -14,11 +16,14 @@ function detectProvider(keyId: string): string {
 export default async function VaultPage() {
   const keys = await getVaultKeys()
 
+  const cloudflareKeys = keys.filter(k => CLOUDFLARE_KEY_IDS.includes(k.key_id))
+  const otherKeys = keys.filter(k => !CLOUDFLARE_KEY_IDS.includes(k.key_id))
+
   const grouped: Record<string, { key_id: string }[]> = {}
   for (const provider of KNOWN_PROVIDERS) {
     grouped[provider] = []
   }
-  for (const key of keys) {
+  for (const key of otherKeys) {
     const provider = detectProvider(key.key_id)
     if (!grouped[provider]) grouped[provider] = []
     grouped[provider].push(key)
@@ -34,6 +39,7 @@ export default async function VaultPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <CloudflareVaultWidget initialKeys={cloudflareKeys} />
         {providers.map(([provider, providerKeys]) => (
           <VaultProviderWidget
             key={provider}

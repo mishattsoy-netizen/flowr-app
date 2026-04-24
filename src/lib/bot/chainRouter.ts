@@ -5,6 +5,7 @@ import { runGoogle } from './providers/google'
 import { runGroq } from './providers/groq'
 import { runHuggingFace } from './providers/huggingface'
 import { runWebSearchChain } from './providers/tavily'
+import { runCloudflare } from './providers/cloudflare'
 import { runPollinations } from './providers/pollinations'
 import { getConversationMemory } from './memory'
 
@@ -97,6 +98,9 @@ export async function runChain(
           break
         case 'huggingface':
           response = await runHuggingFace(modelConfig.id, prompt, context?.aiApiKey)
+          break
+        case 'cloudflare':
+          response = await runCloudflare(modelConfig.id, prompt, context?.aiApiKey)
           break
         case 'vault':
           if (modelConfig.id === 'tavily-search') response = await runWebSearchChain(prompt, context as any)
