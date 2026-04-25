@@ -8,14 +8,24 @@ import clsx from 'clsx';
 
 export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: { src: string; alt: string; onHeightChange?: () => void; onAddToWorkspace?: () => void }) => {
   const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // data: URIs are locally available — no network load needed, skip spinner
+  const [loading, setLoading] = useState(!src.startsWith('data:'));
   const [imgSrc, setImgSrc] = useState(src);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  useEffect(() => { setImgSrc(src); }, [src]);
+  useEffect(() => {
+    setImgSrc(src);
+    // Reset loading state: data URIs load instantly, external URLs need spinner
+    setLoading(!src.startsWith('data:'));
+    setError(false);
+  }, [src]);
 
   useEffect(() => {
-    if (imgRef.current?.complete) {
+    if (imgRef.current?.complete && !imgRef.current.naturalWidth) {
+      // complete but naturalWidth=0 means decode error
+      setError(true);
+      setLoading(false);
+    } else if (imgRef.current?.complete) {
       setLoading(false);
       onHeightChange?.();
     }

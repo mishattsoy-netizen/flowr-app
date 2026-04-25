@@ -215,7 +215,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           "px-3 rounded-[var(--radius-8)]",
           "h-7",
           isActive 
-            ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" 
+            ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide" 
             : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
           isWorkspace && !isActive && "group-hover/workspace:text-[var(--bone-100)]",
           "text-[14px]",
@@ -239,7 +239,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           />
         ) : (
           <span className={clsx(
-            "ml-0 flex-1 text-left truncate",
+            "ml-0 flex-1 text-left text-fade",
             isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]"
           )}>
             {entity.title}
@@ -290,7 +290,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             <div className={clsx("relative flex flex-col gap-[3px]", isExpanded && "mt-[3px]")}>
               <div 
                 className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-10)]" 
-                style={{ left: `${depth * 18 + 14.5}px` }}
+                style={{ left: `${depth * 18 + 26}px` }}
               />
               {children.map((child) => (
                 <TreeItem 

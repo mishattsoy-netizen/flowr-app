@@ -2,7 +2,7 @@ import { getVaultKey } from '../../vault'
 import { logger } from '../../logger'
 
 const MODEL_MAP: Record<string, string> = {
-  'cloudflare-workers-ai': '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+  'cloudflare-workers-ai': '@cf/black-forest-labs/flux-1-schnell',
 }
 
 export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: string): Promise<Buffer | null> {
@@ -10,11 +10,12 @@ export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: 
   const accountId = await getVaultKey('CLOUDFLARE_ACCOUNT_ID')
 
   if (!token || !accountId) {
-    logger.error('CLOUDFLARE_TOKEN or CLOUDFLARE_ACCOUNT_ID missing from vault')
+    logger.error(`Cloudflare credentials missing from vault — token: ${!!token}, accountId: ${!!accountId}`)
     return null
   }
 
   const cfModel = MODEL_MAP[modelId] ?? modelId
+  logger.info(`Cloudflare request: account=${accountId.slice(0, 8)}... model=${cfModel}`)
 
   try {
     const response = await fetch(
@@ -34,11 +35,17 @@ export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: 
       throw new Error(`Cloudflare AI Error: ${response.status} - ${error}`)
     }
 
-    // Cloudflare returns JSON error body (success:false) even with 200 for some models
     const contentType = response.headers.get('content-type') || ''
+
+    // Some Cloudflare models return JSON with base64 image or error info
     if (contentType.includes('application/json')) {
       const json = await response.json() as any
-      throw new Error(`Cloudflare AI returned JSON (not image): ${JSON.stringify(json)}`)
+      // success:true with result.image = base64 string
+      if (json?.success && json?.result?.image) {
+        return Buffer.from(json.result.image, 'base64')
+      }
+      // success:false or unexpected shape
+      throw new Error(`Cloudflare AI JSON response: ${JSON.stringify(json).slice(0, 200)}`)
     }
 
     const arrayBuffer = await response.arrayBuffer()

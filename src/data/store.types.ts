@@ -341,6 +341,7 @@ export interface AppState {
   copiedBlock: EditorBlock | null;
   sidebarSectionSettings: Record<SidebarSectionId, SidebarSectionSettings>;
   hiddenEntityIds: string[];
+  isCommandPaletteOpen: boolean;
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;
@@ -397,6 +398,8 @@ export interface AppState {
   toggleEntityVisibility: (id: string) => void;
   moveEntityInList: (id: string, direction: 'up' | 'down') => void;
   insertSidebarDivider: (parentId: string | null) => void;
+  toggleCommandPalette: () => void;
+  setCommandPaletteOpen: (open: boolean) => void;
   updateEntityContent: (id: string, content: EditorBlock[]) => void;
   addTagToEntity: (id: string, tag: string) => void;
   removeTagFromEntity: (id: string, tag: string) => void;

@@ -1,7 +1,8 @@
 import { getRouterChains } from './actions'
+import { getModels } from '@/app/admin/models/actions'
 import RouterManager from '@/components/admin/RouterManager'
 import AddCategoryButton from '@/components/admin/AddCategoryButton'
-import { Cpu, Command, Share2, Zap, Wand2, Image, Mic, Brain } from 'lucide-react'
+import { Cpu, Command, Share2, Zap, Wand2, Image, Mic, Brain, Camera } from 'lucide-react'
 
 const CATEGORY_ICONS: Record<string, any> = {
   TOOL_CALLING: Command,
@@ -11,11 +12,12 @@ const CATEGORY_ICONS: Record<string, any> = {
   COMPLEX_THINKING: Cpu,
   IMAGE_GEN: Image,
   AUDIO_VOICE: Mic,
-  CLASSIFIER: Brain
+  CLASSIFIER: Brain,
+  VISION: Camera
 }
 
 export async function RouterPageContent({ platform }: { platform: 'app' | 'telegram' }) {
-  const routers = await getRouterChains(platform)
+  const [routers, models] = await Promise.all([getRouterChains(platform), getModels()])
 
   return (
     <div className="space-y-[10px] animate-in fade-in duration-500">
@@ -30,16 +32,20 @@ export async function RouterPageContent({ platform }: { platform: 'app' | 'teleg
         {routers.map((router: any) => {
           const Icon = CATEGORY_ICONS[router.category] || Cpu
           return (
-            <RouterManager 
-              key={router.id} 
-              chain={router} 
+            <RouterManager
+              key={router.id}
+              chain={router}
               title={`${router.category.replace(/_/g, ' ')} Registry`}
               category={router.category}
+              availableModels={models}
             />
           )
         })}
         {!routers.some((r: any) => r.category === 'CLASSIFIER') && (
           <AddCategoryButton platform={platform} category="CLASSIFIER" />
+        )}
+        {!routers.some((r: any) => r.category === 'VISION') && (
+          <AddCategoryButton platform={platform} category="VISION" />
         )}
       </div>
     </div>

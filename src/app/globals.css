@@ -1,6 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=Anonymous+Pro:wght@400;700&family=Crimson+Pro:wght@600&display=swap');
 @import "tailwindcss";
 
+/* Global font weight tracking - adds 0.025em letter-spacing to all font weights */
+.font-thin,
+.font-extralight,
+.font-light,
+.font-normal,
+.font-medium,
+.font-semibold,
+.font-bold,
+.font-extrabold,
+.font-black {
+  letter-spacing: 0.025em;
+}
+
+/* Global small text tracking */
+.text-xs,
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\],
+.text-\[12px\] {
+  letter-spacing: 0.03em;
+}
+
+/* Global body text tracking */
+.text-sm,
+.text-\[13px\],
+.text-\[14px\] {
+  letter-spacing: 0.02em;
+}
+
 /* Prevent accidental transitions and flying elements during page load/hydration */
 .preload,
 .preload * {
@@ -135,7 +164,6 @@ html[data-interface-size="big"] {
 
 @utility font-display {
   font-family: var(--font-display);
-  font-weight: 500;
   letter-spacing: -0.01em;
 }
 
@@ -1006,3 +1034,56 @@ body.is-dragging-widget [data-widget-id] * {
   z-index: 10000;
   border-radius: 4px;
 }
+
+@utility text-fade {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@utility scroll-fade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 var(--scroll-top-offset, 0px),
+    #000 calc(100% - var(--scroll-bottom-offset, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 var(--scroll-top-offset, 0px),
+    #000 calc(100% - var(--scroll-bottom-offset, 0px)),
+    transparent 100%
+  );
+}
+
+/* Command Palette Animations */
+.palette-enter {
+  animation: palette-enter-fade 0.2s ease-out forwards,
+             palette-enter-zoom 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+             palette-enter-slide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.palette-exit {
+  animation: palette-exit-fade 0.2s ease-in forwards,
+             palette-exit-zoom 0.2s ease-in forwards,
+             palette-exit-slide 0.2s ease-in forwards;
+}
+
+.backdrop-enter {
+  animation: backdrop-fade-in 0.2s ease-out forwards;
+}
+
+.backdrop-exit {
+  animation: backdrop-fade-out 0.2s ease-in forwards;
+}
+
+@keyframes palette-enter-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes palette-exit-fade { from { opacity: 1; } to { opacity: 0; } }
+@keyframes palette-enter-zoom { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes palette-exit-zoom { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.92); } }
+@keyframes palette-enter-slide { from { transform: translateY(-20px); } to { transform: translateY(0); } }
+@keyframes palette-exit-slide { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+@keyframes backdrop-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-fade-out { from { opacity: 1; } to { opacity: 0; } }

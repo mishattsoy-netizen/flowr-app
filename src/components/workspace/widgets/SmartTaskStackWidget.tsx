@@ -158,7 +158,7 @@ export function SmartTaskStackWidget({ data, onUpdateData }: SmartTaskStackProps
                   onClick={() => toggleTask(t.id)}
                   className="w-4 h-4 rounded-[4px] border border-[var(--bone-30)] hover:border-[var(--bone-60)] flex items-center justify-center shrink-0 hover:scale-105 active:scale-95"
                 />
-                <span className="flex-1 text-sm text-foreground/90 font-medium truncate">{t.title}</span>
+                <span className="flex-1 text-sm text-foreground/90 font-medium truncate tracking-wide">{t.title}</span>
                 {t.dueDate && (
                   <span className="text-[11px] text-[var(--bone-30)] font-medium tabular-nums shrink-0">{formatDate(t.dueDate)}</span>
                 )}

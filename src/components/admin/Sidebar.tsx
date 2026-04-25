@@ -15,7 +15,8 @@ import {
   MessageSquareText,
   BarChart3,
   ScrollText,
-  ArrowLeft
+  ArrowLeft,
+  Database
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,8 +28,8 @@ export default function Sidebar() {
           <Shield className="w-5 h-5" strokeWidth={2.5} />
         </div>
         <div className="flex flex-col">
-          <h1 className="text-xl font-display text-foreground tracking-tight leading-none">Admin</h1>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-[0.05em] uppercase opacity-40 mt-1">Orchestrator</span>
+          <h1 className="text-xl font-display text-foreground tracking-wide leading-none">Admin</h1>
+          <span className="text-[10px] font-bold text-muted-foreground tracking-[0.05em] uppercase opacity-40 mt-1 tracking-wide">Orchestrator</span>
         </div>
       </div>
 
@@ -40,6 +41,7 @@ export default function Sidebar() {
           <NavLink href="/admin/users" icon={Users}>Global Users</NavLink>
           <NavLink href="/admin/vault" icon={Shield}>Secure Vault</NavLink>
           <NavLink href="/admin/presets" icon={Zap}>Usage Presets</NavLink>
+          <NavLink href="/admin/models" icon={Database}>Model Registry</NavLink>
         </PlatformSection>
 
         <PlatformSection title="App Orchestration">
@@ -56,7 +58,7 @@ export default function Sidebar() {
       <div className="p-4 mt-auto border-t border-border">
         <Link 
           href="/"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-hover transition-all duration-200 group"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-hover transition-all duration-200 group tracking-wide"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Terminal
@@ -69,7 +71,7 @@ export default function Sidebar() {
 function PlatformSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <h3 className="px-3 text-[11px] font-ui-label font-bold text-muted-foreground/40 uppercase tracking-widest">{title}</h3>
+      <h3 className="px-3 text-[11px] font-ui-label font-bold text-muted-foreground/40 uppercase tracking-widest tracking-wide">{title}</h3>
       <div className="space-y-0.5">
         {children}
       </div>
@@ -85,7 +87,7 @@ function NavLink({ href, icon: Icon, children }: { href: string; icon: any; chil
     <Link 
       href={href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative text-sm font-medium",
+        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative text-sm font-medium tracking-wide",
         isActive 
           ? "bg-[var(--bone-6)] text-[var(--bone-100)] hover:bg-[var(--bone-10)]" 
           : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"

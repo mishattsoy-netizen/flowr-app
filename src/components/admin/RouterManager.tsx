@@ -20,43 +20,10 @@ import {
 import { updateRouterChain } from '@/app/admin/router/actions'
 import { cn } from '@/lib/utils'
 
-const PROVIDER_MODELS: Record<string, { id: string; rpd: string }[]> = {
-  google: [
-    { id: 'gemini-3.1-flash-lite', rpd: '500' },
-    { id: 'gemini-3-flash', rpd: '20' },
-    { id: 'gemini-3-flash-live', rpd: 'Unlimited' },
-    { id: 'gemini-2.5-flash', rpd: '20' },
-    { id: 'gemini-2.5-flash-lite', rpd: '20' },
-    { id: 'gemini-2.5-flash-8b', rpd: '1,500' },
-    { id: 'gemini-3.1-flash-tts', rpd: 'Unlimited' },
-    { id: 'gemini-2.5-flash-native-audio-dialog', rpd: 'Unlimited' },
-    { id: 'google-search-grounding', rpd: '1,500' },
-    { id: 'imagen-4-ultra-generate', rpd: '25' },
-    { id: 'imagen-4-fast-generate', rpd: '25' },
-    { id: 'imagen-4-generate', rpd: '25' },
-    { id: 'gemma-4-31b', rpd: '1,500' },
-    { id: 'gemma-4-26b', rpd: '1,500' },
-    { id: 'gemma-3-4b', rpd: '1,500' },
-    { id: 'allam-2-7b', rpd: 'Unlimited' }
-  ],
-  groq: [
-    { id: 'llama-3.3-70b-versatile', rpd: '1,000' },
-    { id: 'llama-3.1-8b-instant', rpd: '14,400' },
-    { id: 'qwen/qwen3-32b', rpd: '1,000' },
-    { id: 'openai/gpt-oss-120b', rpd: '1,000' },
-    { id: 'whisper-large-v3-turbo', rpd: '2,000' },
-    { id: 'whisper-large-v3', rpd: '2,000' }
-  ],
-  cloudflare: [
-    { id: 'cloudflare-workers-ai', rpd: '100,000' }
-  ],
-  huggingface: [
-    { id: 'huggingface-stable-diffusion', rpd: 'Unlimited' }
-  ],
-  vault: [
-    { id: 'tavily-search', rpd: 'Vault' },
-    { id: 'duckduckgo-search', rpd: 'Vault' }
-  ]
+interface RegistryModel {
+  id: string
+  provider: string
+  max_rpd: number | null
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -75,30 +42,32 @@ const PROVIDER_DOTS: Record<string, string> = {
   vault: 'bg-emerald-400'
 }
 
-const PROVIDERS = Object.keys(PROVIDER_MODELS)
-
 interface ModelConfig {
   id: string
   provider: string
   is_enabled: boolean
 }
 
-function ModelSelector({ 
-  value, 
-  provider, 
-  onChange 
-}: { 
-  value: string; 
-  provider: string; 
-  onChange: (val: string) => void 
+function ModelSelector({
+  value,
+  provider,
+  registryModels,
+  onChange,
+}: {
+  value: string
+  provider: string
+  registryModels: RegistryModel[]
+  onChange: (val: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState(value)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const models = PROVIDER_MODELS[provider.toLowerCase()] || []
+  const models = registryModels
+    .filter(m => m.provider.toLowerCase() === provider.toLowerCase())
+    .map(m => ({ id: m.id, rpd: m.max_rpd !== null ? m.max_rpd.toLocaleString() : '∞' }))
   const filtered = models.filter(m => m.id.toLowerCase().includes(search.toLowerCase()))
-  
+
   const currentModel = models.find(m => m.id === value)
 
   // Sync search with value when not open
@@ -140,7 +109,7 @@ function ModelSelector({
               setSearch(value)
             }
           }}
-          className="w-full bg-transparent border-none p-0 focus:ring-0 text-[13.5px] font-medium text-bone-60 group-hover:text-bone-100 placeholder:text-bone-60/20 truncate"
+          className="w-full bg-transparent border-none p-0 focus:ring-0 text-[13.5px] font-medium text-bone-60 group-hover:text-bone-100 placeholder:text-bone-60/20 truncate tracking-wide"
           placeholder="Model node ID..."
         />
         
@@ -164,7 +133,7 @@ function ModelSelector({
               className="w-full flex flex-col items-start gap-0.5 px-3 py-2 border-b border-white/5 hover:bg-bone-hover group/custom"
             >
               <span className="text-[8px] font-bold text-accent uppercase tracking-wider opacity-60 group-hover/custom:opacity-100">Custom ID</span>
-              <span className="text-[11px] font-medium text-bone-100 truncate w-full" title={search}>{search}</span>
+              <span className="text-[11px] font-medium text-bone-100 truncate w-full tracking-wide" title={search}>{search}</span>
             </button>
           )}
           
@@ -178,7 +147,7 @@ function ModelSelector({
                   setSearch(model.id)
                 }}
                 className={cn(
-                  "w-full flex items-center justify-between gap-3 px-3 py-1.5 text-[11px] font-medium",
+                  "w-full flex items-center justify-between gap-3 px-3 py-1.5 text-[11px] font-medium tracking-wide",
                   value === model.id ? "bg-accent/10 text-accent" : "text-bone-60 hover:bg-bone-hover hover:text-bone-100"
                 )}
               >
@@ -211,14 +180,16 @@ const CATEGORY_ICONS: Record<string, any> = {
   CLASSIFIER: Brain
 }
 
-export default function RouterManager({ 
+export default function RouterManager({
   chain,
   title,
-  category
-}: { 
-  chain: any,
-  title?: string,
+  category,
+  availableModels = [],
+}: {
+  chain: any
+  title?: string
   category?: string
+  availableModels?: RegistryModel[]
 }) {
   const [models, setModels] = useState<ModelConfig[]>(chain.model_list)
   const [isSaving, setIsSaving] = useState(false)
@@ -248,14 +219,11 @@ export default function RouterManager({
     newModels[index] = { ...newModels[index], [field]: value }
     
     if (field === 'provider') {
-      const oldModels = PROVIDER_MODELS[oldProvider.toLowerCase()] || []
-      const wasKnownModel = oldModels.some(m => m.id === oldId)
-      
-      const available = PROVIDER_MODELS[value.toLowerCase()] || []
-      
-      // Only auto-switch if it was a known model of the old provider AND is not in the new provider's known list
-      if (wasKnownModel && available.length > 0 && !available.some(m => m.id === oldId)) {
-        newModels[index].id = available[0].id
+      const oldProviderModels = availableModels.filter(m => m.provider.toLowerCase() === oldProvider.toLowerCase())
+      const wasKnownModel = oldProviderModels.some(m => m.id === oldId)
+      const newProviderModels = availableModels.filter(m => m.provider.toLowerCase() === (value as string).toLowerCase())
+      if (wasKnownModel && newProviderModels.length > 0 && !newProviderModels.some(m => m.id === oldId)) {
+        newModels[index].id = newProviderModels[0].id
       }
     }
 
@@ -263,8 +231,11 @@ export default function RouterManager({
     setHasChanges(true)
   }
 
+  const providers = [...new Set(availableModels.map(m => m.provider.toLowerCase()))].sort()
+
   const addModel = () => {
-    setModels([...models, { id: PROVIDER_MODELS.google[0].id, provider: 'google', is_enabled: true }])
+    const firstModel = availableModels[0]
+    setModels([...models, { id: firstModel?.id ?? '', provider: firstModel?.provider ?? 'google', is_enabled: true }])
     setHasChanges(true)
   }
 
@@ -311,9 +282,10 @@ export default function RouterManager({
             {/* Left: Model & Provider Pair */}
             <div className="flex-1 min-w-0 flex items-center gap-3">
               <div className={cn("flex-1 min-w-0 flex items-center gap-2", !model.is_enabled && "opacity-25 grayscale")}>
-                <ModelSelector 
+                <ModelSelector
                   value={model.id}
                   provider={model.provider}
+                  registryModels={availableModels}
                   onChange={(val) => updateLocalModel(index, 'id', val)}
                 />
               </div>
@@ -331,7 +303,7 @@ export default function RouterManager({
                       "opacity-40 group-hover:opacity-100"
                     )}
                   >
-                    {PROVIDERS.map(p => (
+                    {providers.map(p => (
                       <option key={p} value={p} className="bg-panel text-bone-100 capitalize">{p}</option>
                     ))}
                   </select>

@@ -13,7 +13,8 @@ import {
   adjustDivider,
   adjustVerticalDivider,
   computeGridPositions,
-  validateLayout
+  validateLayout,
+  recoverLayout
 } from '@/lib/bento-engine';
 
 const DEFAULT_LAYOUTS: Record<string, BentoLayoutItem[]> = {
@@ -71,9 +72,15 @@ export function useBentoLayout(contextId: string) {
         if (validateLayout(balanced).valid) {
           setLayout(balanced);
         } else {
-          console.error("[useBentoLayout] Saved layout is invalid, using default.");
-          const defaults = rebalanceAll(DEFAULT_LAYOUTS[contextId] ?? DEFAULT_LAYOUTS['workspace'] ?? []);
-          setLayout(defaults);
+          const recovered = recoverLayout(items);
+          if (recovered) {
+            console.warn("[useBentoLayout] Saved layout recovered after clamping invalid values.");
+            setLayout(recovered);
+          } else {
+            console.error("[useBentoLayout] Saved layout is invalid and unrecoverable, using default.");
+            const defaults = rebalanceAll(DEFAULT_LAYOUTS[contextId] ?? DEFAULT_LAYOUTS['workspace'] ?? []);
+            setLayout(defaults);
+          }
         }
       }
       setTimeout(() => setIsLoading(false), 200);
@@ -264,14 +271,10 @@ export function useBentoLayout(contextId: string) {
   const handleDragOverWidget = useCallback((targetId: string, row: number, col: number) => {
     if (!draggedId) return;
 
-    // Origin detection: Check if current pointer is within original widget area
-    if (initialPosRef.current && 
-        row >= initialPosRef.current.row && 
-        row < initialPosRef.current.row + initialPosRef.current.h &&
-        col >= initialPosRef.current.col && 
-        col < initialPosRef.current.col + initialPosRef.current.w) {
+    // Origin detection: pointer is still over the dragged widget's original cell
+    // Only bail if we're hovering the dragged widget itself (targetId === draggedId)
+    if (targetId === draggedId) {
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-      currentHoverRef.current = { id: targetId, row, order: null };
       setPreviewLayout(layoutRef.current);
       setSwapTargetId(null);
       setStackTargetId(null);
@@ -281,10 +284,10 @@ export function useBentoLayout(contextId: string) {
     if (currentHoverRef.current.id !== targetId) {
       currentHoverRef.current = { id: targetId, row, order: null };
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-      
+
       const targetItem = layoutRef.current.find(it => it.i === targetId);
       const draggedItem = layoutRef.current.find(it => it.i === draggedId);
-      
+
       const isStackedWidget = targetItem?.type === 'stacked-widgets';
       const canStack = isStackedWidget && targetItem && (!targetItem.data?.widgets || targetItem.data.widgets.length < 3) && draggedItem && draggedItem.type !== 'stacked-widgets';
 
@@ -303,8 +306,9 @@ export function useBentoLayout(contextId: string) {
         setStackTargetId(null);
         setSwapTargetId(targetId);
         dwellTimerRef.current = setTimeout(() => {
-          setPreviewLayout(calculateSwapLayout(layoutRef.current, draggedId, targetId));
-          setSwapTargetId(null);
+          const swapped = calculateSwapLayout(layoutRef.current, draggedId, targetId);
+          setPreviewLayout(swapped);
+          // Keep swap highlight until pointer leaves this target
         }, DWELL_DELAY_MS);
       }
     }

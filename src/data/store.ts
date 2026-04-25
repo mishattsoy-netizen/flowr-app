@@ -19,8 +19,7 @@ export type {
   WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
 } from './store.types';
 
-// Re-export constants and helpers needed by external consumers
-export { DEFAULT_FLOW_ROUTER_CONFIG, DEFAULT_CLASSIFICATION_MODEL_ID } from './store.constants';
+// Re-export helpers needed by external consumers
 export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 
 // Internal type imports (used within this file's store implementation)
@@ -35,7 +34,6 @@ import {
   robustParseJSON,  markdownToBlocks, blocksToMarkdown
 } from './store.helpers';
 
-import { DEFAULT_CLASSIFICATION_MODEL_ID } from './store.constants';
 
 // ─── Store ─────── (types/constants/helpers moved to store.types.ts / store.constants.ts / store.helpers.ts) ───
 
@@ -131,7 +129,7 @@ export const useStore = create<AppState>()(
       isAILoading: false,
       aiCursor: null,
       aiBehaviorMode: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_behavior') as 'fast' | 'thinking' | 'auto') || 'auto',
-      aiClassificationModelId: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_classification_model')) || DEFAULT_CLASSIFICATION_MODEL_ID,
+      aiClassificationModelId: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_classification_model')) || '',
       aiAbortController: null,
       sidebarSectionSettings: {
         pinned: { sortMode: 'lastModified', itemLimit: 10 },
@@ -139,6 +137,7 @@ export const useStore = create<AppState>()(
         workspaces: { sortMode: 'lastModified', itemLimit: 10 },
       },
       hiddenEntityIds: [],
+      isCommandPaletteOpen: false,
   
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
@@ -254,7 +253,14 @@ export const useStore = create<AppState>()(
           attachments,
         };
 
-        set({ aiMessages: [...aiMessages, userMessage], isAILoading: true });
+        const placeholderMessage: AIMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+        };
+
+        set({ aiMessages: [...aiMessages, userMessage, placeholderMessage], isAILoading: true });
 
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -289,34 +295,32 @@ export const useStore = create<AppState>()(
 
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: 'Request failed' }));
-            const errorMessage: AIMessage = {
-              id: generateId(),
-              role: 'assistant',
-              content: err.error || 'Something went wrong.',
-              model: err.model || 'system',
-              timestamp: Date.now(),
-            };
-            set(s => ({ aiMessages: [...s.aiMessages, errorMessage], isAILoading: false }));
+            set(s => ({
+              aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
+                ? { ...m, content: err.error || 'Something went wrong.', model: err.model || 'system' }
+                : m
+              ),
+              isAILoading: false,
+            }));
             return;
           }
 
           const data = await res.json();
-          const assistantMessage: AIMessage = {
-            id: generateId(),
-            role: 'assistant',
-            content: data.content,
-            model: data.model,
-            timestamp: Date.now(),
-          };
-          set(s => ({ aiMessages: [...s.aiMessages, assistantMessage], isAILoading: false }));
+          set(s => ({
+            aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
+              ? { ...m, content: data.content, model: data.model }
+              : m
+            ),
+            isAILoading: false,
+          }));
         } catch {
-          const errorMessage: AIMessage = {
-            id: generateId(),
-            role: 'assistant',
-            content: 'Connection error. Please try again.',
-            timestamp: Date.now(),
-          };
-          set(s => ({ aiMessages: [...s.aiMessages, errorMessage], isAILoading: false }));
+          set(s => ({
+            aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
+              ? { ...m, content: 'Connection error. Please try again.' }
+              : m
+            ),
+            isAILoading: false,
+          }));
         }
       },
 
@@ -370,6 +374,13 @@ export const useStore = create<AppState>()(
       addTab: (id = 'dashboard') => {
         const state = get();
         if (!id) return;
+        
+        const alreadyOpen = state.openTabIds.includes(id);
+        if (alreadyOpen) {
+          set({ activeTabId: id, activeEntityId: id });
+          return;
+        }
+
         set({
           openTabIds: [...state.openTabIds, id],
           activeTabId: id,
@@ -723,6 +734,9 @@ export const useStore = create<AppState>()(
 
       openModal: (modal) => set({ modal, contextMenu: null }),
       closeModal: () => set({ modal: null }),
+
+      toggleCommandPalette: () => set(s => ({ isCommandPaletteOpen: !s.isCommandPaletteOpen })),
+      setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
 
       openContextMenu: (entityId, x, y, source) => set({ contextMenu: { entityId, x, y, source } }),
       closeContextMenu: () => set({ contextMenu: null }),

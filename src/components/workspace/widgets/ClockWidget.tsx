@@ -104,11 +104,11 @@ export function ClockWidget({ data, onUpdateData, isEditing }: Props) {
       )}
       <div className="flex-1 flex flex-col items-center justify-center px-5 py-5">
         {style === 'simple' && (
-          <p className="text-6xl font-display font-semibold text-foreground tabular-nums">{timeStr}</p>
+           <p className="text-7xl font-display font-normal text-foreground tabular-nums" style={{ letterSpacing: '-0.03em' }}>{timeStr}</p>
         )}
         {style === 'datetime' && (
           <div className="text-center space-y-1.5">
-            <p className="text-5xl font-display font-semibold text-foreground tabular-nums">{timeStr}</p>
+             <p className="text-6xl font-display font-normal text-foreground tabular-nums" style={{ letterSpacing: '-0.03em' }}>{timeStr}</p>
             <p className="text-sm font-medium text-muted-foreground">{dateStr}</p>
           </div>
         )}

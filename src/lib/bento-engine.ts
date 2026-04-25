@@ -135,7 +135,28 @@ export function calculateSwapLayout(
   const target = layout.find(it => it.i === targetId);
   if (!dragged || !target) return layout;
 
-  // 1. Simple Swap
+  // Same row — no swap needed
+  if (dragged.row === target.row) return layout;
+
+  const draggedRowMates = layout.filter(it => it.row === dragged.row && it.i !== draggedId);
+  const targetRowMates  = layout.filter(it => it.row === target.row  && it.i !== targetId);
+
+  // 1. Row-swap strategy: move all widgets from each row into the other row.
+  //    This handles 1-widget↔multi-widget swaps where a simple positional swap
+  //    would overflow the destination row.
+  if (draggedRowMates.length !== targetRowMates.length) {
+    const rowSwapped = layout.map(it => {
+      if (it.row === dragged.row) return { ...it, row: target.row };
+      if (it.row === target.row)  return { ...it, row: dragged.row };
+      return it;
+    });
+    const rebalanced = rebalanceAll(rowSwapped);
+    if (validateLayout(rebalanced).valid && rebalanced.length === layout.length) {
+      return rebalanced;
+    }
+  }
+
+  // 2. Simple positional swap (same row composition on both sides)
   const swapCoords = layout.map(it => {
     if (it.i === draggedId) return { ...it, row: target.row, order: target.order };
     if (it.i === targetId) return { ...it, row: dragged.row, order: dragged.order };
@@ -148,7 +169,7 @@ export function calculateSwapLayout(
     return rebalanced;
   }
 
-  // 2. Smart Swap: Try to make room by shrinking other widgets in the affected rows
+  // 3. Smart Swap: Try to make room by shrinking other widgets in the affected rows
   const affectedRows = [dragged.row, target.row];
   const roomMade = layout.map(it => {
     if (affectedRows.includes(it.row) && it.i !== draggedId && it.i !== targetId) {
@@ -157,7 +178,6 @@ export function calculateSwapLayout(
     return it;
   });
 
-  // Apply coordinates to the "room-made" layout
   const smartSwap = roomMade.map(it => {
     if (it.i === draggedId) return { ...it, row: target.row, order: target.order };
     if (it.i === targetId) return { ...it, row: dragged.row, order: dragged.order };
@@ -342,6 +362,29 @@ export function validateLayout(layout: BentoLayoutItem[]): { valid: boolean; err
   }
 
   return { valid: true };
+}
+
+// Attempt to salvage a broken saved layout before falling back to defaults.
+// Steps: drop unknown types → clamp w/h to registry bounds → rebalance → validate.
+export function recoverLayout(layout: BentoLayoutItem[]): BentoLayoutItem[] | null {
+  const known = layout.filter(it => !!widgetRegistry[it.type]);
+
+  const clamped = known.map(it => {
+    const entry = widgetRegistry[it.type];
+    const minW = entry?.minW ?? 2;
+    const maxW = entry?.maxW ?? 6;
+    const minH = entry?.minH ?? 1;
+    const maxH = entry?.maxH ?? 4;
+    return {
+      ...it,
+      w: Math.min(Math.max(it.w, minW), maxW),
+      h: Math.min(Math.max(it.h, minH), maxH),
+      row: Math.min(Math.max(it.row, 0), MAX_ROWS - 1),
+    };
+  });
+
+  const recovered = compactLayout(rebalanceAll(clamped));
+  return validateLayout(recovered).valid ? recovered : null;
 }
 
 export function computeGridPositions(layout: BentoLayoutItem[]) {

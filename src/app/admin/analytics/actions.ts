@@ -8,17 +8,30 @@ import { supabaseAdmin as supabase } from '@/lib/supabase'
 export async function getTopicDistribution() {
   const { data, error } = await supabase
     .from('message_logs')
-    .select('topic_tag')
+    .select('usage_type')
+    .eq('role', 'model')
+    .not('usage_type', 'is', null)
 
   if (error) throw error
 
+  const LABELS: Record<string, string> = {
+    chat: 'Chat',
+    tool: 'Tool Use',
+    search: 'Web Search',
+    vision: 'Vision',
+    image: 'Image Gen',
+  }
+
   const counts: Record<string, number> = {}
   data.forEach((log: any) => {
-    const tag = log.topic_tag || 'Unknown'
-    counts[tag] = (counts[tag] || 0) + 1
+    const key = log.usage_type || 'chat'
+    const label = LABELS[key] ?? key
+    counts[label] = (counts[label] || 0) + 1
   })
 
-  return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  return Object.entries(counts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
 }
 
 /**
@@ -44,6 +57,7 @@ export async function getUsageTypeDistribution() {
   const { data, error } = await supabase
     .from('message_logs')
     .select('usage_type')
+    .eq('role', 'model')
 
   if (error) throw error
 
@@ -53,5 +67,7 @@ export async function getUsageTypeDistribution() {
     counts[type] = (counts[type] || 0) + 1
   })
 
-  return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  return Object.entries(counts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
 }

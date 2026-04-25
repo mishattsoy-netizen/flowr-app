@@ -16,9 +16,10 @@ export async function logInteraction(
   content: string,
   role: 'user' | 'model',
   type: 'text' | 'image' = 'text',
-  usageType: 'chat' | 'tool' | 'search' | 'vision' = 'chat',
+  usageType: 'chat' | 'tool' | 'search' | 'vision' | 'image' = 'chat',
   status: 'success' | 'error' = 'success',
-  modelChain?: string
+  modelChain?: string,
+  requestId?: string
 ) {
   try {
     let topicTag = null
@@ -41,7 +42,8 @@ export async function logInteraction(
       type,
       usage_type: usageType,
       status,
-      model_chain: modelChain ?? null
+      model_chain: modelChain ?? null,
+      request_id: requestId ?? null
     })
 
     if (error) throw error
@@ -59,9 +61,10 @@ export async function logWebInteraction(
   authUserId: string,
   content: string,
   role: 'user' | 'model',
-  usageType: 'chat' | 'tool' | 'search' | 'vision' = 'chat',
+  usageType: 'chat' | 'tool' | 'search' | 'vision' | 'image' = 'chat',
   status: 'success' | 'error' = 'success',
-  modelChain?: string
+  modelChain?: string,
+  requestId?: string
 ) {
   if (!supabaseAdmin) return
   try {
@@ -73,7 +76,8 @@ export async function logWebInteraction(
       type: 'text',
       usage_type: usageType,
       status,
-      model_chain: modelChain ?? null
+      model_chain: modelChain ?? null,
+      request_id: requestId ?? null
     })
 
     if (error?.message?.includes('auth_user_id')) {
@@ -85,7 +89,8 @@ export async function logWebInteraction(
         usage_type: usageType,
         topic_tag: `app:${authUserId.slice(0, 8)}`,
         status,
-        model_chain: modelChain ?? null
+        model_chain: modelChain ?? null,
+        request_id: requestId ?? null
       })
       if (fallbackError) logger.warn(`Web log fallback failed: ${fallbackError.message}`)
       else logger.info(`Web interaction logged (no auth_user_id column) [${role}]`)

@@ -44,10 +44,18 @@ export async function runGoogle(
         })
       }
       
-      // Start chat WITH HISTORY
-      let chat = model.startChat({
-        history: history
-      })
+      // Gemini requires history to start with 'user' and alternate user/model
+      // Drop any leading model messages and enforce alternation
+      const safeHistory: any[] = []
+      for (const msg of history) {
+        const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
+        if (msg.role === expectedRole) safeHistory.push(msg)
+        // skip out-of-order messages silently
+      }
+      // Must end on model turn (history is pairs: user then model)
+      if (safeHistory.length % 2 !== 0) safeHistory.pop()
+
+      let chat = model.startChat({ history: safeHistory })
       
       let result = await chat.sendMessage(parts)
       let response = result.response

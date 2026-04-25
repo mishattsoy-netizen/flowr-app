@@ -16,6 +16,7 @@ import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
+import { CommandPalette } from './CommandPalette';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
@@ -38,6 +39,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const goForward = useStore(state => state.goForward);
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
+  const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
   const isInternalNavRef = useRef(false);
   const [hasHydrated, setHasHydrated] = useState(false);
 
@@ -75,6 +77,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
       } else if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
         window.history.forward();
+      } else if (e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        toggleCommandPalette();
       }
     };
     window.addEventListener('keydown', handleNavigationShortcuts);
@@ -263,8 +268,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             }}
           >
             <div className={clsx(
-              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-colors",
-              isResizingRight ? "bg-accent" : "bg-white/10 opacity-0 group-hover:opacity-100"
+              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-300",
+              isResizingRight ? "bg-accent opacity-100" : "bg-accent/30 opacity-0 group-hover:opacity-100"
             )} />
           </div>
         )}
@@ -272,10 +277,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {/* Right AI Sidebar Wrapper */}
         <div 
           className={clsx(
-            "h-full bg-background shrink-0 overflow-hidden relative",
-            (isAIAssistantExtended && isAIAssistantOpen) 
-              ? "border-l border-[var(--bone-15)]" 
-              : "w-0 border-transparent"
+            "h-full bg-sidebar shrink-0 overflow-hidden relative z-40",
+            (!isAIAssistantExtended || !isAIAssistantOpen) && "w-0"
           )}
           style={{ 
             width: (isAIAssistantExtended && isAIAssistantOpen) ? `${currentAiSidebarWidth}px` : '0px',
@@ -299,6 +302,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <SettingsModal key="settings-modal" />
       <MediaViewerModal key="media-viewer" />
       <NewWorkspaceModal key="new-workspace" />
+      <CommandPalette key="command-palette" />
 
 
       

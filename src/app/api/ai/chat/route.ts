@@ -82,12 +82,14 @@ export async function POST(req: NextRequest) {
 
     // Log to message_logs — never store raw base64 image data
     const logId = user?.id || 'anonymous'
+    const requestId = crypto.randomUUID()
     const loggedContent = (result.type === 'photo' || (typeof content === 'string' && content.startsWith('![')))
       ? '[image]'
       : (typeof content === 'string' ? content : '[image]')
     const modelChain = result.model_chain
-    logWebInteraction(logId, prompt, 'user', result.usage_type || 'chat', 'success', modelChain).catch(() => {})
-    logWebInteraction(logId, loggedContent, 'model', result.usage_type || 'chat', result.status || 'success', modelChain).catch(() => {})
+    const usageType = result.usage_type || 'chat'
+    logWebInteraction(logId, prompt, 'user', usageType as any, 'success', modelChain, requestId).catch(() => {})
+    logWebInteraction(logId, loggedContent, 'model', usageType as any, result.status || 'success', modelChain, requestId).catch(() => {})
 
     return NextResponse.json({
       content,

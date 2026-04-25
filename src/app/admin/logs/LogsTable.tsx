@@ -4,12 +4,14 @@ import React, { useState, useTransition } from 'react'
 import { getMessageExchanges, Exchange } from './actions'
 import { cn } from '@/lib/utils'
 import { Bot, Globe, MessageSquare, Search, Wrench, Eye, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
+import ClearLogsModal from '@/components/admin/ClearLogsModal'
 
 const USAGE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   chat:   { label: 'Chat',   color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
   tool:   { label: 'Tool',   color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
   search: { label: 'Search', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' },
   vision: { label: 'Vision', color: 'text-purple-400 bg-purple-400/10 border-purple-400/20' },
+  image:  { label: 'Image',  color: 'text-pink-400 bg-pink-400/10 border-pink-400/20' },
 }
 
 const USAGE_ICONS: Record<string, React.ReactNode> = {
@@ -17,6 +19,7 @@ const USAGE_ICONS: Record<string, React.ReactNode> = {
   tool:   <Wrench className="w-3 h-3" />,
   search: <Search className="w-3 h-3" />,
   vision: <Eye className="w-3 h-3" />,
+  image:  <Eye className="w-3 h-3" />,
 }
 
 function formatTime(iso: string) {
@@ -48,6 +51,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState<Filters>({ platform: 'all', usage_type: 'all' })
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
   const [isPending, startTransition] = useTransition()
 
   const PAGE_SIZE = 50
@@ -71,7 +75,29 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
     const next = { ...filters, [key]: value }
     setFilters(next)
     setExpanded(null)
+    setSelected(new Set())
     load(next, 0)
+  }
+
+  function toggleSelect(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === exchanges.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(exchanges.map(e => e.id)))
+    }
+  }
+
+  function handleClearDone(deleted: number) {
+    setSelected(new Set())
+    load(filters, 0)
   }
 
   return (
@@ -97,23 +123,43 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
             { value: 'tool', label: 'Tool' },
             { value: 'search', label: 'Search' },
             { value: 'vision', label: 'Vision' },
+            { value: 'image', label: 'Image' },
           ]}
           value={filters.usage_type}
           onChange={(v) => setFilter('usage_type', v)}
         />
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
           {isPending && <RefreshCw className="w-3.5 h-3.5 text-accent animate-spin" />}
+          {selected.size > 0 && (
+            <span className="text-[10px] font-bold text-accent opacity-70 uppercase tracking-widest">
+              {selected.size} selected
+            </span>
+          )}
           <span className="text-[10px] font-bold text-bone-60 opacity-40 uppercase tracking-widest">
             {total.toLocaleString()} exchanges
           </span>
+          <ClearLogsModal selectedIds={[...selected]} onDone={handleClearDone} />
         </div>
       </div>
 
       {/* Table */}
       <div className="bg-panel border border-white/5 rounded-big overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[100px_140px_1fr_1fr_220px_72px_28px] gap-3 px-4 py-2.5 border-b border-white/5 bg-background/40">
+        <div className="grid grid-cols-[28px_100px_140px_1fr_1fr_220px_72px_28px] gap-3 px-4 py-2.5 border-b border-white/5 bg-background/40">
+          <button
+            onClick={toggleSelectAll}
+            className={cn(
+              'w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all self-center',
+              selected.size === exchanges.length && exchanges.length > 0
+                ? 'bg-accent border-accent'
+                : 'border-white/20 hover:border-white/40'
+            )}
+          >
+            {selected.size === exchanges.length && exchanges.length > 0 && (
+              <CheckCircle2 className="w-2.5 h-2.5 text-background" />
+            )}
+          </button>
           {['Time', 'User', 'Prompt', 'Response', 'Routing', 'Type', ''].map(h => (
             <span key={h} className="text-[9px] font-bold uppercase tracking-[0.12em] text-bone-60 opacity-30">{h}</span>
           ))}
@@ -133,9 +179,22 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
 
             return (
               <div key={ex.id}>
+                <div className="w-full grid grid-cols-[28px_100px_140px_1fr_1fr_220px_72px_28px] gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors group">
+                  {/* Checkbox */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(ex.id) }}
+                    className={cn(
+                      'w-4 h-4 rounded-[3px] border flex items-center justify-center transition-all self-center shrink-0',
+                      selected.has(ex.id)
+                        ? 'bg-accent border-accent'
+                        : 'border-white/10 hover:border-white/30 opacity-0 group-hover:opacity-100'
+                    )}
+                  >
+                    {selected.has(ex.id) && <CheckCircle2 className="w-2.5 h-2.5 text-background" />}
+                  </button>
                 <button
                   onClick={() => setExpanded(isExpanded ? null : ex.id)}
-                  className="w-full grid grid-cols-[100px_140px_1fr_1fr_220px_72px_28px] gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors group"
+                  className="contents text-left"
                 >
                   {/* Time */}
                   <span className="text-[10px] text-bone-60 opacity-40 font-mono truncate self-center">
@@ -221,6 +280,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                     )}
                   </div>
                 </button>
+                </div>
 
                 {/* Expanded row */}
                 {isExpanded && (

@@ -142,7 +142,7 @@ export const HeaderBar = memo(function HeaderBar() {
     }`;
 
   return (
-    <div className="h-9 flex items-center px-4 bg-sidebar border-b border-border shrink-0 relative z-30">
+    <div className="h-8 flex items-center px-3 bg-sidebar border-b border-border shrink-0 relative z-30">
       {/* Left Nav Actions */}
       <div className="flex items-center gap-1 shrink-0">
         <button 
@@ -199,7 +199,7 @@ export const HeaderBar = memo(function HeaderBar() {
               <div
                 onClick={() => setActiveTab(tabId)}
                 className={clsx(
-                  "flex items-center gap-1.5 pl-2.5 pr-1.5 h-6 rounded-[var(--radius-small)] cursor-pointer transition-all shrink-0 select-none",
+                  "flex items-center gap-1.5 pl-2.5 pr-1.5 h-6 rounded-[var(--radius-small)] cursor-pointer transition-all select-none min-w-0 max-w-[160px] flex-shrink flex-grow-0",
                   isActive 
                     ? "bg-[var(--bone-6)] text-[var(--bone-100)]" 
                     : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
@@ -207,12 +207,15 @@ export const HeaderBar = memo(function HeaderBar() {
                 )}
               >
                 {Icon && <Icon strokeWidth={2} className={clsx("w-3.5 h-3.5 shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]")} />}
-                <span className="text-[13px] font-medium text-fade max-w-[140px]">{title}</span>
+                <span className="text-[13px] font-medium truncate flex-1 min-w-0 overflow-hidden whitespace-nowrap">{title}</span>
                 
-                {tabId !== 'dashboard' && (
+                {openTabIds.length > 1 && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); removeTab(tabId); }}
-                    className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bone-10)] rounded-[4px] p-0.5 transition-all"
+                    className={clsx(
+                      "ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-[var(--bone-10)] rounded-[4px] p-0.5 transition-all",
+                      isActive && tabId === 'dashboard' && "opacity-100" // Always show for active dashboard if closable
+                    )}
                   >
                     <X strokeWidth={2} className="w-3 h-3" />
                   </button>

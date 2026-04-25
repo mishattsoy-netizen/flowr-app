@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState, useRef, useEffect, useMemo } from 'react';
-import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, Plus } from 'lucide-react';
+import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip } from 'lucide-react';
 import { useStore } from '@/data/store';
 import type { AIMessage, AIAttachment } from '@/data/store';
 import ReactMarkdown from 'react-markdown';
@@ -75,14 +75,14 @@ export const ChatMessage = memo(({
   handleAddImageToWorkspace: (url: string) => void;
   onRegenerate?: () => void;
 }) => {
-  const add_note = useStore(state => state.add_note);
   const openModal = useStore(state => state.openModal);
 
   const targetContent = useMemo(() =>
     sanitizeContent(msg.content || '', isAILoading, isLast)
   , [msg.content, isAILoading, isLast]);
 
-  const isInitiallyFinished = !isLast || (!isAILoading && targetContent.length > 0);
+  const isImageContent = targetContent.startsWith('![');
+  const isInitiallyFinished = isImageContent || !isLast || (!isAILoading && targetContent.length > 0);
   const [displayContent, setDisplayContent] = useState(isInitiallyFinished ? targetContent : '');
   const [hasFinishedTyping, setHasFinishedTyping] = useState(isInitiallyFinished);
   const soundPlayedRef = useRef(false);
@@ -91,7 +91,7 @@ export const ChatMessage = memo(({
   const lastTimeRef = useRef(0);
 
   useEffect(() => {
-    if (msg.role === 'user' || hasFinishedTyping) {
+    if (msg.role === 'user' || hasFinishedTyping || isImageContent) {
       setDisplayContent(targetContent);
       displayedLenRef.current = targetContent.length;
       return;
@@ -118,7 +118,7 @@ export const ChatMessage = memo(({
           if (!soundPlayedRef.current && msg.role === 'assistant') {
             const audio = new Audio('/notification-sound.mp3');
             audio.volume = 0.35;
-            audio.play().catch(() => {});
+            audio.play().catch(() => { });
             soundPlayedRef.current = true;
           }
         }
@@ -162,7 +162,7 @@ export const ChatMessage = memo(({
 
     rafRef.current = requestAnimationFrame(step);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [targetContent, msg.role, isAILoading, hasFinishedTyping]);
+  }, [targetContent, msg.role, isAILoading, hasFinishedTyping, isImageContent]);
 
   const markdownComponents = useMemo(() => {
     const isAtEnd = (node: any) => {
@@ -191,7 +191,7 @@ export const ChatMessage = memo(({
         return (
           <li className="flex items-start gap-2.5">
             <span className="text-accent select-none shrink-0 mt-[0.45em] flex items-center justify-center leading-none" aria-hidden="true">•</span>
-            <div className="flex-1 min-w-0 leading-relaxed text-[13.5px]">
+            <div className="flex-1 min-w-0 leading-relaxed text-[13.5px] tracking-wide">
               {children}
               {atEnd && <span className="ai-cursor-inline">█</span>}
             </div>
@@ -200,7 +200,7 @@ export const ChatMessage = memo(({
       },
       code: ({ node, children }: any) => {
         const atEnd = !hasFinishedTyping && isAtEnd(node);
-        return <code className="bg-white/10 rounded px-1.5 py-0.5 text-[12px] font-mono">{children}{atEnd && <span className="ai-cursor-inline">█</span>}</code>;
+        return <code className="bg-white/10 rounded px-1.5 py-0.5 text-[12px] font-mono tracking-wide">{children}{atEnd && <span className="ai-cursor-inline">█</span>}</code>;
       },
       hr: () => <hr className="border-inner my-4" />,
       img: ({ src, alt }: any) => src ? <ChatImage src={src} alt={alt || ''} onHeightChange={scrollToBottom} onAddToWorkspace={() => handleAddImageToWorkspace(src)} /> : null
@@ -226,11 +226,11 @@ export const ChatMessage = memo(({
             </div>
           )}
           <div
-            className="max-w-[92%] px-5 py-3 text-[13.5px] leading-relaxed rounded-2xl bg-red-500/5 shadow-lg shadow-red-500/5"
+            className="max-w-[92%] px-5 py-3 text-[13.5px] leading-relaxed rounded-2xl bg-red-500/5 shadow-lg shadow-red-500/5 tracking-wide"
             style={{ background: 'color-mix(in srgb, var(--color-background) 92%, rgb(239 68 68) 8%)' }}
           >
             <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-red-400/60 mb-2">System Alert</p>
-            <p className="text-foreground/90 font-medium">{errorText}</p>
+            <p className="text-foreground/90 font-medium tracking-wide">{errorText}</p>
           </div>
         </div>
       </div>
@@ -243,11 +243,11 @@ export const ChatMessage = memo(({
       msg.role === 'user' ? "items-end mb-4" : "items-start mb-0"
     )}>
       <div className={clsx(
-        "flex gap-1.5 max-w-full",
+        "flex gap-1 max-w-full",
         msg.role === 'user' ? "flex-row-reverse" : "flex-row"
       )}>
         {msg.role === 'assistant' && isLast && (
-          <div className="w-8 h-8 shrink-0 flex items-center justify-center mt-1">
+          <div className="w-8 h-8 shrink-0 flex items-center justify-center mt-1 -ml-1">
             <AIAvatar isTyping={!hasFinishedTyping && msg.role === 'assistant'} />
           </div>
         )}
@@ -264,113 +264,123 @@ export const ChatMessage = memo(({
               />
             </div>
           ) : (
-          <div
-            className={clsx(
-              "px-4 py-2.5 text-[14px] leading-relaxed",
-              isStatusOnly && "p-0!"
-            )}
-            style={msg.role === 'user'
-              ? { background: 'var(--bone-6)', borderRadius: '18px 18px 4px 18px' }
-              : { background: 'var(--bone-4)', borderRadius: '18px 18px 18px 4px' }
-            }
-          >
-            {msg.role === 'user' ? (
-              <div className="flex flex-col gap-3">
-                <div className="whitespace-pre-wrap break-words text-foreground/90">{targetContent}</div>
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {msg.attachments.map((att: AIAttachment, i: number) => (
-                      <div
-                        key={`${msg.id}-att-${i}`}
-                        className="rounded-[var(--radius-small)] overflow-hidden bg-[var(--black-overlay)] group relative cursor-pointer transition-colors"
-                        onClick={() => {
-                          if (att.type === 'image') {
-                            openModal({ kind: 'mediaViewer', url: att.url, mediaType: 'image' });
-                          } else {
-                            window.open(att.url, '_blank');
-                          }
-                        }}
-                      >
-                        {att.type === 'image' ? (
-                          <img src={att.url} alt={att.name} className="max-w-[200px] max-h-[150px] object-cover group-hover:opacity-90" />
-                        ) : att.type === 'audio' ? (
-                          <ChatAudioPlayer url={att.url} name={att.name} />
-                        ) : (
-                          <div className="px-3 py-2 text-[10px] flex items-center gap-2 group-hover:text-accent font-medium">
-                            <Paperclip strokeWidth={2} className="w-3 h-3 text-accent" />
-                            <span className="max-w-[120px] truncate">{att.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+            <div
+              className={clsx(
+                "leading-relaxed text-[14.5px]",
+                msg.role === 'user' ? "px-4 py-2.5" : "px-0 py-1",
+                isStatusOnly && "p-0!"
+              )}
+              style={msg.role === 'user'
+                ? { background: 'var(--bone-6)', borderRadius: '18px 18px 4px 18px' }
+                : { background: 'none' }
+              }
+            >
+              {msg.role === 'user' ? (
+                <div className="flex flex-col gap-3">
+                  <div className="whitespace-pre-wrap break-words text-foreground/90">{targetContent}</div>
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {msg.attachments.map((att: AIAttachment, i: number) => (
+                        <div
+                          key={`${msg.id}-att-${i}`}
+                          className="rounded-[var(--radius-small)] overflow-hidden bg-[var(--black-overlay)] group relative cursor-pointer transition-colors"
+                          onClick={() => {
+                            if (att.type === 'image') {
+                              openModal({ kind: 'mediaViewer', url: att.url, mediaType: 'image' });
+                            } else {
+                              window.open(att.url, '_blank');
+                            }
+                          }}
+                        >
+                          {att.type === 'image' ? (
+                            <img src={att.url} alt={att.name} className="max-w-[200px] max-h-[150px] object-cover group-hover:opacity-90" />
+                          ) : att.type === 'audio' ? (
+                            <ChatAudioPlayer url={att.url} name={att.name} />
+                          ) : (
+                            <div className="px-3 py-2 text-[10px] flex items-center gap-2 group-hover:text-accent font-medium">
+                              <Paperclip strokeWidth={2} className="w-3 h-3 text-accent" />
+                              <span className="max-w-[120px] truncate">{att.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (() => {
+                // Direct image rendering: bypass ReactMarkdown for generated images
+                const imageMatch = displayContent.match(/^!\[([^\]]*)\]\((data:[^)]+|https?:\/\/[^\s)]+)\)$/)
+                if (imageMatch) {
+                  return <ChatImage
+                    src={imageMatch[2]}
+                    alt={imageMatch[1]}
+                    onHeightChange={scrollToBottom}
+                    onAddToWorkspace={() => handleAddImageToWorkspace(imageMatch[2])}
+                  />
+                }
+                return (
+                  <div className={clsx("prose prose-invert max-w-full relative [&_p]:my-0", !hasFinishedTyping && msg.role === 'assistant' && "prose-streaming")}>
+                    <ReactMarkdown components={markdownComponents}>
+                      {displayContent}
+                    </ReactMarkdown>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className={clsx("prose prose-invert max-w-full relative [&_p]:my-0", !hasFinishedTyping && msg.role === 'assistant' && "prose-streaming")}>
-                <ReactMarkdown components={markdownComponents}>
-                  {displayContent}
-                </ReactMarkdown>
-              </div>
-            )}
-          </div>
+                )
+              })()}
+
+            </div>
           )}
 
-          {msg.role === 'assistant' && displayContent && hasFinishedTyping && (
+          {msg.role === 'assistant' && displayContent && (hasFinishedTyping || msg.model) && (
             <div className={clsx(
               "flex items-center gap-1 mt-1 transition-all duration-200",
               !isLast && "opacity-0 group-hover:opacity-100"
             )}>
-              <Tooltip content="Copy">
-                <button
-                  onClick={() => navigator.clipboard.writeText(displayContent)}
-                  className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors"
-                >
-                  <Copy strokeWidth={2} className="w-3 h-3" />
-                </button>
-              </Tooltip>
-              <Tooltip content="Good response">
-                <button className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors">
-                  <ThumbsUp strokeWidth={2} className="w-3 h-3" />
-                </button>
-              </Tooltip>
-              <Tooltip content="Bad response">
-                <button className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors">
-                  <ThumbsDown strokeWidth={2} className="w-3 h-3" />
-                </button>
-              </Tooltip>
-              {isLast && onRegenerate && (
-                <Tooltip content="Regenerate">
-                  <button
-                    onClick={onRegenerate}
-                    className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors"
-                  >
-                    <RotateCcw strokeWidth={2} className="w-3 h-3" />
-                  </button>
-                </Tooltip>
+              {hasFinishedTyping && (
+                <>
+                  <Tooltip content="Copy">
+                    <button
+                      onClick={() => navigator.clipboard.writeText(displayContent)}
+                      className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors"
+                    >
+                      <Copy strokeWidth={2} className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Good response">
+                    <button className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors">
+                      <ThumbsUp strokeWidth={2} className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Bad response">
+                    <button className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors">
+                      <ThumbsDown strokeWidth={2} className="w-3 h-3" />
+                    </button>
+                  </Tooltip>
+                  {isLast && onRegenerate && (
+                    <Tooltip content="Regenerate">
+                      <button
+                        onClick={onRegenerate}
+                        className="p-0.5 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors"
+                      >
+                        <RotateCcw strokeWidth={2} className="w-3 h-3" />
+                      </button>
+                    </Tooltip>
+                  )}
+                </>
               )}
-              {displayContent.length > 500 && (
-                <button
-                  onClick={() => add_note('Saved from Chat', displayContent)}
-                  className="ml-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent hover:bg-accent/5 transition-all active:scale-95"
-                >
-                  <Plus strokeWidth={2.5} className="w-2.5 h-2.5" />
-                  Save to Workspace
-                </button>
+
+              {msg.model && (
+                <div className={clsx(
+                  "flex items-center px-2 py-0.5 rounded-full bg-[var(--bone-6)]/50 border border-[var(--bone-10)]/50 opacity-40 hover:opacity-100 transition-all duration-300",
+                  hasFinishedTyping ? "ml-1" : "ml-0"
+                )}>
+                  <span className="text-[8px] font-bold uppercase tracking-[0.05em] text-[var(--bone-40)]">
+                    {msg.model.split('/').pop()?.replace(/-/g, ' ')}
+                  </span>
+                </div>
               )}
             </div>
           )}
         </div>
-        {msg.role === 'assistant' && msg.model && (
-          <div className="mt-2 ml-10 flex items-center gap-2 group/model">
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bone-6)] border border-[var(--bone-10)] opacity-40 group-hover/model:opacity-100 transition-all duration-300">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)] animate-pulse" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--bone-40)] group-hover/model:text-[var(--bone-80)] transition-colors">
-                {msg.model.split('/').pop()?.replace(/-/g, ' ')}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

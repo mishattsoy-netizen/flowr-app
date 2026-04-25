@@ -94,7 +94,7 @@ function MenuItemComponent({
         )}
       >
         {item.icon && <div className="w-4 h-4 shrink-0">{item.icon}</div>}
-        <span className="flex-1 text-left font-medium">{item.label}</span>
+        <span className="flex-1 text-left font-medium tracking-wide">{item.label}</span>
         {item.children && <ChevronRight className={clsx("w-3 h-3 opacity-50 transition-transform", isOpen && "rotate-90")} />}
       </button>
 

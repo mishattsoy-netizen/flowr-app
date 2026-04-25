@@ -8,11 +8,17 @@ import { runWebSearchChain } from './providers/tavily'
 import { runCloudflare } from './providers/cloudflare'
 import { runPollinations } from './providers/pollinations'
 import { getConversationMemory, getWebConversationMemory } from './memory'
+import { supabaseAdmin } from '../supabase'
+
+function trackModelUsage(modelId: string, provider: string) {
+  supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
+    .then(({ error }: { error: any }) => { if (error) logger.warn(`Usage track failed [${modelId}]: ${error.message}`) })
+}
 
 export interface ChainResponse {
   type: 'text' | 'photo'
   content: string | Buffer
-  usage_type?: 'chat' | 'tool' | 'search' | 'vision'
+  usage_type?: 'chat' | 'tool' | 'search' | 'vision' | 'image'
   model?: string
   model_chain?: string
   status?: 'success' | 'error'
@@ -52,10 +58,29 @@ export async function runChain(
   }
 
   if (activeBuffer) {
-    const modelId = 'gemini-1.5-flash-latest'
-    logger.info(`Routing to Vision Flow using ${modelId}`)
-    const visionRes = await runGoogle(modelId, prompt || "Analyze this image.", undefined, activeBuffer, context as any, history)
-    return { type: 'text', content: visionRes || "Analyzer failed.", usage_type: 'vision', model: modelId, model_chain: `vision → ${modelId}`, status: 'success' }
+    // Look up VISION chain from DB — configure models via Router admin
+    let { chain: visionChain } = await getRouterChain('VISION', platform)
+    if (visionChain.length === 0 && platform !== 'telegram') {
+      const tgVision = await getRouterChain('VISION', 'telegram')
+      visionChain = tgVision.chain
+    }
+
+    for (const modelConfig of visionChain) {
+      if (!modelConfig.is_enabled) continue
+      try {
+        logger.info(`Routing vision to: ${modelConfig.id} (${modelConfig.provider})`)
+        const visionRes = await runGoogle(modelConfig.id, prompt || "Analyze this image.", undefined, activeBuffer, context as any, history)
+        if (visionRes) {
+          trackModelUsage(modelConfig.id, modelConfig.provider)
+          return { type: 'text', content: visionRes, usage_type: 'vision', model: modelConfig.id, model_chain: `vision → ${modelConfig.id}`, status: 'success' }
+        }
+      } catch (e: any) {
+        logger.warn(`Vision failure [${modelConfig.id}]: ${e.message}`)
+      }
+    }
+
+    if (visionChain.length === 0) logger.warn('No VISION chain configured in DB. Add models via Router admin.')
+    return { type: 'text', content: "Vision chain is empty. Configure models in the VISION router.", usage_type: 'vision', model_chain: 'vision → (none)', status: 'error' }
   }
 
   // 2. Standard Routing Flow
@@ -68,19 +93,12 @@ export async function runChain(
     category = 'TOOL_CALLING'
   }
   let { chain, system_prompt } = await getRouterChain(category, platform)
-
-  // Fallback to local default if Supabase routing is empty/failed
-  if (!chain || chain.length === 0) {
-    const { DEFAULT_FLOW_ROUTER_CONFIG } = require('../../data/store.constants')
-    const categoryConfig = DEFAULT_FLOW_ROUTER_CONFIG.categories.find((c: any) => 
-      c.key.toUpperCase() === category || c.key === category.toLowerCase()
-    )
-    if (categoryConfig) {
-      chain = categoryConfig.models.map((m: any) => ({
-        id: m.id,
-        provider: m.provider,
-        is_enabled: m.enabled
-      }))
+  // Try telegram chain as fallback if no app-specific chain configured
+  if ((!chain || chain.length === 0) && platform !== 'telegram') {
+    const tgFallback = await getRouterChain(category, 'telegram')
+    if (tgFallback.chain.length > 0) {
+      chain = tgFallback.chain
+      system_prompt = tgFallback.system_prompt
     }
   }
 
@@ -92,9 +110,10 @@ export async function runChain(
     system_prompt = "You are a creative artist. Generate high-quality images based on user prompts."
   }
 
-  let finalUsageType: 'chat' | 'tool' | 'search' | 'vision' = 'chat'
+  let finalUsageType: 'chat' | 'tool' | 'search' | 'vision' | 'image' = 'chat'
   if (category === 'WEB_SEARCH') finalUsageType = 'search'
   if (category === 'TOOL_CALLING') finalUsageType = 'tool'
+  if (category === 'IMAGE_GEN') finalUsageType = 'image'
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
@@ -125,13 +144,14 @@ export async function runChain(
       }
 
       if (response) {
-        // If we're in IMAGE_GEN category, we expect a Buffer. 
+        // If we're in IMAGE_GEN category, we expect a Buffer.
         // If we get a string (refusal/description), we continue to the next model or fallback.
         if (category === 'IMAGE_GEN' && typeof response === 'string') {
           logger.info(`Model ${modelConfig.id} returned text for IMAGE_GEN. Skipping to next fallback.`)
           continue
         }
 
+        trackModelUsage(modelConfig.id, modelConfig.provider)
         return {
           type: category === 'IMAGE_GEN' ? 'photo' : 'text',
           content: response as any,
@@ -144,13 +164,6 @@ export async function runChain(
     } catch (error: any) {
       logger.warn(`Failure [${modelConfig.id}]: ${error.message}`)
     }
-  }
-
-  // Final Fallback for Image Gen if everything failed
-  if (category === 'IMAGE_GEN') {
-    logger.info("Triggering final Pollinations fallback for IMAGE_GEN")
-    const fallbackRes = await runPollinations(prompt)
-    if (fallbackRes) return { type: 'photo', content: fallbackRes, usage_type: 'chat', model: 'pollinations-fallback', model_chain: `${classifierModel} → pollinations-fallback`, status: 'success' }
   }
 
   return { type: 'text', content: "⚡ *System Overload*", usage_type: 'chat', model_chain: classifierModel, status: 'error' }

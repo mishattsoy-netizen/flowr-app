@@ -29,6 +29,7 @@ export interface Exchange {
   auth_user_id: string | null
   user_email: string | null
   topic_tag: string | null
+  request_id: string | null
 }
 
 // Detect whether auth_user_id column exists (migration may not have run yet)
@@ -86,29 +87,42 @@ export async function getMessageExchanges(options: {
   }
   if (!modelRows || modelRows.length === 0) return { exchanges: [], total: 0 }
 
-  // For each model row, find the nearest user row before it from the same user
-  // Fetch a window of user rows around the same timeframe
+  // Collect request_ids and time window to find paired user rows
+  const requestIds = modelRows.map((m: any) => m.request_id).filter(Boolean)
   const oldest = modelRows[modelRows.length - 1].created_at
   const newest = modelRows[0].created_at
 
+  // Fetch user rows: by request_id if available, plus time-window fallback for old rows
   let userQ = supabaseAdmin
     .from('message_logs')
     .select('*')
     .eq('role', 'user')
-    .gte('created_at', oldest)
-    .lte('created_at', newest)
     .order('created_at', { ascending: false })
+
+  if (requestIds.length > 0) {
+    // Fetch by request_id OR by time window (covers both new and old rows)
+    userQ = userQ.or(`request_id.in.(${requestIds.join(',')}),and(created_at.gte.${oldest},created_at.lte.${newest})`)
+  } else {
+    userQ = userQ.gte('created_at', oldest).lte('created_at', newest)
+  }
 
   const { data: userRows } = await userQ
 
-  // Pair: for each model row, find the closest preceding user row from the same identity
+  // Pair: prefer request_id match; fall back to closest preceding user row from same identity
   const exchanges: Exchange[] = modelRows.map((m: any) => {
-    const mKey = userKey(m)
-    const mTime = new Date(m.created_at).getTime()
+    let matched: any = null
 
-    const matched = (userRows || [])
-      .filter((u: any) => userKey(u) === mKey && new Date(u.created_at).getTime() <= mTime)
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+    if (m.request_id) {
+      matched = (userRows || []).find((u: any) => u.request_id === m.request_id)
+    }
+
+    if (!matched) {
+      const mKey = userKey(m)
+      const mTime = new Date(m.created_at).getTime()
+      matched = (userRows || [])
+        .filter((u: any) => userKey(u) === mKey && new Date(u.created_at).getTime() <= mTime)
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+    }
 
     const platform: 'app' | 'telegram' = (m.auth_user_id || m.topic_tag?.startsWith('app:')) ? 'app' : (m.telegram_id ? 'telegram' : 'app')
 
@@ -125,6 +139,7 @@ export async function getMessageExchanges(options: {
       auth_user_id: authColExists ? (m.auth_user_id ?? null) : null,
       user_email: null,
       topic_tag: m.topic_tag?.startsWith('app:') ? null : (m.topic_tag ?? null),
+      request_id: m.request_id ?? null,
     }
   })
 
@@ -148,6 +163,30 @@ export async function getMessageExchanges(options: {
   }
 
   return { exchanges, total: count || 0 }
+}
+
+export async function deleteLogs(mode: 'all' | '1day' | '1week' | 'ids', ids?: number[]): Promise<{ deleted: number }> {
+  if (!supabaseAdmin) return { deleted: 0 }
+
+  let query = supabaseAdmin.from('message_logs').delete({ count: 'exact' })
+
+  if (mode === 'all') {
+    query = query.neq('id', 0)
+  } else if (mode === '1day') {
+    const cutoff = new Date(Date.now() - 86400_000).toISOString()
+    query = query.gte('created_at', cutoff)
+  } else if (mode === '1week') {
+    const cutoff = new Date(Date.now() - 7 * 86400_000).toISOString()
+    query = query.gte('created_at', cutoff)
+  } else if (mode === 'ids' && ids && ids.length > 0) {
+    query = query.in('id', ids)
+  } else {
+    return { deleted: 0 }
+  }
+
+  const { count, error } = await query
+  if (error) throw new Error(error.message)
+  return { deleted: count ?? 0 }
 }
 
 // Keep for backwards compat (used by existing page.tsx initial load)

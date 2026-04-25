@@ -21,7 +21,7 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col space-y-4 relative overflow-hidden transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+        <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col space-y-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 blur-[80px] -mr-16 -mt-16" />
           
           <div className="space-y-1 relative z-10">
@@ -37,10 +37,10 @@ export default async function AnalyticsPage() {
           </div>
  
           <div className="grid grid-cols-2 gap-2 relative z-10 pt-4 border-t border-[var(--bone-15)]">
-            {topics.slice(0, 4).map((t: any, i: number) => (
+            {topics.map((t: any, i: number) => (
               <div key={t.name} className="flex items-center justify-between gap-3 bg-background/50 border border-[var(--bone-15)] p-2 rounded-regular group hover:border-accent/20 transition-all">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full opacity-60" style={{ backgroundColor: ['#E9E9E2', '#3b82f6', '#10b981', '#ef4444'][i] }}></div>
+                  <div className="w-1.5 h-1.5 rounded-full opacity-70" style={{ backgroundColor: ['#E9E9E2', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][i % 7] }}></div>
                   <span className="text-[10px] font-bold text-bone-60 group-hover:text-bone-100 uppercase tracking-tight transition-colors">{t.name}</span>
                 </div>
                 <span className="text-[10px] font-mono font-bold text-bone-60 opacity-20 group-hover:opacity-100">{t.value}</span>
@@ -49,7 +49,7 @@ export default async function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col space-y-4 relative overflow-hidden transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+        <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col space-y-4 relative overflow-hidden">
           <div className="space-y-1">
             <h2 className="text-[10px] font-bold text-bone-60 uppercase tracking-[0.1em] flex items-center gap-2 opacity-50">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />

@@ -41,25 +41,28 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
     <div
       ref={ref}
       className={clsx(
-        'h-full relative group/bento-widget transition-all duration-500 rounded-[var(--radius-big)] overflow-hidden',
+        'h-full relative group/bento-widget transition-all duration-500 rounded-[var(--radius-big)]',
+        editMode ? 'overflow-visible' : 'overflow-hidden',
         editMode && 'cursor-grab active:cursor-grabbing select-none',
         isSwapTarget && 'ring-2 ring-[var(--bone-100)]',
         isStackTarget && 'ring-2 ring-accent bg-accent/5 scale-105 z-20'
       )}
     >
-      <WidgetComponent
-        contextId={contextId}
-        data={item.data}
-        onUpdateData={onUpdateData}
-        isEditing={editMode}
-      />
+      <div className="h-full rounded-[var(--radius-big)] overflow-hidden">
+        <WidgetComponent
+          contextId={contextId}
+          data={item.data}
+          onUpdateData={onUpdateData}
+          isEditing={editMode}
+        />
+      </div>
       {editMode && (
         <button
           onPointerDown={e => e.stopPropagation()}
           onClick={e => { e.stopPropagation(); onRemove(); }}
-          className="absolute top-2 right-2 z-30 opacity-0 group-hover/bento-widget:opacity-100 transition-opacity p-1.5 bg-background/80 backdrop-blur-sm border border-border rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-400/10"
+           className="absolute -top-1 left-0 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/50 hover:bg-red-400/10 transition-colors"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="w-3 h-3" />
         </button>
       )}
     </div>

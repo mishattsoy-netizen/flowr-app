@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command } from 'lucide-react';
+import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers } from 'lucide-react';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
@@ -270,6 +270,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
     { id: 'image', label: 'Generate Image', icon: <ImageIcon className="w-3.5 h-3.5" />, description: 'Create an image from text', prefix: '/image ' },
     { id: 'search', label: 'Web Search', icon: <Globe className="w-3.5 h-3.5" />, description: 'Search the internet for info', prefix: '/search ' },
     { id: 'note', label: 'Create Note', icon: <FileText className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
+    { id: 'canvas', label: 'Create Canvas', icon: <Frame className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
+    { id: 'split', label: 'Create Split Page', icon: <Layers className="w-3.5 h-3.5" />, description: 'Create a new mixed split page', prefix: '/split ' },
     { id: 'task', label: 'Add Task', icon: <CheckSquare className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
     { id: 'weather', label: 'Weather', icon: <Cloud className="w-3.5 h-3.5" />, description: 'Check current weather', prefix: '/weather ' },
     { id: 'crypto', label: 'Crypto Price', icon: <Coins className="w-3.5 h-3.5" />, description: 'Get cryptocurrency prices', prefix: '/crypto ' },
@@ -317,7 +319,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             onClick={toggleAIAssistant}
             onMouseEnter={() => setIsHoveringToggle(true)}
             onMouseLeave={() => setIsHoveringToggle(false)}
-            className="flex items-center justify-center group transition-all hover:scale-110 active:scale-95"
+            className="flex items-center justify-center group hover:scale-110 active:scale-95"
           >
             <AIAvatar className="w-12 h-12" />
           </button>
@@ -345,7 +347,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
             <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-hide mb-3">
               {microphones.length === 0 ? (
-                <div className="text-[11px] text-muted-foreground/30 py-4 text-center">No microphones found</div>
+                <div className="text-[11px] text-muted-foreground/30 py-4 text-center tracking-wide">No microphones found</div>
               ) : (
                 <div className="space-y-0.5">
                   {microphones.map(mic => (
@@ -353,7 +355,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                       key={mic.deviceId}
                       onClick={() => { setSelectedMicId(mic.deviceId); setShowMicSettings(false); }}
                       className={clsx(
-                        "w-full px-3 py-2 rounded-xl text-left text-[11px] flex items-center justify-between group",
+                        "w-full px-3 py-2 rounded-xl text-left text-[11px] flex items-center justify-between group tracking-wide",
                         selectedMicId === mic.deviceId
                           ? "bg-accent/10 text-accent font-bold"
                           : "text-muted-foreground/60 hover:text-foreground hover:bg-hover"
@@ -367,7 +369,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               )}
             </div>
 
-            <div className="pt-3 border-t border-white/5 space-y-2">
+            <div className="pt-3 border-t border-[var(--bone-15)] space-y-2">
               <div className="flex items-center justify-between px-1">
                 <span className="text-[9px] font-bold uppercase text-muted-foreground/40">Input Test</span>
                 <div className="flex gap-0.5">
@@ -397,12 +399,12 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           "flex flex-col overflow-hidden bg-sidebar",
           actualExtended
             ? "relative w-full h-full slide-in-from-right-4"
-            : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] bg-sidebar rounded-[var(--radius-big)] border border-[var(--bone-10)] hover:border-[var(--bone-30)] transition-colors duration-300 overflow-hidden zoom-in-95 slide-in-from-bottom-4"
+            : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] bg-sidebar rounded-[var(--radius-big)] border border-[var(--bone-15)] hover:border-[var(--bone-30)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
         )}
         style={{ display: isAIAssistantOpen ? 'flex' : 'none' }}
       >
         {isDragging && (
-          <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none animate-in fade-in slide-in-from-bottom-4">
             <div className="bg-accent/15 backdrop-blur-xl border border-accent/30 p-4 rounded-3xl flex items-center justify-center gap-4 shadow-2xl">
               <div className="w-10 h-10 rounded-2xl bg-accent text-white flex items-center justify-center">
                 <ImageIcon strokeWidth={2.5} className="w-5 h-5" />
@@ -412,10 +414,10 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           </div>
         )}
 
-        <div className="py-4 border-b border-white/5 flex items-center justify-between shrink-0 pl-7 pr-7">
+        <div className="py-3 border-b border-[var(--bone-15)] flex items-center justify-between shrink-0 px-6">
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2.5">
-              <h1 className="text-[26px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Pro", serif' }}>
+              <h1 className="text-[22px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Pro", serif' }}>
                 AI Agent
               </h1>
               <div className={clsx("w-1.5 h-1.5 rounded-full mt-1 shadow-[0_0_8px_rgba(34,197,94,0.4)]", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
@@ -456,7 +458,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
         <div
           ref={messagesContainerRef}
           className={clsx(
-            "flex-1 px-5 py-5 space-y-2 flex flex-col",
+            "flex-1 px-6 py-4 space-y-2 flex flex-col",
             aiMessages.length === 0 && "pb-0",
             isScrollable ? "overflow-y-auto scrollbar-thin" : "overflow-y-hidden"
           )}
@@ -501,23 +503,23 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                   lastUserMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
               }}
-              className="w-7 h-7 rounded-full bg-[var(--bone-5)] backdrop-blur-xl border border-white/10 text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] hover:border-white/20 flex items-center justify-center pointer-events-auto transition-all shadow-2xl hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-5)] backdrop-blur-xl border border-white/10 text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] hover:border-white/20 flex items-center justify-center pointer-events-auto shadow-2xl hover:scale-110 active:scale-95 group/nav"
               title="Jump to your last message"
             >
-              <ChevronUp strokeWidth={2.5} className="w-3.5 h-3.5 group-hover/nav:-translate-y-0.5 transition-transform" />
+              <ChevronUp strokeWidth={2.5} className="w-3.5 h-3.5 group-hover/nav:-translate-y-0.5" />
             </button>
             <button
               onClick={() => scrollToBottom('smooth')}
-              className="w-7 h-7 rounded-full bg-[var(--bone-5)] backdrop-blur-xl border border-white/10 text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] hover:bg-white/5 hover:border-white/20 flex items-center justify-center pointer-events-auto transition-all shadow-xl hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-5)] backdrop-blur-xl border border-white/10 text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] hover:bg-white/5 hover:border-white/20 flex items-center justify-center pointer-events-auto shadow-xl hover:scale-110 active:scale-95 group/nav"
               title="Scroll to bottom"
             >
-              <ChevronUp strokeWidth={2.5} className="w-3.5 h-3.5 rotate-180 group-hover/nav:translate-y-0.5 transition-transform" />
+              <ChevronUp strokeWidth={2.5} className="w-3.5 h-3.5 rotate-180 group-hover/nav:translate-y-0.5" />
             </button>
           </div>
         </div>
 
         {attachments.length > 0 && (
-          <div className="px-5 py-2 bg-background border-t border-white/5 flex gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-6 py-2 bg-background border-t border-white/5 flex gap-2 overflow-x-auto scrollbar-hide">
             {attachments.map((att, i) => (
               <div key={`pending-att-${i}`} className="relative group shrink-0">
                 <div className={clsx(
@@ -540,7 +542,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 {att.type !== 'audio' && (
                   <button
                     onClick={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg"
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10 shadow-lg"
                   >
                     <X strokeWidth={2} className="w-2 h-2" />
                   </button>
@@ -550,11 +552,11 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           </div>
         )}
 
-        <div className="px-4 pb-8 pt-4 shrink-0 bg-sidebar border-t border-[var(--bone-10)] relative">
+        <div className="px-6 pb-6 pt-3 shrink-0 bg-sidebar border-t border-[var(--bone-15)] relative">
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
 
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center bg-[var(--bone-6)] border border-[var(--bone-6)] rounded-xl px-4 min-h-[48px] h-auto py-3 focus-within:border-accent/30 overflow-hidden">
+            <div className="flex-1 flex items-center bg-[var(--bone-6)] border border-[var(--bone-6)] rounded-[10px] px-4 min-h-[48px] h-auto py-3 focus-within:border-accent/30 overflow-hidden">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -590,7 +592,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 }}
                 placeholder="Ask the Agent to do anything..."
                 rows={1}
-                className="flex-1 bg-transparent text-foreground text-[13px] placeholder:text-muted-foreground/30 focus:outline-none resize-none leading-relaxed py-0 custom-scrollbar"
+                className="flex-1 bg-transparent text-foreground text-[13px] placeholder:text-muted-foreground/30 focus:outline-none resize-none leading-relaxed py-0 custom-scrollbar tracking-wide"
                 style={{ height: 'auto', maxHeight: '120px', overflowY: 'auto' }}
               />
 
@@ -598,7 +600,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               {isAILoading ? (
                 <button
                   onClick={stopAIGeneration}
-                  className="ml-2 w-7 h-7 shrink-0 flex items-center justify-center rounded-full bg-red-400/10 text-red-500 hover:bg-red-400/20"
+                  className="ml-2 w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-red-400/10 text-red-500 hover:bg-red-400/20"
                   title="Stop generation"
                 >
                   <Square strokeWidth={3} className="w-3 h-3 fill-current" />
@@ -626,7 +628,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     onMouseLeave={() => { if (isRecording) stopRecording(); }}
                     onContextMenu={handleMicContextMenu}
                     className={clsx(
-                      "w-7 h-7 rounded-full flex items-center justify-center relative shrink-0",
+                      "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0",
                       isRecording
                         ? "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                         : "text-muted-foreground/50 hover:text-foreground hover:bg-hover"
@@ -639,7 +641,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               ) : (
                 <button
                   onClick={() => handleSend()}
-                  className="ml-2 w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-muted-foreground/50 hover:text-foreground"
+                  className="ml-2 w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] text-muted-foreground/50 hover:text-foreground"
                 >
                   <Send strokeWidth={2} className="w-4 h-4" />
                 </button>
@@ -648,35 +650,42 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           </div>
 
           {showCommandMenu && filteredCommands.length > 0 && (
-            <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#1a1a1b] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[120] p-1.5">
-              <div className="px-3 py-2 border-b border-white/5 mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">AI Commands & Tools</span>
-                <Command className="w-3 h-3 text-muted-foreground/40" />
+            <div className="absolute bottom-full left-4 right-4 mb-2 bg-[var(--color-panel)] border border-[var(--bone-15)] rounded-[var(--radius-big)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[120] p-1.5">
+              <div className="px-3 pt-1 pb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--bone-30)]">
+                  Actions & Commands
+                </span>
               </div>
-              <div className="max-h-64 overflow-y-auto scrollbar-hide">
+              <div className="max-h-80 overflow-y-auto scrollbar-none flex flex-col gap-[3px]">
                 {filteredCommands.map((cmd, i) => (
                   <button
                     key={cmd.id}
                     onClick={() => handleCommandSelect(cmd)}
                     onMouseEnter={() => setActiveCommandIndex(i)}
                     className={clsx(
-                      "w-full px-3 py-2.5 rounded-xl text-left flex items-center gap-3 transition-all group",
-                      i === activeCommandIndex ? "bg-white/5 text-foreground" : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.02]"
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-8)] text-left group",
+                      i === activeCommandIndex 
+                        ? "bg-[var(--bone-15)] text-[var(--bone-100)]" 
+                        : "text-[var(--bone-60)] hover:bg-[var(--bone-15)] hover:text-[var(--bone-100)]"
                     )}
                   >
                     <div className={clsx(
-                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                      i === activeCommandIndex ? "bg-accent/20 text-accent" : "bg-white/5 text-muted-foreground/40"
+                      "w-6 h-6 flex items-center justify-center shrink-0",
+                      i === activeCommandIndex ? "text-[var(--bone-100)]" : "text-[var(--bone-60)]"
                     )}>
                       {cmd.icon}
                     </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[12px] font-bold tracking-tight">{cmd.label}</span>
-                      <span className="text-[10px] text-muted-foreground/40 truncate">{cmd.description}</span>
+                    <div className="flex-1 min-w-0 flex items-center gap-2 text-fade">
+                      <p className="text-[13px] font-medium tracking-wide shrink-0">{cmd.label}</p>
+                      {cmd.description && (
+                        <p className="text-[11px] text-[var(--bone-30)] opacity-80">{cmd.description}</p>
+                      )}
                     </div>
-                    {i === activeCommandIndex && (
-                      <div className="ml-auto flex items-center gap-1 opacity-40">
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/10">ENTER</span>
+                    {(cmd.prefix || i === activeCommandIndex) && (
+                      <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                        <span className="px-1.5 py-0.5 rounded-[var(--radius-small)] bg-[var(--bone-6)] text-[10px] font-mono text-[var(--bone-30)] group-hover:text-[var(--bone-60)]">
+                          {cmd.prefix ? cmd.prefix.trim() : 'ENTER'}
+                        </span>
                       </div>
                     )}
                   </button>
@@ -699,7 +708,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               className="p-1 px-1.5 text-bone-60 hover:text-foreground"
               title="Mention page or workspace"
             >
-              <span className="text-[14px] font-bold leading-none">@</span>
+              <span className="text-[14px] font-bold leading-none tracking-wide">@</span>
             </button>
 
             <button
@@ -720,17 +729,17 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             <button
               onClick={() => setAgentEnabled(!agentEnabled)}
               className={clsx(
-                "flex items-center gap-2 px-4 h-8 rounded-full border",
+                "flex items-center gap-2 px-4 h-8 rounded-[8px] border",
                 agentEnabled
                   ? "bg-bone-6 border-bone-6 text-bone-100 font-semibold"
                   : "bg-transparent border-transparent text-bone-60 hover:text-foreground hover:bg-hover"
               )}
             >
-              <span className="text-[11px] tracking-tight">Agent</span>
+              <span className="text-[11px] tracking-wide">Agent</span>
             </button>
 
             <div className="flex items-center gap-2 ml-auto min-w-0">
-              <div className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-bone-6 border border-bone-6 text-[11px] font-semibold text-bone-60">
+              <div className="flex items-center gap-1.5 px-3 h-8 rounded-[8px] bg-bone-6 border border-bone-6 text-[11px] font-semibold text-bone-60 tracking-wide">
                 <StarIcon className="w-3 h-3 text-bone-60" />
                 <span>Flowr AI</span>
               </div>

@@ -98,6 +98,8 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   }, [isLoading]);
 
   const { positions, grid } = useMemo(() => computeGridPositions(layout), [layout]);
+  // Hit-test against real layout so the grid doesn't shift under the pointer mid-drag
+  const { grid: hitGrid } = useMemo(() => computeGridPositions(realLayout), [realLayout]);
   
   // ─── Keyboard Shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
@@ -150,12 +152,12 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         const col = Math.floor(x / (colWidth + GAP));
 
         if (row >= 0 && row < MAX_ROWS && col >= 0 && col < 6) {
-          const targetId = grid[row][col];
+          const targetId = hitGrid[row][col];
           if (targetId && targetId !== dragState.id) {
             handleDragOverWidget(targetId, row, col);
           } else {
-            // Find order based on col
-            const rowItems = layout.filter(it => it.row === row).sort((a,b) => a.order - b.order);
+            // Find order based on col using real layout
+            const rowItems = realLayout.filter(it => it.row === row).sort((a,b) => a.order - b.order);
             let order = rowItems.length;
             let currentX = 0;
             for (let i = 0; i < rowItems.length; i++) {
@@ -182,7 +184,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [dragState, grid, layout, handleDragOverWidget, handleDragOverEmpty, handleDragEnd]);
+  }, [dragState, hitGrid, realLayout, handleDragOverWidget, handleDragOverEmpty, handleDragEnd]);
 
   const onWidgetPointerDown = (e: React.PointerEvent, id: string) => {
     if (!editMode) return;
@@ -427,8 +429,8 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   return (
     <div className="flex-1 flex flex-row overflow-hidden h-full">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-10 py-8 max-w-6xl mx-auto w-full h-full flex flex-col min-h-0">
-          <header className="flex items-end justify-between mb-4">
+        <div className="px-8 py-5 max-w-6xl mx-auto w-full h-full flex flex-col min-h-0">
+          <header className="flex items-end justify-between mb-3">
             <div className="flex-1">{title}</div>
 
             <div className="flex items-center gap-3">
@@ -486,7 +488,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                     className={clsx(
                       'absolute bento-widget-cell',
                       isDragged && 'opacity-0 pointer-events-none', // hide original while dragging
-                      editMode && 'cursor-grab active:cursor-grabbing hover:z-10',
+                      editMode && 'cursor-grab active:cursor-grabbing hover:z-10 overflow-visible',
                       isSwapTarget && 'ring-2 ring-primary ring-offset-2 ring-offset-background rounded-[var(--radius-big)]',
                       isStackTarget && 'ring-2 ring-accent ring-offset-2 ring-offset-background rounded-[var(--radius-big)] bg-accent/5 z-20 scale-105 transition-all duration-300'
                     )}

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabaseAdmin as supabase } from './supabase'
 
 export interface RouterModel {
   id: string
@@ -15,6 +15,7 @@ export type IntentCategory =
   | 'IMAGE_GEN'
   | 'WEB_SEARCH'
   | 'CLASSIFIER'
+  | 'VISION'
 
 export type Platform = 'app' | 'telegram'
 
