@@ -491,6 +491,255 @@ export function adjustVerticalDivider(
   return rebalanceAll(updated);
 }
 
+// ─── Unified Resize Divider ───────────────────────────────────────────────────
+//
+// Replaces adjustDivider + adjustVerticalDivider.
+// claimerId: widget growing into new cells.
+// victimId:  widget losing cells.
+// newBoundary: absolute grid position of the new divider edge.
+//   axis='horizontal' → newBoundary is a col (0–6), divider moves left/right.
+//   axis='vertical'   → newBoundary is a row (0–4), divider moves up/down.
+// Returns null if the resize is invalid (any widget violates min/max, or gaps remain).
+
+export function resizeDivider(
+  layout: BentoLayoutItem[],
+  claimerId: string,
+  victimId: string,
+  newBoundary: number,
+  axis: 'horizontal' | 'vertical'
+): BentoLayoutItem[] | null {
+  const { positions } = computeGridPositions(layout);
+  const claimer = layout.find(it => it.i === claimerId);
+  const victim  = layout.find(it => it.i === victimId);
+  if (!claimer || !victim) return null;
+
+  const posC = positions.get(claimerId);
+  const posV = positions.get(victimId);
+  if (!posC || !posV) return null;
+
+  // ── Step 1: Transfer band & old boundary ─────────────────────────────────
+  // For horizontal axis (left/right): band is row overlap, boundary is a col.
+  // For vertical axis (up/down):      band is col overlap, boundary is a row.
+
+  let oldBoundary: number;
+  let bandStart: number;
+  let bandEnd: number;   // exclusive
+
+  if (axis === 'horizontal') {
+    const claimerIsLeft = posC.x + posC.w === posV.x;
+    oldBoundary = claimerIsLeft ? posC.x + posC.w : posV.x + posV.w;
+    bandStart = Math.max(posC.y, posV.y);
+    bandEnd   = Math.min(posC.y + posC.h, posV.y + posV.h);
+  } else {
+    const claimerIsAbove = posC.y + posC.h === posV.y;
+    oldBoundary = claimerIsAbove ? posC.y + posC.h : posV.y + posV.h;
+    bandStart = Math.max(posC.x, posV.x);
+    bandEnd   = Math.min(posC.x + posC.w, posV.x + posV.w);
+  }
+
+  if (newBoundary === oldBoundary) return layout; // no-op
+  if (bandStart >= bandEnd) return null;          // no overlap band
+
+  // ── Step 2: Reshape claimer ───────────────────────────────────────────────
+  const claimerEntry = widgetRegistry[claimer.type];
+  let newClaimer = { ...claimer };
+
+  if (axis === 'horizontal') {
+    const claimerIsLeft = posC.x + posC.w === posV.x;
+    if (claimerIsLeft) {
+      newClaimer.w = posC.w + (newBoundary - oldBoundary);
+    } else {
+      newClaimer.w = posC.w + (oldBoundary - newBoundary);
+    }
+    if (newClaimer.w < (claimerEntry?.minW ?? 2)) return null;
+    if (newClaimer.w > (claimerEntry?.maxW ?? 6)) return null;
+  } else {
+    const claimerIsAbove = posC.y + posC.h === posV.y;
+    if (claimerIsAbove) {
+      newClaimer.h = posC.h + (newBoundary - oldBoundary);
+    } else {
+      newClaimer.h = posC.h + (oldBoundary - newBoundary);
+      newClaimer.row = posC.y - (oldBoundary - newBoundary);
+    }
+    if (newClaimer.h < (claimerEntry?.minH ?? 1)) return null;
+    if (newClaimer.h > (claimerEntry?.maxH ?? 4)) return null;
+    if (newClaimer.row < 0 || newClaimer.row + newClaimer.h > MAX_ROWS) return null;
+  }
+
+  // ── Step 3: Reshape victim ────────────────────────────────────────────────
+  const victimEntry = widgetRegistry[victim.type];
+  let newVictim = { ...victim };
+
+  if (axis === 'horizontal') {
+    const claimerIsLeft = posC.x + posC.w === posV.x;
+    if (claimerIsLeft) {
+      const stripCoversAllRows = bandStart === posV.y && bandEnd === posV.y + posV.h;
+      if (stripCoversAllRows) {
+        const colsLost = newBoundary - oldBoundary;
+        newVictim.w = posV.w - colsLost;
+      } else {
+        const bandIsAtTop = bandStart === posV.y;
+        if (bandIsAtTop) {
+          const rowsLost = bandEnd - bandStart;
+          newVictim.h = posV.h - rowsLost;
+          newVictim.row = posV.y + rowsLost;
+        } else {
+          const rowsLost = bandEnd - bandStart;
+          newVictim.h = posV.h - rowsLost;
+        }
+      }
+    } else {
+      const stripCoversAllRows = bandStart === posV.y && bandEnd === posV.y + posV.h;
+      if (stripCoversAllRows) {
+        const colsLost = oldBoundary - newBoundary;
+        newVictim.w = posV.w - colsLost;
+      } else {
+        const bandIsAtTop = bandStart === posV.y;
+        if (bandIsAtTop) {
+          const rowsLost = bandEnd - bandStart;
+          newVictim.h = posV.h - rowsLost;
+          newVictim.row = posV.y + rowsLost;
+        } else {
+          const rowsLost = bandEnd - bandStart;
+          newVictim.h = posV.h - rowsLost;
+        }
+      }
+    }
+
+    if (newVictim.w < (victimEntry?.minW ?? 2)) return null;
+    if (newVictim.w > (victimEntry?.maxW ?? 6)) return null;
+    if (newVictim.h < (victimEntry?.minH ?? 1)) return null;
+  } else {
+    const claimerIsAbove = posC.y + posC.h === posV.y;
+    if (claimerIsAbove) {
+      const stripCoversAllCols = bandStart === posV.x && bandEnd === posV.x + posV.w;
+      if (stripCoversAllCols) {
+        const rowsLost = newBoundary - oldBoundary;
+        newVictim.h = posV.h - rowsLost;
+        newVictim.row = posV.y + rowsLost;
+      } else {
+        const stripIsAtLeft = bandStart === posV.x;
+        if (stripIsAtLeft) {
+          const colsLost = bandEnd - bandStart;
+          newVictim.w = posV.w - colsLost;
+        } else {
+          const colsLost = bandEnd - bandStart;
+          newVictim.w = posV.w - colsLost;
+        }
+      }
+    } else {
+      const stripCoversAllCols = bandStart === posV.x && bandEnd === posV.x + posV.w;
+      if (stripCoversAllCols) {
+        const rowsLost = oldBoundary - newBoundary;
+        newVictim.h = posV.h - rowsLost;
+      } else {
+        const stripIsAtLeft = bandStart === posV.x;
+        if (stripIsAtLeft) {
+          const colsLost = bandEnd - bandStart;
+          newVictim.w = posV.w - colsLost;
+        } else {
+          const colsLost = bandEnd - bandStart;
+          newVictim.w = posV.w - colsLost;
+        }
+      }
+    }
+
+    if (newVictim.h < (victimEntry?.minH ?? 1)) return null;
+    if (newVictim.h > (victimEntry?.maxH ?? 4)) return null;
+    if (newVictim.w < (victimEntry?.minW ?? 2)) return null;
+    if (newVictim.row < 0 || newVictim.row + newVictim.h > MAX_ROWS) return null;
+  }
+
+  // ── Step 4: Build candidate layout with claimer + victim reshaped ─────────
+  let candidate = layout.map(it => {
+    if (it.i === claimerId) return newClaimer;
+    if (it.i === victimId)  return newVictim;
+    return it;
+  });
+
+  // ── Step 5: Fill freed cells ──────────────────────────────────────────────
+  const freedCells: { col: number; row: number }[] = [];
+  for (let r = posV.y; r < posV.y + posV.h; r++) {
+    for (let c = posV.x; c < posV.x + posV.w; c++) {
+      const { positions: newPos } = computeGridPositions(candidate);
+      const newPosV = newPos.get(victimId);
+      const inNewVictim = newPosV &&
+        r >= newPosV.y && r < newPosV.y + newPosV.h &&
+        c >= newPosV.x && c < newPosV.x + newPosV.w;
+      const newPosC = newPos.get(claimerId);
+      const inNewClaimer = newPosC &&
+        r >= newPosC.y && r < newPosC.y + newPosC.h &&
+        c >= newPosC.x && c < newPosC.x + newPosC.w;
+      if (!inNewVictim && !inNewClaimer) {
+        freedCells.push({ col: c, row: r });
+      }
+    }
+  }
+
+  let remaining = [...freedCells];
+  let maxIter = 24;
+  while (remaining.length > 0 && maxIter-- > 0) {
+    const { positions: curPos, grid: curGrid } = computeGridPositions(candidate);
+    const before = remaining.length;
+
+    remaining = remaining.filter(({ col, row }) => {
+      if (curGrid[row]?.[col] !== null) return false;
+
+      const directions = [
+        { dr: -1, dc: 0 },
+        { dr:  1, dc: 0 },
+        { dr:  0, dc: -1 },
+        { dr:  0, dc:  1 },
+      ];
+
+      for (const { dr, dc } of directions) {
+        const nr = row + dr;
+        const nc = col + dc;
+        if (nr < 0 || nr >= MAX_ROWS || nc < 0 || nc >= 6) continue;
+        const neighborId = curGrid[nr]?.[nc];
+        if (!neighborId) continue;
+
+        const neighbor = candidate.find(it => it.i === neighborId);
+        const nPos = curPos.get(neighborId);
+        if (!neighbor || !nPos) continue;
+
+        const entry = widgetRegistry[neighbor.type];
+
+        let grown = { ...neighbor };
+        if (dr === -1) {
+          grown.h = neighbor.h + 1;
+          grown.row = neighbor.row - 1;
+          if (grown.row < 0 || grown.h > (entry?.maxH ?? 4)) continue;
+        } else if (dr === 1) {
+          grown.h = neighbor.h + 1;
+          if (grown.row + grown.h > MAX_ROWS || grown.h > (entry?.maxH ?? 4)) continue;
+        } else if (dc === -1) {
+          grown.w = neighbor.w + 1;
+          if (grown.w > (entry?.maxW ?? 6)) continue;
+        } else {
+          grown.w = neighbor.w + 1;
+          if (grown.w > (entry?.maxW ?? 6)) continue;
+        }
+
+        candidate = candidate.map(it => it.i === neighborId ? grown : it);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (remaining.length === before) break;
+  }
+
+  if (remaining.length > 0) return null;
+
+  // ── Step 6: Validate ──────────────────────────────────────────────────────
+  const validation = validateLayout(candidate);
+  if (!validation.valid) return null;
+
+  return candidate;
+}
+
 /** Snap vertical divider to nearest of 3 positions: 4+8, 6+6, 8+4 */
 export function snapVerticalDivider(
   rawFraction: number,
