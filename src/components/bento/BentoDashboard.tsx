@@ -53,11 +53,14 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
     handleDividerDragEnd,
     handleVerticalDividerDragPreview,
     handleVerticalDividerDragEnd,
-    isResizing
+    isResizing,
+    toastMessage
   } = useBentoLayout(contextId);
 
   const [reallyLoading, setReallyLoading] = useState(true);
   const gridRef = useRef<HTMLDivElement>(null);
+  const realLayoutRef = useRef(realLayout);
+  realLayoutRef.current = realLayout;
 
   // Drag State
   const [dragState, setDragState] = useState<{ 
@@ -265,28 +268,21 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       if (!gridRef.current) return;
       const rect = gridRef.current.getBoundingClientRect();
       const y = e.clientY - rect.top;
-      
-      const topWidget = layout.find(it => it.i === verticalDividerDrag.topId);
-      const bottomWidget = layout.find(it => it.i === verticalDividerDrag.bottomId);
+
+      // Use realLayoutRef so we compute against the committed widget positions, not the preview.
+      const topWidget = realLayoutRef.current.find(it => it.i === verticalDividerDrag.topId);
+      const bottomWidget = realLayoutRef.current.find(it => it.i === verticalDividerDrag.bottomId);
       if (!topWidget || !bottomWidget) return;
 
+      const minT = widgetRegistry[topWidget.type]?.minH ?? 1;
+      const maxT = widgetRegistry[topWidget.type]?.maxH ?? 4;
+      const minB = widgetRegistry[bottomWidget.type]?.minH ?? 1;
       const totalH = topWidget.h + bottomWidget.h;
-      
-      // Calculate where the mouse is in "row coordinates"
-      // We use a fixed percentage based on MAX_ROWS to find which row boundary is closest to 'y'
-      let closestRow = topWidget.row;
-      let minDist = Infinity;
-      for (let r = topWidget.row; r <= topWidget.row + totalH; r++) {
-        const offset = (r / MAX_ROWS) * rect.height;
-        const dist = Math.abs(y - offset);
-        if (dist < minDist) {
-          minDist = dist;
-          closestRow = r;
-        }
-      }
 
-      // newH0 is the distance from topWidget.row to closestRow
-      const newH0 = Math.max(1, Math.min(totalH - 1, closestRow - topWidget.row));
+      // Map pixel Y → how many rows the top widget should span.
+      const rowHeight = rect.height / MAX_ROWS;
+      const rawH0 = (y / rowHeight) - topWidget.row;
+      const newH0 = Math.max(minT, Math.min(totalH - minB, maxT, Math.round(rawH0)));
       const newH1 = totalH - newH0;
 
       handleVerticalDividerDragPreview(topWidget.i, bottomWidget.i, newH0, newH1);
@@ -303,7 +299,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [verticalDividerDrag, layout, handleVerticalDividerDragPreview, handleVerticalDividerDragEnd]);
+  }, [verticalDividerDrag, handleVerticalDividerDragPreview, handleVerticalDividerDragEnd]);
 
   // ─── Find Dividers ────────────────────────────────────────────────────────
 
@@ -325,8 +321,9 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         return isAdjacent && hasOverlap;
       });
 
-      if (rightNeighbors.length > 0) {
-        const rightItem = rightNeighbors.find(it => positions.get(it.i)?.y === posL.y) || rightNeighbors[0];
+      // Emit one divider per neighbor — a spanner can border multiple widgets
+      // on its right edge (one per row band), each needing its own handle.
+      rightNeighbors.forEach(rightItem => {
         const posR = positions.get(rightItem.i);
         if (!posR) return;
 
@@ -335,22 +332,23 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         const minR = widgetRegistry[rightItem.type]?.minW ?? 2;
         const maxR = widgetRegistry[rightItem.type]?.maxW ?? 6;
 
-        // A resize handle is only useful if we can move it in at least one direction
         const canMoveRight = leftItem.w < maxL && rightItem.w > minR;
         const canMoveLeft = leftItem.w > minL && rightItem.w < maxR;
+        if (!canMoveRight && !canMoveLeft) return;
 
-        if (canMoveRight || canMoveLeft) {
-          divs.push({
-            row: posL.y,
-            leftId: leftItem.i,
-            rightId: rightItem.i, 
-            xFraction: (posL.x + posL.w) / 6,
-            yPct: (posL.y / MAX_ROWS) * 100,
-            hPct: ((Math.min(posL.y + posL.h, posR.y + posR.h) - Math.max(posL.y, posR.y)) / MAX_ROWS) * 100,
-            yOffset: (Math.max(posL.y, posR.y) / MAX_ROWS) * 100
-          });
-        }
-      }
+        const overlapTop = Math.max(posL.y, posR.y);
+        const overlapBottom = Math.min(posL.y + posL.h, posR.y + posR.h);
+
+        divs.push({
+          row: overlapTop,
+          leftId: leftItem.i,
+          rightId: rightItem.i,
+          xFraction: (posL.x + posL.w) / 6,
+          yPct: (overlapTop / MAX_ROWS) * 100,
+          hPct: ((overlapBottom - overlapTop) / MAX_ROWS) * 100,
+          yOffset: (overlapTop / MAX_ROWS) * 100
+        });
+      });
     });
     return divs;
   }, [layout, positions, editMode, dragState]);
@@ -373,8 +371,9 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         return isAdjacent && hasOverlap;
       });
 
-      if (bottomNeighbors.length > 0) {
-        const bottomItem = bottomNeighbors.find(it => positions.get(it.i)?.x === posT.x) || bottomNeighbors[0];
+      // Emit one divider per neighbor — a wide widget can have multiple
+      // bottom neighbors (each occupying part of its column range).
+      bottomNeighbors.forEach(bottomItem => {
         const posB = positions.get(bottomItem.i);
         if (!posB) return;
 
@@ -383,29 +382,22 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         const minB = widgetRegistry[bottomItem.type]?.minH ?? 1;
         const maxB = widgetRegistry[bottomItem.type]?.maxH ?? 4;
 
-        const combinedH = topItem.h + bottomItem.h;
-        
-        // STRICTURE: Hide handle if the combined height occupies the full grid height.
-        // In a fixed 4-row grid, changing height in a full column almost always 
-        // triggers a cascade of pushes that breaks the layout.
-        if (topItem.row + combinedH >= MAX_ROWS) {
-          return;
-        }
-
         const canMoveDown = topItem.h < maxT && bottomItem.h > minB;
         const canMoveUp = topItem.h > minT && bottomItem.h < maxB;
+        if (!canMoveDown && !canMoveUp) return;
 
-        if (canMoveDown || canMoveUp) {
-          divs.push({
-            topId: topItem.i,
-            bottomId: bottomItem.i,
-            yPct: ((posT.y + posT.h) / MAX_ROWS) * 100,
-            xPct: (Math.max(posT.x, posB.x) / 6) * 100,
-            wPct: ((Math.min(posT.x + posT.w, posB.x + posB.w) - Math.max(posT.x, posB.x)) / 6) * 100,
-            xOffset: Math.max(posT.x, posB.x)
-          });
-        }
-      }
+        const overlapLeft = Math.max(posT.x, posB.x);
+        const overlapRight = Math.min(posT.x + posT.w, posB.x + posB.w);
+
+        divs.push({
+          topId: topItem.i,
+          bottomId: bottomItem.i,
+          yPct: ((posT.y + posT.h) / MAX_ROWS) * 100,
+          xPct: (overlapLeft / 6) * 100,
+          wPct: ((overlapRight - overlapLeft) / 6) * 100,
+          xOffset: overlapLeft
+        });
+      });
     });
     return divs;
   }, [layout, positions, editMode, dragState]);
@@ -492,7 +484,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                       isSwapTarget && 'ring-2 ring-primary ring-offset-2 ring-offset-background rounded-[var(--radius-big)]',
                       isStackTarget && 'ring-2 ring-accent ring-offset-2 ring-offset-background rounded-[var(--radius-big)] bg-accent/5 z-20 scale-105 transition-all duration-300'
                     )}
-                     style={{ ...style, transition: isDragged ? 'none' : 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+                     style={{ ...style, transition: (isDragged || !!verticalDividerDrag || !!dividerDrag) ? 'none' : 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
                     onPointerDown={(e) => onWidgetPointerDown(e, item.i)}
 
               >
@@ -558,57 +550,83 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
             {/* Dividers */}
             {dividers.map(div => (
                <div
-                 key={`div-${div.row}-${div.leftId}`}
+                 key={`div-${div.row}-${div.leftId}-${div.rightId}`}
                  className="absolute z-30 cursor-col-resize group"
-                 style={{ 
-                   left: `calc(${div.xFraction * 100}% - 10px)`, 
+                 style={{
+                   left: `calc(${div.xFraction * 100}% - 12px)`,
                    top: `calc(${div.yOffset}% + ${GAP/2}px)`,
                    height: `calc(${div.hPct}% - ${GAP}px)`,
-                   width: 20,
+                   width: 24,
                  }}
                  onPointerDown={(e) => {
                    e.preventDefault();
                    setDividerDrag({ row: div.row, leftId: div.leftId, rightId: div.rightId, startX: e.clientX });
                  }}
                >
-                 {/* Visual Line */}
+                 {/* Visible line */}
                  <div className={clsx(
-                   "absolute inset-y-0 left-1/2 -translate-x-1/2",
-                   !dividerDrag && "transition-all duration-800",
-                   dividerDrag?.leftId === div.leftId 
-                     ? "bg-accent w-[2px] shadow-[0_0_15px_rgba(233,233,226,0.3)]" 
-                     : "bg-[var(--bone-20)] w-[1px] group-hover:bg-accent/50 group-hover:w-[2px]"
+                   "absolute inset-y-0 left-1/2 -translate-x-1/2 w-px",
+                   dividerDrag?.leftId === div.leftId
+                     ? "bg-accent"
+                     : "bg-border/60 group-hover:bg-accent/70"
                  )} />
-                 <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-4" />
+                 {/* Gripper pill — always visible */}
+                 <div className={clsx(
+                   "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                   "flex flex-col gap-[3px] items-center justify-center",
+                   "w-4 h-8 rounded-full",
+                   dividerDrag?.leftId === div.leftId
+                     ? "bg-accent"
+                     : "bg-border group-hover:bg-accent/80",
+                   "transition-colors duration-150"
+                 )}>
+                   <div className="w-0.5 h-0.5 rounded-full bg-background/70" />
+                   <div className="w-0.5 h-0.5 rounded-full bg-background/70" />
+                   <div className="w-0.5 h-0.5 rounded-full bg-background/70" />
+                 </div>
                </div>
              ))}
             
-            {verticalDividers.map((div, idx) => (
+            {verticalDividers.map((div) => {
+              return (
               <div
-                key={`vdiv-${div.topId}-${div.xPct}`}
+                key={`vdiv-${div.topId}-${div.bottomId}`}
                 className="absolute z-30 cursor-row-resize group"
                 style={{
-                  top: `calc(${div.yPct}% - 10px)`,
+                  top: `calc(${div.yPct}% - 12px)`,
                   left: `calc(${div.xPct}% + ${GAP/2}px)`,
                   width: `calc(${div.wPct}% - ${GAP}px)`,
-                  height: 20,
+                  height: 24,
                 }}
                 onPointerDown={(e) => {
                   e.preventDefault();
                   setVerticalDividerDrag({ topId: div.topId, bottomId: div.bottomId, startY: e.clientY });
                 }}
               >
-                {/* Visual Line */}
+                {/* Visible line */}
                 <div className={clsx(
-                  "absolute inset-x-0 top-1/2 -translate-y-1/2",
-                  !verticalDividerDrag && "transition-all duration-800",
+                  "absolute inset-x-0 top-1/2 -translate-y-1/2 h-px",
                   verticalDividerDrag?.topId === div.topId
-                    ? "bg-accent h-[2px] shadow-[0_0_15px_rgba(233,233,226,0.3)]"
-                    : "bg-[var(--bone-20)] h-[1px] group-hover:bg-accent/50 group-hover:h-[2px]"
+                    ? "bg-accent"
+                    : "bg-border/60 group-hover:bg-accent/70"
                 )} />
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-4" />
+                {/* Gripper pill — always visible */}
+                <div className={clsx(
+                  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                  "flex flex-row gap-[3px] items-center justify-center",
+                  "h-4 w-8 rounded-full",
+                  verticalDividerDrag?.topId === div.topId
+                    ? "bg-accent"
+                    : "bg-border group-hover:bg-accent/80",
+                  "transition-colors duration-150"
+                )}>
+                  <div className="h-0.5 w-0.5 rounded-full bg-background/70" />
+                  <div className="h-0.5 w-0.5 rounded-full bg-background/70" />
+                  <div className="h-0.5 w-0.5 rounded-full bg-background/70" />
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -621,6 +639,13 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   contextId={contextId}
   layout={layout}
 />
+      {toastMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+          <div className="px-4 py-2 rounded-lg bg-foreground/90 text-background text-sm shadow-lg backdrop-blur-sm">
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -79,7 +79,7 @@ export const ChatMessage = memo(({
 
   const targetContent = useMemo(() =>
     sanitizeContent(msg.content || '', isAILoading, isLast)
-  , [msg.content, isAILoading, isLast]);
+    , [msg.content, isAILoading, isLast]);
 
   const isImageContent = targetContent.startsWith('![');
   const isInitiallyFinished = isImageContent || !isLast || (!isAILoading && targetContent.length > 0);
@@ -209,7 +209,7 @@ export const ChatMessage = memo(({
 
   const isStatusOnly = useMemo(() =>
     msg.role === 'assistant' && isLast && isAILoading && (!displayContent || displayContent === 'Preparing tool...')
-  , [msg.role, isLast, isAILoading, displayContent]);
+    , [msg.role, isLast, isAILoading, displayContent]);
 
   const isError = msg.role === 'assistant' && (msg.content || '').startsWith('Error:');
 

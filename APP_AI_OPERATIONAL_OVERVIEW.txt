@@ -32,10 +32,11 @@ Platform: Web App
 - **Google**: Gemini 3.1 Flash Lite (500 RPD), Search Grounding (1,500 RPD).
 - **Cloudflare**: 100,000 RPD shared quota.
 
-## 5. Current Build Status (v4.4.2)
+## 5. Current Build Status (v4.5.1)
 - **Status**: Production Stable (Exit code 0).
 - **Resolved**: 
-  - Fixed `SidebarSectionId` and `EditingSource` type assignment errors.
-  - Stabilized `addEntity` with strict `Entity` interface compliance.
-  - Refactored `ContextMenu` and `Sidebar` for type-safe indexing.
-- **Last Verified**: 2026-04-24
+  - Overhauled Bento Engine with intent-based drop resolution (ResolveDrop).
+  - Implemented smart-swap, insert-displace, and row-rebalancing rules.
+  - Streamlined "Thinking..." UI by removing animated dots.
+  - Fixed horizontal gap validation in grid layouts.
+- **Last Verified**: 2026-04-26

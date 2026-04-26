@@ -89,9 +89,9 @@ export function rebalanceAll(layout: BentoLayoutItem[]): BentoLayoutItem[] {
         const toPush = natives.pop()!;
         const idx = result.findIndex(it => it.i === toPush.i);
         if (idx !== -1) {
-          // Push to next row
           const nextRow = r + 1;
-          result[idx] = { ...toPush, row: nextRow, order: 99 }; 
+          const clampedH = Math.max(widgetRegistry[toPush.type]?.minH ?? 1, Math.min(toPush.h, MAX_ROWS - nextRow));
+          result[idx] = { ...toPush, row: nextRow, order: 99, h: clampedH };
         }
       }
       
@@ -115,82 +115,255 @@ export function rebalanceAll(layout: BentoLayoutItem[]): BentoLayoutItem[] {
   }
 }
  
+// ─── Fill Gaps (vertical expansion) ──────────────────────────────────────────
+
+// Expand widgets downward into empty cells so no grid space is wasted.
+export function fillGaps(layout: BentoLayoutItem[]): BentoLayoutItem[] {
+  let result = layout.map(it => ({ ...it }));
+  const order = [...result].sort((a, b) => a.row - b.row || a.order - b.order).map(it => it.i);
+
+  // Compute grid once from the original layout so widget positions don't shift
+  // as we mutate heights. Only the expanding widget's own cells are updated.
+  const { grid, positions } = computeGridPositions(layout);
+
+  for (const id of order) {
+    const entry = widgetRegistry[result.find(it => it.i === id)?.type ?? ''];
+    const maxH = entry?.maxH ?? 4;
+    const pos = positions.get(id);
+    if (!pos) continue;
+
+    while (true) {
+      const idx = result.findIndex(it => it.i === id);
+      if (idx === -1) break;
+      const item = result[idx];
+      if (item.h >= maxH) break;
+
+      const nextRow = item.row + item.h;
+      if (nextRow >= MAX_ROWS) break;
+
+      let canExpand = true;
+      for (let c = pos.x; c < pos.x + pos.w; c++) {
+        if (grid[nextRow][c] !== null) { canExpand = false; break; }
+      }
+      if (!canExpand) break;
+
+      // Mark the new row cells as occupied before moving to next iteration
+      for (let c = pos.x; c < pos.x + pos.w; c++) {
+        grid[nextRow][c] = id;
+      }
+      result[idx] = { ...item, h: item.h + 1 };
+    }
+  }
+
+  return result;
+}
+
  // ─── Compact (gravity) ────────────────────────────────────────────────────────
 
 
 export function compactLayout(layout: BentoLayoutItem[]): BentoLayoutItem[] {
-  const usedRows = [...new Set(layout.map(it => it.row))].sort((a, b) => a - b);
-  const remap = new Map(usedRows.map((r, i) => [r, i]));
+  const occupied = new Set<number>();
+  for (const it of layout) {
+    for (let r = it.row; r < it.row + it.h; r++) occupied.add(r);
+  }
+  const sorted = [...occupied].sort((a, b) => a - b);
+  const remap = new Map<number, number>();
+  sorted.forEach((oldRow, newRow) => remap.set(oldRow, newRow));
   return layout.map(it => ({ ...it, row: remap.get(it.row) ?? it.row }));
 }
 
-// ─── Swap ─────────────────────────────────────────────────────────────────────
+// ─── Drop Resolution ──────────────────────────────────────────────────────────
+//
+// Each rule below maps one of the 7 canonical diagram patterns into a layout
+// candidate. A rule returns `null` if it can't produce a valid candidate; the
+// dispatcher (`resolveDrop`) tries them in priority order and returns the
+// first valid one. Returning `null` from the dispatcher means the drop is
+// rejected — the caller should snap back and show feedback.
+
+type DropTarget =
+  | { kind: 'widget'; id: string; intent: 'swap' | 'insert-before' | 'insert-after' }
+  | { kind: 'empty'; row: number; order: number };
+
+const clampHForRow = (item: BentoLayoutItem, destRow: number): BentoLayoutItem => {
+  const entry = widgetRegistry[item.type];
+  const maxH = Math.min(entry?.maxH ?? 4, MAX_ROWS - destRow);
+  const minH = entry?.minH ?? 1;
+  return { ...item, h: Math.max(minH, Math.min(item.h, Math.max(1, maxH))) };
+};
+
+const tryFinalize = (candidate: BentoLayoutItem[], expectedLen: number): BentoLayoutItem[] | null => {
+  const balanced = rebalanceAll(candidate);
+  if (balanced.length !== expectedLen) return null;
+  if (!validateLayout(balanced).valid) return null;
+  return compactLayout(balanced);
+};
+
+// Rule 4 / Rule 6 — direct positional swap (also covers cross-row counter-swap).
+// Each widget adopts the other's height (clamped to its own maxH) so no gaps are created.
+function ruleDirectSwap(layout: BentoLayoutItem[], dragged: BentoLayoutItem, target: BentoLayoutItem): BentoLayoutItem[] | null {
+  const draggedEntry = widgetRegistry[dragged.type];
+  const targetEntry  = widgetRegistry[target.type];
+
+  // Dragged widget adopts target's height (clamped to dragged widget's maxH and row bounds).
+  const draggedNewH = Math.max(
+    draggedEntry?.minH ?? 1,
+    Math.min(target.h, draggedEntry?.maxH ?? 4, MAX_ROWS - target.row)
+  );
+  // Target widget adopts dragged's height (clamped to target widget's maxH and row bounds).
+  const targetNewH = Math.max(
+    targetEntry?.minH ?? 1,
+    Math.min(dragged.h, targetEntry?.maxH ?? 4, MAX_ROWS - dragged.row)
+  );
+
+  // Width adoption — each widget takes the other's width, clamped to its own registry bounds
+  const draggedNewW = Math.max(draggedEntry?.minW ?? 2, Math.min(target.w, draggedEntry?.maxW ?? 6));
+  const targetNewW  = Math.max(targetEntry?.minW ?? 2, Math.min(dragged.w, targetEntry?.maxW ?? 6));
+
+  const swapped = layout.map(it => {
+    if (it.i === dragged.i) return { ...it, row: target.row, order: target.order, w: draggedNewW, h: draggedNewH };
+    if (it.i === target.i)  return { ...it, row: dragged.row, order: dragged.order, w: targetNewW, h: targetNewH };
+    return it;
+  });
+  return tryFinalize(swapped, layout.length);
+}
+
+// Rule 1 — row swap: every widget in dragged.row exchanges rows with every widget in target.row.
+// Heights of all swapped widgets are clamped to fit at the destination row.
+function ruleRowSwap(layout: BentoLayoutItem[], dragged: BentoLayoutItem, target: BentoLayoutItem): BentoLayoutItem[] | null {
+  if (dragged.row === target.row) return null;
+  const draggedRowH = Math.max(...layout.filter(it => it.row === dragged.row).map(it => it.h));
+  const targetRowH  = Math.max(...layout.filter(it => it.row === target.row).map(it => it.h));
+  const swapped = layout.map(it => {
+    if (it.row === dragged.row) {
+      const entry = widgetRegistry[it.type];
+      const newH = Math.max(entry?.minH ?? 1, Math.min(targetRowH, entry?.maxH ?? 4, MAX_ROWS - target.row));
+      return { ...it, row: target.row, h: newH };
+    }
+    if (it.row === target.row) {
+      const entry = widgetRegistry[it.type];
+      const newH = Math.max(entry?.minH ?? 1, Math.min(draggedRowH, entry?.maxH ?? 4, MAX_ROWS - dragged.row));
+      return { ...it, row: dragged.row, h: newH };
+    }
+    return it;
+  });
+  return tryFinalize(swapped, layout.length);
+}
+
+// Rule 5 — insert + displace: dragged inserts at target row at minW; target row is rebalanced.
+//   `position`: 'before' or 'after' the target widget.
+function ruleInsertDisplace(
+  layout: BentoLayoutItem[],
+  dragged: BentoLayoutItem,
+  target: BentoLayoutItem,
+  position: 'before' | 'after'
+): BentoLayoutItem[] | null {
+  const entry = widgetRegistry[dragged.type];
+  const insertW = entry?.minW ?? 2;
+  const insertH = Math.max(entry?.minH ?? 1, Math.min(dragged.h, MAX_ROWS - target.row));
+
+  const targetOrder = position === 'before' ? target.order : target.order + 1;
+
+  // Remove dragged, shift target row to make room.
+  const without = layout.filter(it => it.i !== dragged.i);
+  const shifted = without.map(it =>
+    it.row === target.row && it.order >= targetOrder
+      ? { ...it, order: it.order + 1 }
+      : it
+  );
+  const inserted = [...shifted, { ...dragged, row: target.row, order: targetOrder, w: insertW, h: insertH }];
+  return tryFinalize(inserted, layout.length);
+}
+
+// Rule 7 — drop fills row: dragged moves to target row, dropped at given order; rebalance grows it.
+function ruleDropFillsRow(
+  layout: BentoLayoutItem[],
+  dragged: BentoLayoutItem,
+  targetRow: number,
+  targetOrder: number
+): BentoLayoutItem[] | null {
+  const without = layout.filter(it => it.i !== dragged.i);
+  const order = Math.min(targetOrder, getNativeItems(without, targetRow).length);
+  const shifted = without.map(it =>
+    it.row === targetRow && it.order >= order
+      ? { ...it, order: it.order + 1 }
+      : it
+  );
+  const placed = [...shifted, clampHForRow({ ...dragged, row: targetRow, order }, targetRow)];
+  return tryFinalize(placed, layout.length);
+}
+
+// Smart-swap fallback: shrink row-mates to minW, then positional swap with height adoption.
+function ruleSmartSwap(layout: BentoLayoutItem[], dragged: BentoLayoutItem, target: BentoLayoutItem): BentoLayoutItem[] | null {
+  const affectedRows = new Set([dragged.row, target.row]);
+  const roomMade = layout.map(it => {
+    if (affectedRows.has(it.row) && it.i !== dragged.i && it.i !== target.i) {
+      return { ...it, w: widgetRegistry[it.type]?.minW ?? 2 };
+    }
+    return it;
+  });
+  const draggedEntry = widgetRegistry[dragged.type];
+  const targetEntry  = widgetRegistry[target.type];
+  const draggedNewH = Math.max(draggedEntry?.minH ?? 1, Math.min(target.h, draggedEntry?.maxH ?? 4, MAX_ROWS - target.row));
+  const targetNewH  = Math.max(targetEntry?.minH ?? 1, Math.min(dragged.h, targetEntry?.maxH ?? 4, MAX_ROWS - dragged.row));
+  const swapped = roomMade.map(it => {
+    if (it.i === dragged.i) return { ...it, row: target.row, order: target.order, h: draggedNewH };
+    if (it.i === target.i)  return { ...it, row: dragged.row, order: dragged.order, h: targetNewH };
+    return it;
+  });
+  return tryFinalize(swapped, layout.length);
+}
+
+// Dispatcher — picks the rule for a given drop intent and returns the resulting
+// layout, or `null` if no rule produces a valid layout (caller should snap back).
+export function resolveDrop(
+  layout: BentoLayoutItem[],
+  draggedId: string,
+  target: DropTarget
+): BentoLayoutItem[] | null {
+  const dragged = layout.find(it => it.i === draggedId);
+  if (!dragged) return null;
+
+  if (target.kind === 'empty') {
+    // Empty cell drop → Rule 7 (drop fills row). Fall through to Rule 5 if it fails.
+    const r7 = ruleDropFillsRow(layout, dragged, target.row, target.order);
+    if (r7) return r7;
+    return null;
+  }
+
+  // Widget drop
+  const targetItem = layout.find(it => it.i === target.id);
+  if (!targetItem || targetItem.i === dragged.i) return null;
+
+  if (target.intent === 'insert-before' || target.intent === 'insert-after') {
+    const position = target.intent === 'insert-before' ? 'before' : 'after';
+    const r5 = ruleInsertDisplace(layout, dragged, targetItem, position);
+    if (r5) return r5;
+    // Fall through to swap if insert can't fit.
+  }
+
+  // Swap intent — direct swap first (just the two widgets exchange positions),
+  // then row swap as fallback, then smart swap as last resort.
+  const r4 = ruleDirectSwap(layout, dragged, targetItem);
+  if (r4) return r4;
+
+  const r1 = ruleRowSwap(layout, dragged, targetItem);
+  if (r1) return r1;
+
+  const rSmart = ruleSmartSwap(layout, dragged, targetItem);
+  if (rSmart) return rSmart;
+
+  return null;
+}
+
+// ─── Swap (legacy wrapper, retained for back-compat) ─────────────────────────
 
 export function calculateSwapLayout(
   layout: BentoLayoutItem[],
   draggedId: string,
   targetId: string
 ): BentoLayoutItem[] {
-  const dragged = layout.find(it => it.i === draggedId);
-  const target = layout.find(it => it.i === targetId);
-  if (!dragged || !target) return layout;
-
-  // Same row — no swap needed
-  if (dragged.row === target.row) return layout;
-
-  const draggedRowMates = layout.filter(it => it.row === dragged.row && it.i !== draggedId);
-  const targetRowMates  = layout.filter(it => it.row === target.row  && it.i !== targetId);
-
-  // 1. Row-swap strategy: move all widgets from each row into the other row.
-  //    This handles 1-widget↔multi-widget swaps where a simple positional swap
-  //    would overflow the destination row.
-  if (draggedRowMates.length !== targetRowMates.length) {
-    const rowSwapped = layout.map(it => {
-      if (it.row === dragged.row) return { ...it, row: target.row };
-      if (it.row === target.row)  return { ...it, row: dragged.row };
-      return it;
-    });
-    const rebalanced = rebalanceAll(rowSwapped);
-    if (validateLayout(rebalanced).valid && rebalanced.length === layout.length) {
-      return rebalanced;
-    }
-  }
-
-  // 2. Simple positional swap (same row composition on both sides)
-  const swapCoords = layout.map(it => {
-    if (it.i === draggedId) return { ...it, row: target.row, order: target.order };
-    if (it.i === targetId) return { ...it, row: dragged.row, order: dragged.order };
-    return it;
-  });
-
-  const rebalanced = rebalanceAll(swapCoords);
-
-  if (validateLayout(rebalanced).valid && rebalanced.length === layout.length) {
-    return rebalanced;
-  }
-
-  // 3. Smart Swap: Try to make room by shrinking other widgets in the affected rows
-  const affectedRows = [dragged.row, target.row];
-  const roomMade = layout.map(it => {
-    if (affectedRows.includes(it.row) && it.i !== draggedId && it.i !== targetId) {
-      return { ...it, w: widgetRegistry[it.type]?.minW ?? 2 };
-    }
-    return it;
-  });
-
-  const smartSwap = roomMade.map(it => {
-    if (it.i === draggedId) return { ...it, row: target.row, order: target.order };
-    if (it.i === targetId) return { ...it, row: dragged.row, order: dragged.order };
-    return it;
-  });
-
-  const smartRebalanced = rebalanceAll(smartSwap);
-
-  if (validateLayout(smartRebalanced).valid && smartRebalanced.length === layout.length) {
-    return smartRebalanced;
-  }
-
-  return layout;
+  const result = resolveDrop(layout, draggedId, { kind: 'widget', id: targetId, intent: 'swap' });
+  return result ?? layout;
 }
 
 // ─── Insert / Push ────────────────────────────────────────────────────────────
@@ -273,24 +446,48 @@ export function adjustVerticalDivider(
   h0: number,
   h1: number
 ): BentoLayoutItem[] {
-  // Find the widgets involved
+  const { positions } = computeGridPositions(layout);
   const topWidget = layout.find(it => it.i === topId);
   const bottomWidget = layout.find(it => it.i === bottomId);
   if (!topWidget || !bottomWidget) return layout;
 
-  // Calculate delta in rows
-  const delta = h0 - topWidget.h;
-  if (delta === 0) return layout;
+  if (h0 === topWidget.h) return layout;
+
+  const posT = positions.get(topId);
+  const posB = positions.get(bottomId);
+  if (!posT || !posB) return layout;
+
+  const oldBottomRow = bottomWidget.row;
+  const newBottomRow = topWidget.row + h0;
+
+  // Only move widgets whose column range overlaps with the top widget's column range.
+  // Widgets in the same bottom row but outside the top widget's columns are unrelated
+  // to this divider and must not be moved.
+  const topLeft = posT.x;
+  const topRight = posT.x + posT.w;
 
   const updated = layout.map(it => {
-    // If it's the top widget, update height
     if (it.i === topId) return { ...it, h: h0 };
-    // If it's the bottom widget, update height AND move down
-    if (it.i === bottomId) return { ...it, row: it.row + delta, h: Math.max(1, h1) };
-    return it;
+
+    const posIt = positions.get(it.i);
+    if (!posIt) return it;
+    const overlapL = Math.max(topLeft, posIt.x);
+    const overlapR = Math.min(topRight, posIt.x + posIt.w);
+    if (overlapL >= overlapR) return it; // no column overlap — leave alone
+
+    // Spanner: starts before oldBottomRow but extends into it (e.g. C in the diagram).
+    // Trim its height so it ends at newBottomRow instead of spilling into the vacated space.
+    if (it.row < oldBottomRow && it.row + it.h > oldBottomRow) {
+      const entry = widgetRegistry[it.type];
+      const minH = entry?.minH ?? 1;
+      const clampedH = Math.max(minH, newBottomRow - it.row);
+      return { ...it, h: clampedH };
+    }
+
+    if (it.row !== oldBottomRow) return it;
+    return { ...it, row: newBottomRow, h: it.i === bottomId ? Math.max(1, h1) : it.h };
   });
 
-  // Rebalance to ensure grid invariants are maintained after height shift
   return rebalanceAll(updated);
 }
 
@@ -351,13 +548,29 @@ export function validateLayout(layout: BentoLayoutItem[]): { valid: boolean; err
     const entry = widgetRegistry[item.type];
     const minW = entry?.minW ?? 2;
     const minH = entry?.minH ?? 1;
+    const maxW = entry?.maxW ?? 6;
+    const maxH = entry?.maxH ?? 4;
 
     if (pos.w < minW || pos.h < minH) {
       return { valid: false, error: `Widget ${item.type} (${item.i}) is smaller than its minimum dimensions (${minW}x${minH})` };
     }
-
+    if (pos.w > maxW || pos.h > maxH) {
+      return { valid: false, error: `Widget ${item.type} (${item.i}) exceeds its maximum dimensions (${maxW}x${maxH})` };
+    }
     if (pos.y < 0 || pos.y + pos.h > MAX_ROWS || pos.x < 0 || pos.x + pos.w > 6) {
       return { valid: false, error: `Widget ${item.i} is out of grid boundaries` };
+    }
+  }
+
+  // Reject layouts with horizontal gaps: every occupied row must be fully covered.
+  const occupiedRows = new Set<number>();
+  for (const item of layout) {
+    for (let r = item.row; r < item.row + item.h; r++) occupiedRows.add(r);
+  }
+  for (const r of occupiedRows) {
+    const rowCoverage = grid[r].filter(cell => cell !== null).length;
+    if (rowCoverage !== HALF_COLS) {
+      return { valid: false, error: `Row ${r} has a horizontal gap (${rowCoverage}/${HALF_COLS} cols covered)` };
     }
   }
 

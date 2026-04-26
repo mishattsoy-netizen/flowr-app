@@ -18,11 +18,6 @@ export const StatusTyping = ({ text, className, style }: { text: string; classNa
       <span className="inline-block overflow-hidden whitespace-nowrap" ref={elRef}>
         {text}
       </span>
-      <span className="flex gap-0.5 ml-1">
-        <span className="w-1 h-1 rounded-full bg-accent animate-[bounce_1.4s_infinite_0ms]" />
-        <span className="w-1 h-1 rounded-full bg-accent animate-[bounce_1.4s_infinite_200ms]" />
-        <span className="w-1 h-1 rounded-full bg-accent animate-[bounce_1.4s_infinite_400ms]" />
-      </span>
     </span>
   );
 };

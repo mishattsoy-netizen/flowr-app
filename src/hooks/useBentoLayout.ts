@@ -7,9 +7,9 @@ import { loadBentoLayout, saveBentoLayout } from '@/lib/bento-sync';
 import {
   findFirstFit,
   rebalanceAll,
+  fillGaps,
   compactLayout,
-  calculateSwapLayout,
-  calculatePushLayout,
+  resolveDrop,
   adjustDivider,
   adjustVerticalDivider,
   computeGridPositions,
@@ -50,18 +50,23 @@ export function useBentoLayout(contextId: string) {
   const [previewLayout, setPreviewLayout] = useState<BentoLayoutItem[] | null>(null);
   const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
   const [stackTargetId, setStackTargetId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<any>(null);
+  const lastResolveRef = useRef<{ layout: BentoLayoutItem[] | null; failed: boolean }>({ layout: null, failed: false });
 
   // History State
   const [undoStack, setUndoStack] = useState<BentoLayout[]>([]);
   const [redoStack, setRedoStack] = useState<BentoLayout[]>([]);
 
   const layoutRef = useRef<BentoLayoutItem[]>(layout);
+  const realLayoutRef = useRef<BentoLayoutItem[]>(layout);
   const debounceRef = useRef<any>(null);
   const dwellTimerRef = useRef<any>(null);
-  const currentHoverRef = useRef<{ id: string | null; row: number | null; order: number | null }>({ id: null, row: null, order: null });
+  const currentHoverRef = useRef<{ id: string | null; row: number | null; order: number | null; intent?: 'swap' | 'insert-before' | 'insert-after' }>({ id: null, row: null, order: null });
   const initialPosRef = useRef<{ row: number; col: number; w: number; h: number } | null>(null);
-  
-  layoutRef.current = layout;
+
+  layoutRef.current = previewLayout ?? layout;
+  realLayoutRef.current = layout;
 
   useEffect(() => {
     loadBentoLayout(contextId).then(saved => {
@@ -103,26 +108,36 @@ export function useBentoLayout(contextId: string) {
   }, [contextId]);
 
   const commitLayout = useCallback((nextItems: BentoLayoutItem[], skipHistory = false) => {
-    const balancedItems = rebalanceAll(nextItems);
- 
+    let balancedItems = rebalanceAll(nextItems);
+
     const validation = validateLayout(balancedItems);
     if (!validation.valid) {
-      console.error("Layout validation failed:", validation.error);
-      return;
+      const recovered = recoverLayout(nextItems);
+      if (!recovered) {
+        console.error("Layout validation failed (unrecoverable):", validation.error);
+        return;
+      }
+      balancedItems = recovered;
     }
- 
-    // Compact items
-    const usedRows = [...new Set(balancedItems.map(it => it.row))].sort((a, b) => a - b);
-    const remap = new Map(usedRows.map((r, i) => [r, i]));
+
+    // Compact rows (span-aware: include all cells a tall widget occupies)
+    const occupied = new Set<number>();
+    for (const it of balancedItems) {
+      for (let r = it.row; r < it.row + it.h; r++) occupied.add(r);
+    }
+    const sortedRows = [...occupied].sort((a, b) => a - b);
+    const remap = new Map<number, number>();
+    sortedRows.forEach((oldRow, newRow) => remap.set(oldRow, newRow));
     const finalItems = balancedItems.map(it => ({ ...it, row: remap.get(it.row) ?? it.row }));
- 
+
     if (!skipHistory) {
-      setUndoStack(prev => [...prev.slice(-MAX_UNDO_DEPTH + 1), { items: layoutRef.current, rowHeights: [6, 6, 6, 6] }]);
+      setUndoStack(prev => [...prev.slice(-MAX_UNDO_DEPTH + 1), { items: realLayoutRef.current, rowHeights: [6, 6, 6, 6] }]);
       setRedoStack([]);
     }
- 
-    setLayout(finalItems);
-    debouncedSave(finalItems);
+
+    const withGapsFilled = fillGaps(finalItems);
+    setLayout(withGapsFilled);
+    debouncedSave(withGapsFilled);
   }, [debouncedSave]);
 
 
@@ -259,56 +274,80 @@ export function useBentoLayout(contextId: string) {
   // ─── Drag Lifecycle ───────────────────────────────────────────────────────
 
   const handleDragStart = useCallback((id: string) => {
-    const { positions } = computeGridPositions(layoutRef.current);
+    const { positions } = computeGridPositions(realLayoutRef.current);
     const pos = positions.get(id);
     if (pos) {
       initialPosRef.current = { row: pos.y, col: pos.x, w: pos.w, h: pos.h };
     }
     setDraggedId(id);
-    setPreviewLayout(layoutRef.current);
+    setPreviewLayout(realLayoutRef.current);
   }, []);
 
   const handleDragOverWidget = useCallback((targetId: string, row: number, col: number) => {
     if (!draggedId) return;
 
     // Origin detection: pointer is still over the dragged widget's original cell
-    // Only bail if we're hovering the dragged widget itself (targetId === draggedId)
     if (targetId === draggedId) {
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-      setPreviewLayout(layoutRef.current);
+      setPreviewLayout(realLayoutRef.current);
       setSwapTargetId(null);
       setStackTargetId(null);
+      lastResolveRef.current = { layout: null, failed: false };
       return;
     }
 
-    if (currentHoverRef.current.id !== targetId) {
-      currentHoverRef.current = { id: targetId, row, order: null };
+    // Intent based on pointer position within target widget:
+    //   left 20% band  → insert-before
+    //   right 20% band → insert-after
+    //   center 60%     → swap
+    const { positions } = computeGridPositions(realLayoutRef.current);
+    const targetPos = positions.get(targetId);
+    let intent: 'swap' | 'insert-before' | 'insert-after' = 'swap';
+    if (targetPos) {
+      const relX = (col - targetPos.x) / Math.max(1, targetPos.w);
+      if (relX < 0.2) intent = 'insert-before';
+      else if (relX > 0.8) intent = 'insert-after';
+    }
+
+    // Re-trigger when target OR intent changes (so moving within a widget can switch modes).
+    const hoverKey = `${targetId}:${intent}`;
+    const prevHoverKey = currentHoverRef.current.id ? `${currentHoverRef.current.id}:${currentHoverRef.current.intent ?? 'swap'}` : null;
+
+    if (hoverKey !== prevHoverKey) {
+      currentHoverRef.current = { id: targetId, row, order: null, intent };
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
 
       const targetItem = layoutRef.current.find(it => it.i === targetId);
       const draggedItem = layoutRef.current.find(it => it.i === draggedId);
 
       const isStackedWidget = targetItem?.type === 'stacked-widgets';
-      const canStack = isStackedWidget && targetItem && (!targetItem.data?.widgets || targetItem.data.widgets.length < 3) && draggedItem && draggedItem.type !== 'stacked-widgets';
+      const canStack = isStackedWidget && targetItem && (!targetItem.data?.widgets || targetItem.data.widgets.length < 3) && draggedItem && draggedItem.type !== 'stacked-widgets' && intent === 'swap';
 
       if (canStack) {
         setStackTargetId(targetId);
         setSwapTargetId(null);
+        // Resolve immediately so a quick drop still commits correctly.
+        const resolvedSwap = resolveDrop(realLayoutRef.current, draggedId, { kind: 'widget', id: targetId, intent: 'swap' });
+        lastResolveRef.current = { layout: resolvedSwap, failed: resolvedSwap === null };
+        // Delay the visual preview update to avoid jitter during rapid movement.
         dwellTimerRef.current = setTimeout(() => {
           setStackTargetId(null);
           setSwapTargetId(targetId);
-          setPreviewLayout(calculateSwapLayout(layoutRef.current, draggedId, targetId));
+          if (resolvedSwap) setPreviewLayout(resolvedSwap);
           dwellTimerRef.current = setTimeout(() => {
-             setSwapTargetId(null);
+            setSwapTargetId(null);
           }, DWELL_DELAY_MS);
         }, 1200); // Wait 1.2s before switching to swap mode
       } else {
         setStackTargetId(null);
         setSwapTargetId(targetId);
+        // Resolve immediately so a quick drop still commits correctly.
+        const resolved = resolveDrop(realLayoutRef.current, draggedId, { kind: 'widget', id: targetId, intent });
+        lastResolveRef.current = { layout: resolved, failed: resolved === null };
+        // Delay the visual preview update to avoid jitter during rapid movement.
         dwellTimerRef.current = setTimeout(() => {
-          const swapped = calculateSwapLayout(layoutRef.current, draggedId, targetId);
-          setPreviewLayout(swapped);
-          // Keep swap highlight until pointer leaves this target
+          if (resolved) setPreviewLayout(resolved);
+          else setPreviewLayout(realLayoutRef.current);
         }, DWELL_DELAY_MS);
       }
     }
@@ -318,35 +357,46 @@ export function useBentoLayout(contextId: string) {
     if (!draggedId) return;
 
     // Origin detection: Check if current pointer is within original widget area
-    if (initialPosRef.current && 
-        row >= initialPosRef.current.row && 
+    if (initialPosRef.current &&
+        row >= initialPosRef.current.row &&
         row < initialPosRef.current.row + initialPosRef.current.h &&
-        col >= initialPosRef.current.col && 
+        col >= initialPosRef.current.col &&
         col < initialPosRef.current.col + initialPosRef.current.w) {
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
       currentHoverRef.current = { id: null, row, order };
-      setPreviewLayout(layoutRef.current);
+      setPreviewLayout(realLayoutRef.current);
       setStackTargetId(null);
+      lastResolveRef.current = { layout: null, failed: false };
       return;
     }
-    
+
     if (currentHoverRef.current.row !== row || currentHoverRef.current.order !== order) {
       currentHoverRef.current = { id: null, row, order };
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-      
+
       setSwapTargetId(null);
       setStackTargetId(null);
-      
+
+      // Resolve immediately so a quick drop still commits correctly.
+      const resolved = resolveDrop(realLayoutRef.current, draggedId, { kind: 'empty', row, order });
+      lastResolveRef.current = { layout: resolved, failed: resolved === null };
+      // Delay visual preview to avoid jitter during rapid pointer movement.
       dwellTimerRef.current = setTimeout(() => {
-        const pushed = calculatePushLayout(layoutRef.current, draggedId, row, order);
-        if (pushed) setPreviewLayout(pushed);
+        if (resolved) setPreviewLayout(resolved);
+        else setPreviewLayout(realLayoutRef.current);
       }, DWELL_DELAY_MS);
     }
   }, [draggedId]);
 
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 2200);
+  }, []);
+
   const handleDragEnd = useCallback(() => {
     if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-    
+
     if (stackTargetId && draggedId) {
       const targetItem = layoutRef.current.find(it => it.i === stackTargetId);
       const draggedItem = layoutRef.current.find(it => it.i === draggedId);
@@ -354,45 +404,53 @@ export function useBentoLayout(contextId: string) {
         const currentWidgets = targetItem.data?.widgets || [];
         if (!currentWidgets.includes(draggedItem.type)) {
           const nextWidgets = [...currentWidgets, draggedItem.type];
-          
+
           // Remove the dragged item from the layout
           const layoutWithoutDragged = layoutRef.current.filter(it => it.i !== draggedId);
           // Update the stacked widget's data
-          const nextLayout = layoutWithoutDragged.map(it => 
-            it.i === stackTargetId 
+          const nextLayout = layoutWithoutDragged.map(it =>
+            it.i === stackTargetId
               ? { ...it, data: { ...it.data, widgets: nextWidgets, activeTabIndex: nextWidgets.length - 1 } }
               : it
           );
-          
+
           commitLayout(compactLayout(rebalanceAll(nextLayout)));
-          
+
           setDraggedId(null);
           setPreviewLayout(null);
           setSwapTargetId(null);
           setStackTargetId(null);
+          lastResolveRef.current = { layout: null, failed: false };
           currentHoverRef.current = { id: null, row: null, order: null };
           return;
         }
       }
     }
-    
-    if (previewLayout && draggedId) {
-      commitLayout(previewLayout);
+
+    // Use the stored resolved layout (resolved immediately on hover, not deferred like the preview).
+    // This ensures quick drops commit correctly even if the dwell timer hasn't fired yet.
+    const { layout: resolvedLayout, failed } = lastResolveRef.current;
+    if (failed && draggedId) {
+      showToast("Can't fit here");
+    } else if (resolvedLayout && draggedId) {
+      commitLayout(resolvedLayout);
     }
-    
+    // No fallback: if resolvedLayout is null and failed is false, the user dropped on origin — no-op.
+
     setDraggedId(null);
     setPreviewLayout(null);
     setSwapTargetId(null);
     setStackTargetId(null);
+    lastResolveRef.current = { layout: null, failed: false };
     currentHoverRef.current = { id: null, row: null, order: null };
-  }, [previewLayout, draggedId, commitLayout, stackTargetId]);
+  }, [previewLayout, draggedId, commitLayout, stackTargetId, showToast]);
 
   const [verticalDividerDrag, setVerticalDividerDrag] = useState<{ topId: string, bottomId: string, startY: number } | null>(null);
 
   const handleDividerDragPreview = useCallback((leftId: string, rightId: string, w0: number, w1: number) => {
     const current = previewLayout || layoutRef.current;
     const adjusted = adjustDivider(current, leftId, rightId, w0, w1);
-    setPreviewLayout(compactLayout(rebalanceAll(adjusted)));
+    setPreviewLayout(rebalanceAll(adjusted));
   }, [previewLayout]);
 
   const handleDividerDragEnd = useCallback(() => {
@@ -405,7 +463,7 @@ export function useBentoLayout(contextId: string) {
   const handleVerticalDividerDragPreview = useCallback((topId: string, bottomId: string, h0: number, h1: number) => {
     const current = previewLayout || layoutRef.current;
     const adjusted = adjustVerticalDivider(current, topId, bottomId, h0, h1);
-    setPreviewLayout(compactLayout(rebalanceAll(adjusted)));
+    setPreviewLayout(adjusted);
   }, [previewLayout]);
 
   const handleVerticalDividerDragEnd = useCallback(() => {
@@ -440,6 +498,7 @@ export function useBentoLayout(contextId: string) {
     handleDividerDragEnd,
     handleVerticalDividerDragPreview,
     handleVerticalDividerDragEnd,
-    isResizing: !!previewLayout
+    isResizing: !!previewLayout,
+    toastMessage
   };
 }
