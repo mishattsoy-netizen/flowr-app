@@ -5,11 +5,10 @@ import { Settings2, Check } from 'lucide-react';
 import clsx from 'clsx';
 import gsap from 'gsap';
 import { useBentoLayout } from '@/hooks/useBentoLayout';
-import { widgetRegistry } from './registry';
 import { BentoWidget } from './BentoWidget';
 import { WidgetPicker } from './WidgetPicker';
 import type { BentoLayoutItem } from '@/components/bento/types';
-import { computeGridPositions } from '@/lib/bento-engine';
+import { computeGridPositions, resizeDivider } from '@/lib/bento-engine';
 
 const MAX_ROWS = 4;
 const GAP = 12; // Matches gap-3 (0.75rem)
@@ -237,8 +236,6 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       const rawBoundary = Math.round(colX);
       const newBoundary = Math.max(1, Math.min(5, rawBoundary));
 
-      if (newBoundary === oldBoundary) return;
-
       const claimerId = newBoundary > oldBoundary ? rightItem.i : leftItem.i;
       const victimId  = newBoundary > oldBoundary ? leftItem.i  : rightItem.i;
 
@@ -278,8 +275,6 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       const rowY = (y / rect.height) * MAX_ROWS;
       const oldBoundary = posT.y + posT.h;
       const newBoundary = Math.max(1, Math.min(MAX_ROWS - 1, Math.round(rowY)));
-
-      if (newBoundary === oldBoundary) return;
 
       const claimerId = newBoundary < oldBoundary ? bottomWidget.i : topWidget.i;
       const victimId  = newBoundary < oldBoundary ? topWidget.i    : bottomWidget.i;
@@ -326,13 +321,9 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         const posR = positions.get(rightItem.i);
         if (!posR) return;
 
-        const minL = widgetRegistry[leftItem.type]?.minW ?? 2;
-        const maxL = widgetRegistry[leftItem.type]?.maxW ?? 6;
-        const minR = widgetRegistry[rightItem.type]?.minW ?? 2;
-        const maxR = widgetRegistry[rightItem.type]?.maxW ?? 6;
-
-        const canMoveRight = leftItem.w < maxL && rightItem.w > minR;
-        const canMoveLeft = leftItem.w > minL && rightItem.w < maxR;
+        const boundary = (positions.get(leftItem.i)?.x ?? 0) + leftItem.w;
+        const canMoveRight = resizeDivider(layout, rightItem.i, leftItem.i, boundary + 1, 'horizontal') !== null;
+        const canMoveLeft  = resizeDivider(layout, leftItem.i, rightItem.i, boundary - 1, 'horizontal') !== null;
         if (!canMoveRight && !canMoveLeft) return;
 
         const overlapTop = Math.max(posL.y, posR.y);
@@ -376,13 +367,9 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
         const posB = positions.get(bottomItem.i);
         if (!posB) return;
 
-        const minT = widgetRegistry[topItem.type]?.minH ?? 1;
-        const maxT = widgetRegistry[topItem.type]?.maxH ?? 4;
-        const minB = widgetRegistry[bottomItem.type]?.minH ?? 1;
-        const maxB = widgetRegistry[bottomItem.type]?.maxH ?? 4;
-
-        const canMoveDown = topItem.h < maxT && bottomItem.h > minB;
-        const canMoveUp = topItem.h > minT && bottomItem.h < maxB;
+        const boundary = (positions.get(topItem.i)?.y ?? 0) + topItem.h;
+        const canMoveDown = resizeDivider(layout, topItem.i, bottomItem.i, boundary + 1, 'vertical') !== null;
+        const canMoveUp   = resizeDivider(layout, bottomItem.i, topItem.i, boundary - 1, 'vertical') !== null;
         if (!canMoveDown && !canMoveUp) return;
 
         const overlapLeft = Math.max(posT.x, posB.x);
