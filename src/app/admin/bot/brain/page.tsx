@@ -1,3 +1,7 @@
-export default function BotBrainPage() {
-  return <div className="text-foreground">Bot Brain — coming soon</div>
+import { getBrainEntries } from './actions'
+import BrainClient from './BrainClient'
+
+export default async function BotBrainPage() {
+  const entries = await getBrainEntries()
+  return <BrainClient initialEntries={entries} />
 }
