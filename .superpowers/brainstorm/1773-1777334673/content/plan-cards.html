@@ -1,0 +1,103 @@
+<h2>Plan cards — after analysis finishes, how do improvement plans look?</h2>
+<p class="subtitle">Each plan has a topic, reasoning, improvement idea, and actions (accept / reject / edit)</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:220px">
+        <div style="color:#9ca3af;font-size:9px;margin-bottom:8px">3 plans generated · 2 pending review</div>
+        <!-- Card 1 expanded -->
+        <div style="background:#1a2035;border-radius:6px;padding:10px;border:1px solid #3b4a6b;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div>
+              <div style="color:#818cf8;font-size:10px;font-weight:600">Reduce verbose responses</div>
+              <div style="color:#4b5563;font-size:8px;margin-top:1px">Topic: Answer Style · 23 cases found</div>
+            </div>
+            <div style="background:#1e2130;border-radius:10px;padding:2px 7px;color:#f59e0b;font-size:8px">Pending</div>
+          </div>
+          <div style="color:#9ca3af;font-size:9px;line-height:1.5;margin-bottom:8px">
+            When users ask simple questions, responses are often 3-4x longer than needed. Users have disliked 23 responses for being too long. Add a conciseness rule to the answer style prompt.
+          </div>
+          <div style="display:flex;gap:5px">
+            <div style="background:#1e3a1e;border-radius:4px;padding:3px 10px;color:#4ade80;font-size:9px;font-weight:600">✓ Accept</div>
+            <div style="background:#2d1e1e;border-radius:4px;padding:3px 10px;color:#f87171;font-size:9px">✗ Reject</div>
+            <div style="background:#1e2130;border-radius:4px;padding:3px 10px;color:#9ca3af;font-size:9px">✎ Edit</div>
+            <div style="background:#1e2130;border-radius:4px;padding:3px 10px;color:#9ca3af;font-size:9px">↗ Open</div>
+          </div>
+        </div>
+        <!-- Card 2 compact -->
+        <div style="background:#1a2035;border-radius:6px;padding:8px 10px;border:1px solid #2d3a52;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="color:#c4b5fd;font-size:10px">Stop overusing bullet lists</div>
+            <div style="color:#4b5563;font-size:8px">Topic: Writing Style · 18 cases</div>
+          </div>
+          <div style="display:flex;gap:4px">
+            <div style="background:#1e3a1e;border-radius:4px;padding:2px 8px;color:#4ade80;font-size:8px">✓</div>
+            <div style="background:#2d1e1e;border-radius:4px;padding:2px 8px;color:#f87171;font-size:8px">✗</div>
+            <div style="background:#1e2130;border-radius:4px;padding:2px 8px;color:#9ca3af;font-size:8px">✎</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Expandable cards list</h3>
+      <p>Each plan is a card with title, topic tag, case count, explanation, and action buttons. Cards can be compact (just title + quick actions) or expanded to show full reasoning. Click to expand.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:220px;display:flex;gap:8px">
+        <!-- Left: plan list -->
+        <div style="width:110px;flex-shrink:0;display:flex;flex-direction:column;gap:3px">
+          <div style="color:#6b7280;font-size:8px;text-transform:uppercase;margin-bottom:3px">3 Plans</div>
+          <div style="background:#1e2952;border-radius:4px;padding:5px 7px;border-left:2px solid #818cf8">
+            <div style="color:#c4b5fd;font-size:9px">Verbose responses</div>
+            <div style="color:#f59e0b;font-size:8px">Pending</div>
+          </div>
+          <div style="background:#1a2035;border-radius:4px;padding:5px 7px;border-left:2px solid #2d3a52">
+            <div style="color:#9ca3af;font-size:9px">Bullet overuse</div>
+            <div style="color:#f59e0b;font-size:8px">Pending</div>
+          </div>
+          <div style="background:#1a2035;border-radius:4px;padding:5px 7px;border-left:2px solid #1e3a1e">
+            <div style="color:#9ca3af;font-size:9px">Code hallucination</div>
+            <div style="color:#4ade80;font-size:8px">Applied</div>
+          </div>
+        </div>
+        <!-- Right: detail -->
+        <div style="flex:1;background:#1a2035;border-radius:6px;padding:8px;border:1px solid #3b4a6b;display:flex;flex-direction:column;gap:5px">
+          <div style="color:#818cf8;font-size:10px;font-weight:600">Verbose responses</div>
+          <div style="background:#0f1117;border-radius:4px;padding:6px;color:#9ca3af;font-size:9px;line-height:1.5;flex:1">
+            23 disliked responses were too long. Add conciseness rule to answer style prompt: "Keep responses under 3 sentences unless explicitly asked for detail."
+          </div>
+          <div style="display:flex;gap:4px">
+            <div style="background:#1e3a1e;border-radius:4px;padding:3px 10px;color:#4ade80;font-size:9px;font-weight:600">✓ Accept</div>
+            <div style="background:#2d1e1e;border-radius:4px;padding:3px 10px;color:#f87171;font-size:9px">✗ Reject</div>
+            <div style="background:#1e2130;border-radius:4px;padding:3px 10px;color:#9ca3af;font-size:9px">✎ Edit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — List + detail panel (master-detail)</h3>
+      <p>Left panel shows all plans as a list. Click one to see full details + actions in the right panel. Like an email inbox. Never lose track of other plans while reviewing one.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;background:#1a2035;border-radius:8px;padding:12px;border:1px solid #2d3a52">
+  <div style="color:#9ca3af;font-size:10px;font-weight:600;margin-bottom:6px">Either way, the Edit flow works like this:</div>
+  <div style="display:flex;gap:8px;align-items:flex-start">
+    <div style="flex:1;background:#0f1117;border-radius:5px;padding:8px;border:1px solid #3b4a6b">
+      <div style="color:#f59e0b;font-size:9px;margin-bottom:4px">✎ You clicked Edit → write your change</div>
+      <div style="background:#1a2035;border-radius:3px;padding:5px;color:#c4b5fd;font-size:9px;font-style:italic">"Instead of a hard limit, make it context-aware — long when needed"</div>
+    </div>
+    <div style="color:#6b7280;font-size:9px;padding-top:10px">→</div>
+    <div style="flex:1;background:#0f1117;border-radius:5px;padding:8px;border:1px solid #3b4a6b">
+      <div style="color:#818cf8;font-size:9px;margin-bottom:4px">Bot rewrites the plan with your notes</div>
+      <div style="color:#4b5563;font-size:9px">You review the updated version again before it gets applied</div>
+    </div>
+  </div>
+</div>

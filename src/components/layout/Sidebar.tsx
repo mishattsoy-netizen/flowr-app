@@ -8,7 +8,7 @@ import { getEntityIcon } from '@/data/icons';
 import { Search, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, Layers, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown } from 'lucide-react';
 import { Toggle } from '../ui/Toggle';
 import clsx from 'clsx';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { TreeItem } from './TreeItem';
 import { Tooltip } from './Tooltip';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -66,6 +66,9 @@ export const Sidebar = React.memo(function Sidebar() {
   const hiddenEntityIds = useStore(state => state.hiddenEntityIds);
   const setSectionSortMode = useStore(state => state.setSectionSortMode);
   const contextMenu = useStore(state => state.contextMenu);
+  const selectedSidebarIds = useStore(state => state.selectedSidebarIds);
+  const setSelectedSidebarIds = useStore(state => state.setSelectedSidebarIds);
+  const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
 
   const [isFavoritesCollapsed, setIsFavoritesCollapsed] = useState(false);
   const [isWorkspacesCollapsed, setIsWorkspacesCollapsed] = useState(false);
@@ -73,6 +76,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const [sectionOrder] = useState(['favorites', 'unsorted', 'workspaces']);
   const [isMounted, setIsMounted] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const lastClickedRef = useRef<string | null>(null);
   
   const mainScrollRef = React.useRef<HTMLDivElement>(null);
   const pinnedScrollRef = React.useRef<HTMLDivElement>(null);
@@ -89,8 +93,8 @@ export const Sidebar = React.memo(function Sidebar() {
       return;
     }
     
-    const topOffset = Math.min(scrollTop, 24);
-    const bottomOffset = Math.min(scrollHeight - clientHeight - scrollTop, 24);
+    const topOffset = Math.min(scrollTop, 20);
+    const bottomOffset = Math.min(scrollHeight - clientHeight - scrollTop, 20);
     
     target.style.setProperty('--scroll-top-offset', `${topOffset}px`);
     target.style.setProperty('--scroll-bottom-offset', `${bottomOffset}px`);
@@ -149,6 +153,26 @@ export const Sidebar = React.memo(function Sidebar() {
   React.useEffect(() => { if (!activeDragId) setUnsortedEntities(unsortedEntitiesBase); }, [unsortedEntitiesBase, activeDragId]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // Build a flat list of all selectable entity IDs (pinned + unsorted — NOT workspaces)
+  const selectableIds = useMemo(() => {
+    const ids: string[] = [];
+    favoriteEntities.forEach(e => ids.push(e.id));
+    unsortedEntities.forEach(e => ids.push(e.id));
+    return ids;
+  }, [favoriteEntities, unsortedEntities]);
+
+  const handleShiftClick = useCallback((entityId: string) => {
+    const current = [...selectedSidebarIds];
+    if (current.includes(entityId)) {
+      // Deselect
+      setSelectedSidebarIds(current.filter(id => id !== entityId));
+    } else {
+      // Select
+      setSelectedSidebarIds([...current, entityId]);
+    }
+    lastClickedRef.current = entityId;
+  }, [selectedSidebarIds, setSelectedSidebarIds]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
@@ -362,7 +386,7 @@ export const Sidebar = React.memo(function Sidebar() {
               <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-[var(--radius-8)] animate-spin" />
             </div>
           ) : isSidebarCollapsed ? (
-            <div className="flex-1 overflow-y-auto px-3 pb-4 flex flex-col items-center gap-3 w-full scrollbar-none">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 flex flex-col items-center gap-3 w-full scrollbar-none">
               <Tooltip content="Dashboard">
                 <button
                   onClick={() => setActiveEntityId('dashboard')}
@@ -430,13 +454,19 @@ export const Sidebar = React.memo(function Sidebar() {
                       </div>
                       <span className="ml-0 flex-1 text-left text-[14px] tracking-wide">Tracker</span>
                     </button>
-                     <div className="h-px bg-border/30 -mx-3 mt-[9px] mb-3" />
+                     <div className="h-px bg-border/30 -mx-3 mt-[9px] mb-0" />
                   </div>
 
                   <div 
                     ref={mainScrollRef}
                     onScroll={onScroll}
-                    className="flex-1 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pl-3 pr-[6px] scroll-fade"
+                    onClick={(e) => {
+                      // Clear multi-select when clicking on empty space (not on a sidebar item)
+                      if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {
+                        clearSelectedSidebarIds();
+                      }
+                    }}
+                    className="flex-1 min-h-0 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pl-3 pr-[4px] pt-3 mr-[2px]"
                   >
                     <DndContext
                       sensors={sensors}
@@ -452,7 +482,12 @@ export const Sidebar = React.memo(function Sidebar() {
                             <div key="favorites" className="flex flex-col">
 <div
                                   onClick={() => setIsFavoritesCollapsed(!isFavoritesCollapsed)}
-                                  className="ml-0 mr-[2px] px-3 py-[3px] flex items-center justify-between group cursor-pointer select-none text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-8)]"
+                                  className={clsx(
+                                    "ml-0 mr-[2px] px-3 py-[3px] flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-8)] transition-colors duration-0",
+                                    contextMenu?.entityId === 'pinned'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                                  )}
                                 >
                                   <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide">Pinned</span>
                                   <div className="flex items-center gap-0.5">
@@ -464,7 +499,7 @@ export const Sidebar = React.memo(function Sidebar() {
                                       }}
                                       className={clsx(
                                         "btn-sidebar-utility",
-                                        contextMenu?.entityId === 'pinned' && "bg-[var(--bone-10)] text-[var(--bone-100)] opacity-100"
+                                        contextMenu?.entityId === 'pinned' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >
                                       <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
@@ -481,19 +516,19 @@ export const Sidebar = React.memo(function Sidebar() {
                                   <div className="overflow-hidden">
                                     <div 
                                        ref={pinnedScrollRef}
-                                       onScroll={onScroll}
-                                       className="overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pr-[2px] scroll-fade" 
-                                       style={{ maxHeight: `${(sidebarSectionSettings?.pinned?.itemLimit || 10) * 36}px` }}
+                                       className="pr-[4px] mr-[2px]" 
                                     >
                                       <DroppableZone id="pinned-container" className="flex flex-col gap-[3px] mt-[3px] sidebar-list mb-2">
                                        <SortableContext items={favoriteEntities.map(e => `pinned-${e.id}`)} strategy={verticalListSortingStrategy}>
-                                         {favoriteEntities.slice(0, sidebarSectionSettings?.pinned?.itemLimit || 10).map(entity => (
+                                         {favoriteEntities.map(entity => (
                                            <TreeItem 
                                              key={`pinned-${entity.id}`} 
                                              entity={entity} 
                                              depth={0} 
                                              idOverride={`pinned-${entity.id}`} 
                                              disableNesting={true}
+                                             isMultiSelected={selectedSidebarIds.includes(entity.id)}
+                                             onShiftClick={handleShiftClick}
                                            />
                                          ))}
                                        </SortableContext>
@@ -511,7 +546,12 @@ export const Sidebar = React.memo(function Sidebar() {
 <div key="unsorted" className="flex flex-col">
                                <div
                                   onClick={() => setIsUnsortedCollapsed(!isUnsortedCollapsed)}
-                                  className="ml-0 mr-[2px] px-3 h-7 flex items-center justify-between group cursor-pointer select-none text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-8)]"
+                                  className={clsx(
+                                    "ml-0 mr-[2px] px-3 h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-8)] transition-colors duration-0",
+                                    contextMenu?.entityId === 'unsorted'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                                  )}
                                 >
                                   <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide">Unsorted</span>
                                   <div className="flex items-center gap-1">
@@ -523,7 +563,7 @@ export const Sidebar = React.memo(function Sidebar() {
                                       }}
                                       className={clsx(
                                         "btn-sidebar-utility",
-                                        contextMenu?.entityId === 'unsorted' && "bg-[var(--bone-10)] text-[var(--bone-100)] opacity-100"
+                                        contextMenu?.entityId === 'unsorted' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >
                                       <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
@@ -539,13 +579,12 @@ export const Sidebar = React.memo(function Sidebar() {
                                 >
                                   <div className="overflow-hidden">
                                     <div 
-                                      className="overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pr-[2px]" 
-                                      style={{ maxHeight: `${(sidebarSectionSettings?.unsorted?.itemLimit || 20) * 36}px` }}
+                                      className="pr-[4px] mr-[2px]" 
                                     >
                                       <DroppableZone id="unsorted-container" className="flex flex-col gap-[3px] mt-[3px] sidebar-list mb-2">
                                         <SortableContext items={unsortedEntities.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                                          {unsortedEntities.slice(0, sidebarSectionSettings?.unsorted?.itemLimit || 20).map(entity => (
-                                            <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} />
+                                          {unsortedEntities.map(entity => (
+                                            <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
                                           ))}
                                         </SortableContext>
                                       </DroppableZone>
@@ -560,7 +599,12 @@ export const Sidebar = React.memo(function Sidebar() {
                           return (
 <div key="workspaces" className="flex flex-col">
                                <div
-                                  className="ml-0 mr-[2px] px-3 h-7 flex items-center justify-between group cursor-pointer select-none text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-8)]"
+                                  className={clsx(
+                                    "ml-0 mr-[2px] px-3 h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-8)] transition-colors duration-0",
+                                    contextMenu?.entityId === 'workspaces'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                                  )}
                                   onClick={() => setIsWorkspacesCollapsed(!isWorkspacesCollapsed)}
                                 >
                                   <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide">Workspaces</span>
@@ -573,7 +617,7 @@ export const Sidebar = React.memo(function Sidebar() {
                                       }}
                                       className={clsx(
                                         "btn-sidebar-utility",
-                                        contextMenu?.entityId === 'workspaces' && "bg-[var(--bone-10)] text-[var(--bone-100)] opacity-100"
+                                        contextMenu?.entityId === 'workspaces' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >
                                       <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
@@ -598,13 +642,12 @@ export const Sidebar = React.memo(function Sidebar() {
                                 >
                                   <div className="overflow-hidden">
                                     <div 
-                                      className="overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pr-[2px]" 
-                                      style={{ maxHeight: `${(sidebarSectionSettings?.workspaces?.itemLimit || 20) * 36}px` }}
+                                      className="pr-[4px] mr-[2px]" 
                                     >
                                       <DroppableZone id="workspaces-container" className="flex flex-col gap-[3px] mt-[3px] mb-2">
                                         <SortableContext items={workspaces.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                                          {workspaces.slice(0, sidebarSectionSettings?.workspaces?.itemLimit || 20).map(workspace => (
-                                            <TreeItem key={workspace.id} entity={workspace} depth={0} />
+                                          {workspaces.map(workspace => (
+                                            <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
                                           ))}
                                         </SortableContext>
                                       </DroppableZone>
@@ -645,7 +688,7 @@ export const Sidebar = React.memo(function Sidebar() {
                 const rect = e.currentTarget.getBoundingClientRect();
                 openContextMenu(null, rect.left, rect.top, 'spaces');
               }}
-              className="btn-sidebar-utility"
+              className={clsx("btn-sidebar-utility", contextMenu?.source === 'spaces' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")}
             >
               <ChevronsUpDown strokeWidth={2} className="w-4 h-4" />
             </button>

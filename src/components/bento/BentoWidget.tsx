@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 import gsap from 'gsap';
@@ -16,16 +16,26 @@ interface BentoWidgetProps {
   onUpdateData: (newData: any) => void;
   isSwapTarget?: boolean;
   isStackTarget?: boolean;
+  staggerIndex?: number;
 }
 
-export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, onUpdateData, isSwapTarget, isStackTarget }: BentoWidgetProps) {
+export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, onUpdateData, isSwapTarget, isStackTarget, staggerIndex = 0 }: BentoWidgetProps) {
   const entry = widgetRegistry[item.type];
   const ref = useRef<HTMLDivElement>(null);
+  const prevEditMode = useRef(editMode);
+  const [borderFlash, setBorderFlash] = useState(false);
 
-  // Entrance animation removed to prevent layout shift on load
   useEffect(() => {
-    // We could add a more subtle entrance here if needed, but for now we prioritize instant UI
-  }, []);
+    if (prevEditMode.current === editMode) return;
+    prevEditMode.current = editMode;
+    const delay = staggerIndex * 30;
+    const t1 = setTimeout(() => {
+      setBorderFlash(true);
+      const t2 = setTimeout(() => setBorderFlash(false), 400);
+      return () => clearTimeout(t2);
+    }, delay);
+    return () => clearTimeout(t1);
+  }, [editMode, staggerIndex]);
 
   if (!entry) {
     return (
@@ -40,11 +50,12 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
   return (
     <div
       ref={ref}
+      data-border-flash={borderFlash ? 'true' : undefined}
       className={clsx(
-        'h-full relative group/bento-widget transition-all duration-500 rounded-[var(--radius-big)]',
+        'h-full relative group/bento-widget transition-all duration-300 rounded-[var(--radius-big)]',
         editMode ? 'overflow-visible' : 'overflow-hidden',
         editMode && 'cursor-grab active:cursor-grabbing select-none',
-        isSwapTarget && 'ring-2 ring-[var(--bone-100)]',
+        isSwapTarget && 'ring-2 ring-[var(--bone-100)] scale-[1.02] shadow-lg',
         isStackTarget && 'ring-2 ring-accent bg-accent/5 scale-105 z-20'
       )}
     >

@@ -41,7 +41,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
   };
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-4 pb-4 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-4 pb-4 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground">All Files</h2>
         {onUpdateData && (
@@ -62,7 +62,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
       <div className="relative mb-2">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--bone-30)]" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter..."
-          className="w-full pl-7 pr-3 py-1.5 bg-[var(--bone-5)] border border-[var(--bone-10)] rounded-[var(--radius-small)] text-sm text-foreground placeholder-muted-foreground outline-none focus:border-[var(--bone-20)]" />
+          className="w-full pl-7 pr-3 py-1.5 bg-[var(--bone-5)] border border-[var(--bone-3)] rounded-[var(--radius-small)] text-sm text-foreground placeholder-muted-foreground outline-none focus:border-[var(--bone-20)]" />
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {(view === 'flat' ? filtered : rootItems).map(e => renderItem(e))}

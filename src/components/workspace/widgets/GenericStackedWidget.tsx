@@ -90,7 +90,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
   return (
     <section 
       className={clsx(
-        "h-full w-full relative bg-sidebar border border-[var(--bone-10)] rounded-[var(--radius-big)] widget-shadow flex flex-col p-5 pt-4 transition-all duration-200 generic-stack-container",
+        "h-full w-full relative bg-sidebar border border-[var(--bone-3)] rounded-[var(--radius-big)] widget-shadow flex flex-col p-5 pt-4 transition-all duration-200 generic-stack-container",
         isDragOver && "ring-2 ring-accent ring-inset bg-accent/5"
       )}
       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -157,7 +157,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
         ) : (
           <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-[var(--bone-20)] transition-colors">
             <div className={clsx(
-              "w-12 h-12 rounded-full border-2 border-dashed border-[var(--bone-10)] flex items-center justify-center",
+              "w-12 h-12 rounded-full border-2 border-dashed border-[var(--bone-3)] flex items-center justify-center",
               isDragOver ? "scale-110 border-accent text-accent bg-accent/5" : "scale-100"
             )}>
               <Plus className={clsx("w-6 h-6", isDragOver && "rotate-90")} />

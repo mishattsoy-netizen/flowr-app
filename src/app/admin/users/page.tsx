@@ -35,18 +35,18 @@ export default async function UsersPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5">
           <div className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase mb-3 opacity-40">Total registered</div>
           <div className="text-3xl font-bold text-bone-100 tracking-tighter leading-none font-instrument">{users?.length || 0}</div>
         </div>
-         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5">
           <div className="flex items-center justify-between mb-3 opacity-40">
             <span className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase">Active today</span>
             <Users className="w-4 h-4 text-accent" strokeWidth={1.5} />
           </div>
           <div className="text-3xl font-bold text-accent tracking-tighter leading-none font-instrument">{activeCount}</div>
         </div>
-         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+         <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5">
           <div className="flex items-center justify-between mb-3 opacity-40">
             <span className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase">Blocked nodes</span>
             <ShieldAlert className="w-4 h-4 text-rose-500" strokeWidth={1.5} />
@@ -55,7 +55,7 @@ export default async function UsersPage() {
         </div>
       </div>
 
-       <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col overflow-hidden transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/10">
+       <div className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col overflow-hidden transition-all duration-200 hover:bg-white/[0.02] hover:-translate-y-0.5">
         <div className="p-4 border-b border-[var(--bone-15)] bg-white/[0.01] flex items-center justify-between gap-4">
           <div className="flex-1 relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-bone-60 opacity-20 group-focus-within:opacity-100 group-focus-within:text-accent transition-all duration-300" />

@@ -40,7 +40,7 @@ export function QuickLinksWidget({ data, onUpdateData }: { data?: QLData; onUpda
   };
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground">Quick Links</h2>
         <div className="flex items-center gap-1">
@@ -81,7 +81,7 @@ export function QuickLinksWidget({ data, onUpdateData }: { data?: QLData; onUpda
         )}
 
         {isAdding && (
-          <div className="space-y-2 p-2 border border-[var(--bone-10)] rounded-[var(--radius-medium)]">
+          <div className="space-y-2 p-2 border border-[var(--bone-3)] rounded-[var(--radius-medium)]">
             <input autoFocus placeholder="Label (auto-detected if empty)" value={newLabel} onChange={e => setNewLabel(e.target.value)}
               className="w-full bg-transparent border border-[var(--bone-5)] rounded-[var(--radius-medium)] px-2.5 py-1.5 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-[var(--bone-30)]" />
             <input placeholder="https://..." value={newUrl} onChange={e => setNewUrl(e.target.value)}

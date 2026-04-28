@@ -65,11 +65,20 @@ export async function runChain(
       visionChain = tgVision.chain
     }
 
+    let activePrompt = prompt;
+    if (!activePrompt && activeBuffer) {
+      if (history.length > 0) {
+        activePrompt = "The user sent an image without a prompt. Analyze the conversation history and this image to understand what the user likely wants. If there is a clear task (e.g., 'extract text', 'describe this', 'summarize'), perform it. If the intent is unclear, describe the image and ask how you can help.";
+      } else {
+        activePrompt = "Analyze this image and decide how to answer by yourself. Describe it and ask how I can help.";
+      }
+    }
+
     for (const modelConfig of visionChain) {
       if (!modelConfig.is_enabled) continue
       try {
         logger.info(`Routing vision to: ${modelConfig.id} (${modelConfig.provider})`)
-        const visionRes = await runGoogle(modelConfig.id, prompt || "Analyze this image.", undefined, activeBuffer, context as any, history)
+        const visionRes = await runGoogle(modelConfig.id, activePrompt, undefined, activeBuffer, context as any, history)
         if (visionRes) {
           trackModelUsage(modelConfig.id, modelConfig.provider)
           return { type: 'text', content: visionRes, usage_type: 'vision', model: modelConfig.id, model_chain: `vision → ${modelConfig.id}`, status: 'success' }
@@ -109,6 +118,9 @@ export async function runChain(
   if (!system_prompt && category === 'IMAGE_GEN') {
     system_prompt = "You are a creative artist. Generate high-quality images based on user prompts."
   }
+
+  // Global constraint to prevent leaking internal reasoning/analysis
+  system_prompt = "CRITICAL: Provide ONLY the final answer. NEVER output internal reasoning, analysis, planning, or drafting. Do not use headers like '*Neutrality:*', '*Final version plan:*', or '*Self-Correction:*'. Jump directly to the response.\n\n" + (system_prompt || "");
 
   let finalUsageType: 'chat' | 'tool' | 'search' | 'vision' | 'image' = 'chat'
   if (category === 'WEB_SEARCH') finalUsageType = 'search'

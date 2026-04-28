@@ -172,7 +172,7 @@ export type ModalType =
   | null
   | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType }
   | { kind: 'newCollection' }
-  | { kind: 'deleteConfirm'; entityId: string }
+  | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[] }
   | { kind: 'moveTo'; entityId: string }
   | { kind: 'rename'; entityId: string }
   | { kind: 'newTask'; taskId?: string }
@@ -342,6 +342,7 @@ export interface AppState {
   sidebarSectionSettings: Record<SidebarSectionId, SidebarSectionSettings>;
   hiddenEntityIds: string[];
   isCommandPaletteOpen: boolean;
+  selectedSidebarIds: string[];
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;
@@ -454,5 +455,7 @@ export interface AppState {
   closeContextMenu: () => void;
   copyBlock: (block: EditorBlock) => void;
   pasteBlock: (entityId: string, afterBlockId: string) => void;
+  setSelectedSidebarIds: (ids: string[]) => void;
+  clearSelectedSidebarIds: () => void;
 }
 

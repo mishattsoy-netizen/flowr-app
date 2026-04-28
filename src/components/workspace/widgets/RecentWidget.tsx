@@ -31,7 +31,7 @@ export function RecentWidget({ data, onUpdateData }: { data?: { filter?: Filter 
   );
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-muted-foreground group-hover/widget:text-accent transition-colors" />
@@ -58,7 +58,7 @@ export function RecentWidget({ data, onUpdateData }: { data?: { filter?: Filter 
           return (
             <button key={entity.id} onClick={() => setActiveEntityId(entity.id)}
               className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bone-6)] transition-all group/item text-left">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bone-10)] border border-[var(--bone-10)] flex items-center justify-center text-[var(--bone-60)] group-hover/item:text-accent group-hover/item:border-accent/30 transition-all shadow-sm">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bone-10)] border border-[var(--bone-3)] flex items-center justify-center text-[var(--bone-60)] group-hover/item:text-accent group-hover/item:border-accent/30 transition-all shadow-sm">
                 <Icon className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">

@@ -17,9 +17,11 @@ interface TreeItemProps {
   idOverride?: string;
   isDragOverlay?: boolean;
   disableNesting?: boolean;
+  isMultiSelected?: boolean;
+  onShiftClick?: (entityId: string, e: React.MouseEvent) => void;
 }
 
-export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride, isDragOverlay, disableNesting }: TreeItemProps) {
+export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride, isDragOverlay, disableNesting, isMultiSelected, onShiftClick }: TreeItemProps) {
   const entities = useStore(state => state.entities);
   const activeEntityId = useStore(state => state.activeEntityId);
   const collapsedIds = useStore(state => state.collapsedIds);
@@ -104,7 +106,18 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const isCollapsed = collapsedIds.includes(entity.id);
   const isActive = activeEntityId === entity.id;
 
-  const handleClick = () => {
+  const selectedSidebarIds = useStore(state => state.selectedSidebarIds);
+  const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
+  const effectiveMultiSelected = isMultiSelected || selectedSidebarIds.includes(entity.id);
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (e.shiftKey && onShiftClick) {
+      e.preventDefault();
+      onShiftClick(entity.id, e);
+      return;
+    }
+    // Clear multi-select on any non-shift click
+    clearSelectedSidebarIds();
     setActiveEntityId(entity.id);
   };
 
@@ -214,9 +227,11 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0",
           "px-3 rounded-[var(--radius-8)]",
           "h-7",
-          isActive 
-            ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide" 
-            : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
+          effectiveMultiSelected
+            ? "bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)]"
+            : (isActive || contextMenu?.entityId === entity.id)
+              ? "!bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide" 
+              : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",
           isWorkspace && !isActive && "group-hover/workspace:text-[var(--bone-100)]",
           "text-[14px]",
         )}
@@ -246,7 +261,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           </span>
         )}
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+        <div className={clsx(
+          "flex items-center gap-1 shrink-0 transition-opacity duration-100",
+          contextMenu?.entityId === entity.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}>
           {(entity.type === 'workspace' || entity.type === 'collection' || entity.type === 'folder') && (
             <button
                onClick={handlePlusClick}
@@ -259,7 +277,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
              onClick={handleOptionsClick}
              className={clsx(
                "btn-sidebar-utility",
-               contextMenu?.entityId === entity.id && "bg-[var(--bone-10)] text-[var(--bone-100)] opacity-100"
+               contextMenu?.entityId === entity.id && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
              )}
           >
             <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
@@ -298,6 +316,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
                   entity={child} 
                   depth={depth + 1} 
                   idOverride={idOverride ? `${idOverride.split('-')[0]}-${child.id}` : undefined}
+                  onShiftClick={onShiftClick}
                 />
               ))}
             </div>

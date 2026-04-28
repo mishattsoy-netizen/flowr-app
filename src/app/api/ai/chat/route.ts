@@ -49,8 +49,11 @@ export async function POST(req: NextRequest) {
 
   const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, agentEnabled } = await req.json()
 
-  if (!prompt || typeof prompt !== 'string') {
-    return NextResponse.json({ error: 'prompt is required', model: 'system' }, { status: 400 })
+  if (!prompt && !buffer) {
+    return NextResponse.json({ error: 'prompt or image is required', model: 'system' }, { status: 400 })
+  }
+  if (prompt && typeof prompt !== 'string') {
+    return NextResponse.json({ error: 'prompt must be a string', model: 'system' }, { status: 400 })
   }
 
   const userId = user?.id || 'anonymous'

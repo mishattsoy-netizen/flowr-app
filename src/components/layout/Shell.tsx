@@ -202,12 +202,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* 1. Left Sidebar Section */}
       <div 
         className={clsx(
-          "h-full overflow-hidden shrink-0 flex flex-row relative border-r border-[var(--bone-15)]",
+          "h-full min-h-0 shrink-0 flex flex-row relative border-r border-[var(--bone-15)]",
           currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
         )}
         style={{ 
           width: currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px`,
-          transition: (isResizingLeft || isResizingRight) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), border-color 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+          transition: (isResizingLeft || isResizingRight) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
         {!currentSidebarCollapsed && (
@@ -232,8 +232,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             )}
           >
             <div className={clsx(
-              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-colors",
-              isResizingLeft ? "bg-accent" : "bg-white/10 opacity-0 group-hover:opacity-100"
+              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-300",
+              isResizingLeft ? "bg-accent opacity-100" : "bg-accent/30 opacity-0 group-hover:opacity-100"
             )} />
           </div>
         )}
@@ -277,8 +277,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {/* Right AI Sidebar Wrapper */}
         <div 
           className={clsx(
-            "h-full bg-sidebar shrink-0 overflow-hidden relative z-40",
-            (!isAIAssistantExtended || !isAIAssistantOpen) && "w-0"
+            "h-full bg-sidebar shrink-0 overflow-hidden relative z-40 border-[var(--bone-15)] transition-colors",
+            (isAIAssistantExtended && isAIAssistantOpen) ? "border-l w-auto" : "border-l-0 w-0"
           )}
           style={{ 
             width: (isAIAssistantExtended && isAIAssistantOpen) ? `${currentAiSidebarWidth}px` : '0px',

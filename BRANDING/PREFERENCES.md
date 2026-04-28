@@ -24,6 +24,7 @@
 
 ## User Likes
 
+- **Corners:** 8px corners (`var(--radius-medium)`) for blocks in notes
 - Semi-transparent glass fills over solid backgrounds
 - Square/rounded-rect shapes (`rounded-[4px]`) for calendar date cells
 - Borderless selected states (no `border` on selected items)
@@ -32,6 +33,9 @@
 - `font-ui-label` for small uppercase labels (Today, Clear, etc.)
 - **Sliding transitions:** Specifically for the background "pill" in tab switchers (`transition-all duration-[150ms] ease-out`).
 - **Instant response:** Navigation components (sidebar, workspaces, switcher items) must have **no transition delay** (`duration-0`). State changes (hover, selection) should be sharp and immediate. Other UI interactions (hover, button clicks) should also remain sharp.
+- **Selection Indicators:** Prefers checkmarks (`Check` icon) on the right side of the label for nested menu options. Indicator should be subtle (`bone-60`) and brighten to `bone-100` on hover.
+- **Popup Fills:** Selected items in menus/popups should have a subtle background fill (`bone-6`) rather than just a text color change.
+- **Widget Borders:** Prefers ultra-subtle borders for widgets (`border-[var(--bone-3)]`, 3% opacity) to ensure seamless integration into the dashboard.
 
 ## User Dislikes
 

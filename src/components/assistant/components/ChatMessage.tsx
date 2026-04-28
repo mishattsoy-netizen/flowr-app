@@ -29,6 +29,24 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
 
   text = text.replace(ALL_TOOLS_FULL_REGEX, "");
 
+  // Filter out internal reasoning patterns (e.g., *Neutrality:*, *Final version plan:*)
+  const reasoningPatterns = [
+    /\*Neutrality:\*.*?\n/gi,
+    /\*Accuracy:\*.*?\n/gi,
+    /\*Factual accuracy:\*.*?\n/gi,
+    /\*Completeness:\*.*?\n/gi,
+    /\*Directness:\*.*?\n/gi,
+    /\*Option [A-Z0-9] \(.*?\):\*.*?\n/gi,
+    /\*Final version plan:\*.*?\n/gi,
+    /\*Self-Correction.*?:\*.*?\n/gi,
+    /\*Refined Final Version:\*.*?\n/gi,
+    /\*Perspective \d+:.*?\n/gi,
+    /\*Direct Answer:\*.*?\n/gi,
+  ];
+  reasoningPatterns.forEach(pattern => {
+    text = text.replace(pattern, '');
+  });
+
   if (isAILoading && isLastMessage) {
     if (ALL_TOOLS_REGEX.test(text)) {
       text = text.replace(ALL_TOOLS_REGEX, 'Preparing tool...');
@@ -176,7 +194,7 @@ export const ChatMessage = memo(({
         const atEnd = !hasFinishedTyping && !isStatus && isAtEnd(node) && !!children;
         const isEmpty = !children || (Array.isArray(children) && children.length === 0) || (typeof children === 'string' && !children.trim());
 
-        return <div className={clsx(isStatus ? "mb-0" : "mb-2 last:mb-0", isStatus && "font-sans font-medium opacity-30 text-[14px] tracking-wide flex items-center")}>
+          return <div className={clsx(isStatus ? "mb-0" : "mb-2 last:mb-0 break-words !max-w-full !w-full", isStatus && "font-sans font-medium opacity-30 text-[14px] tracking-wide flex items-center")}>
           {isStatus ? <StatusTyping text={children} /> : children}
           {(atEnd && !isEmpty) && <span className="ai-cursor-inline">█</span>}
         </div>;
@@ -191,7 +209,7 @@ export const ChatMessage = memo(({
         return (
           <li className="flex items-start gap-2.5">
             <span className="text-accent select-none shrink-0 mt-[0.45em] flex items-center justify-center leading-none" aria-hidden="true">•</span>
-            <div className="flex-1 min-w-0 leading-relaxed text-[13.5px] tracking-wide">
+              <div className="flex-1 min-w-0 leading-relaxed text-[13.5px] tracking-wide break-words !max-w-full !w-full">
               {children}
               {atEnd && <span className="ai-cursor-inline">█</span>}
             </div>
@@ -225,10 +243,10 @@ export const ChatMessage = memo(({
               <AIAvatar className="bg-red-400" />
             </div>
           )}
-          <div
-            className="max-w-[92%] px-5 py-3 text-[13.5px] leading-relaxed rounded-2xl bg-red-500/5 shadow-lg shadow-red-500/5 tracking-wide"
-            style={{ background: 'color-mix(in srgb, var(--color-background) 92%, rgb(239 68 68) 8%)' }}
-          >
+            <div
+              className="max-w-[90%] px-5 py-3 text-[13.5px] leading-relaxed rounded-2xl bg-red-500/5 shadow-lg shadow-red-500/5 tracking-wide break-words"
+              style={{ background: 'color-mix(in srgb, var(--color-background) 92%, rgb(239 68 68) 8%)' }}
+            >
             <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-red-400/60 mb-2">System Alert</p>
             <p className="text-foreground/90 font-medium tracking-wide">{errorText}</p>
           </div>
@@ -243,7 +261,7 @@ export const ChatMessage = memo(({
       msg.role === 'user' ? "items-end mb-4" : "items-start mb-0"
     )}>
       <div className={clsx(
-        "flex gap-1 max-w-full",
+        "flex gap-1 w-full",
         msg.role === 'user' ? "flex-row-reverse" : "flex-row"
       )}>
         {msg.role === 'assistant' && isLast && (
@@ -251,12 +269,12 @@ export const ChatMessage = memo(({
             <AIAvatar isTyping={!hasFinishedTyping && msg.role === 'assistant'} />
           </div>
         )}
-        <div className={clsx(
-          "flex flex-col",
-          msg.role === 'user' ? "items-end max-w-[80%]" : "items-start max-w-[92%]"
-        )}>
+         <div className={clsx(
+           "flex flex-col min-w-0",
+           msg.role === 'user' ? "items-end max-w-[90%]" : "items-start max-w-[90%] flex-1"
+         )}>
           {!displayContent && msg.role === 'assistant' ? (
-            <div className="flex items-center h-8">
+            <div className="flex items-center h-8 mt-1">
               <StatusTyping
                 text="Thinking..."
                 className="font-display font-medium text-[var(--bone-30)] text-[15px]"
@@ -264,12 +282,13 @@ export const ChatMessage = memo(({
               />
             </div>
           ) : (
-            <div
-              className={clsx(
-                "leading-relaxed text-[14.5px]",
-                msg.role === 'user' ? "px-4 py-2.5" : "px-0 py-1",
-                isStatusOnly && "p-0!"
-              )}
+             <div
+               className={clsx(
+                 "leading-relaxed text-[14.5px]",
+                 msg.role === 'user' ? "px-4 py-2.5 w-fit max-w-full overflow-hidden" : "px-0 py-1 w-full",
+                 isStatusOnly && "p-0! mt-1"
+               )}
+
               style={msg.role === 'user'
                 ? { background: 'var(--bone-6)', borderRadius: '18px 18px 4px 18px' }
                 : { background: 'none' }
@@ -277,7 +296,7 @@ export const ChatMessage = memo(({
             >
               {msg.role === 'user' ? (
                 <div className="flex flex-col gap-3">
-                  <div className="whitespace-pre-wrap break-words text-foreground/90">{targetContent}</div>
+                  <div className="whitespace-pre-wrap break-all text-foreground/90">{targetContent}</div>
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-1">
                       {msg.attachments.map((att: AIAttachment, i: number) => (
@@ -319,7 +338,7 @@ export const ChatMessage = memo(({
                   />
                 }
                 return (
-                  <div className={clsx("prose prose-invert max-w-full relative [&_p]:my-0", !hasFinishedTyping && msg.role === 'assistant' && "prose-streaming")}>
+                    <div className={clsx("prose prose-invert !max-w-none !w-full relative [&_p]:my-0 break-words", !hasFinishedTyping && msg.role === 'assistant' && "prose-streaming")}>
                     <ReactMarkdown components={markdownComponents}>
                       {displayContent}
                     </ReactMarkdown>

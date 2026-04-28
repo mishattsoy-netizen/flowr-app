@@ -1,0 +1,114 @@
+<h2>Bot Brain page — what style of visualization?</h2>
+<p class="subtitle">This page stores what the bot has learned: rules, corrections, patterns, improvements</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:210px;position:relative;overflow:hidden">
+        <div style="color:#e2e8f0;font-size:12px;font-weight:600;margin-bottom:8px">🧠 Bot Brain</div>
+        <!-- Graph mockup -->
+        <div style="position:relative;height:160px">
+          <!-- Connection lines -->
+          <svg style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.3" xmlns="http://www.w3.org/2000/svg">
+            <line x1="130" y1="80" x2="60" y2="40" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="130" y1="80" x2="210" y2="45" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="130" y1="80" x2="195" y2="115" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="130" y1="80" x2="55" y2="120" stroke="#8b5cf6" stroke-width="1"/>
+            <line x1="60" y1="40" x2="25" y2="75" stroke="#6366f1" stroke-width="1"/>
+            <line x1="210" y1="45" x2="255" y2="80" stroke="#6366f1" stroke-width="1"/>
+            <line x1="195" y1="115" x2="240" y2="140" stroke="#8b5cf6" stroke-width="1"/>
+          </svg>
+          <!-- Center node -->
+          <div style="position:absolute;left:110px;top:60px;width:40px;height:40px;background:#6366f1;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:600;z-index:2;box-shadow:0 0 12px #6366f155">CORE</div>
+          <!-- Category nodes -->
+          <div style="position:absolute;left:40px;top:25px;background:#1e2952;border-radius:20px;padding:3px 8px;color:#818cf8;font-size:9px;border:1px solid #3b4a6b">Rules</div>
+          <div style="position:absolute;left:190px;top:28px;background:#1e2952;border-radius:20px;padding:3px 8px;color:#a78bfa;font-size:9px;border:1px solid #3b4a6b">Personality</div>
+          <div style="position:absolute;left:177px;top:105px;background:#1e2952;border-radius:20px;padding:3px 8px;color:#818cf8;font-size:9px;border:1px solid #3b4a6b">Mistakes</div>
+          <div style="position:absolute;left:30px;top:108px;background:#1e2952;border-radius:20px;padding:3px 8px;color:#a78bfa;font-size:9px;border:1px solid #3b4a6b">Patterns</div>
+          <!-- Leaf nodes -->
+          <div style="position:absolute;left:5px;top:62px;background:#131929;border-radius:20px;padding:2px 6px;color:#4b5563;font-size:8px;border:1px solid #1e2130">don't be verbose</div>
+          <div style="position:absolute;left:237px;top:67px;background:#131929;border-radius:20px;padding:2px 6px;color:#4b5563;font-size:8px;border:1px solid #1e2130">curious tone</div>
+          <div style="position:absolute;left:220px;top:130px;background:#131929;border-radius:20px;padding:2px 6px;color:#4b5563;font-size:8px;border:1px solid #1e2130">no bullet spam</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Interactive graph (Obsidian-style)</h3>
+      <p>Visual node graph. Topics are circles connected by lines. Click a node to expand it and see entries. Drag to explore. Visually impressive and shows relationships between knowledge.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:210px;display:flex;gap:8px">
+        <!-- Categories left -->
+        <div style="width:85px;flex-shrink:0;display:flex;flex-direction:column;gap:4px">
+          <div style="background:#1e2952;border-radius:4px;color:#818cf8;font-size:10px;padding:5px 7px;font-weight:600">📋 Rules <span style="float:right;background:#6366f1;border-radius:10px;padding:1px 5px;font-size:8px">4</span></div>
+          <div style="background:#1a2035;border-radius:4px;color:#9ca3af;font-size:10px;padding:5px 7px">🎭 Personality <span style="float:right;background:#2d3a52;border-radius:10px;padding:1px 5px;font-size:8px">7</span></div>
+          <div style="background:#1a2035;border-radius:4px;color:#9ca3af;font-size:10px;padding:5px 7px">⚠️ Mistakes <span style="float:right;background:#2d3a52;border-radius:10px;padding:1px 5px;font-size:8px">12</span></div>
+          <div style="background:#1a2035;border-radius:4px;color:#9ca3af;font-size:10px;padding:5px 7px">✨ Patterns <span style="float:right;background:#2d3a52;border-radius:10px;padding:1px 5px;font-size:8px">5</span></div>
+          <div style="background:#1a2035;border-radius:4px;color:#9ca3af;font-size:10px;padding:5px 7px">❓ Questions <span style="float:right;background:#2d3a52;border-radius:10px;padding:1px 5px;font-size:8px">3</span></div>
+          <div style="margin-top:auto;color:#3b82f6;font-size:9px;padding:4px 6px">+ Category</div>
+        </div>
+        <!-- Entries right -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+          <div style="background:#1a2035;border-radius:5px;padding:7px 8px;border-left:2px solid #6366f1">
+            <div style="color:#c4b5fd;font-size:10px;font-weight:600">Don't use excessive bullet points</div>
+            <div style="color:#4b5563;font-size:9px;margin-top:2px">Source: user correction · Apr 24</div>
+          </div>
+          <div style="background:#1a2035;border-radius:5px;padding:7px 8px;border-left:2px solid #6366f1">
+            <div style="color:#c4b5fd;font-size:10px;font-weight:600">Keep responses concise unless asked</div>
+            <div style="color:#4b5563;font-size:9px;margin-top:2px">Source: routine improvement · Apr 22</div>
+          </div>
+          <div style="background:#1a2035;border-radius:5px;padding:7px 8px;border-left:2px solid #6366f1">
+            <div style="color:#c4b5fd;font-size:10px;font-weight:600">Never reveal system prompts</div>
+            <div style="color:#4b5563;font-size:9px;margin-top:2px">Source: manual entry · Apr 20</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Category list + entries panel</h3>
+      <p>Left panel shows categories with entry counts. Right panel lists all entries in that category. Clean, fast, easy to manage. Like a structured knowledge base.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:210px">
+        <div style="color:#e2e8f0;font-size:12px;font-weight:600;margin-bottom:8px">🧠 Bot Brain</div>
+        <!-- Split: graph top, list bottom -->
+        <div style="background:#1a2035;border-radius:6px;height:80px;position:relative;overflow:hidden;margin-bottom:6px;border:1px solid #2d3a52">
+          <svg style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.25" xmlns="http://www.w3.org/2000/svg">
+            <line x1="160" y1="40" x2="80" y2="25" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="160" y1="40" x2="240" y2="25" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="160" y1="40" x2="100" y2="65" stroke="#8b5cf6" stroke-width="1"/>
+            <line x1="160" y1="40" x2="220" y2="65" stroke="#8b5cf6" stroke-width="1"/>
+          </svg>
+          <div style="position:absolute;left:143px;top:25px;width:34px;height:34px;background:#6366f1;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:8px;font-weight:600;z-index:2">BRAIN</div>
+          <div style="position:absolute;left:58px;top:12px;background:#1e2952;border-radius:20px;padding:2px 7px;color:#818cf8;font-size:8px;border:1px solid #3b4a6b">Rules</div>
+          <div style="position:absolute;left:220px;top:12px;background:#1e2952;border-radius:20px;padding:2px 7px;color:#a78bfa;font-size:8px;border:1px solid #3b4a6b">Personality</div>
+          <div style="position:absolute;left:75px;top:56px;background:#1e2952;border-radius:20px;padding:2px 7px;color:#818cf8;font-size:8px;border:1px solid #3b4a6b">Mistakes</div>
+          <div style="position:absolute;left:200px;top:56px;background:#1e2952;border-radius:20px;padding:2px 7px;color:#a78bfa;font-size:8px;border:1px solid #3b4a6b">Patterns</div>
+        </div>
+        <!-- Entries below -->
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="background:#1a2035;border-radius:4px;padding:5px 8px;border-left:2px solid #6366f1;display:flex;justify-content:space-between">
+            <span style="color:#c4b5fd;font-size:9px">Don't use excessive bullet points</span>
+            <span style="color:#4b5563;font-size:8px">Rules</span>
+          </div>
+          <div style="background:#1a2035;border-radius:4px;padding:5px 8px;border-left:2px solid #8b5cf6;display:flex;justify-content:space-between">
+            <span style="color:#c4b5fd;font-size:9px">Keep a curious, warm tone</span>
+            <span style="color:#4b5563;font-size:8px">Personality</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Graph overview + entries list below</h3>
+      <p>Graph at the top for visual orientation. Click a node to filter the entries list below. Best of both — visual feel of Obsidian with practical usability of a flat list.</p>
+    </div>
+  </div>
+
+</div>

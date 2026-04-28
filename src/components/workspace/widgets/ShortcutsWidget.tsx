@@ -57,7 +57,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
   };
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground">
           Shortcuts
@@ -74,7 +74,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {isAdding ? (
-          <div className="space-y-3 p-3 bg-[var(--bone-5)] rounded-xl border border-[var(--bone-10)]">
+          <div className="space-y-3 p-3 bg-[var(--bone-5)] rounded-xl border border-[var(--bone-3)]">
             <div className="flex gap-1 p-0.5 bg-[var(--bone-10)] rounded-md">
               <button 
                 onClick={() => setType('url')}
@@ -90,7 +90,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
               <select 
                 value={newValue}
                 onChange={e => setNewValue(e.target.value)}
-                className="w-full bg-[var(--color-panel)] border border-[var(--bone-10)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
+                className="w-full bg-[var(--color-panel)] border border-[var(--bone-3)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
               >
                 <option value="">Select Page...</option>
                 {entities.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
@@ -100,7 +100,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
                 placeholder="https://..."
                 value={newValue}
                 onChange={e => setNewValue(e.target.value)}
-                className="w-full bg-[var(--color-panel)] border border-[var(--bone-10)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
+                className="w-full bg-[var(--color-panel)] border border-[var(--bone-3)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
               />
             )}
             
@@ -108,7 +108,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
               placeholder="Label (optional)"
               value={newLabel}
               onChange={e => setNewLabel(e.target.value)}
-              className="w-full bg-[var(--color-panel)] border border-[var(--bone-10)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
+              className="w-full bg-[var(--color-panel)] border border-[var(--bone-3)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
             />
             
             <div className="flex gap-2 justify-end">
@@ -142,7 +142,7 @@ export function ShortcutsWidget({ data, onUpdateData }: { data?: { shortcuts?: S
                         window.open(s.value, '_blank');
                       }
                     }}
-                    className="w-full aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[var(--bone-5)] border border-[var(--bone-10)] hover:border-accent/40 hover:bg-[var(--bone-6)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                    className="w-full aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[var(--bone-5)] border border-[var(--bone-3)] hover:border-accent/40 hover:bg-[var(--bone-6)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[var(--bone-10)] flex items-center justify-center text-accent group-hover/shortcut:scale-110 group-hover/shortcut:bg-[var(--bone-15)] transition-all duration-300">
                       <Icon className="w-5 h-5" />

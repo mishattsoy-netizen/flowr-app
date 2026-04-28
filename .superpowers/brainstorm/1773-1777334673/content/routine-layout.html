@@ -1,0 +1,125 @@
+<h2>Routine page — how should running analysis look?</h2>
+<p class="subtitle">When a brainstorming session runs, how do you see the progress and results?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:220px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="color:#e2e8f0;font-size:12px;font-weight:600">🔄 Analysis Running…</span>
+          <span style="background:#1e3a1e;color:#4ade80;border-radius:12px;padding:2px 8px;font-size:9px">● LIVE</span>
+        </div>
+        <!-- Step progress bar -->
+        <div style="display:flex;gap:4px;margin-bottom:10px">
+          <div style="flex:1;height:3px;background:#6366f1;border-radius:2px"></div>
+          <div style="flex:1;height:3px;background:#6366f1;border-radius:2px"></div>
+          <div style="flex:1;height:3px;background:#2d3a52;border-radius:2px"></div>
+          <div style="flex:1;height:3px;background:#2d3a52;border-radius:2px"></div>
+        </div>
+        <!-- Current step -->
+        <div style="background:#1a2035;border-radius:6px;padding:10px;border:1px solid #3b4a6b;margin-bottom:8px">
+          <div style="color:#818cf8;font-size:10px;font-weight:600;margin-bottom:4px">Step 2 of 4 — Writing improvement plans</div>
+          <div style="color:#6b7280;font-size:9px;line-height:1.6;font-style:italic">
+            "Analyzing 47 disliked responses… found 3 recurring patterns: over-verbose answers, unnecessary bullet lists, and hallucinated file paths in code responses. Writing improvement plan for each…"
+          </div>
+        </div>
+        <!-- Completed steps -->
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="color:#4ade80;font-size:9px">✓</span>
+            <span style="color:#4b5563;font-size:9px">Step 1 — Analyzed 142 logs, brain entries, feedback</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="color:#6366f1;font-size:9px">▶</span>
+            <span style="color:#9ca3af;font-size:9px">Step 2 — Writing improvement plans…</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="color:#2d3a52;font-size:9px">○</span>
+            <span style="color:#4b5563;font-size:9px">Step 3 — Generate summary report</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="color:#2d3a52;font-size:9px">○</span>
+            <span style="color:#4b5563;font-size:9px">Step 4 — Present plans for review</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full-page step tracker with live thinking</h3>
+      <p>The page transforms into a live progress view when running. Progress bar at top, current step shows the bot's thinking in real-time, completed steps listed below. After it finishes, the page transitions to the plan cards.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:220px;display:flex;gap:8px">
+        <!-- Left: schedule + controls -->
+        <div style="width:100px;flex-shrink:0;display:flex;flex-direction:column;gap:5px">
+          <div style="background:#1a2035;border-radius:5px;padding:7px">
+            <div style="color:#9ca3af;font-size:9px;margin-bottom:4px">Schedule</div>
+            <div style="color:#818cf8;font-size:9px">Weekly · Mon</div>
+            <div style="color:#4b5563;font-size:8px;margin-top:2px">Next: Apr 29</div>
+          </div>
+          <div style="background:#1a2035;border-radius:5px;padding:7px">
+            <div style="color:#9ca3af;font-size:9px;margin-bottom:4px">Auto-apply</div>
+            <div style="color:#4ade80;font-size:9px">Off</div>
+          </div>
+          <div style="background:#3b82f6;border-radius:5px;padding:6px;text-align:center;color:#fff;font-size:9px;font-weight:600">▶ Run Now</div>
+        </div>
+        <!-- Right: split view -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+          <!-- Steps panel -->
+          <div style="background:#1a2035;border-radius:5px;padding:7px;flex:1;border:1px solid #3b4a6b">
+            <div style="color:#818cf8;font-size:9px;font-weight:600;margin-bottom:4px">▶ Running · Step 2/4</div>
+            <div style="color:#6b7280;font-size:8px;line-height:1.5;font-style:italic">"Writing improvement plans based on 3 patterns found…"</div>
+          </div>
+          <!-- Plans preview -->
+          <div style="background:#1a2035;border-radius:5px;padding:7px;flex:1;border:1px solid #2d3a52">
+            <div style="color:#9ca3af;font-size:9px;font-weight:600;margin-bottom:4px">Last session plans (6)</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <div style="background:#1e2952;border-radius:3px;padding:2px 5px;color:#818cf8;font-size:8px">Pending ×3</div>
+              <div style="background:#1e3a1e;border-radius:3px;padding:2px 5px;color:#4ade80;font-size:8px">Applied ×2</div>
+              <div style="background:#2d1e1e;border-radius:3px;padding:2px 5px;color:#f87171;font-size:8px">Rejected ×1</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Persistent dashboard (controls + live feed side by side)</h3>
+      <p>Schedule controls always visible on left. Right side shows the live step feed when running, or the previous session summary when idle. You never leave the page to review plans.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f1117;border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#6b7280;min-height:220px">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;gap:6px">
+            <div style="background:#1e2952;border-radius:4px;color:#818cf8;font-size:9px;padding:3px 8px;border:1px solid #3b4a6b">▶ Run</div>
+            <div style="background:#1a2035;border-radius:4px;color:#9ca3af;font-size:9px;padding:3px 8px">⏱ Schedule</div>
+          </div>
+          <div style="background:#1e3a1e;color:#4ade80;border-radius:12px;padding:2px 8px;font-size:9px">● Analyzing…</div>
+        </div>
+        <!-- Terminal-style stream -->
+        <div style="background:#0a0d14;border-radius:6px;padding:10px;border:1px solid #1e2130;height:120px;overflow:hidden">
+          <div style="color:#4ade80;font-size:9px;margin-bottom:3px">$ Starting analysis session…</div>
+          <div style="color:#6b7280;font-size:9px;margin-bottom:2px">→ Loading 142 message logs</div>
+          <div style="color:#6b7280;font-size:9px;margin-bottom:2px">→ Reading brain entries (31)</div>
+          <div style="color:#6b7280;font-size:9px;margin-bottom:2px">→ Scanning disliked responses (47)</div>
+          <div style="color:#818cf8;font-size:9px;margin-bottom:2px">⟳ Identifying patterns…</div>
+          <div style="color:#c4b5fd;font-size:9px;margin-bottom:2px;font-style:italic">"Found: over-verbose responses (23 cases)"</div>
+          <div style="color:#c4b5fd;font-size:9px;margin-bottom:2px;font-style:italic">"Found: unnecessary bullet lists (18 cases)"</div>
+          <div style="color:#818cf8;font-size:9px">⟳ Writing improvement plans…<span style="animation:blink 1s infinite">▌</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Terminal-style live log stream</h3>
+      <p>Streaming output like a terminal. Each action scrolls in as it happens. Raw, technical feel — you see exactly what the bot is doing line by line. After it's done, results cards appear below.</p>
+    </div>
+  </div>
+
+</div>

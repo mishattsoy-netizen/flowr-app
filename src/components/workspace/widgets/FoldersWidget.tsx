@@ -14,6 +14,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
   const editingEntity = useStore(state => state.editingEntity);
   const renameEntity = useStore(state => state.renameEntity);
   const setEditingEntityId = useStore(state => state.setEditingEntityId);
+  const contextMenu = useStore(state => state.contextMenu);
   const [tempTitle, setTempTitle] = useState('');
 
   const folders = useMemo(() => {
@@ -21,7 +22,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
   }, [entities, entity.id]);
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground mb-4">
         Folders
       </h2>
@@ -81,7 +82,12 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                           openContextMenu(folder.id, rect.right + 4, rect.top, 'sidebar');
                         }}
-                        className="opacity-0 group-hover/item:opacity-100 w-6 h-6 flex items-center justify-center hover:bg-[var(--bone-6)] rounded-[var(--radius-small)] text-[var(--bone-30)] group-hover/item:text-[var(--bone-60)] hover:text-[var(--bone-100)]"
+                        className={clsx(
+                          "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
+                          contextMenu?.entityId === folder.id
+                            ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]"
+                            : "opacity-0 group-hover/item:opacity-100 text-[var(--bone-30)] group-hover/item:text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                        )}
                       >
                         <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
                       </button>

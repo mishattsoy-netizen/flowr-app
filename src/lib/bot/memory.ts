@@ -9,7 +9,7 @@ export interface MemoryItem {
 /**
  * Fetches the last N messages for a Telegram chat to provide context.
  */
-export async function getConversationMemory(telegramId: number, limit: number = 20): Promise<MemoryItem[]> {
+export async function getConversationMemory(telegramId: number, limit: number = 100): Promise<MemoryItem[]> {
   try {
     const { data, error } = await supabaseAdmin
       .from('message_logs')
@@ -37,7 +37,7 @@ export async function getConversationMemory(telegramId: number, limit: number = 
  * Requires message_logs to have an auth_user_id column (added via migration).
  * Falls back to empty history gracefully if column is missing.
  */
-export async function getWebConversationMemory(authUserId: string, limit: number = 20): Promise<MemoryItem[]> {
+export async function getWebConversationMemory(authUserId: string, limit: number = 100): Promise<MemoryItem[]> {
   try {
     const { data, error } = await supabaseAdmin
       .from('message_logs')

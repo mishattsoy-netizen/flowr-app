@@ -74,7 +74,7 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId, l
                         onDragEnd={onDragEnd}
                         onClick={() => !isAdded && onAdd(type)}
                         className={clsx(
-                          "group w-full text-left p-3 rounded-xl border border-border/40 bg-[var(--bone-2)] transition-all select-none",
+                           "group w-full text-left p-3 rounded-[8px] border border-border/40 bg-[var(--bone-2)] transition-all select-none",
                           isAdded 
                             ? "opacity-50 cursor-not-allowed bg-muted/30 grayscale-[0.5]" 
                             : "hover:border-accent/20 hover:bg-[var(--bone-8)] cursor-grab active:cursor-grabbing"

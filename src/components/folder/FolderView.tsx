@@ -20,7 +20,8 @@ export function FolderView({ entity }: FolderViewProps) {
     openModal,
     editingEntity,
     setEditingEntityId,
-    renameEntity
+    renameEntity,
+    contextMenu
   } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -283,7 +284,12 @@ export function FolderView({ entity }: FolderViewProps) {
                         <Tooltip content="Options">
                           <button
                             onClick={(e) => handleOptionsClick(e, folder.id)}
-                            className="absolute right-3 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] group-hover:text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] "
+                            className={clsx(
+                              "absolute right-3 w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
+                              contextMenu?.entityId === folder.id 
+                                ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]" 
+                                : "opacity-0 group-hover:opacity-100 text-[var(--bone-30)] group-hover:text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                            )}
                           >
                             <MoreHorizontal strokeWidth={2} className="w-4 h-4" />
                           </button>
@@ -342,7 +348,12 @@ export function FolderView({ entity }: FolderViewProps) {
 
                         <button
                           onClick={(e) => handleOptionsClick(e, file.id)}
-                          className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                          className={clsx(
+                            "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
+                            contextMenu?.entityId === file.id
+                              ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]"
+                              : "opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
+                          )}
                         >
                           <MoreHorizontal strokeWidth={2} className="w-4 h-4" />
                         </button>

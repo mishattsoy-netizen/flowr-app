@@ -15,6 +15,7 @@ interface MenuItem {
   hidden?: boolean;
   isDivider?: boolean;
   children?: MenuItem[];
+  selected?: boolean;
 }
 
 function MenuItemsList({ 
@@ -88,19 +89,21 @@ function MenuItemComponent({
       <button
         onClick={handleToggle}
         className={clsx(
-          "popup-item w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors",
+          "popup-item group w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors",
           item.danger && "popup-item-danger",
-          isOpen && "bg-[var(--bone-10)] text-[var(--bone-100)]"
+          isOpen && "bg-[var(--bone-10)] text-[var(--bone-100)]",
+          item.selected && "bg-[var(--bone-6)]"
         )}
       >
         {item.icon && <div className="w-4 h-4 shrink-0">{item.icon}</div>}
         <span className="flex-1 text-left font-medium tracking-wide">{item.label}</span>
+        {item.selected && <Check className="w-3.5 h-3.5 text-[var(--bone-60)] group-hover:text-[var(--bone-100)] transition-colors shrink-0" />}
         {item.children && <ChevronRight className={clsx("w-3 h-3 opacity-50 transition-transform", isOpen && "rotate-90")} />}
       </button>
 
       {item.children && isOpen && (
         <div 
-          className="fixed z-[310] popup-glass-small min-w-[180px] p-1.5"
+          className="fixed z-[310] popup-glass-small min-w-[180px] p-1.5 flex flex-col gap-[3px]"
           style={{ 
             left: subMenuPos.x, 
             top: subMenuPos.y 
@@ -139,6 +142,9 @@ export function ContextMenu() {
     activeWorkspaceId,
     setActiveWorkspaceId
   } = useStore();
+  const selectedSidebarIds = useStore(state => state.selectedSidebarIds);
+  const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
+  const deleteEntity = useStore(state => state.deleteEntity);
   const ref = useRef<HTMLDivElement>(null);
 
   const [adjustedPos, setAdjustedPos] = useState({ x: 0, y: 0 });
@@ -218,27 +224,22 @@ export function ContextMenu() {
             { 
               label: 'Last Edited', 
               icon: <Calendar className="w-4 h-4" />, 
-              onClick: () => setSectionSortMode(sectionId, 'lastModified') 
+              onClick: () => setSectionSortMode(sectionId, 'lastModified'),
+              selected: settings.sortMode === 'lastModified'
             },
             { 
               label: 'Alphabetical', 
               icon: <Type className="w-4 h-4" />, 
-              onClick: () => setSectionSortMode(sectionId, 'alphabetical') 
+              onClick: () => setSectionSortMode(sectionId, 'alphabetical'),
+              selected: settings.sortMode === 'alphabetical'
             },
             { 
               label: 'Manual', 
               icon: <LayoutPanelLeft className="w-4 h-4" />, 
-              onClick: () => setSectionSortMode(sectionId, 'manual') 
+              onClick: () => setSectionSortMode(sectionId, 'manual'),
+              selected: settings.sortMode === 'manual'
             },
           ]
-        },
-        {
-          label: 'Items to show',
-          icon: <Layers className="w-4 h-4" />, // Re-import Layers if needed or use another
-          children: [5, 10, 15, 20, 50].map(limit => ({
-            label: `${limit} items`,
-            onClick: () => setSectionItemLimit(sectionId, limit)
-          }))
         },
         { isDivider: true, hidden: !activeEntityId },
         {
@@ -356,6 +357,19 @@ export function ContextMenu() {
       danger: true,
     });
 
+    // Show "Delete All" when multiple sidebar items are selected
+    if (selectedSidebarIds.length > 1) {
+      items.push({
+        icon: <Trash2 className="w-4 h-4" />,
+        label: `Delete All (${selectedSidebarIds.length})`,
+        onClick: () => {
+          openModal({ kind: 'deleteConfirm', entityIds: [...selectedSidebarIds] });
+          closeContextMenu();
+        },
+        danger: true,
+      });
+    }
+
     return items;
   };
 
@@ -365,7 +379,7 @@ export function ContextMenu() {
         <div
           ref={ref}
           className={clsx(
-            "fixed z-[300] popup-glass-small min-w-[200px] p-1.5",
+            "fixed z-[300] popup-glass-small min-w-[200px] p-1.5 flex flex-col gap-[3px]",
             adjustedPos.x === 0 && "opacity-0"
           )}
           style={{ 

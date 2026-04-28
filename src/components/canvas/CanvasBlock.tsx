@@ -216,7 +216,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         isSelected && !isDragging && !isResizing && "border border-[var(--bone-100)] rounded-2xl",
         !isSelected && "hover:border hover:border-[var(--bone-100)]/20 rounded-2xl",
         block.type === 'section' && "border-2 border-dashed border-[var(--bone-100)]/40 bg-[var(--bone-10)]/5 p-4 min-w-[300px] min-h-[200px]",
-        (isOverSection === block.id) && "ring-2 ring-accent ring-inset"
+        (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
+        showMenu && "border border-[var(--bone-100)] ring-2 ring-accent/20 rounded-2xl"
       )}
       style={{
         left: position.x,
@@ -314,7 +315,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
       {/* Context Menu */}
       {showMenu && (
-        <div className="absolute top-0 right-full mr-2 z-[4000] popup-glass-small p-2 flex flex-col gap-1 w-48">
+        <div className="absolute top-0 right-full mr-2 z-[4000] popup-glass-small p-1.5 flex flex-col gap-[3px] w-48">
           <button
             onClick={() => deleteCanvasBlock(block.id)}
             className="flex items-center gap-2 px-3 py-1.5 text-xs text-danger hover:bg-danger/10 rounded-lg text-left"

@@ -94,7 +94,7 @@ export const HeaderBar = memo(function HeaderBar() {
     { id: 'duplicate', icon: Copy, label: 'Duplicate', color: 'text-[var(--bone-60)] hover:text-[var(--bone-100)]' },
     { id: 'rename', icon: Pencil, label: 'Rename', color: 'text-[var(--bone-60)] hover:text-[var(--bone-100)]' },
     { id: 'toolbar', icon: Type, label: isToolbarVisible ? 'Hide Toolbar' : 'Show Toolbar', color: isToolbarVisible ? 'text-accent' : 'text-[var(--bone-60)] hover:text-[var(--bone-100)]' },
-    { id: 'delete', icon: Trash2, label: 'Delete', color: 'text-[var(--bone-60)] hover:text-[var(--bone-100)]' },
+    { id: 'delete', icon: Trash2, label: 'Delete', color: 'text-danger hover:text-danger' },
   ];
 
   const handleAction = (id: string, e: React.MouseEvent) => {
@@ -199,7 +199,8 @@ export const HeaderBar = memo(function HeaderBar() {
               <div
                 onClick={() => setActiveTab(tabId)}
                 className={clsx(
-                  "flex items-center gap-1.5 pl-2.5 pr-1.5 h-6 rounded-[var(--radius-small)] cursor-pointer transition-all select-none min-w-0 max-w-[160px] flex-shrink flex-grow-0",
+                  "flex items-center gap-1.5 h-6 rounded-[var(--radius-small)] cursor-pointer transition-all select-none min-w-0 max-w-[160px] flex-shrink flex-grow-0",
+                  openTabIds.length > 1 ? "pl-2.5 pr-1" : "px-2.5",
                   isActive 
                     ? "bg-[var(--bone-6)] text-[var(--bone-100)]" 
                     : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]",

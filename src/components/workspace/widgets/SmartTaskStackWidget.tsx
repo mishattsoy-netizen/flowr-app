@@ -106,7 +106,7 @@ export function SmartTaskStackWidget({ data, onUpdateData }: SmartTaskStackProps
   };
 
   return (
-    <section className="bg-sidebar border border-[var(--bone-10)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
+    <section className="bg-sidebar border border-[var(--bone-3)] group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 h-8 shrink-0">
         <div 
           className="relative flex items-center p-0.5 bg-background rounded-[8px] min-w-[160px] no-drag"
@@ -140,7 +140,7 @@ export function SmartTaskStackWidget({ data, onUpdateData }: SmartTaskStackProps
         </div>
         
         {displayTasks.length > 0 && (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bone-6)] border border-[var(--bone-10)]">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bone-6)] border border-[var(--bone-3)]">
              <div className={clsx("w-1 h-1 rounded-full animate-pulse", colorClass.replace('text-', 'bg-'))} />
              <span className="text-[10px] text-[var(--bone-40)] font-semibold uppercase tracking-wider">
               {displayTasks.length}

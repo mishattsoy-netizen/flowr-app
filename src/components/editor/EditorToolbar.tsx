@@ -29,11 +29,11 @@ interface EditorToolbarProps {
 }
 
 const BLOCK_STYLES: { value: BlockStyle; label: string; icon: React.ReactNode }[] = [
-  { value: 'title', label: 'Title', icon: <Type strokeWidth={2} className="w-3.5 h-3.5" /> },
-  { value: 'heading', label: 'Heading', icon: <Heading1 strokeWidth={2} className="w-3.5 h-3.5" /> },
-  { value: 'subheading', label: 'Subheading', icon: <Heading2 strokeWidth={2} className="w-3.5 h-3.5" /> },
-  { value: 'body', label: 'Body', icon: <FileText strokeWidth={2} className="w-3.5 h-3.5" /> },
-  { value: 'mono', label: 'Mono', icon: <Code strokeWidth={2} className="w-3.5 h-3.5" /> },
+  { value: 'title', label: 'Title', icon: <Type strokeWidth={2} className="w-4 h-4" /> },
+  { value: 'heading', label: 'Heading', icon: <Heading1 strokeWidth={2} className="w-4 h-4" /> },
+  { value: 'subheading', label: 'Subheading', icon: <Heading2 strokeWidth={2} className="w-4 h-4" /> },
+  { value: 'body', label: 'Body', icon: <FileText strokeWidth={2} className="w-4 h-4" /> },
+  { value: 'mono', label: 'Mono', icon: <Code strokeWidth={2} className="w-4 h-4" /> },
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -371,7 +371,7 @@ export function EditorToolbar({
           <button
             onClick={() => !(activeBlockType && ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(activeBlockType)) && setShowStyleDropdown(!showStyleDropdown)}
             disabled={!!(activeBlockType && ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(activeBlockType))}
-            className="toolbar-btn rounded-[var(--radius-medium)] !w-auto px-2.5 gap-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className={clsx("toolbar-btn rounded-[var(--radius-medium)] !w-auto px-2.5 gap-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed", showStyleDropdown && "toolbar-btn-active")}
           >
             <Type strokeWidth={2} className="w-3.5 h-3.5" />
             <div
@@ -389,7 +389,7 @@ export function EditorToolbar({
           </button>
         </Tooltip>
         {showStyleDropdown && (
-          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-1.5 min-w-[160px] overflow-hidden">
+          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-1.5 min-w-[160px] overflow-hidden flex flex-col gap-[3px]">
             {BLOCK_STYLES.map(s => (
               <button
                 key={s.value}
@@ -400,7 +400,8 @@ export function EditorToolbar({
                 )}
               >
                 {s.icon}
-                {s.label}
+                <span>{s.label}</span>
+                {activeBlockStyle === s.value && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
               </button>
             ))}
           </div>
@@ -457,7 +458,7 @@ export function EditorToolbar({
         </Tooltip>
 
         {showLinkPopover && (
-          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-2 min-w-[240px] flex gap-2 items-center">
+          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-1.5 min-w-[240px] flex gap-2 items-center">
             <input
               ref={linkInputRef}
               type="text"
@@ -498,7 +499,7 @@ export function EditorToolbar({
           </button>
         </Tooltip>
         {showHighlightPicker && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 popup-glass-small p-2.5">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 popup-glass-small p-1.5 flex flex-col gap-[3px]">
             <div className="flex gap-1.5">
               {HIGHLIGHT_COLORS.map(c => (
                 <button

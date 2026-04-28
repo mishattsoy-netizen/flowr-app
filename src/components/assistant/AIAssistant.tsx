@@ -460,7 +460,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           className={clsx(
             "flex-1 px-6 py-4 space-y-2 flex flex-col",
             aiMessages.length === 0 && "pb-0",
-            isScrollable ? "overflow-y-auto scrollbar-thin" : "overflow-y-hidden"
+            isScrollable ? "overflow-y-auto overflow-x-hidden scrollbar-thin" : "overflow-y-hidden overflow-x-hidden"
           )}
           style={{ overflowAnchor: 'auto' }}
         >
@@ -631,7 +631,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                       "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0",
                       isRecording
                         ? "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]"
-                        : "text-muted-foreground/50 hover:text-foreground hover:bg-hover"
+                        : clsx("text-muted-foreground/50 hover:text-foreground hover:bg-hover", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
                     )}
                     title="Hold to record (Max 60s) — Right-click for settings"
                   >

@@ -47,16 +47,18 @@ Clock stays: `minW: 2, minH: 1, maxW: 4, maxH: 2`.
 
 The `dashboard` default layout has `clock` at `h: 1`, which leaves a 1-row gap that triggers spanner/fillGaps confusion. The fix: keep clock at h=1 (it's the only widget allowed to be that short) but ensure all other widgets in the same default layout start at `h ≥ 2`.
 
-Current dashboard default:
+**Dashboard default** — already valid after registry change (clock is the only h=1 widget):
 ```
-row 0: clock(2w,1h)  smart-tasks(4w,2h)   ← clock is 1h, smart-tasks spans to row 1
+row 0: clock(2w,1h)  smart-tasks(4w,2h)
 row 1: shortcuts(2w,3h) [spans 1-3]
 row 2: recent(2w,2h)  all-files(2w,2h)
 ```
 
-This is already valid (clock is the only 1h widget allowed). No default layout changes needed — `rebalanceAll` and `fillGaps` already handle this correctly once minH=2 is enforced for non-clock widgets.
+**Workspace default** — must be updated. Current values violate new constraints:
+- `shortcuts`: `w:6, h:1` → violates maxW:4 and minH:2
+- Fix: `shortcuts: w:4, h:2`; add a companion widget or leave as single-widget row rebalanced to full width. Since shortcuts is the only widget in row 1, rebalanceAll will expand it to fill the row — but maxW:4 would cap it. **Resolution**: change shortcuts in workspace default to `w:4, h:2` and pair it with a second widget, OR accept that a single widget in a row always gets w=6 via `rebalanceRow` (which overrides maxW for single-item rows: `if (n === 1) return [{ ...items[0], w: total }]`).
 
-Verification: after registry change, `recoverLayout` on the default layout should produce a valid result.
+The `rebalanceRow` single-item shortcut (`n === 1 → w: total`) bypasses maxW. This is intentional — a lone widget must fill its row. The maxW constraint only applies when there are neighbors to share space with. This is correct behavior and requires no change.
 
 ### 3. Saved layout migration (`src/hooks/useBentoLayout.ts`)
 
@@ -101,7 +103,7 @@ if (validateLayout(recovered).valid) {
 | File | Change |
 |---|---|
 | `src/components/bento/registry.tsx` | Update minH → 2, maxW → 4 for all non-clock widgets |
-| `src/hooks/useBentoLayout.ts` | Promote `recoverLayout` to first-pass in load effect |
+| `src/hooks/useBentoLayout.ts` | Fix workspace default (shortcuts h:1→2), promote `recoverLayout` to first-pass in load effect |
 
 ---
 

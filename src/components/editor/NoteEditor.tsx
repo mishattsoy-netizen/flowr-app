@@ -10,6 +10,21 @@ import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
 import { GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 interface NoteEditorProps {
   entity: Entity;
@@ -257,7 +272,7 @@ function TagItem({
       </div>
 
       {isEditing && showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 z-[300] popup-glass-small min-w-[160px] p-1.5">
+        <div className="absolute top-full left-0 mt-1 z-[300] popup-glass-small min-w-[160px] p-1.5 flex flex-col gap-[3px]">
           {suggestions.map((s, idx) => (
             <button
               key={s}
@@ -348,13 +363,9 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
 
 
-  const [dragState, setDragState] = useState<{
-    draggingId: string | null;
-    overId: string | null;
-    overPosition: 'above' | 'below' | null;
-  }>({ draggingId: null, overId: null, overPosition: null });
-
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+  const [isDragging, setIsDragging] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{
     startX: number;
     startY: number;
@@ -379,8 +390,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
 
   useEffect(() => {
     if (isEditingTitle && titleRef.current) {
-      titleRef.current.style.height = 'auto';
-      titleRef.current.style.height = titleRef.current.scrollHeight + 'px';
       titleRef.current.setSelectionRange(tempTitle.length, tempTitle.length);
     }
   }, [isEditingTitle]);
@@ -502,25 +511,10 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       setSelectedBlockIds(new Set([id]));
       setActiveBlockId(id);
     }
-    
-    setDragState(prev => ({ ...prev, draggingId: id }));
-    document.body.classList.add('dragging-active');
+    setIsDragging(true);
   }, [selectedBlockIds]);
 
-  const handleDragOver = useCallback((id: string, e: React.DragEvent) => {
-    e.preventDefault();
-    if (selectedBlockIds.has(id)) return; // Can't drop on itself or other selected blocks
-
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    const position = e.clientY < midpoint ? 'above' : 'below';
-
-    if (dragState.overId !== id || dragState.overPosition !== position) {
-      setDragState(prev => ({ ...prev, overId: id, overPosition: position }));
-    }
-  }, [dragState.overId, dragState.overPosition, selectedBlockIds]);
-
-const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { list: EditorBlock[], removed: EditorBlock[] } => {
+  const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { list: EditorBlock[], removed: EditorBlock[] } => {
   let removed: EditorBlock[] = [];
 
   const newList = list.flatMap(b => {
@@ -540,35 +534,49 @@ const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { l
   return { list: newList, removed };
 };
 
-  const handleDragEnd = useCallback(() => {
-    if (dragState.draggingId && dragState.overId && !selectedBlockIds.has(dragState.overId)) {
-      setBlocks(prev => {
-        // Remove all selected blocks
-        const { list: afterRemoval, removed: removedBlocks } = findAndRemoveMultipleBlocks([...prev], selectedBlockIds);
-        
-        if (removedBlocks.length === 0) return prev;
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setIsDragging(false);
+    setActiveId(null);
+    if (!over) return;
 
-        const insertAt = (list: EditorBlock[]): EditorBlock[] => {
-          const idx = list.findIndex(b => b.id === dragState.overId);
-          if (idx !== -1) {
-            const newList = [...list];
-            const insertIdx = dragState.overPosition === 'above' ? idx : idx + 1;
-            newList.splice(insertIdx, 0, ...removedBlocks);
-            return newList;
-          }
+    const activeId_val = active.id as string;
+    const overId = over.id as string;
 
-          return list.map(b => (b.children ? { ...b, children: insertAt(b.children) } : b));
-        };
+    if (activeId_val === overId) return;
 
-        const finalBlocks = insertAt(afterRemoval);
-        setTimeout(() => persistBlocks(finalBlocks, true), 0);
-        return finalBlocks;
-      });
-    }
+    setBlocks(prev => {
+      const movingIds = selectedBlockIds.has(activeId_val) 
+        ? Array.from(selectedBlockIds) 
+        : [activeId_val];
+      
+      const movingBlocks = prev.filter(b => movingIds.includes(b.id));
+      const remainingBlocks = prev.filter(b => !movingIds.includes(b.id));
 
-    setDragState({ draggingId: null, overId: null, overPosition: null });
-    document.body.classList.remove('dragging-active');
-  }, [dragState, persistBlocks, selectedBlockIds]);
+      const overIdx = remainingBlocks.findIndex(b => b.id === overId);
+      if (overIdx === -1) return prev;
+
+      const newBlocks = [...remainingBlocks];
+      newBlocks.splice(overIdx, 0, ...movingBlocks);
+
+      setTimeout(() => persistBlocks(newBlocks, true), 0);
+      return newBlocks;
+    });
+  }, [persistBlocks, selectedBlockIds]);
+
+  const handleDndStart = useCallback((event: any) => {
+    setActiveId(event.active.id as string);
+    setIsDragging(true);
+  }, []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
   const undo = useCallback(() => {
     if (historyIndex > 0) {
@@ -939,61 +947,61 @@ const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { l
         className="flex-1 overflow-y-auto custom-scrollbar note-editor-bg"
       >
         <div 
-          className={clsx(
-            "mx-auto py-8 editor-content-container transition-all duration-300 note-editor-bg",
-            isFullWidth ? "max-w-[1240px] px-8" : "max-w-[850px] px-4",
-            dragState.draggingId && "dragging-active-content"
-          )}
-          data-dragging={!!dragState.draggingId}
-        >
+            className={clsx(
+              "mx-auto py-8 editor-content-container note-editor-bg",
+              isFullWidth ? "max-w-[1240px] px-8" : "max-w-[850px] px-4",
+              isDragging && "dragging-active-content"
+            )}
+            data-dragging={isDragging}
+          >
           {/* ... (Header and Metadata sections - keeping unchanged) */}
           <div className="flex flex-col items-center gap-4 mb-4">
               <div className="flex flex-col w-full bg-sidebar border border-border rounded-3xl widget-shadow overflow-hidden transition-none">
                 {/* Top Section: Title */}
                 <div 
-                  className="pr-9 py-6 group relative"
+                  className="pr-9 py-6 group relative transition-none duration-0"
                   style={{ paddingLeft: '44px' }}
                 >
-                {isEditingTitle ? (
-                  <textarea
-                    ref={titleRef}
-                    autoFocus
-                    value={tempTitle}
-                    onChange={e => {
-                      setTempTitle(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    onBlur={handleTitleBlur}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleTitleBlur();
-                      }
-                      if (e.key === 'Escape') { 
-                        setTempTitle(entity.title); 
-                        setEditingEntityId(null); 
-                      }
-                    }}
-                    className="text-5xl font-display bg-transparent border-none outline-none w-full text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block"
-                    style={{ height: 'auto', minHeight: '1.2em' }}
-                  />
-                ) : (
-                  <div className="flex items-start justify-between">
-                    <h1
-                      onDoubleClick={() => { setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
-                      className="text-5xl font-display outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block"
-                    >
-                      {entity.title}
-                    </h1>
-                    <button
-                      onClick={() => { setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
-                      className="opacity-0 group-hover:opacity-100 p-2 rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors mt-4"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-start justify-between w-full">
+                  {isEditingTitle ? (
+                    <textarea
+                      ref={titleRef}
+                      autoFocus
+                      value={tempTitle}
+                      onChange={e => {
+                        setTempTitle(e.target.value);
+                      }}
+                      onBlur={handleTitleBlur}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleTitleBlur();
+                        }
+                        if (e.key === 'Escape') { 
+                          setTempTitle(entity.title); 
+                          setEditingEntityId(null); 
+                        }
+                      }}
+                      className="text-5xl font-display bg-transparent border-none outline-none flex-1 text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block transition-transform duration-200 scale-[1.02] align-top"
+                      style={{ height: '60px' }}
+                    />
+                  ) : (
+                    <>
+                      <h1
+                        onDoubleClick={() => { setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
+                        className="text-5xl font-display outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none line-clamp-2"
+                      >
+                        {entity.title}
+                      </h1>
+                      <button
+                        onClick={() => { setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
+                        className="opacity-0 group-hover:opacity-100 p-2 rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors mt-4"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
                 </div>
 
                 {/* Bottom Section: Metadata */}
@@ -1058,43 +1066,50 @@ const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { l
           <div
             className="space-y-2 min-h-[50vh]"
           >
-            <div className="flex flex-col">
-              {blocks.length === 0 ? (
-                <div 
-                  className="py-20 text-center cursor-text  group opacity-0 "
-                  onClick={() => persistBlocks([createBlock('text')])}
+                <DndContext 
+                  sensors={sensors} 
+                  collisionDetection={closestCenter} 
+                  onDragStart={handleDndStart}
+                  onDragEnd={handleDragEnd}
+                  modifiers={[restrictToVerticalAxis]}
                 >
-                  <p className="text-[#a1a1aa] text-lg font-light tracking-wide group-hover:text-[#f26f21]/50 ">
-                    This note is empty. Click anywhere to start writing...
-                  </p>
-                  <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
-                </div>
-              ) : (
-                blocks.map((block, idx) => {
-                  return (
-                    <BlockRenderer
-                      key={block.id}
-                      block={block}
-                      index={idx}
-                      onUpdate={updateBlock}
-                      onDelete={deleteBlock}
-                      onInsertAfter={insertAfter}
-                      onSlash={handleSlash}
-                      listNumber={block.type === 'numberedList' ? getListNumber(block.id) : undefined}
-                      slashMenuOpen={slashMenu?.blockId === block.id}
-                      menuOpen={activeOptionsMenu?.blockId === block.id}
-                      onOpenMenu={handleOpenMenu}
-                      onFocus={handleBlockFocus}
-                      isSelected={selectedBlockIds.has(block.id) || activeBlockId === block.id}
-                      dragState={dragState}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEnd}
-                    />
-                  );
-                })
-              )}
-            </div>
+                  <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col">
+                      {blocks.length === 0 ? (
+                        <div 
+                          className="py-20 text-center cursor-text  group opacity-0 "
+                          onClick={() => persistBlocks([createBlock('text')])}
+                        >
+                          <p className="text-[#a1a1aa] text-lg font-light tracking-wide group-hover:text-[#f26f21]/50 ">
+                            This note is empty. Click anywhere to start writing...
+                          </p>
+                          <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
+                        </div>
+                      ) : (
+                        blocks.map((block, idx) => {
+                          return (
+                            <BlockRenderer
+                              key={block.id}
+                              block={block}
+                              index={idx}
+                              onUpdate={updateBlock}
+                              onDelete={deleteBlock}
+                              onInsertAfter={insertAfter}
+                              onSlash={handleSlash}
+                              listNumber={block.type === 'numberedList' ? getListNumber(block.id) : undefined}
+                              slashMenuOpen={slashMenu?.blockId === block.id}
+                              menuOpen={activeOptionsMenu?.blockId === block.id}
+                              onOpenMenu={handleOpenMenu}
+                              onFocus={handleBlockFocus}
+                              isSelected={selectedBlockIds.has(block.id)}
+                              onDragStart={handleDragStart}
+                            />
+                          );
+                        })
+                      )}
+                    </div>
+                  </SortableContext>
+                </DndContext>
           </div>
           <div className="h-32" />
         </div>

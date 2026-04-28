@@ -31,7 +31,7 @@ import type {
 
 import {
   generateId, getDescendantIds, validateNoteContent,
-  robustParseJSON,  markdownToBlocks, blocksToMarkdown
+  robustParseJSON, markdownToBlocks, blocksToMarkdown
 } from './store.helpers';
 
 
@@ -138,7 +138,8 @@ export const useStore = create<AppState>()(
       },
       hiddenEntityIds: [],
       isCommandPaletteOpen: false,
-  
+      selectedSidebarIds: [],
+
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
       setIsDashboardEditing: (editing) => set({ isDashboardEditing: editing }),
@@ -221,7 +222,21 @@ export const useStore = create<AppState>()(
       },
       toggleAIAssistant: () => set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),
       setAIAssistantOpen: (open) => set({ isAIAssistantOpen: open }),
-      clearAIChat: () => set({ aiMessages: [] }),
+      clearAIChat: async () => {
+        set({ aiMessages: [] });
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (isSupabaseEnabled) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          }
+          await fetch('/api/ai/memory/clear', { method: 'POST', headers });
+        } catch (err) {
+          console.error('Failed to clear server-side memory:', err);
+        }
+      },
       setAIHistory: (messages) => set({ aiMessages: messages }),
       setIsAIAssistantExtended: (extended) => set({ isAIAssistantExtended: extended }),
       setAICursor: (aiCursor) => set({ aiCursor }),
@@ -374,7 +389,7 @@ export const useStore = create<AppState>()(
       addTab: (id = 'dashboard') => {
         const state = get();
         if (!id) return;
-        
+
         const alreadyOpen = state.openTabIds.includes(id);
         if (alreadyOpen) {
           set({ activeTabId: id, activeEntityId: id });
@@ -450,13 +465,13 @@ export const useStore = create<AppState>()(
         }
         const activeWorkspaceId = get().activeWorkspaceId;
         const maxSortOrder = Math.max(...get().entities.map(e => e.sortOrder || 0), 0);
-        
+
         // Enforce flat hierarchy for workspaces and collections
         const isRootOnly = entity.type === 'workspace' || entity.type === 'collection';
         const finalParentId = isRootOnly ? null : (entity.parentId ?? null);
 
-        const finalEntity = { 
-          ...entity, 
+        const finalEntity = {
+          ...entity,
           id: entity.id || generateId(),
           parentId: finalParentId,
           workspaceId: entity.workspaceId || activeWorkspaceId,
@@ -480,7 +495,7 @@ export const useStore = create<AppState>()(
       },
 
       moveEntity: (id, newParentId, newWorkspaceId) => {
-        set((state) => ({ 
+        set((state) => ({
           entities: state.entities.map(e => {
             if (e.id !== id) return e;
 
@@ -488,13 +503,13 @@ export const useStore = create<AppState>()(
             const isRootOnly = e.type === 'workspace' || e.type === 'collection';
             const finalParentId = isRootOnly ? null : newParentId;
 
-            return { 
-              ...e, 
-              parentId: finalParentId, 
-              workspaceId: newWorkspaceId !== undefined ? newWorkspaceId : e.workspaceId, 
-              lastModified: Date.now() 
+            return {
+              ...e,
+              parentId: finalParentId,
+              workspaceId: newWorkspaceId !== undefined ? newWorkspaceId : e.workspaceId,
+              lastModified: Date.now()
             };
-          }) 
+          })
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated) upsertEntity(updated);
@@ -559,13 +574,13 @@ export const useStore = create<AppState>()(
         const entities = [...s.entities];
         const idx = entities.findIndex(e => e.id === id);
         if (idx === -1) return {};
-        
+
         const newIdx = direction === 'up' ? idx - 1 : idx + 1;
         if (newIdx < 0 || newIdx >= entities.length) return {};
-        
+
         const [moved] = entities.splice(idx, 1);
         entities.splice(newIdx, 0, moved);
-        
+
         return {
           entities: entities.map((e, i) => ({ ...e, sortOrder: i }))
         };
@@ -626,11 +641,11 @@ export const useStore = create<AppState>()(
 
       addTask: (task) => {
         const activeWorkspaceId = get().activeWorkspaceId;
-        const finalTask = { 
+        const finalTask = {
           id: generateId(),
           completed: false,
-          ...task, 
-          workspaceId: task.workspaceId || activeWorkspaceId 
+          ...task,
+          workspaceId: task.workspaceId || activeWorkspaceId
         } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
         upsertTask(finalTask);
@@ -752,7 +767,7 @@ export const useStore = create<AppState>()(
 
         const newBlock = { ...copiedBlock, id: generateId() };
         const currentIndex = entity.content.findIndex(b => b.id === afterBlockId);
-        
+
         const newContent = [...entity.content];
         if (currentIndex === -1) {
           newContent.push(newBlock);
@@ -762,6 +777,9 @@ export const useStore = create<AppState>()(
 
         updateEntityContent(entityId, newContent);
       },
+
+      setSelectedSidebarIds: (ids) => set({ selectedSidebarIds: ids }),
+      clearSelectedSidebarIds: () => set({ selectedSidebarIds: [] }),
     }),
     {
       name: 'flowr-storage',
@@ -910,6 +928,7 @@ export const useStore = create<AppState>()(
         copiedBlock: state.copiedBlock,
         sidebarSectionSettings: state.sidebarSectionSettings,
         hiddenEntityIds: state.hiddenEntityIds,
+        recentEntityIds: state.recentEntityIds,
       }),
     }
   )

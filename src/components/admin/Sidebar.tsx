@@ -20,20 +20,23 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const LogoSimple = ({ className }: { className?: string }) => (
+  <svg width="39" height="39" viewBox="0 0 39 39" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path fillRule="evenodd" clipRule="evenodd" d="M29.9302 39H9.06977L8.9525 38.9993C4.03648 38.937 0.063001 34.9635 0.000708576 30.0475L0 29.9302V9.06977C0 4.06067 4.06067 1.38779e-07 9.06977 0H29.9302C34.9393 0 39 4.06067 39 9.06977V29.9302C39 34.9002 35.0026 38.9365 30.0475 38.9993L29.9302 39ZM24.1066 15.9808L23.7628 23.7174C23.7628 26.3798 22.6382 28.9779 20.5522 31.064L14.9561 36.2791H29.9302C33.4366 36.2791 36.2791 33.4366 36.2791 29.9302V9.06977C36.2791 8.08478 36.0548 7.15218 35.6544 6.32027L35.5436 6.35738C33.2742 7.11717 30.99 7.88195 28.8924 8.89124C25.9704 10.2972 24.2398 13.0277 24.1066 15.9808ZM16.3045 18.0338L16.7254 13.687C17.0538 10.2965 19.4868 7.35444 23.0273 6.06642L32.4536 3.24217C31.6802 2.90682 30.8269 2.72093 29.9302 2.72093H9.06977C5.5634 2.72093 2.72093 5.5634 2.72093 9.06977V27.2509L8.39919 26.1046C12.7272 25.2308 15.9235 21.9676 16.3045 18.0338Z" fill="#E09952" />
+  </svg>
+);
+
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-sidebar border-r border-border flex flex-col h-full relative z-10 select-none">
-      <div className="flex items-center gap-3 px-6 py-8 border-b border-border mb-4 group">
-        <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center text-accent border border-accent/20 transition-all hover:bg-accent/30">
-          <Shield className="w-5 h-5" strokeWidth={2.5} />
-        </div>
-        <div className="flex flex-col">
-          <h1 className="text-xl font-display text-foreground tracking-wide leading-none">Admin</h1>
-          <span className="text-[10px] font-bold text-muted-foreground tracking-[0.05em] uppercase opacity-40 mt-1 tracking-wide">Orchestrator</span>
+    <aside className="w-64 bg-sidebar flex flex-col overflow-hidden flex-shrink-0 h-full relative z-10 select-none border-r border-border">
+      <div className="flex items-center justify-between px-4 py-5 border-b border-border transition-all duration-0">
+        <div className="flex items-center gap-3 group">
+          <LogoSimple className="w-7 h-7" />
+          <h1 className="text-2xl font-display font-normal text-foreground tracking-tight leading-none">Admin</h1>
         </div>
       </div>
 
-      <nav className="flex-1 px-3 space-y-6 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable] pl-3 pr-[4px] pt-3 mr-[2px] flex flex-col gap-3">
         <PlatformSection title="Global Management">
           <NavLink href="/admin" icon={Activity}>System Overview</NavLink>
           <NavLink href="/admin/analytics" icon={BarChart3}>Analytics Engine</NavLink>
@@ -55,13 +58,15 @@ export default function Sidebar() {
         </PlatformSection>
       </nav>
 
-      <div className="p-4 mt-auto border-t border-border">
+      <div className="p-3 border-t border-border flex items-center mt-auto justify-between">
         <Link 
           href="/"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-hover transition-all duration-200 group tracking-wide"
+          className="sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px] text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Terminal
+          <div className="w-7 shrink-0 flex items-center justify-center">
+            <ArrowLeft className="w-3.5 h-3.5 text-[var(--bone-60)] group-hover:text-[var(--bone-100)]" strokeWidth={2} />
+          </div>
+          <span className="ml-0 flex-1 text-left tracking-wide">Back to Terminal</span>
         </Link>
       </div>
     </aside>
@@ -70,9 +75,11 @@ export default function Sidebar() {
 
 function PlatformSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <h3 className="px-3 text-[11px] font-ui-label font-bold text-muted-foreground/40 uppercase tracking-widest tracking-wide">{title}</h3>
-      <div className="space-y-0.5">
+    <div className="flex flex-col">
+      <div className="ml-0 mr-[2px] px-3 py-[3px] flex items-center justify-between group select-none rounded-[var(--radius-8)] transition-colors duration-0">
+        <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-60)]">{title}</span>
+      </div>
+      <div className="flex flex-col gap-[3px] mt-[3px] mb-2 pr-[4px] mr-[2px]">
         {children}
       </div>
     </div>
@@ -87,20 +94,19 @@ function NavLink({ href, icon: Icon, children }: { href: string; icon: any; chil
     <Link 
       href={href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative text-sm font-medium tracking-wide",
+        "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px]",
         isActive 
-          ? "bg-[var(--bone-6)] text-[var(--bone-100)] hover:bg-[var(--bone-10)]" 
-          : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
+          ? "!bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide" 
+          : "text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
       )}
     >
-      {isActive && (
-        <div className="absolute left-0 w-1 h-3 bg-accent rounded-r-full" />
-      )}
-      <Icon className={cn(
-        "w-4 h-4 transition-colors",
-        isActive ? "text-accent" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]"
-      )} strokeWidth={1.5} />
-      <span>{children}</span>
+      <div className="w-7 shrink-0 flex items-center justify-center">
+        <Icon className={cn(
+          "w-3.5 h-3.5",
+          isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]"
+        )} strokeWidth={2} />
+      </div>
+      <span className="ml-0 flex-1 text-left tracking-wide">{children}</span>
     </Link>
   )
 }

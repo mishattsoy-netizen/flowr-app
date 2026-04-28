@@ -64,8 +64,8 @@ export function CommandPalette() {
       return;
     }
     
-    const topOffset = Math.min(scrollTop, 24);
-    const bottomOffset = Math.min(scrollHeight - clientHeight - scrollTop, 24);
+    const topOffset = Math.min(scrollTop, 20);
+    const bottomOffset = Math.min(scrollHeight - clientHeight - scrollTop, 20);
     
     target.style.setProperty('--scroll-top-offset', `${topOffset}px`);
     target.style.setProperty('--scroll-bottom-offset', `${bottomOffset}px`);
@@ -395,7 +395,7 @@ export function CommandPalette() {
         <div 
           ref={listRef} 
           onScroll={onScroll}
-          className="max-h-[480px] overflow-y-auto scrollbar-none py-2 px-2 flex flex-col gap-[3px] scroll-fade"
+          className="max-h-[480px] overflow-y-auto scrollbar-none py-2 px-2 flex flex-col gap-[3px]"
         >
           {/* Section label */}
           {items.length > 0 && (

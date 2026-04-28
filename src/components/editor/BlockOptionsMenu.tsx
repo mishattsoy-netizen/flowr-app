@@ -8,7 +8,7 @@ import {
   Columns2, Columns3, Columns4, SeparatorHorizontal,
   FileInput, Table, Kanban, GalleryHorizontalEnd, ListFilter,
   ChevronRight, ChevronLeft, Search, Plus, ImageIcon, Video, ClipboardPaste
-} from 'lucide-react';
+, Check} from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/data/store';
 import type { EditorBlock, BlockType, DatabaseViewType } from '@/data/store';
@@ -20,7 +20,7 @@ import type { EditorBlock, BlockType, DatabaseViewType } from '@/data/store';
 const BLOCK_COLORS = [
   { id: 'default', label: 'Default', hex: undefined },
   { id: 'accent', label: 'Accent', hex: 'var(--accent)' },
-  { id: 'red', label: 'Red', hex: '#d7263d' },
+  { id: 'red', label: 'Red', hex: 'var(--color-danger)' },
   { id: 'yellow', label: 'Yellow', hex: '#ffbc42' },
   { id: 'blue', label: 'Blue', hex: '#1d4e89' },
   { id: 'purple', label: 'Purple', hex: '#54478c' },
@@ -203,11 +203,11 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] p-1.5"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] p-1.5 gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
-          <span className="flex items-center gap-2.5"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
+          <span className="flex items-center gap-3"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
           <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
         </button>
         <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
@@ -250,7 +250,7 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] max-h-[400px] p-1.5"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] max-h-[400px] p-1.5 gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button
@@ -272,27 +272,34 @@ export function BlockOptionsMenu({
             />
           </div>
         </div>
-        <div className="h-px bg-border/30 mx-3" />
-        <div className="overflow-y-auto scrollbar-thin flex-1 min-h-[160px]">
+        <div className="popup-divider" />
+        <div className="overflow-y-auto scrollbar-thin flex-1 min-h-[160px] flex flex-col gap-[3px]">
           {groupedTurnInto.length > 0 ? (
             groupedTurnInto.map(group => (
-              <div key={group.category} className="pb-1">
+              <div key={group.category} className="pb-1 flex flex-col gap-[3px]">
                 <div className="px-3.5 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
                   {group.category}
                 </div>
-                {group.items.map(item => (
-                  <button
-                    key={item.id}
-                    className="popup-item border-none"
-                    onClick={() => {
-                      onTurnInto(block.id, item.type, { ...item.extra, content: block.content });
-                      onClose();
-                    }}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </button>
-                ))}
+                {group.items.map(item => {
+                  const isSelected = block.type === item.type && (item.extra?.style === undefined || block.style === item.extra.style);
+                  return (
+                    <button
+                      key={item.id}
+                      className={clsx(
+                        "popup-item border-none",
+                        isSelected && "bg-hover text-foreground"
+                      )}
+                      onClick={() => {
+                        onTurnInto(block.id, item.type, { ...item.extra, content: block.content });
+                        onClose();
+                      }}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
+                    </button>
+                  );
+                })}
               </div>
             ))
           ) : (
@@ -310,12 +317,14 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] p-1.5"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] p-1.5 gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button className={btnCls} onClick={() => setSubMenu(null)}>
           <ChevronLeft strokeWidth={2} className="w-3.5 h-3.5" /> Color
         </button>
+        <div className="popup-divider" />
+        <div className="flex flex-col gap-[3px]">
         <div className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
           Text color
         </div>
@@ -346,7 +355,9 @@ export function BlockOptionsMenu({
             );
           })}
         </div>
-        <div className="h-px bg-border/50 mx-3 my-1" />
+        </div>
+        <div className="popup-divider" />
+        <div className="flex flex-col gap-[3px]">
         <div className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
           Background color
         </div>
@@ -377,6 +388,7 @@ export function BlockOptionsMenu({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
     );
