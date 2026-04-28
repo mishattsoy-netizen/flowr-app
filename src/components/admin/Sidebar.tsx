@@ -1,22 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Activity,
-  Cpu,
-  ShieldCheck,
-  Users,
-  Zap,
-  Shield,
-  Terminal,
-  Bot,
-  MessageSquareText,
-  BarChart3,
-  ScrollText,
-  ArrowLeft,
-  Database
+  Activity, Cpu, ShieldCheck, Users, Zap, Shield, Terminal,
+  Bot, MessageSquareText, BarChart3, ScrollText, ArrowLeft,
+  Database, Settings, Brain, ChevronDown, ChevronRight,
+  RotateCcw, MessageCircle, LayoutDashboard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,9 +15,21 @@ const LogoSimple = ({ className }: { className?: string }) => (
   <svg width="39" height="39" viewBox="0 0 39 39" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path fillRule="evenodd" clipRule="evenodd" d="M29.9302 39H9.06977L8.9525 38.9993C4.03648 38.937 0.063001 34.9635 0.000708576 30.0475L0 29.9302V9.06977C0 4.06067 4.06067 1.38779e-07 9.06977 0H29.9302C34.9393 0 39 4.06067 39 9.06977V29.9302C39 34.9002 35.0026 38.9365 30.0475 38.9993L29.9302 39ZM24.1066 15.9808L23.7628 23.7174C23.7628 26.3798 22.6382 28.9779 20.5522 31.064L14.9561 36.2791H29.9302C33.4366 36.2791 36.2791 33.4366 36.2791 29.9302V9.06977C36.2791 8.08478 36.0548 7.15218 35.6544 6.32027L35.5436 6.35738C33.2742 7.11717 30.99 7.88195 28.8924 8.89124C25.9704 10.2972 24.2398 13.0277 24.1066 15.9808ZM16.3045 18.0338L16.7254 13.687C17.0538 10.2965 19.4868 7.35444 23.0273 6.06642L32.4536 3.24217C31.6802 2.90682 30.8269 2.72093 29.9302 2.72093H9.06977C5.5634 2.72093 2.72093 5.5634 2.72093 9.06977V27.2509L8.39919 26.1046C12.7272 25.2308 15.9235 21.9676 16.3045 18.0338Z" fill="#E09952" />
   </svg>
-);
+)
+
+const BOT_SUB_PATHS = [
+  '/admin/bot/settings',
+  '/admin/bot/brain',
+  '/admin/bot/dashboard',
+  '/admin/bot/routine',
+  '/admin/bot/feedback',
+]
 
 export default function Sidebar() {
+  const pathname = usePathname()
+  const isBotActive = BOT_SUB_PATHS.some(p => pathname.startsWith(p))
+  const [botExpanded, setBotExpanded] = useState(isBotActive)
+
   return (
     <aside className="w-64 bg-sidebar flex flex-col overflow-hidden flex-shrink-0 h-full relative z-10 select-none border-r border-border">
       <div className="flex items-center justify-between px-4 py-5 border-b border-border transition-all duration-0">
@@ -56,10 +59,42 @@ export default function Sidebar() {
           <NavLink href="/admin/telegram/router" icon={Bot}>Router Matrix</NavLink>
           <NavLink href="/admin/telegram/prompts" icon={MessageSquareText}>Prompts Node</NavLink>
         </PlatformSection>
+
+        <PlatformSection title="Bot Intelligence">
+          {/* Expandable Bot Manager group */}
+          <button
+            onClick={() => setBotExpanded(v => !v)}
+            className={cn(
+              "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px]",
+              isBotActive
+                ? "!bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide"
+                : "text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
+            )}
+          >
+            <div className="w-7 shrink-0 flex items-center justify-center">
+              <Bot className={cn("w-3.5 h-3.5", isBotActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]")} strokeWidth={2} />
+            </div>
+            <span className="ml-0 flex-1 text-left tracking-wide">Bot Manager</span>
+            {botExpanded
+              ? <ChevronDown className="w-3 h-3 text-[var(--bone-40)]" strokeWidth={2} />
+              : <ChevronRight className="w-3 h-3 text-[var(--bone-40)]" strokeWidth={2} />
+            }
+          </button>
+
+          {botExpanded && (
+            <div className="flex flex-col gap-[2px] pl-4 ml-1 border-l border-[var(--bone-10)]">
+              <NavLink href="/admin/bot/settings" icon={Settings}>Settings</NavLink>
+              <NavLink href="/admin/bot/brain" icon={Brain}>Brain</NavLink>
+              <NavLink href="/admin/bot/dashboard" icon={LayoutDashboard}>Dashboard</NavLink>
+              <NavLink href="/admin/bot/routine" icon={RotateCcw}>Routine</NavLink>
+              <NavLink href="/admin/bot/feedback" icon={MessageCircle}>Feedback</NavLink>
+            </div>
+          )}
+        </PlatformSection>
       </nav>
 
       <div className="p-3 border-t border-border flex items-center mt-auto justify-between">
-        <Link 
+        <Link
           href="/"
           className="sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px] text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
         >
@@ -88,26 +123,22 @@ function PlatformSection({ title, children }: { title: string; children: React.R
 
 function NavLink({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) {
   const pathname = usePathname()
-  const isActive = pathname === href
-  
+  const isActive = pathname === href || (href !== '/admin' && pathname.startsWith(href))
+
   return (
-    <Link 
+    <Link
       href={href}
       className={cn(
         "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px]",
-        isActive 
-          ? "!bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide" 
+        isActive
+          ? "!bg-[var(--bone-15)] text-[var(--bone-100)] font-medium tracking-wide"
           : "text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
       )}
     >
       <div className="w-7 shrink-0 flex items-center justify-center">
-        <Icon className={cn(
-          "w-3.5 h-3.5",
-          isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]"
-        )} strokeWidth={2} />
+        <Icon className={cn("w-3.5 h-3.5", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)] group-hover:text-[var(--bone-100)]")} strokeWidth={2} />
       </div>
       <span className="ml-0 flex-1 text-left tracking-wide">{children}</span>
     </Link>
   )
 }
-
