@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Settings, RefreshCw, Eye, EyeOff, Check } from 'lucide-react'
 import { saveSettingBlock, syncCompiledPrompt } from './actions'
 import type { BotSetting, SettingsCategory } from './actions'
@@ -31,6 +31,11 @@ export default function SettingsClient({ initialSettings, compiledAt, entryCount
   const [isPending, startTransition] = useTransition()
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle')
   const [currentCompiledAt, setCurrentCompiledAt] = useState(compiledAt)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const activeTab_ = TABS.find(t => t.key === activeTab)!
   const currentDraft = drafts[activeTab] ?? ''
@@ -113,7 +118,7 @@ export default function SettingsClient({ initialSettings, compiledAt, entryCount
               <Settings className="w-4 h-4" />
               Compiled Prompt
             </h3>
-            {currentCompiledAt && (
+            {currentCompiledAt && mounted && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 Last compiled: {new Date(currentCompiledAt).toLocaleString()} · {entryCount} brain entries
               </p>
