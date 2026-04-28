@@ -1,0 +1,132 @@
+'use server'
+
+import { supabaseAdmin as supabase } from '@/lib/supabase'
+import { addBrainEntry } from '@/app/admin/bot/brain/actions'
+import { logAdminAction } from '@/lib/admin/logAction'
+import { getProviderKeys } from '@/lib/vault'
+import { revalidatePath } from 'next/cache'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import type { BrainCategory } from '@/app/admin/bot/brain/actions'
+
+export interface ImprovementPlan {
+  id: string
+  session_id: string
+  topic: string
+  title: string
+  reasoning: string
+  plan: string
+  status: 'pending' | 'accepted' | 'rejected' | 'edited'
+  edit_notes: string | null
+  created_at: string
+}
+
+export async function getLatestPlans(): Promise<ImprovementPlan[]> {
+  const { data: session } = await supabase
+    .from('bot_analysis_sessions')
+    .select('id')
+    .eq('status', 'complete')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!session) return []
+
+  const { data, error } = await supabase
+    .from('bot_improvement_plans')
+    .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at')
+    .eq('session_id', session.id)
+    .order('created_at')
+  if (error) return []
+  return (data ?? []) as ImprovementPlan[]
+}
+
+const TOPIC_TO_BRAIN_CATEGORY: Record<string, BrainCategory> = {
+  'Answer Style':   'patterns',
+  'Writing Style':  'rules',
+  'Tone':           'personality',
+  'Format':         'patterns',
+  'Accuracy':       'rules',
+  'Mistakes':       'mistakes',
+  'Personality':    'personality',
+  'Rules':          'rules',
+  'Patterns':       'patterns',
+}
+
+function topicToCategory(topic: string): BrainCategory {
+  return TOPIC_TO_BRAIN_CATEGORY[topic] ?? 'rules'
+}
+
+export async function acceptPlan(plan: ImprovementPlan): Promise<void> {
+  const category = topicToCategory(plan.topic)
+  await addBrainEntry(category, plan.title, plan.plan)
+  const { error } = await supabase
+    .from('bot_improvement_plans')
+    .update({ status: 'accepted' })
+    .eq('id', plan.id)
+  if (error) throw error
+  await logAdminAction('plan_accepted', `Accepted plan: ${plan.title}`, { planId: plan.id, topic: plan.topic })
+  revalidatePath('/admin/bot/routine')
+}
+
+export async function rejectPlan(planId: string, title: string): Promise<void> {
+  const { error } = await supabase
+    .from('bot_improvement_plans')
+    .update({ status: 'rejected' })
+    .eq('id', planId)
+  if (error) throw error
+  await logAdminAction('plan_rejected', `Rejected plan: ${title}`, { planId })
+  revalidatePath('/admin/bot/routine')
+}
+
+export async function submitPlanEdit(planId: string, editNotes: string): Promise<ImprovementPlan> {
+  const { data: plan, error: fetchErr } = await supabase
+    .from('bot_improvement_plans')
+    .select('topic, title, reasoning, plan')
+    .eq('id', planId)
+    .single()
+  if (fetchErr || !plan) throw fetchErr ?? new Error('Plan not found')
+
+  const keys = await getProviderKeys('GEMINI')
+  if (keys.length === 0) throw new Error('No Gemini API key available — add one via Secure Vault')
+
+  const genAI = new GoogleGenerativeAI(keys[0])
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+
+  const rewritePrompt = `Rewrite this improvement plan incorporating the user's feedback.
+
+Original plan:
+Topic: ${plan.topic}
+Title: ${plan.title}
+Reasoning: ${plan.reasoning}
+Plan: ${plan.plan}
+
+User's feedback/change request: ${editNotes}
+
+Return ONLY a valid JSON object with exactly these fields: topic, title, reasoning, plan.
+Example: {"topic":"Answer Style","title":"Context-aware response length","reasoning":"...","plan":"..."}`
+
+  const result = await model.generateContent(rewritePrompt)
+  const raw = result.response.text().trim()
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('AI returned invalid JSON')
+  const revised: { topic: string; title: string; reasoning: string; plan: string } =
+    JSON.parse(jsonMatch[0])
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('bot_improvement_plans')
+    .update({
+      topic: revised.topic,
+      title: revised.title,
+      reasoning: revised.reasoning,
+      plan: revised.plan,
+      status: 'edited',
+      edit_notes: editNotes,
+    })
+    .eq('id', planId)
+    .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at')
+    .single()
+
+  if (updateErr || !updated) throw updateErr ?? new Error('Update failed')
+  await logAdminAction('plan_edited', `Edited plan: ${revised.title}`, { planId })
+  return updated as ImprovementPlan
+}
