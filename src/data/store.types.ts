@@ -37,7 +37,7 @@ export interface Workspace {
   createdAt: number;
   icon?: string;
   color?: string;
-
+  cloudSyncEnabled?: boolean;
   settings?: Record<string, unknown>;
 }
 
@@ -119,6 +119,8 @@ export interface EditorBlock {
   toId?: string;
   fromSide?: 'top' | 'right' | 'bottom' | 'left';
   toSide?: 'top' | 'right' | 'bottom' | 'left';
+  isFolded?: boolean;
+  foldingEnabled?: boolean;
 }
 
 /** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
@@ -170,7 +172,7 @@ export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' 
 
 export type ModalType =
   | null
-  | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType }
+  | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType; defaultToFirstCollection?: boolean }
   | { kind: 'newCollection' }
   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[] }
   | { kind: 'moveTo'; entityId: string }
@@ -204,6 +206,17 @@ export interface AIMessage {
   model?: string;
   attachments?: AIAttachment[];
   logId?: number;
+  citations?: string[];
+  model_chain?: string;
+  classification_trace?: any[];
+  routing_trace?: any[];
+}
+
+export interface AISessionContext {
+  distilled_summary: string | null;
+  token_usage_total: number;
+  context_limit: number;
+  active_mode?: BotMode;
 }
 
 export interface AICursor {
@@ -230,6 +243,8 @@ export interface ProjectQuota {
   }>;
   timestamp: string;
 }
+
+export type BotMode = 'default' | 'think' | 'pro'
 
 export type FlowIntentCategory = 'tool_call' | 'web_search' | 'complex' | 'medium' | 'fast' | 'image_generation' | 'audio_voice' | 'CLASSIFIER';
 
@@ -344,6 +359,11 @@ export interface AppState {
   hiddenEntityIds: string[];
   isCommandPaletteOpen: boolean;
   selectedSidebarIds: string[];
+  lastSaved: number | null;
+  cloudSyncEnabled: boolean;
+  aiSessionContext: AISessionContext | null;
+  activeMode: BotMode;
+  activeIntentTag: string | null;
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;
@@ -372,12 +392,17 @@ export interface AppState {
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
   clearAIChat: () => void;
+  compactAIChat: () => Promise<void>;
   setAIHistory: (messages: AIMessage[]) => void;
   setIsAIAssistantExtended: (extended: boolean) => void;
   setAICursor: (cursor: AICursor | null) => void;
   toggleAIAssistantExtended: () => void;
   setAIBehaviorMode: (mode: 'fast' | 'thinking' | 'auto') => void;
+  setActiveMode: (mode: BotMode) => void;
+  setActiveIntentTag: (tag: string | null) => void;
   setAIClassificationModelId: (id: string) => void;
+  setAISessionContext: (context: AISessionContext | null) => void;
+  fetchAISessionContext: (chatId: string) => Promise<void>;
   sendAIMessage: (content: string, agentEnabled?: boolean, attachments?: AIAttachment[]) => Promise<void>;
   setActiveEntityId: (id: string | null) => void;
   addTab: (id?: string) => void;
@@ -449,6 +474,8 @@ export interface AppState {
   addGuide: (guide: Guide) => void;
   updateGuide: (id: string, updates: Partial<Guide>) => void;
   deleteGuide: (id: string) => void;
+  setCloudSyncEnabled: (enabled: boolean) => void;
+  setLastSaved: (time: number | null) => void;
   setKnowledgeData: (data: Partial<AppState>) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;
