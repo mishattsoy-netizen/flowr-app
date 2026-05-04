@@ -240,7 +240,22 @@ Tags are cleared after each message is sent. The user must re-attach a tag for t
 
 ---
 
-## 9. Out of Scope
+## 9. Mode Prompt Files (Post-Implementation Deliverable)
+
+After all implementation is complete, generate a `mode-prompts.txt` file containing ready-to-paste prompt content for each of the 3 modes across all 5 settings blocks (Core Rules, Personality, Answer Style, Thinking Pattern, Restrictions) plus a Classifier prompt per mode.
+
+**Base reference:** The current compiled prompt (`compiled prompt.txt`) serves as the foundation — specifically the Default mode should feel like a natural evolution of the existing prompt. Think and Pro modes diverge from Default in reasoning depth, precision, and output style.
+
+**Mode prompt character profiles:**
+- **Default** — Fast, warm, universal. Handles anything. Balanced quality vs speed. Based closely on the current compiled prompt tone.
+- **Think** — Slower, more deliberate. Prioritizes accuracy, depth, and user satisfaction over speed. Better for essays, analysis, research, complex explanations. Medium and complex thinking chains used more frequently.
+- **Pro** — Maximum precision. Best possible output. For coding, math, planning, business work, professional analysis, strategies, brainstorming. No fluff, full reasoning, structured output.
+
+Each mode's classifier prompt should instruct the classifier to weight classification differently — e.g. Pro mode should route more aggressively to COMPLEX_THINKING, Think mode to MEDIUM/COMPLEX_THINKING, Default keeps current balanced routing.
+
+---
+
+## 10. Out of Scope
 
 - Per-mode router chain config (router stays shared)
 - Per-mode brain entries (brain stays shared)
