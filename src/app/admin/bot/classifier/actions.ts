@@ -37,12 +37,18 @@ export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ 
 export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
   const { error: err1 } = await supabase
     .from('bot_settings')
-    .upsert({ category: 'classifier_prompt', content: prompt, mode, updated_at: new Date().toISOString() })
+    .upsert(
+      { category: 'classifier_prompt', content: prompt, mode, updated_at: new Date().toISOString() },
+      { onConflict: 'category,mode' }
+    )
   if (err1) throw err1
 
   const { error: err2 } = await supabase
     .from('bot_settings')
-    .upsert({ category: 'classifier_keywords', content: JSON.stringify(keywords), mode, updated_at: new Date().toISOString() })
+    .upsert(
+      { category: 'classifier_keywords', content: JSON.stringify(keywords), mode, updated_at: new Date().toISOString() },
+      { onConflict: 'category,mode' }
+    )
   if (err2) throw err2
 
   await logAdminAction('settings_saved', `Saved classifier config [${mode}]`, { mode })

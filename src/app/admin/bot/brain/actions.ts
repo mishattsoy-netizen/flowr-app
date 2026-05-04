@@ -84,6 +84,6 @@ export async function updateBrainEntry(
     .eq('id', id)
   if (error) throw error
   await recompileAllModes()
-  await logAdminAction('brain_entry_added', `Updated brain entry: ${title}`, { id, category, title })
+  await logAdminAction('brain_entry_updated', `Updated brain entry: ${title}`, { id, category, title })
   revalidatePath('/admin/bot/brain')
 }

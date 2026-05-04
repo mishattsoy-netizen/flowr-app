@@ -3,6 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabase'
 export type AdminActionType =
   | 'settings_saved'
   | 'brain_entry_added'
+  | 'brain_entry_updated'
   | 'brain_entry_deleted'
   | 'plan_accepted'
   | 'plan_rejected'

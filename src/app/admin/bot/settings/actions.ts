@@ -30,7 +30,10 @@ export async function getSettings(mode: BotMode = 'default'): Promise<BotSetting
 export async function saveSettingBlock(category: SettingsCategory, content: string, mode: BotMode = 'default'): Promise<void> {
   const { error } = await supabase
     .from('bot_settings')
-    .upsert({ category, content, mode, updated_at: new Date().toISOString() })
+    .upsert(
+      { category, content, mode, updated_at: new Date().toISOString() },
+      { onConflict: 'category,mode' }
+    )
   if (error) throw error
   await recompilePrompt(mode)
   await logAdminAction('settings_saved', `Saved ${category.replace('_', ' ')} prompt [${mode}]`, { category, mode })
