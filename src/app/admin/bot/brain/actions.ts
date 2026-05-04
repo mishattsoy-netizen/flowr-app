@@ -1,7 +1,7 @@
 'use server'
 
 import { supabaseAdmin as supabase } from '@/lib/supabase'
-import { recompilePrompt } from '@/lib/bot/compilePrompt'
+import { recompileAllModes } from '@/lib/bot/compilePrompt'
 import { logAdminAction } from '@/lib/admin/logAction'
 import { revalidatePath } from 'next/cache'
 
@@ -46,7 +46,7 @@ export async function addBrainEntry(
     .from('bot_brain_entries')
     .insert({ category, title, content, source: 'manual', updated_at: new Date().toISOString() })
   if (error) throw error
-  await recompilePrompt()
+  await recompileAllModes()
   await logAdminAction('brain_entry_added', `Added brain entry: ${title}`, { category, title })
   revalidatePath('/admin/bot/brain')
 }
@@ -57,7 +57,7 @@ export async function deleteBrainEntry(id: string, title: string): Promise<void>
     .delete()
     .eq('id', id)
   if (error) throw error
-  await recompilePrompt()
+  await recompileAllModes()
   await logAdminAction('brain_entry_deleted', `Deleted brain entry: ${title}`, { id, title })
   revalidatePath('/admin/bot/brain')
 }
@@ -68,7 +68,7 @@ export async function toggleBrainEntry(id: string, isActive: boolean): Promise<v
     .update({ is_active: isActive, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
-  await recompilePrompt()
+  await recompileAllModes()
   revalidatePath('/admin/bot/brain')
 }
 
@@ -83,7 +83,7 @@ export async function updateBrainEntry(
     .update({ category, title, content, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
-  await recompilePrompt()
+  await recompileAllModes()
   await logAdminAction('brain_entry_added', `Updated brain entry: ${title}`, { id, category, title })
   revalidatePath('/admin/bot/brain')
 }

@@ -1,4 +1,5 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
+import type { BotMode } from '@/data/store.types'
 
 const CATEGORY_LABELS: Record<string, string> = {
   core_rules:       'CORE RULES',
@@ -10,16 +11,24 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const BRAIN_CATEGORY_LABELS: Record<string, string> = {
   rules:       'BRAIN: RULES',
-  mistakes:    'BRAIN: MISTAKES TO AVOID',
-  patterns:    'BRAIN: PATTERNS THAT WORK',
+  red_flags:   'BRAIN: RED FLAGS',
+  tone:        'BRAIN: TONE REFINEMENTS',
   personality: 'BRAIN: PERSONALITY REFINEMENTS',
-  questions:   'BRAIN: OPEN QUESTIONS',
+  facts:       'BRAIN: FACTS & KNOWLEDGE',
 }
 
-export async function recompilePrompt(): Promise<void> {
+export async function recompilePrompt(mode: BotMode = 'default'): Promise<void> {
   const [settingsResult, brainResult] = await Promise.all([
-    supabase.from('bot_settings').select('category, content').eq('is_active', true),
-    supabase.from('bot_brain_entries').select('category, title, content').eq('is_active', true).order('created_at', { ascending: true }),
+    supabase
+      .from('bot_settings')
+      .select('category, content')
+      .eq('is_active', true)
+      .eq('mode', mode),
+    supabase
+      .from('bot_brain_entries')
+      .select('category, title, content')
+      .eq('is_active', true)
+      .order('created_at', { ascending: true }),
   ])
 
   if (settingsResult.error) throw settingsResult.error
@@ -38,7 +47,7 @@ export async function recompilePrompt(): Promise<void> {
     }
   }
 
-  const brainOrder = ['rules', 'mistakes', 'patterns', 'personality', 'questions']
+  const brainOrder = ['rules', 'red_flags', 'tone', 'personality', 'facts']
   for (const cat of brainOrder) {
     const entries = brainEntries.filter(e => e.category === cat)
     if (entries.length === 0) continue
@@ -51,16 +60,24 @@ export async function recompilePrompt(): Promise<void> {
   const { error } = await supabase
     .from('bot_compiled_prompt')
     .update({ content: compiled, compiled_at: new Date().toISOString(), entry_count: brainEntries.length })
-    .eq('id', 1)
+    .eq('mode', mode)
 
   if (error) throw error
 }
 
-export async function getCompiledPrompt(): Promise<string> {
+export async function recompileAllModes(): Promise<void> {
+  await Promise.all([
+    recompilePrompt('default'),
+    recompilePrompt('think'),
+    recompilePrompt('pro'),
+  ])
+}
+
+export async function getCompiledPrompt(mode: BotMode = 'default'): Promise<string> {
   const { data, error } = await supabase
     .from('bot_compiled_prompt')
     .select('content, global_enabled')
-    .eq('id', 1)
+    .eq('mode', mode)
     .single()
 
   if (error || !data) return ''
