@@ -4,7 +4,7 @@ import { logger } from '../../logger'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 
-const GOOGLE_TIMEOUT_MS = 15000
+const GOOGLE_TIMEOUT_MS = 30000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -38,7 +38,11 @@ export async function runGoogle(
       const genAI = new GoogleGenerativeAI(key)
 
       const isGemma = modelId.toLowerCase().includes('gemma')
-      let finalPrompt = prompt || "Analyze this."
+      let finalPrompt = prompt
+      if (!finalPrompt) {
+        logger.error(`Google provider [${modelId}]: received empty prompt — no fallback configured`)
+        return null
+      }
 
       // Legacy Gemma models (1, 2, 3) don't support native systemInstruction role or tools on Gemini API.
       // We prepend system instructions to the prompt text instead to bypass the 400 Bad Request.
