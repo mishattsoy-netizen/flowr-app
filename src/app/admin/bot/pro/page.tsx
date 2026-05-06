@@ -15,7 +15,7 @@ export default async function ProModePage() {
       modeIcon="🔥"
       initialSettings={settings}
       initialActiveStates={activeStates}
-      initialClassifierPrompt={classifierConfig.prompt}
+      initialClassifierPrompt={classifierConfig.prompt ?? ''}
     />
   )
 }

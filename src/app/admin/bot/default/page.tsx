@@ -15,7 +15,7 @@ export default async function DefaultModePage() {
       modeIcon="⚡"
       initialSettings={settings}
       initialActiveStates={activeStates}
-      initialClassifierPrompt={classifierConfig.prompt}
+      initialClassifierPrompt={classifierConfig.prompt ?? ''}
     />
   )
 }

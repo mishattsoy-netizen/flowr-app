@@ -24,10 +24,11 @@ export default function ClassifierPage() {
   useEffect(() => {
     async function load() {
       const config = await getClassifierConfig()
-      setPrompt(config.prompt)
+      setPrompt(config.prompt ?? '')
       const mapped: Record<string, string> = {}
+      const kw = config.keywords ?? {}
       for (const cat in CATEGORY_LABELS) {
-        mapped[cat] = (config.keywords[cat] || []).join(', ')
+        mapped[cat] = (kw[cat] || []).join(', ')
       }
       setKeywords(mapped)
     }

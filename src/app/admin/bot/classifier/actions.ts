@@ -3,36 +3,32 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { logAdminAction } from '@/lib/admin/logAction'
 import { revalidatePath } from 'next/cache'
-import { DEFAULT_CLASSIFICATION_PROMPT, DEFAULT_KEYWORDS } from './defaults'
 import type { BotMode } from '@/data/store.types'
 
-export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ prompt: string; keywords: Record<string, string[]> }> {
-  try {
-    const [promptResult, keywordsResult] = await Promise.all([
-      supabase
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_prompt')
-        .eq('mode', mode)
-        .maybeSingle(),
-      supabase
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_keywords')
-        .eq('mode', 'default')
-        .maybeSingle(),
-    ])
+export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ prompt: string | null; keywords: Record<string, string[]> | null }> {
+  const [promptResult, keywordsResult] = await Promise.all([
+    supabase
+      .from('bot_settings')
+      .select('content')
+      .eq('category', 'classifier_prompt')
+      .eq('mode', mode)
+      .maybeSingle(),
+    supabase
+      .from('bot_settings')
+      .select('content')
+      .eq('category', 'classifier_keywords')
+      .eq('mode', 'default')
+      .maybeSingle(),
+  ])
 
-    const prompt = promptResult.data?.content || DEFAULT_CLASSIFICATION_PROMPT
-    let keywords = DEFAULT_KEYWORDS
-    if (keywordsResult.data?.content) {
-      try { keywords = JSON.parse(keywordsResult.data.content) } catch { keywords = DEFAULT_KEYWORDS }
-    }
-    return { prompt, keywords }
-  } catch (err) {
-    console.error('getClassifierConfig error:', err)
-    return { prompt: DEFAULT_CLASSIFICATION_PROMPT, keywords: DEFAULT_KEYWORDS }
+  const prompt = promptResult.data?.content ?? null
+
+  let keywords: Record<string, string[]> | null = null
+  if (keywordsResult.data?.content) {
+    try { keywords = JSON.parse(keywordsResult.data.content) } catch { keywords = null }
   }
+
+  return { prompt, keywords }
 }
 
 export async function saveClassifierPrompt(prompt: string, mode: BotMode = 'default'): Promise<void> {
@@ -59,7 +55,6 @@ export async function saveClassifierKeywords(keywords: Record<string, string[]>)
   revalidatePath('/admin/bot/keywords')
 }
 
-// Kept for backward compatibility with ModeSettingsClient
 export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
   await saveClassifierPrompt(prompt, mode)
 }

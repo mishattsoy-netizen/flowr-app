@@ -3,7 +3,6 @@ import { logger } from '../logger'
 import { runGoogle } from './providers/google'
 import { runGroq } from './providers/groq'
 import { supabaseAdmin } from '../supabase'
-import { DEFAULT_KEYWORDS, DEFAULT_CLASSIFICATION_PROMPT } from '@/app/admin/bot/classifier/defaults'
 import type { BotMode } from '@/data/store.types'
 import { isModelFailed, markModelFailed } from './chainRouter'
 
@@ -55,7 +54,8 @@ export async function classifyIntentWithModel(
   aiApiKey?: string,
   modelId?: string,
   mode: BotMode = 'default',
-  intentTag?: string | null
+  intentTag?: string | null,
+  replyContext?: any
 ): Promise<ClassifyResult> {
   const lowerMsg = message.trim().toLowerCase()
 
@@ -72,40 +72,40 @@ export async function classifyIntentWithModel(
     return { category: TAG_CATEGORY_MAP[intentTag], classifierModel: 'Intent Tag', trace: [] }
   }
 
-  // Load mode-specific classifier config
-  let keywordsObj = DEFAULT_KEYWORDS
-  let activePrompt = DEFAULT_CLASSIFICATION_PROMPT
+  // Load mode-specific classifier config — no fallbacks, fail loudly if DB unavailable
+  let keywordsObj: Record<string, string[]> = {}
+  let activePrompt: string | null = null
   let keywordsEnabled = true
 
-  try {
-    const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
-      supabaseAdmin
-        .from('bot_settings')
-        .select('is_active')
-        .eq('category', 'classifier_keywords_enabled')
-        .eq('mode', 'default')
-        .maybeSingle(),
-      supabaseAdmin
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_prompt')
-        .eq('mode', mode)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_keywords')
-        .eq('mode', 'default')
-        .maybeSingle(),
-    ])
+  const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
+    supabaseAdmin
+      .from('bot_settings')
+      .select('is_active')
+      .eq('category', 'classifier_keywords_enabled')
+      .eq('mode', 'default')
+      .maybeSingle(),
+    supabaseAdmin
+      .from('bot_settings')
+      .select('content')
+      .eq('category', 'classifier_prompt')
+      .eq('mode', mode)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('bot_settings')
+      .select('content')
+      .eq('category', 'classifier_keywords')
+      .eq('mode', 'default')
+      .maybeSingle(),
+  ])
 
-    if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
-    if (promptResult.data?.content) activePrompt = promptResult.data.content
-    if (keywordsResult.data?.content) {
-      try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch {}
-    }
-  } catch (err) {
-    logger.warn(`Could not load classifier config [${mode}]: ${(err as Error).message}`)
+  if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
+  if (promptResult.data?.content) activePrompt = promptResult.data.content
+  if (keywordsResult.data?.content) {
+    try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch {}
+  }
+
+  if (!activePrompt) {
+    throw new Error(`Classifier prompt not found in DB for mode "${mode}". Seed bot_settings with category=classifier_prompt.`)
   }
 
   // Keyword fast-path
@@ -154,10 +154,12 @@ export async function classifyIntentWithModel(
     let key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
     if (modelConfig.provider.toLowerCase().includes('ollama')) key = 'LOCAL'
     
-    try {
-      let rawResponse: string | null = null
-      const traceContext: any = { aiApiKey }
-      const prompt = `${activePrompt}\n"${message}"`
+      try {
+        let rawResponse: string | null = null
+        const traceContext: any = { aiApiKey }
+        const prompt = replyContext
+          ? `${replyContext.attentionBlock}\n${replyContext.historyBlock}\n${activePrompt}\n"${message}"`
+          : `${activePrompt}\n"${message}"`
 
       const provider = modelConfig.provider.toLowerCase()
       if (provider === 'google') {
