@@ -6,11 +6,16 @@ import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
 import { CanvasStylePanel } from './CanvasStylePanel';
 import { CanvasConnections } from './CanvasConnections';
+import { CanvasShapeLayer } from './CanvasShapeLayer';
 import { MediaUploadPopover } from './MediaUploadPopover';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
 import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { exportCanvasToPng } from '@/lib/canvasExport';
+import { copyShareLinkToClipboard } from '@/lib/canvasShare';
+import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
+import { supabase } from '@/lib/supabase';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4.0;
@@ -25,10 +30,17 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [pendingConnection, setPendingConnection] = useState<{
     fromId: string; fromSide: string; x: number; y: number; x2: number; y2: number;
   } | null>(null);
+  const [drawingShape, setDrawingShape] = useState<{
+    kind: string; startX: number; startY: number; x: number; y: number; w: number; h: number;
+    points: [number, number][];
+  } | null>(null);
   const [mediaPopover, setMediaPopover] = useState<{
     x: number; y: number; canvasX: number; canvasY: number;
   } | null>(null);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+  const [remoteCursors, setRemoteCursors] = useState<{ userId: string; name: string; x: number; y: number; color: string }[]>([]);
+
+  const cloudSyncEnabled = useStore(s => s.cloudSyncEnabled);
 
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
@@ -148,6 +160,52 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     };
   }, [viewport]);
 
+  // Cloud sync: load remote blocks and subscribe to realtime updates
+  useEffect(() => {
+    if (!cloudSyncEnabled) return;
+
+    loadCanvasBlocks(entity.id).then(remoteBlocks => {
+      if (remoteBlocks.length === 0) return;
+      const current = useStore.getState().blocks;
+      const others = current.filter(b => b.canvasId !== entity.id);
+      useStore.setState({ blocks: [...others, ...remoteBlocks] });
+    });
+
+    const unsub = subscribeCanvasBlocks(
+      entity.id,
+      () => useStore.getState().blocks.filter(b => b.canvasId === entity.id),
+      (updated) => {
+        const others = useStore.getState().blocks.filter(b => b.canvasId !== entity.id);
+        useStore.setState({ blocks: [...others, ...updated] });
+      }
+    );
+
+    return unsub;
+  }, [entity.id, cloudSyncEnabled]);
+
+  // Live cursors: subscribe to broadcast cursor events from other users
+  useEffect(() => {
+    if (!cloudSyncEnabled || !supabase) return;
+
+    const COLORS = ['#5b9cf6', '#a78bfa', '#4ade80', '#f87171', '#f59e0b', '#ec4899'];
+    const colorMap = new Map<string, string>();
+
+    const channel = supabase.channel(`cursors:${entity.id}`, {
+      config: { presence: { key: 'me' } },
+    })
+      .on('broadcast', { event: 'cursor' }, ({ payload }: { payload: { userId?: string; name?: string; x: number; y: number } }) => {
+        const uid = payload.userId ?? 'unknown';
+        if (!colorMap.has(uid)) colorMap.set(uid, COLORS[colorMap.size % COLORS.length]);
+        setRemoteCursors(prev => {
+          const filtered = prev.filter(c => c.userId !== uid);
+          return [...filtered, { userId: uid, name: payload.name ?? 'User', x: payload.x, y: payload.y, color: colorMap.get(uid)! }];
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [entity.id, cloudSyncEnabled]);
+
   function handleUndo() {
     const prev = history.undo();
     if (prev) {
@@ -252,6 +310,57 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       return;
     }
 
+    const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'arrow', 'line', 'freedraw'];
+    if (SHAPE_TOOLS.includes(activeTool) && e.button === 0) {
+      const { x, y } = screenToCanvas(e.clientX, e.clientY);
+      const kind = activeTool;
+      setDrawingShape({ kind, startX: x, startY: y, x, y, w: 0, h: 0, points: [[x, y]] });
+
+      const onMove = (ev: PointerEvent) => {
+        const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
+        setDrawingShape(prev => {
+          if (!prev) return null;
+          if (kind === 'freedraw' || kind === 'line' || kind === 'arrow') {
+            return { ...prev, points: [...prev.points, [cx, cy] as [number, number]], w: cx - prev.startX, h: cy - prev.startY };
+          }
+          const nx = Math.min(prev.startX, cx), ny = Math.min(prev.startY, cy);
+          return { ...prev, x: nx, y: ny, w: Math.abs(cx - prev.startX), h: Math.abs(cy - prev.startY) };
+        });
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        setDrawingShape(prev => {
+          if (!prev) return null;
+          const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
+          const isPoint = Math.abs(cx - prev.startX) < 3 && Math.abs(cy - prev.startY) < 3;
+          if (!isPoint) {
+            const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
+            addCanvasBlock({
+              id: generateId(), type: 'shape', content: '', canvasId: entity.id,
+              shapeKind: kind as any,
+              x: isLineish ? 0 : prev.x, y: isLineish ? 0 : prev.y,
+              width: isLineish ? 0 : Math.max(prev.w, 20),
+              height: isLineish ? 0 : Math.max(prev.h, 20),
+              points: isLineish ? prev.points : undefined,
+              canvasStyleExt: {
+                stroke: '#d38f36', strokeWidth: 1.5, strokeStyle: 'solid',
+                fill: isLineish ? 'transparent' : '#d38f36', fillOpacity: isLineish ? 0 : 0.1,
+              },
+            });
+            history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+          }
+          return null;
+        });
+        setActiveTool('select');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      return;
+    }
+
     const { x, y } = screenToCanvas(e.clientX, e.clientY);
 
     if (activeTool === 'text') {
@@ -299,8 +408,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         canRedo={history.canRedo}
         onUndo={handleUndo}
         onRedo={handleRedo}
-        onExport={() => { /* wired in Task 12 */ }}
-        onShare={() => { /* wired in Task 12 */ }}
+        onExport={async () => {
+          const el = document.getElementById('canvas-viewport-export');
+          if (el) await exportCanvasToPng(el as HTMLElement, entity.title);
+        }}
+        onShare={() => {
+          copyShareLinkToClipboard(entity.id);
+        }}
         canvasTitle={entity.title}
       />
 
@@ -327,10 +441,22 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           <div
             id="canvas-bg"
             onPointerDown={handleBgPointerDown}
+            onPointerMove={(e) => {
+              if (!cloudSyncEnabled || !supabase) return;
+              const now = Date.now();
+              if ((window as any).__lastCursorBroadcast && now - (window as any).__lastCursorBroadcast < 33) return;
+              (window as any).__lastCursorBroadcast = now;
+              const { x, y } = screenToCanvas(e.clientX, e.clientY);
+              supabase.channel(`cursors:${entity.id}`).send({
+                type: 'broadcast',
+                event: 'cursor',
+                payload: { x, y },
+              }).catch(() => {});
+            }}
             className="w-full h-full relative"
           >
             <div
-              id="canvas-viewport"
+              id="canvas-viewport-export"
               style={{
                 transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
                 transformOrigin: '0 0',
@@ -341,6 +467,35 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             >
               <div style={{ pointerEvents: 'auto' }}>
                 <CanvasConnections canvasId={entity.id} />
+
+                <CanvasShapeLayer
+                  blocks={pageBlocks}
+                  selectedIds={selectedIds}
+                  onSelect={selectBlock}
+                />
+
+                {drawingShape && (
+                  <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none z-[4998]">
+                    {(drawingShape.kind === 'rect') && (
+                      <rect x={drawingShape.x} y={drawingShape.y} width={drawingShape.w} height={drawingShape.h}
+                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />
+                    )}
+                    {(drawingShape.kind === 'ellipse') && (
+                      <ellipse cx={drawingShape.x + drawingShape.w/2} cy={drawingShape.y + drawingShape.h/2}
+                        rx={drawingShape.w/2} ry={drawingShape.h/2}
+                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />
+                    )}
+                    {(drawingShape.kind === 'diamond') && (() => {
+                      const {x, y, w, h} = drawingShape;
+                      return <polygon points={`${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`}
+                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />;
+                    })()}
+                    {(['line','arrow','freedraw'].includes(drawingShape.kind)) && drawingShape.points.length > 1 && (
+                      <path d={drawingShape.points.map((p,i) => `${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ')}
+                        fill="none" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" strokeLinecap="round" />
+                    )}
+                  </svg>
+                )}
 
                 {pendingConnection && (
                   <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[5000]">
