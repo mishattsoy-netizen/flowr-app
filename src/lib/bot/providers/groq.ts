@@ -67,8 +67,8 @@ export async function runGroq(
         })
 
         if (response.status === 429) {
-          logger.warn(`Groq key rate limited (429). Trying next key...`)
-          break // Break inner while, continue outer key loop
+          logger.warn(`Groq [${modelId}] key index ${i + 1} rate limited (429) — trying next key if available`)
+          break
         }
 
         const data = await response.json()
