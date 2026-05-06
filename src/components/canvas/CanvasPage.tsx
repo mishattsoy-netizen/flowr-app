@@ -46,6 +46,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const panStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
   const spaceHeldRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const lastCursorBroadcastRef = useRef(0);
 
   const blocks = useStore(s => s.blocks);
   const addCanvasBlock = useStore(s => s.addCanvasBlock);
@@ -163,11 +164,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   // Cloud sync: load remote blocks and subscribe to realtime updates
   useEffect(() => {
     if (!cloudSyncEnabled) return;
+    let isMounted = true;
 
     loadCanvasBlocks(entity.id).then(remoteBlocks => {
-      if (remoteBlocks.length === 0) return;
-      const current = useStore.getState().blocks;
-      const others = current.filter(b => b.canvasId !== entity.id);
+      if (!isMounted || remoteBlocks.length === 0) return;
+      const others = useStore.getState().blocks.filter(b => b.canvasId !== entity.id);
       useStore.setState({ blocks: [...others, ...remoteBlocks] });
     });
 
@@ -180,7 +181,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     );
 
-    return unsub;
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, [entity.id, cloudSyncEnabled]);
 
   // Live cursors: subscribe to broadcast cursor events from other users
@@ -203,7 +207,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, [entity.id, cloudSyncEnabled]);
 
   function handleUndo() {
@@ -444,14 +451,14 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             onPointerMove={(e) => {
               if (!cloudSyncEnabled || !supabase) return;
               const now = Date.now();
-              if ((window as any).__lastCursorBroadcast && now - (window as any).__lastCursorBroadcast < 33) return;
-              (window as any).__lastCursorBroadcast = now;
+              if (now - lastCursorBroadcastRef.current < 33) return;
+              lastCursorBroadcastRef.current = now;
               const { x, y } = screenToCanvas(e.clientX, e.clientY);
               supabase.channel(`cursors:${entity.id}`).send({
                 type: 'broadcast',
                 event: 'cursor',
                 payload: { x, y },
-              }).catch(() => {});
+              }).catch((err: unknown) => console.warn('[cursor broadcast]', err));
             }}
             className="w-full h-full relative"
           >
