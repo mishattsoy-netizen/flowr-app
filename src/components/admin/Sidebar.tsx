@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 import {
   Activity, Cpu, ShieldCheck, Users, Zap, Shield, Terminal,
   Bot, MessageSquareText, BarChart3, ScrollText, ArrowLeft,
-  Database, Settings, Brain, ChevronDown, ChevronRight,
-  RotateCcw, MessageCircle, LayoutDashboard
+  Database, Brain,
+  RotateCcw, MessageCircle, LayoutDashboard, Map, Globe
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,15 +37,25 @@ export default function Sidebar() {
           <NavLink href="/admin/presets" icon={Zap}>Usage Presets</NavLink>
           <NavLink href="/admin/models" icon={Database}>Model Registry</NavLink>
           <NavLink href="/admin/router" icon={Cpu}>Router Matrix</NavLink>
+          <NavLink href="/admin/roadmap" icon={Map}>Project Roadmap</NavLink>
         </PlatformSection>
 
         <PlatformSection title="Bot Intelligence">
-          <NavLink href="/admin/bot/settings" icon={Settings}>Settings</NavLink>
+          <NavLink href="/admin/bot/global" icon={Globe}>Global Settings</NavLink>
+          <div className="px-3 py-[3px] mt-1">
+            <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Modes</span>
+          </div>
+          <NavLink href="/admin/bot/default" icon={Zap}>Default Mode</NavLink>
+          <NavLink href="/admin/bot/think" icon={Brain}>Think Mode</NavLink>
+          <NavLink href="/admin/bot/pro" icon={Cpu}>Pro Mode</NavLink>
+          <div className="px-3 py-[3px] mt-1">
+            <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Intelligence</span>
+          </div>
           <NavLink href="/admin/bot/brain" icon={Brain}>Brain</NavLink>
+          <NavLink href="/admin/bot/keywords" icon={Zap}>Keywords</NavLink>
           <NavLink href="/admin/bot/dashboard" icon={LayoutDashboard}>Dashboard</NavLink>
           <NavLink href="/admin/bot/routine" icon={RotateCcw}>Routine</NavLink>
           <NavLink href="/admin/bot/feedback" icon={MessageCircle}>Feedback</NavLink>
-          <NavLink href="/admin/bot/classifier" icon={Zap}>Classifier</NavLink>
         </PlatformSection>
       </nav>
 

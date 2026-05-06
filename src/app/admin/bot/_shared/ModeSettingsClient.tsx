@@ -17,24 +17,6 @@ const SETTINGS_TABS: { key: SettingsCategory; label: string; description: string
   { key: 'restrictions',     label: 'Restrictions', description: 'Topics and behaviors that are off-limits' },
 ]
 
-const INTENT_COLORS: Record<string, { bg: string, text: string, border: string }> = {
-  FAST_SIMPLE: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-  MEDIUM_THINKING: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' },
-  COMPLEX_THINKING: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' },
-  IMAGE_GEN: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' },
-  WEB_SEARCH: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  TOOL_CALLING: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
-  AUDIO_VOICE: { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/20' },
-  VISION: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20' },
-  CODING: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20' },
-  DEEP_RESEARCH: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' }
-}
-
-const CATEGORIES = [
-  'FAST_SIMPLE', 'MEDIUM_THINKING', 'COMPLEX_THINKING', 'IMAGE_GEN',
-  'WEB_SEARCH', 'TOOL_CALLING', 'AUDIO_VOICE', 'VISION', 'CODING', 'DEEP_RESEARCH'
-]
-
 interface Props {
   mode: BotMode
   modeLabel: string
@@ -42,13 +24,12 @@ interface Props {
   initialSettings: BotSetting[]
   initialActiveStates: Record<string, boolean>
   initialClassifierPrompt: string
-  initialClassifierKeywords: Record<string, string[]>
 }
 
 export default function ModeSettingsClient({
   mode, modeLabel, modeIcon,
   initialSettings, initialActiveStates,
-  initialClassifierPrompt, initialClassifierKeywords,
+  initialClassifierPrompt,
 }: Props) {
   const [activeTab, setActiveTab] = useState<SettingsCategory | 'classifier'>('core_rules')
   const [drafts, setDrafts] = useState<Record<string, string>>(
@@ -57,13 +38,6 @@ export default function ModeSettingsClient({
   const [activeStates, setActiveStates] = useState(initialActiveStates)
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [classifierPrompt, setClassifierPrompt] = useState(initialClassifierPrompt)
-  const [keywordInputs] = useState<Record<string, string>>(() => {
-    const inputs: Record<string, string> = {}
-    for (const [k, v] of Object.entries(initialClassifierKeywords || {})) {
-      inputs[k] = Array.isArray(v) ? v.join(', ') : ''
-    }
-    return inputs
-  })
   const [classifierSaved, setClassifierSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -82,18 +56,13 @@ export default function ModeSettingsClient({
 
   const handleClassifierSave = () => {
     startTransition(async () => {
-      const keywords: Record<string, string[]> = {}
-      for (const [k, v] of Object.entries(keywordInputs)) {
-        const words = v.split(',').map(w => w.trim()).filter(Boolean)
-        if (words.length > 0) keywords[k] = words
-      }
-      await saveClassifierConfig(classifierPrompt, keywords, mode)
+      await saveClassifierConfig(classifierPrompt, {}, mode)
       setClassifierSaved(true)
       setTimeout(() => setClassifierSaved(false), 1500)
     })
   }
 
-  const allTabs = [...SETTINGS_TABS, { key: 'classifier' as const, label: 'Classifier', description: 'Intent classification prompt and keywords for this mode' }]
+  const allTabs = [...SETTINGS_TABS, { key: 'classifier' as const, label: 'Classifier', description: 'Intent classification prompt for this mode' }]
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
@@ -105,9 +74,9 @@ export default function ModeSettingsClient({
       {/* Tab bar */}
       <div className="flex gap-2 flex-wrap mb-2">
         {allTabs.map(t => (
-          <div key={t.key} 
+          <div key={t.key}
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer transition-colors', 
+              'flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer transition-colors',
               activeTab === t.key ? 'bg-white/10' : 'bg-white/5 hover:bg-white/10'
             )}
             onClick={() => setActiveTab(t.key as SettingsCategory | 'classifier')}
@@ -147,50 +116,19 @@ export default function ModeSettingsClient({
           </div>
         )
       })() : (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 p-5 rounded-[16px] bg-white/5">
-            <div>
-              <p className="text-sm font-medium text-bone-100">Classifier Prompt</p>
-              <p className="text-xs text-bone-60 mt-0.5">System prompt used when classifying messages in {modeLabel} mode</p>
-            </div>
-            <textarea value={classifierPrompt} onChange={e => setClassifierPrompt(e.target.value)} rows={12}
-              className="w-full bg-[#111111] rounded-[8px] p-4 text-sm text-bone-100 font-mono resize-y focus:outline-none placeholder:text-bone-60" />
-            <div className="flex justify-end mt-2">
-              <button onClick={handleClassifierSave} disabled={isPending}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-[8px] bg-white text-black hover:bg-bone-80 transition-colors">
-                {classifierSaved ? <Check className="w-3.5 h-3.5 text-green-600" /> : null}
-                {classifierSaved ? 'Saved' : 'Save'}
-              </button>
-            </div>
+        <div className="flex flex-col gap-4 p-5 rounded-[16px] bg-white/5">
+          <div>
+            <p className="text-sm font-medium text-bone-100">Classifier Prompt</p>
+            <p className="text-xs text-bone-60 mt-0.5">System prompt used when classifying messages in {modeLabel} mode</p>
           </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="mb-2 pl-2 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-bone-100">Intent Keyword Fast-Pass</p>
-                <p className="text-xs text-bone-60 mt-0.5">Keywords are shared across all modes. Edit them in the <a href="/admin/bot/classifier" className="underline text-bone-80 hover:text-bone-100 transition-colors">Classifier page</a>.</p>
-              </div>
-            </div>
-
-            {CATEGORIES.map(cat => {
-              const colors = INTENT_COLORS[cat] || { bg: 'bg-white/10', text: 'text-bone-100', border: 'border-white/10' }
-              return (
-                <div key={cat} className="p-4 rounded-[16px] bg-white/5 opacity-60">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className={cn('text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-[6px] border', colors.bg, colors.text, colors.border)}>
-                      {cat.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-[10px] text-bone-60 font-mono">{cat}</span>
-                  </div>
-                  <input
-                    value={keywordInputs[cat] || ''}
-                    readOnly
-                    placeholder="No keywords set"
-                    className="w-full bg-[#111111] rounded-[8px] p-4 text-sm text-bone-100 font-medium focus:outline-none placeholder:text-bone-60/50 cursor-not-allowed"
-                  />
-                </div>
-              )
-            })}
+          <textarea value={classifierPrompt} onChange={e => setClassifierPrompt(e.target.value)} rows={12}
+            className="w-full bg-[#111111] rounded-[8px] p-4 text-sm text-bone-100 font-mono resize-y focus:outline-none placeholder:text-bone-60" />
+          <div className="flex justify-end mt-2">
+            <button onClick={handleClassifierSave} disabled={isPending}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-[8px] bg-white text-black hover:bg-bone-80 transition-colors">
+              {classifierSaved ? <Check className="w-3.5 h-3.5 text-green-600" /> : null}
+              {classifierSaved ? 'Saved' : 'Save'}
+            </button>
           </div>
         </div>
       )}

@@ -8,24 +8,25 @@ import type { BotMode } from '@/data/store.types'
 
 export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ prompt: string; keywords: Record<string, string[]> }> {
   try {
-    const { data: promptBlock } = await supabase
-      .from('bot_settings')
-      .select('content')
-      .eq('category', 'classifier_prompt')
-      .eq('mode', mode)
-      .maybeSingle()
+    const [promptResult, keywordsResult] = await Promise.all([
+      supabase
+        .from('bot_settings')
+        .select('content')
+        .eq('category', 'classifier_prompt')
+        .eq('mode', mode)
+        .maybeSingle(),
+      supabase
+        .from('bot_settings')
+        .select('content')
+        .eq('category', 'classifier_keywords')
+        .eq('mode', 'default')
+        .maybeSingle(),
+    ])
 
-    const { data: keywordsBlock } = await supabase
-      .from('bot_settings')
-      .select('content')
-      .eq('category', 'classifier_keywords')
-      .eq('mode', 'default')
-      .maybeSingle()
-
-    const prompt = promptBlock?.content || DEFAULT_CLASSIFICATION_PROMPT
+    const prompt = promptResult.data?.content || DEFAULT_CLASSIFICATION_PROMPT
     let keywords = DEFAULT_KEYWORDS
-    if (keywordsBlock?.content) {
-      try { keywords = JSON.parse(keywordsBlock.content) } catch { keywords = DEFAULT_KEYWORDS }
+    if (keywordsResult.data?.content) {
+      try { keywords = JSON.parse(keywordsResult.data.content) } catch { keywords = DEFAULT_KEYWORDS }
     }
     return { prompt, keywords }
   } catch (err) {
@@ -34,23 +35,31 @@ export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ 
   }
 }
 
-export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
-  const { error: err1 } = await supabase
+export async function saveClassifierPrompt(prompt: string, mode: BotMode = 'default'): Promise<void> {
+  const { error } = await supabase
     .from('bot_settings')
     .upsert(
       { category: 'classifier_prompt', content: prompt, mode, updated_at: new Date().toISOString() },
       { onConflict: 'category,mode' }
     )
-  if (err1) throw err1
+  if (error) throw error
+  await logAdminAction('settings_saved', `Saved classifier prompt [${mode}]`, { mode })
+  revalidatePath(`/admin/bot/${mode}`)
+}
 
-  const { error: err2 } = await supabase
+export async function saveClassifierKeywords(keywords: Record<string, string[]>): Promise<void> {
+  const { error } = await supabase
     .from('bot_settings')
     .upsert(
       { category: 'classifier_keywords', content: JSON.stringify(keywords), mode: 'default', updated_at: new Date().toISOString() },
       { onConflict: 'category,mode' }
     )
-  if (err2) throw err2
+  if (error) throw error
+  await logAdminAction('settings_saved', 'Saved classifier keywords')
+  revalidatePath('/admin/bot/keywords')
+}
 
-  await logAdminAction('settings_saved', `Saved classifier config [${mode}]`, { mode })
-  revalidatePath(`/admin/bot/${mode}`)
+// Kept for backward compatibility with ModeSettingsClient
+export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
+  await saveClassifierPrompt(prompt, mode)
 }
