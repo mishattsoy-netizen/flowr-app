@@ -57,4 +57,5 @@ export async function saveClassifierKeywords(keywords: Record<string, string[]>)
 
 export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
   await saveClassifierPrompt(prompt, mode)
+  await saveClassifierKeywords(keywords)
 }
