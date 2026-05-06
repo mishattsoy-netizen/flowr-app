@@ -75,9 +75,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { category: rawCategory } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId, activeMode, intentTag ?? null)
+    const { category: rawCategory, error: classifyError } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId, activeMode, intentTag ?? null)
+    if (!rawCategory) {
+      return NextResponse.json({ error: classifyError ?? 'Classifier failed — check Admin > Router > CLASSIFIER', model: 'system' }, { status: 500 })
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let category = (rawCategory ?? 'FAST_SIMPLE') as any
+    let category = rawCategory as any
     const [{ chain, system_prompt, temperature }, globalPromptForOllama, ollamaHistory] = await Promise.all([
       getRouterChain(category),
       getCompiledPrompt(),
@@ -106,8 +109,6 @@ export async function POST(req: NextRequest) {
         fullSystemPrompt = globalPromptForOllama + '\n\n' + fullSystemPrompt
       }
       fullSystemPrompt = dateContext + "\n\n" + fullSystemPrompt
-      fullSystemPrompt = "CRITICAL: Provide ONLY the final answer. NEVER output internal reasoning, analysis, planning, or drafting. Do not use headers like '*Neutrality:*', '*Final version plan:*', or '*Self-Correction:*'. Jump directly to the response.\n" +
-                      "When you use a tool or perform a search, always synthesize and summarize the tool results into a natural, complete, and helpful answer to the user's question. Do NOT output raw tool results verbatim.\n\n" + fullSystemPrompt;
 
       const stream = await streamOllama(activeModelConfig.id, prompt, fullSystemPrompt, ollamaHistory, temperature)
 
