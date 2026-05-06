@@ -94,11 +94,14 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     const handlePointerMove = (moveEvent: PointerEvent) => {
       const newX = moveEvent.clientX / viewport.scale - startX;
       const newY = moveEvent.clientY / viewport.scale - startY;
-      setPosition({ x: newX, y: newY });
+      const snapped = snapWithObjects
+        ? snapWithObjects(newX, newY, block.width ?? 100, block.height ?? 40, block.id)
+        : { x: newX, y: newY };
+      setPosition({ x: snapped.x, y: snapped.y });
 
       // Live update store for connection tracking
       if (block.type !== 'connection' && (blocks.some(b => b.fromId === block.id || b.toId === block.id))) {
-        updateCanvasBlock(block.id, { x: newX, y: newY });
+        updateCanvasBlock(block.id, { x: snapped.x, y: snapped.y });
       }
 
       const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
