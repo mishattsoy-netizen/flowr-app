@@ -32,6 +32,11 @@ export async function runGoogle(
     return null
   }
 
+  if (!prompt) {
+    logger.error(`Google provider [${modelId}]: received empty prompt — no fallback configured`)
+    return null
+  }
+
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
     try {
@@ -39,10 +44,6 @@ export async function runGoogle(
 
       const isGemma = modelId.toLowerCase().includes('gemma')
       let finalPrompt = prompt
-      if (!finalPrompt) {
-        logger.error(`Google provider [${modelId}]: received empty prompt — no fallback configured`)
-        return null
-      }
 
       // Legacy Gemma models (1, 2, 3) don't support native systemInstruction role or tools on Gemini API.
       // We prepend system instructions to the prompt text instead to bypass the 400 Bad Request.
