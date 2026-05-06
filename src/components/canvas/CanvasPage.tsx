@@ -518,6 +518,24 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   </svg>
                 )}
 
+                {remoteCursors.map(c => (
+                  <div
+                    key={c.userId}
+                    className="absolute pointer-events-none flex items-start gap-1 z-[6000]"
+                    style={{ left: c.x, top: c.y }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 2L6 12L7.5 8L11 6.5L2 2Z" fill={c.color} />
+                    </svg>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-[4px] whitespace-nowrap"
+                      style={{ background: `${c.color}20`, color: c.color, border: `1px solid ${c.color}40` }}
+                    >
+                      {c.name}
+                    </span>
+                  </div>
+                ))}
+
                 {pageBlocks.map(b => (
                   <CanvasBlock
                     key={b.id}
