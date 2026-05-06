@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
     user = data.user
   }
 
-  const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, agentEnabled } = await req.json()
+  const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, agentEnabled, mode, intentTag } = await req.json()
+  const activeMode = (mode === 'think' || mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
     return NextResponse.json({ error: 'prompt or image is required', model: 'system' }, { status: 400 })
@@ -74,12 +75,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { category: rawCategory } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId)
+    const { category: rawCategory } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId, activeMode, intentTag ?? null)
     let category = rawCategory
     if (agentEnabled === true && (category === 'FAST_SIMPLE' || category === 'MEDIUM_THINKING')) {
       category = 'TOOL_CALLING'
     }
-    const { chain, system_prompt, temperature } = await getRouterChain(category)
+    const [{ chain, system_prompt, temperature }, globalPromptForOllama, ollamaHistory] = await Promise.all([
+      getRouterChain(category),
+      getCompiledPrompt(),
+      getWebConversationMemory(userId),
+    ])
     let activeModelConfig = chain.find(m => m.is_enabled)
     let isOllama = false
 
@@ -95,16 +100,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (isOllama && activeModelConfig) {
-      const globalPrompt = await getCompiledPrompt()
+      const now = new Date()
+      const dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
+      
       let fullSystemPrompt = system_prompt || ''
-      if (globalPrompt) {
-        fullSystemPrompt = globalPrompt + '\n\n' + fullSystemPrompt
+      if (globalPromptForOllama) {
+        fullSystemPrompt = globalPromptForOllama + '\n\n' + fullSystemPrompt
       }
+      fullSystemPrompt = dateContext + "\n\n" + fullSystemPrompt
       fullSystemPrompt = "CRITICAL: Provide ONLY the final answer. NEVER output internal reasoning, analysis, planning, or drafting. Do not use headers like '*Neutrality:*', '*Final version plan:*', or '*Self-Correction:*'. Jump directly to the response.\n" +
                       "When you use a tool or perform a search, always synthesize and summarize the tool results into a natural, complete, and helpful answer to the user's question. Do NOT output raw tool results verbatim.\n\n" + fullSystemPrompt;
 
-      const history = await getWebConversationMemory(userId)
-      const stream = await streamOllama(activeModelConfig.id, prompt, fullSystemPrompt, history, temperature)
+      const stream = await streamOllama(activeModelConfig.id, prompt, fullSystemPrompt, ollamaHistory, temperature)
 
       if (stream) {
         const encoder = new TextEncoder()
@@ -159,7 +166,7 @@ export async function POST(req: NextRequest) {
     const result = await runChain(
       prompt,
       buffer ? Buffer.from(buffer, 'base64') : undefined,
-      { userId, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, agentEnabled: agentEnabled === true, temperature }
+      { userId, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, agentEnabled: agentEnabled === true, temperature, mode: activeMode, intentTag: intentTag ?? null }
     )
 
     let content = result.content
@@ -196,7 +203,8 @@ export async function POST(req: NextRequest) {
       log_id: messageLogId ?? undefined,
       classification_trace: result.classification_trace,
       routing_trace: result.routing_trace,
-      model_chain: modelChain
+      model_chain: modelChain,
+      citations: result.citations
     })
   } catch (error: any) {
     console.error('[AI API Error]', error);
