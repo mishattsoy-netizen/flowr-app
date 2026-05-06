@@ -19,7 +19,7 @@ export type {
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
   WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
-  BotMode,
+  BotMode, ShapeKind, CanvasStyleExt,
 } from './store.types';
 
 // Re-export helpers needed by external consumers
@@ -161,7 +161,7 @@ export const useStore = create<AppState>()(
       hiddenEntityIds: [],
       isCommandPaletteOpen: false,
       selectedSidebarIds: [],
-      aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000 },
+      aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000, compaction_threshold: 0.8 },
       activeMode: 'default' as BotMode,
       activeIntentTag: null,
 
@@ -251,25 +251,18 @@ export const useStore = create<AppState>()(
       
       fetchAISessionContext: async (chatId) => {
         try {
-          const { data, error } = await supabase
-            .from('bot_session_states')
-            .select('distilled_summary, token_usage_total, context_limit')
-            .eq('chat_id', chatId)
-            .maybeSingle();
-          if (error) throw error;
-          if (data) {
-            set({ aiSessionContext: data });
-          } else {
-            set({ aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000 } });
-          }
+          const res = await fetch(`/api/ai/memory/context?chatId=${encodeURIComponent(chatId)}&t=${Date.now()}`);
+          if (!res.ok) throw new Error('Failed to fetch session context');
+          const data = await res.json();
+          set({ aiSessionContext: data });
         } catch (err) {
           console.error('Failed to fetch session context:', err);
         }
       },
 
       clearAIChat: async () => {
-        const { activeEntityId } = get();
-        set({ aiMessages: [], aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000 }, activeMode: 'default', activeIntentTag: null });
+        const { activeEntityId, fetchAISessionContext } = get();
+        set({ aiMessages: [], aiSessionContext: null, activeMode: 'default', activeIntentTag: null });
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
           if (isSupabaseEnabled) {
@@ -284,10 +277,7 @@ export const useStore = create<AppState>()(
             body: JSON.stringify({ activeEntityId }) 
           });
           
-          // Also clear from bot_session_states table via Supabase client
-          if (activeEntityId) {
-            await supabase.from('bot_session_states').delete().eq('chat_id', activeEntityId);
-          }
+          await fetchAISessionContext(activeEntityId || 'global');
         } catch (err) {
           console.error('Failed to clear server-side memory:', err);
         }
@@ -337,7 +327,7 @@ export const useStore = create<AppState>()(
       setActiveMode: (mode) => set({ activeMode: mode }),
       setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
 
-      sendAIMessage: async (content, agentEnabled = false, attachments = []) => {
+      sendAIMessage: async (content, attachments = []) => {
         const { aiMessages } = get();
 
         const userMessage: AIMessage = {
@@ -380,7 +370,6 @@ export const useStore = create<AppState>()(
             body: JSON.stringify({
               prompt: content,
               buffer: imageBuffer,
-              agentEnabled,
               activeEntityId: get().activeEntityId,
               aiApiKey: get().aiApiKey,
               activeWorkspaceId: get().activeWorkspaceId,
@@ -1077,6 +1066,8 @@ export const useStore = create<AppState>()(
         sidebarSectionSettings: state.sidebarSectionSettings,
         hiddenEntityIds: state.hiddenEntityIds,
         recentEntityIds: state.recentEntityIds,
+        activeMode: state.activeMode,
+        activeIntentTag: state.activeIntentTag,
       }),
     }
   )

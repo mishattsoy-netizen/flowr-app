@@ -79,6 +79,19 @@ export interface DatabaseRow {
   cells: Record<string, string>;
 }
 
+export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw';
+
+export interface CanvasStyleExt {
+  fill?: string;
+  fillOpacity?: number;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeStyle?: 'solid' | 'dashed' | 'dotted';
+  cornerRadius?: number;
+  opacity?: number;
+  locked?: boolean;
+}
+
 export interface EditorBlock {
   id: string;
   type: BlockType;
@@ -115,6 +128,10 @@ export interface EditorBlock {
     opacity?: number;
     cornerRadius?: number;
   };
+  shapeKind?: ShapeKind;
+  points?: [number, number][];
+  canvasStyleExt?: CanvasStyleExt;
+  groupId?: string;
   fromId?: string;
   toId?: string;
   fromSide?: 'top' | 'right' | 'bottom' | 'left';
@@ -216,6 +233,7 @@ export interface AISessionContext {
   distilled_summary: string | null;
   token_usage_total: number;
   context_limit: number;
+  compaction_threshold: number;
   active_mode?: BotMode;
 }
 
@@ -403,7 +421,7 @@ export interface AppState {
   setAIClassificationModelId: (id: string) => void;
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
-  sendAIMessage: (content: string, agentEnabled?: boolean, attachments?: AIAttachment[]) => Promise<void>;
+  sendAIMessage: (content: string, attachments?: AIAttachment[]) => Promise<void>;
   setActiveEntityId: (id: string | null) => void;
   addTab: (id?: string) => void;
   removeTab: (id: string) => void;
