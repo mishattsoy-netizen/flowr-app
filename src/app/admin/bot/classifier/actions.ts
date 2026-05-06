@@ -19,7 +19,7 @@ export async function getClassifierConfig(mode: BotMode = 'default'): Promise<{ 
       .from('bot_settings')
       .select('content')
       .eq('category', 'classifier_keywords')
-      .eq('mode', mode)
+      .eq('mode', 'default')
       .maybeSingle()
 
     const prompt = promptBlock?.content || DEFAULT_CLASSIFICATION_PROMPT
