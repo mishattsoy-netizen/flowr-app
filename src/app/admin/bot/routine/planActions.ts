@@ -18,59 +18,44 @@ export interface ImprovementPlan {
   status: 'pending' | 'accepted' | 'rejected' | 'edited'
   edit_notes: string | null
   created_at: string
-  signal?: string
   source?: 'feedback analysis' | 'routine run'
   trigger?: 'manual' | 'auto'
 }
 
 export async function getLatestPlans(): Promise<ImprovementPlan[]> {
   try {
-    const { data: session, error: sessionErr } = await supabase
-      .from('bot_analysis_sessions')
-      .select('id, triggered_by')
-      .eq('status', 'complete')
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (sessionErr || !session) return []
-
     const { data, error } = await supabase
       .from('bot_improvement_plans')
-      .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at, signal')
-      .eq('session_id', session.id)
-      .order('created_at')
+      .select(`
+        id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at,
+        session:bot_analysis_sessions(triggered_by)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(100)
 
-    if (error) {
-      const fallbackRes = await supabase
-        .from('bot_improvement_plans')
-        .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at')
-        .eq('session_id', session.id)
-        .order('created_at')
-      if (fallbackRes.error) return []
+    if (error || !data) return []
 
+    return data.map((p: any) => {
+      const session = p.session
       const source: 'feedback analysis' | 'routine run' =
-        session.triggered_by === 'feedback_selection' ? 'feedback analysis' : 'routine run'
+        session?.triggered_by === 'feedback_selection' ? 'feedback analysis' : 'routine run'
       const trigger: 'manual' | 'auto' =
-        session.triggered_by === 'schedule' ? 'auto' : 'manual'
+        session?.triggered_by === 'schedule' ? 'auto' : 'manual'
 
-      return (fallbackRes.data ?? []).map((p: any) => ({
-        ...p,
+      return {
+        id: p.id,
+        session_id: p.session_id,
+        topic: p.topic,
+        title: p.title,
+        reasoning: p.reasoning,
+        plan: p.plan,
+        status: p.status,
+        edit_notes: p.edit_notes,
+        created_at: p.created_at,
         source,
         trigger,
-      })) as ImprovementPlan[]
-    }
-
-    const source: 'feedback analysis' | 'routine run' =
-      session.triggered_by === 'feedback_selection' ? 'feedback analysis' : 'routine run'
-    const trigger: 'manual' | 'auto' =
-      session.triggered_by === 'schedule' ? 'auto' : 'manual'
-
-    return (data ?? []).map((p: any) => ({
-      ...p,
-      source,
-      trigger,
-    })) as ImprovementPlan[]
+      } as ImprovementPlan
+    })
   } catch (err) {
     console.error('[getLatestPlans] error:', err)
     return []
@@ -158,6 +143,17 @@ export async function deletePlan(planId: string, title: string): Promise<void> {
   revalidatePath('/admin/bot/routine')
 }
 
+export async function deletePlans(ids: string[]): Promise<void> {
+  if (!ids.length) return
+  const { error } = await supabase
+    .from('bot_improvement_plans')
+    .delete()
+    .in('id', ids)
+  if (error) throw error
+  await logAdminAction('bulk_plans_deleted', `Deleted ${ids.length} plans permanently`, { count: ids.length })
+  revalidatePath('/admin/bot/routine')
+}
+
 export async function submitPlanEdit(planId: string, editNotes: string): Promise<ImprovementPlan> {
   const { data: plan, error: fetchErr } = await supabase
     .from('bot_improvement_plans')
@@ -203,7 +199,7 @@ Example: {"topic":"Answer Style","title":"Context-aware response length","reason
       edit_notes: editNotes,
     })
     .eq('id', planId)
-    .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at, signal')
+    .select('id, session_id, topic, title, reasoning, plan, status, edit_notes, created_at')
     .single()
 
   if (updateErr || !updated) throw updateErr ?? new Error('Update failed')

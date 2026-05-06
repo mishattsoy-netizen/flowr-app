@@ -160,7 +160,7 @@ export function TrackerPage() {
           <h1 className="text-4xl font-display text-foreground mb-1 flex items-center gap-3">
             Tracker
           </h1>
-          <p className="text-muted-foreground text-sm font-medium">
+          <p className="text-bone-60 text-sm font-medium">
             Manage your progress across all workspaces.
           </p>
         </div>

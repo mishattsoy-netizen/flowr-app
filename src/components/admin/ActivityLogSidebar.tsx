@@ -37,7 +37,7 @@ interface Props { defaultOpen?: boolean }
 
 export default function ActivityLogSidebar({ defaultOpen = false }: Props) {
   const pathname = usePathname()
-  if (pathname === '/admin/bot/brain') return null
+  if (pathname === '/admin/bot/brain' || pathname === '/admin/roadmap') return null
 
   const [open, setOpen] = useState(defaultOpen)
   const [logs, setLogs] = useState<ActivityLog[]>([])

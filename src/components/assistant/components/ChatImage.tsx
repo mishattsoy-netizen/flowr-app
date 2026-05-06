@@ -68,7 +68,7 @@ export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: {
 
       {error && (
         <div className="flex flex-col items-center justify-center gap-4 py-8 text-center bg-[var(--black-overlay)] z-20 w-full">
-          <Skull strokeWidth={1.5} className="w-8 h-8 opacity-70 grayscale contrast-125 text-white/40" />
+          <Skull strokeWidth={2} className="w-8 h-8 opacity-70 grayscale contrast-125 text-white/40" />
           <div className="space-y-1.5 px-6">
             <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-foreground/80">Generation Timeout</h3>
             <p className="text-[10px] text-muted-foreground/60 max-w-[220px] leading-relaxed">

@@ -10,7 +10,14 @@ export function NewItemModal() {
   const { modal, closeModal, addEntity, setActiveEntityId, entities } = useStore();
   const [selectedType, setSelectedType] = useState<EntityType>(modal?.kind === 'newItem' ? modal.initialType || 'note' : 'note');
   const [title, setTitle] = useState('');
-  const [selectedPathId, setSelectedPathId] = useState<string | null>(modal?.kind === 'newItem' ? modal.parentId || null : null);
+
+  const defaultCollection = modal?.kind === 'newItem' && modal.defaultToFirstCollection
+    ? entities.find(e => e.type === 'collection' || e.type === 'workspace')?.id || null
+    : null;
+  
+  const [selectedPathId, setSelectedPathId] = useState<string | null>(
+    modal?.kind === 'newItem' ? (modal.parentId ?? defaultCollection ?? null) : null
+  );
 
   // Calculate folder depth
   const getDepth = (id: string | null): number => {
@@ -55,10 +62,10 @@ export function NewItemModal() {
   };
 
   const types: { type: EntityType; label: string; icon: React.ReactNode }[] = [
-    { type: 'folder', label: 'Folder', icon: <Folder className="w-5 h-5 mb-1" /> },
-    { type: 'note', label: 'Note', icon: <FileText className="w-5 h-5 mb-1" /> },
-    { type: 'canvas', label: 'Canvas', icon: <Frame className="w-5 h-5 mb-1" /> },
-    { type: 'mixed', label: 'Mixed', icon: <Layers className="w-5 h-5 mb-1" /> },
+    { type: 'folder', label: 'Folder', icon: <Folder strokeWidth={2} className="w-5 h-5 mb-1" /> },
+    { type: 'note', label: 'Note', icon: <FileText strokeWidth={2} className="w-5 h-5 mb-1" /> },
+    { type: 'canvas', label: 'Canvas', icon: <Frame strokeWidth={2} className="w-5 h-5 mb-1" /> },
+    { type: 'mixed', label: 'Mixed', icon: <Layers strokeWidth={2} className="w-5 h-5 mb-1" /> },
   ];
 
   return (
@@ -70,7 +77,7 @@ export function NewItemModal() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-foreground">Create New Item</h2>
           <button onClick={closeModal} className="p-1 rounded-[var(--radius-medium)] hover:bg-hover text-muted-foreground hover:text-foreground">
-            <X className="w-5 h-5" />
+            <X strokeWidth={2} className="w-5 h-5" />
           </button>
         </div>
 
@@ -115,7 +122,7 @@ export function NewItemModal() {
               onClick={() => setTitle('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-[var(--radius-small)] hover:bg-hover text-muted-foreground hover:text-foreground"
             >
-              <X className="w-3.5 h-3.5" />
+              <X strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -138,7 +145,7 @@ export function NewItemModal() {
             disabled={!selectedPathId}
             className="btn-accent px-6 py-2.5"
           >
-            <Plus className="w-4 h-4" />
+            <Plus strokeWidth={2} className="w-4 h-4" />
             Create {selectedType}
           </button>
         </div>

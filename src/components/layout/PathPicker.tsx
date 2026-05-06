@@ -69,7 +69,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
                 {/* Indentation Spacer instead of Chevron */}
                 <div className="w-4 h-4 shrink-0 mr-1.5" />
 
-                <Folder className={clsx("mr-2 shrink-0", (node.type === 'collection' || node.type === 'workspace') ? "w-4 h-4 text-accent" : "w-3.5 h-3.5", isSelected && "text-accent")} />
+                <Folder strokeWidth={2} className={clsx("mr-2 shrink-0", (node.type === 'collection' || node.type === 'workspace') ? "w-4 h-4 text-accent" : "w-3.5 h-3.5", isSelected && "text-accent")} />
                 <span className="truncate flex-1">{node.title}</span>
                 <button
                   onClick={(e) => {

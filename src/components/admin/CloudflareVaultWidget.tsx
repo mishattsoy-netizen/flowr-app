@@ -96,7 +96,7 @@ export default function CloudflareVaultWidget({ initialKeys }: { initialKeys: { 
             Cloudflare
           </h3>
         </div>
-        <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-tight">
+        <span className="text-[10px] font-bold text-bone-60 uppercase tracking-tight">
           {fields.filter(f => f.exists).length}/{fields.length} set
         </span>
       </div>
@@ -128,7 +128,7 @@ export default function CloudflareVaultWidget({ initialKeys }: { initialKeys: { 
                   className="w-full bg-background border border-accent/20 rounded-small px-2 py-1 text-[11px] font-mono text-accent focus:outline-none focus:border-accent/40"
                 />
               ) : field.isRevealing ? (
-                <span className="text-[10px] font-mono text-bone-60/40 flex items-center gap-2">
+                <span className="text-[10px] font-mono text-bone-60 flex items-center gap-2">
                   <RotateCcw className="w-2.5 h-2.5 animate-spin" />
                   Decrypting...
                 </span>

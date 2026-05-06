@@ -81,7 +81,7 @@ export function TimerWidget({ data, onUpdateData, isEditing }: { data?: TimerDat
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground">Timer</h2>
         {sessions > 0 && (
-          <span className="text-[10px] font-semibold text-[var(--bone-40)] tracking-wide">{sessions} session{sessions !== 1 ? 's' : ''} today</span>
+          <span className="text-[10px] font-semibold text-bone-60 tracking-wide">{sessions} session{sessions !== 1 ? 's' : ''} today</span>
         )}
       </div>
 

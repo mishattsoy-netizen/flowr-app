@@ -1,0 +1,28 @@
+<h2>What happens to the existing canvas?</h2>
+<p class="subtitle">Your current canvas has blocks, sections, connections, media, and a layers panel. How should we handle it?</p>
+
+<div class="options">
+  <div class="option" data-choice="replace" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Full replace</h3>
+      <p>Rebuild from scratch as an Excalidraw-style canvas. Existing block/section/connection types are dropped or migrated to the new shape model.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="extend" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Extend the existing canvas</h3>
+      <p>Keep existing block types (text, image, video, section, comment, connection) and add Excalidraw-style shape tools on top. Both systems coexist.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="excalidraw-lib" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Embed Excalidraw directly</h3>
+      <p>Use the <code>@excalidraw/excalidraw</code> React package — get 100% feature parity instantly, styled to match your app. Existing canvas data is separate.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem">Pick one, then reply in the terminal.</p>

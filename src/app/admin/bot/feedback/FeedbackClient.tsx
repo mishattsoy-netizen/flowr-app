@@ -36,7 +36,7 @@ function truncate(text: string | null, max = 100) {
 
 function parseChain(chain: string | null): { classifier: string; routed: string } | null {
   if (!chain) return null
-  const parts = chain.split(' → ')
+  const parts = chain.split(' → ').map(p => p.split('|')[0])
   if (parts.length >= 2) return { classifier: parts[0], routed: parts.slice(1).join(' → ') }
   return { classifier: '', routed: parts[0] }
 }
@@ -158,7 +158,7 @@ export default function FeedbackClient({ initialLogs }: Props) {
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="mb-2">
         <h1 className="text-4xl font-display text-foreground mb-1">Feedback Logs</h1>
-        <p className="text-muted-foreground text-sm font-medium">
+        <p className="text-bone-60 text-sm font-medium">
           Liked and disliked messages. Select any to send for targeted analysis.
         </p>
       </div>
@@ -168,7 +168,7 @@ export default function FeedbackClient({ initialLogs }: Props) {
         {(['all', 'like', 'dislike'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={cn("px-3 py-1 rounded-full text-xs font-medium capitalize transition-all",
-              filter === f ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-muted-foreground hover:text-foreground"
+              filter === f ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-bone-60 hover:text-foreground"
             )}>
             {f === 'all' ? `All (${initialLogs.length})` : f === 'like' ? `👍 Liked (${initialLogs.filter(l => l.feedback === 'like').length})` : `👎 Disliked (${initialLogs.filter(l => l.feedback === 'dislike').length})`}
           </button>
@@ -191,7 +191,7 @@ export default function FeedbackClient({ initialLogs }: Props) {
 
       {/* Log stream */}
       {logLines.length > 0 && (
-        <div className="bg-panel border border-white/5 rounded-xl p-4">
+        <div className="bg-panel border border-white/5 rounded-[16px] p-4">
           <div className="font-mono text-xs leading-6 space-y-0.5 max-h-40 overflow-y-auto">
             {logLines.map((line, i) => (
               <div key={i} className={line.startsWith('✓') ? 'text-green-400' : line.startsWith('✗') ? 'text-red-400' : 'text-[var(--bone-40)]'}>{line}</div>
@@ -202,7 +202,7 @@ export default function FeedbackClient({ initialLogs }: Props) {
 
       {/* AI Reasoning Box */}
       {reasoning && (
-        <div className="bg-panel border border-white/5 rounded-xl p-4 space-y-1.5 animate-in fade-in duration-300">
+        <div className="bg-panel border border-white/5 rounded-[16px] p-4 space-y-1.5 animate-in fade-in duration-300">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-accent uppercase tracking-widest text-[9px]">AI REASONING</span>
           </div>
@@ -214,12 +214,12 @@ export default function FeedbackClient({ initialLogs }: Props) {
 
       {/* Override directive box */}
       {selected.size > 0 && (
-        <div className="bg-[var(--bone-4)] rounded-xl p-4 space-y-2.5 animate-in fade-in duration-300">
+        <div className="bg-[var(--bone-4)] rounded-[16px] p-4 space-y-2.5 animate-in fade-in duration-300">
           <div>
-            <h4 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest">
+            <h4 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest">
               ⚡ MANUAL CLARIFICATION / OVERRIDE
             </h4>
-            <p className="text-[10px] text-bone-40">
+            <p className="text-[10px] text-bone-60">
               If the AI missed something or you disagree with its reasoning, type your clarification below. It will be sent as a Mandatory Directive to force a re-analysis.
             </p>
           </div>
@@ -236,7 +236,7 @@ export default function FeedbackClient({ initialLogs }: Props) {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground text-background rounded-lg text-xs font-medium hover:opacity-80 disabled:opacity-50">
               ▶ RE-ANALYZE WITH CONTEXT
             </button>
-            <button onClick={() => setDirective('')} className="px-3 py-1.5 bg-[var(--bone-10)] text-bone-40 hover:text-foreground hover:bg-[var(--bone-15)] rounded-lg text-xs font-medium transition-all">
+            <button onClick={() => setDirective('')} className="px-3 py-1.5 bg-[var(--bone-10)] text-bone-60 hover:text-foreground hover:bg-[var(--bone-15)] rounded-lg text-xs font-medium transition-all">
               CLEAR
             </button>
           </div>
@@ -244,9 +244,9 @@ export default function FeedbackClient({ initialLogs }: Props) {
       )}
 
       {/* Table Style messages list */}
-      <div className="bg-panel rounded-big overflow-hidden border border-white/5 animate-in fade-in duration-500">
+      <div className="bg-panel rounded-[16px] overflow-hidden border border-white/5 animate-in fade-in duration-500">
         {/* Header */}
-        <div className="grid grid-cols-[28px_90px_32px_120px_1fr_1fr_140px_64px_48px_28px] gap-3 px-4 py-2.5 border-b border-white/5 bg-background/40">
+        <div className="grid grid-cols-[28px_90px_32px_120px_1fr_1fr_140px_64px_48px_28px] gap-3 px-4 py-2.5 border-b border-white/5 bg-[var(--bone-6)]">
           <button
             onClick={toggleSelectAll}
             className={cn(
@@ -418,160 +418,178 @@ export default function FeedbackClient({ initialLogs }: Props) {
                 </div>
 
                 {/* Expansion panel */}
-                {isExpanded && (
-                  <div className="px-4 py-3 bg-white/[0.01] border-t border-white/[0.03] animate-in fade-in duration-200">
-                    <div className="mt-2 space-y-4 animate-in fade-in duration-300 cursor-default" onClick={e => e.stopPropagation()}>
-                      {/* USER DETAILS */}
-                      <div className="flex flex-wrap gap-4 text-[10px] text-bone-60 opacity-40 font-mono select-text bg-white/[0.02] border border-white/5 rounded-lg px-3 py-1.5">
-                        {log.user_email && <span>Email: {log.user_email}</span>}
-                        {log.telegram_id && <span>Telegram ID: {log.telegram_id}</span>}
-                        {log.auth_user_id && <span>Auth User ID: {log.auth_user_id}</span>}
-                      </div>
+                <div 
+                  className={cn(
+                    "grid transition-all duration-100 ease-out",
+                    isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="px-4 py-3 bg-panel border-t border-white/[0.03]">
+                      <div className="mt-2 space-y-4 cursor-default" onClick={e => e.stopPropagation()}>
+                        {/* USER DETAILS */}
+                        <div className="flex flex-wrap gap-4 text-[10px] text-bone-60 opacity-40 font-mono select-text bg-white/[0.02] border border-white/5 rounded-[16px] px-3 py-1.5">
+                          {log.user_email && <span>Email: {log.user_email}</span>}
+                          {log.telegram_id && <span>Telegram ID: {log.telegram_id}</span>}
+                          {log.auth_user_id && <span>Auth User ID: {log.auth_user_id}</span>}
+                        </div>
 
-                      {/* Routing & Keys Trace */}
-                      {log.context_messages && (
-                        <div className="space-y-3">
-                          {/* ROUTE CHAIN */}
-                          <div>
-                            <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-2">
-                              ROUTING CHAIN
-                            </h5>
-                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
-                              {routeParts.length > 0 ? (
-                                routeParts.map((part, i) => (
-                                  <React.Fragment key={i}>
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded-small h-[22px] flex items-center justify-center border border-white/5 bg-white/[0.03] text-bone-20 text-[10px]",
-                                      part.toUpperCase().includes('_') ? "text-muted-foreground/60" : "text-bone-100"
-                                    )}>
-                                      {part}
-                                    </span>
-                                    {i < routeParts.length - 1 && (
-                                      <span className="text-bone-40 opacity-40">→</span>
-                                    )}
-                                  </React.Fragment>
-                                ))
-                              ) : (
-                                <p className="text-[10px] text-bone-20 font-mono">No routing chain found</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* API KEYS USED */}
-                          <div>
-                            <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-2">
-                              API KEYS USED
-                            </h5>
-                            <div className="space-y-2">
-                              {/* Classify Row */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-bone-40 w-16 shrink-0">classify</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {log.context_messages.classify?.map((c, i) => {
-                                    const getProviderFromModelId = (modelId: string): string => {
-                                      const m = (modelId || '').toLowerCase()
-                                      if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
-                                      if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek')) return 'GROQ'
-                                      if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
-                                      if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
-                                      if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
-                                      if (m.includes('tavily')) return 'TAVILY'
-                                      return 'GEMINI'
-                                    }
-                                    return (
-                                      <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
-                                        c.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                                      )}>
-                                        {(() => {
-                                          let baseKey = c.key === 'DEFAULT' ? getProviderFromModelId((c as any).model || '') : (c.key || getProviderFromModelId((c as any).model || ''))
-                                          if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
-                                          return baseKey
-                                        })()} {c.success ? '✓' : '✗'}
-                                      </span>
-                                    )
-                                  }) || <span className="text-[10px] text-bone-20 font-mono">No trace</span>}
-                                </div>
-                              </div>
-
-                              {/* Routing Row */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-bone-40 w-16 shrink-0">routing</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {log.context_messages.routing?.map((r, i) => {
-                                    const getProviderFromModelId = (modelId: string): string => {
-                                      const m = (modelId || '').toLowerCase()
-                                      if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
-                                      if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek')) return 'GROQ'
-                                      if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
-                                      if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
-                                      if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
-                                      if (m.includes('tavily')) return 'TAVILY'
-                                      return 'GEMINI'
-                                    }
-                                    return (
-                                      <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
-                                        r.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                                      )}>
-                                        {(() => {
-                                          let baseKey = r.key === 'DEFAULT' ? getProviderFromModelId((r as any).model || '') : (r.key || getProviderFromModelId((r as any).model || ''))
-                                          if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
-                                          return baseKey
-                                        })()} {r.success ? '✓' : '✗'}
-                                      </span>
-                                    )
-                                  }) || <span className="text-[10px] text-bone-20 font-mono">No trace</span>}
-                                </div>
+                        {/* Routing & Keys Trace */}
+                        {log.context_messages && (
+                          <div className="space-y-3">
+                            {/* ROUTE CHAIN */}
+                            <div>
+                              <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-2">
+                                ROUTING CHAIN
+                              </h5>
+                              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
+                                {routeParts.length > 0 ? (
+                                    routeParts.map((part, i) => {
+                                      const [model, key, successStr] = part.split('|')
+                                      const success = successStr !== 'false'
+                                      const isAction = model.toUpperCase().includes('_') || !model.includes('/')
+                                      
+                                      return (
+                                        <React.Fragment key={i}>
+                                          <div className="flex flex-col items-center">
+                                            <span className={cn(
+                                              "px-2 py-0.5 rounded-small h-[22px] flex items-center justify-center border text-[10px] transition-all",
+                                              success 
+                                                ? (isAction ? "bg-white/[0.03] border-white/5 text-muted-foreground/60" : "bg-white/[0.05] border-white/10 text-bone-100")
+                                                : "bg-red-500/10 border-red-500/20 text-red-400 font-bold"
+                                            )} title={key ? `Used key: ${key}` : model}>
+                                              {model}
+                                              {!success && <XCircle className="w-2.5 h-2.5 ml-1.5 opacity-80" />}
+                                            </span>
+                                          </div>
+                                          {i < routeParts.length - 1 && (
+                                            <span className="text-bone-60 opacity-20">→</span>
+                                          )}
+                                        </React.Fragment>
+                                      )
+                                    })
+                                ) : (
+                                  <p className="text-[10px] text-bone-20 font-mono">No routing chain found</p>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      )}
 
-                      {/* Conversation history */}
-                      {log.context_messages?.history && (
-                        <div className="bg-[var(--bone-4)] rounded-xl p-3">
-                          <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-2">
-                            PRIOR CONTEXT (CONVERSATION HISTORY - MAX 10)
-                          </h5>
-                          <div className="font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto space-y-1.5 select-text">
-                            {log.context_messages.history.map((turn, i) => (
-                              <div key={i} className="flex gap-2">
-                                <span className={cn("font-bold min-w-[20px] shrink-0", 
-                                  turn.role === 'user' ? "text-bone-40" : "text-green-500/80"
-                                )}>
-                                  {turn.role === 'user' ? 'U:' : 'A:'}
-                                </span>
-                                <span className="text-bone-30 break-words flex-1">
-                                  {turn.content}
-                                </span>
+                            {/* API KEYS USED */}
+                            <div>
+                              <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-2">
+                                API KEYS USED
+                              </h5>
+                              <div className="space-y-2">
+                                {/* Classify Row */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-bone-60 w-16 shrink-0">classify</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {log.context_messages.classify?.map((c, i) => {
+                                      const getProviderFromModelId = (modelId: string): string => {
+                                        const m = (modelId || '').toLowerCase()
+                                        if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
+                                        if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek')) return 'GROQ'
+                                        if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
+                                        if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
+                                        if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
+                                        if (m.includes('tavily') || m.includes('search')) return 'TAVILY'
+                                        return 'GEMINI'
+                                      }
+                                      return (
+                                        <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
+                                          c.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                        )}>
+                                          {(() => {
+                                            let baseKey = c.key === 'DEFAULT' ? getProviderFromModelId((c as any).model || '') : (c.key || getProviderFromModelId((c as any).model || ''))
+                                            if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
+                                            return baseKey
+                                          })()} {c.success ? '✓' : '✗'}
+                                        </span>
+                                      )
+                                    }) || <span className="text-[10px] text-bone-20 font-mono">No trace</span>}
+                                  </div>
+                                </div>
+
+                                {/* Routing Row */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-bone-60 w-16 shrink-0">routing</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {log.context_messages.routing?.map((r, i) => {
+                                      const getProviderFromModelId = (modelId: string): string => {
+                                        const m = (modelId || '').toLowerCase()
+                                        if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
+                                        if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek')) return 'GROQ'
+                                        if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
+                                        if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
+                                        if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
+                                        if (m.includes('tavily')) return 'TAVILY'
+                                        return 'GEMINI'
+                                      }
+                                      return (
+                                        <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
+                                          r.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                        )}>
+                                          {(() => {
+                                            let baseKey = r.key === 'DEFAULT' ? getProviderFromModelId((r as any).model || '') : (r.key || getProviderFromModelId((r as any).model || ''))
+                                            if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
+                                            return baseKey
+                                          })()} {r.success ? '✓' : '✗'}
+                                        </span>
+                                      )
+                                    }) || <span className="text-[10px] text-bone-20 font-mono">No trace</span>}
+                                  </div>
+                                </div>
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* USER REQUEST vs MODEL RESPONSE side-by-side */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[var(--bone-4)] rounded-xl p-3">
-                          <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-1.5">
-                            USER REQUEST
-                          </h5>
-                          <p className="text-xs text-foreground/80 font-mono break-words leading-relaxed select-text">
-                            {log.user_prompt ?? '(content unavailable)'}
-                          </p>
-                        </div>
-                        <div className="bg-[var(--bone-4)] rounded-xl p-3">
-                          <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-1.5">
-                            MODEL RESPONSE
-                          </h5>
-                          <p className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text">
-                            {log.model_response ?? '(response unavailable)'}
-                          </p>
+                        {/* Conversation history */}
+                        {log.context_messages?.history && (
+                          <div className="bg-white/[0.02] border border-white/5 rounded-[16px] p-3">
+                            <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-2 opacity-50">
+                              PRIOR CONTEXT (CONVERSATION HISTORY - MAX 10)
+                            </h5>
+                            <div className="font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto space-y-1.5 select-text">
+                              {log.context_messages.history.map((turn, i) => (
+                                <div key={i} className="flex gap-2">
+                                  <span className={cn("font-bold min-w-[20px] shrink-0", 
+                                    turn.role === 'user' ? "text-bone-60" : "text-green-500/80"
+                                  )}>
+                                    {turn.role === 'user' ? 'U:' : 'A:'}
+                                  </span>
+                                  <span className="text-bone-30 break-words flex-1">
+                                    {turn.content}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* USER REQUEST vs MODEL RESPONSE side-by-side */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-white/[0.02] border border-white/5 rounded-[16px] px-3 py-1.5">
+                            <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-1.5 opacity-50">
+                              USER REQUEST
+                            </h5>
+                            <p className="text-xs text-foreground/80 font-mono break-words leading-relaxed select-text">
+                              {log.user_prompt ?? '(content unavailable)'}
+                            </p>
+                          </div>
+                          <div className="bg-white/[0.02] border border-white/5 rounded-[16px] px-3 py-1.5">
+                            <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-1.5 opacity-50">
+                              MODEL RESPONSE
+                            </h5>
+                            <p className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text">
+                              {log.model_response ?? '(response unavailable)'}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}

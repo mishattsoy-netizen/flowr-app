@@ -10,7 +10,7 @@ export function TopicBrowserWidget() {
 
   return (
     <div className="w-full h-full p-5 bg-sidebar rounded-[var(--radius-big)] border border-[var(--bone-3)] group/widget flex flex-col">
-      <h3 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground mb-4">Topic Browser</h3>
+      <h3 className="text-[15px] font-widget-header font-semibold text-[var(--bone-60)] group-hover/widget:text-foreground mb-4">Topic Browser</h3>
       <div className="flex-1 overflow-y-auto min-h-0 -mx-2 px-2 scrollbar-thin">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {topics.map(topic => {
@@ -25,12 +25,12 @@ export function TopicBrowserWidget() {
                   <Icon className="w-6 h-6 text-accent" />
                 </div>
                 <span className="font-medium text-sm text-center mb-1">{topic.title}</span>
-                <span className="text-xs text-muted-foreground">Items</span>
+                <span className="text-xs text-[var(--bone-60)]">Items</span>
               </button>
             );
           })}
           {topics.length === 0 && (
-            <div className="col-span-full text-center text-muted-foreground text-sm py-8">
+            <div className="col-span-full text-center text-[var(--bone-60)] text-sm py-8">
               No topics created yet.
             </div>
           )}

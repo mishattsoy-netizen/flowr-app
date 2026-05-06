@@ -30,7 +30,7 @@ export function MoveToModal() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-foreground">Move &ldquo;{entity.title}&rdquo;</h2>
           <button onClick={closeModal} className="p-1 rounded-full hover:bg-hover  text-muted-foreground hover:text-foreground">
-            <X className="w-4.5 h-4.5" />
+            <X strokeWidth={2} className="w-4.5 h-4.5" />
           </button>
         </div>
 

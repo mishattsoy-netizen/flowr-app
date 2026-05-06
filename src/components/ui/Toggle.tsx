@@ -8,17 +8,19 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
+  size?: 'sm' | 'md';
 }
 
 export const Toggle: React.FC<ToggleProps> = ({ 
   checked, 
   onChange, 
   disabled = false,
-  className
+  className,
+  size = 'md'
 }) => {
   return (
     <div className={clsx("shrink-0 flex items-center", className)}>
-      <label className="toggle-switch">
+      <label className={clsx("toggle-switch", size === 'sm' && "toggle-sm")}>
         <input 
           type="checkbox" 
           className="toggle-input" 

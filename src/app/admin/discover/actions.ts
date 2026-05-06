@@ -21,8 +21,11 @@ export interface DiscoveredModel {
 
 export async function fetchProviderModels(
   provider: string,
-  apiKey: string
+  keyId: string
 ): Promise<DiscoveredModel[]> {
+  // If keyId is provided, decrypt it from the vault; otherwise use empty string
+  const apiKey = keyId ? (await getVaultKey(keyId) ?? '') : ''
+
   // fetch from provider
   let raw: DiscoveredModel[] = []
 
@@ -60,6 +63,31 @@ export async function fetchProviderModels(
 
 export { addModel, updateModel }
 
+function getModalities(id: string, customInput?: string[], customOutput?: string[]) {
+  const idLower = id.toLowerCase()
+  const isImageGen = idLower.includes('flux') || idLower.includes('diffusion') || idLower.includes('sdxl') || idLower.includes('stable-diffusion') || idLower.includes('dreamshaper') || idLower.includes('dall-e') || idLower.includes('dalle') || idLower.includes('midjourney') || idLower.includes('imagen') || idLower.includes('playground') || idLower.includes('animagine') || idLower.includes('illustrious')
+  
+  const isAudio = idLower.includes('whisper') || idLower.includes('tts') || idLower.includes('audio') || idLower.includes('speech') || idLower.includes('voice')
+
+  let input = customInput ?? ['text']
+  let output = customOutput ?? ['text']
+
+  if (isImageGen) {
+    if (!input.includes('text')) input.push('text')
+    output = ['image']
+  } else if (isAudio) {
+    if (idLower.includes('tts') || idLower.includes('speech')) {
+      input = ['text']
+      output = ['audio']
+    } else {
+      input = ['audio']
+      output = ['text']
+    }
+  }
+
+  return { input, output }
+}
+
 async function fetchGoogle(apiKey: string): Promise<DiscoveredModel[]> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
@@ -75,7 +103,10 @@ async function fetchGoogle(apiKey: string): Promise<DiscoveredModel[]> {
     .map((m: any) => {
       const id = m.name.replace('models/', '')
       const nameLower = id.toLowerCase()
-      const hasVision = nameLower.includes('vision') || nameLower.includes('pro') || nameLower.includes('flash')
+      const isPro = nameLower.includes('pro')
+      const isFlash = nameLower.includes('flash')
+      const hasVision = nameLower.includes('vision') || isPro || isFlash
+      const defaultInput = hasVision ? ['text', 'image'] : ['text']
       return {
         id,
         displayName: m.displayName ?? id,
@@ -84,10 +115,7 @@ async function fetchGoogle(apiKey: string): Promise<DiscoveredModel[]> {
         maxOutputTokens: m.outputTokenLimit ?? null,
         rpd: null,
         rpm: null,
-        modalities: {
-          input: hasVision ? ['text', 'image'] : ['text'],
-          output: ['text'],
-        },
+        modalities: getModalities(id, defaultInput, ['text']),
         inRegistry: false,
       }
     })
@@ -103,6 +131,7 @@ async function fetchGroq(apiKey: string): Promise<DiscoveredModel[]> {
   return (data.data ?? []).map((m: any) => {
     const idLower = (m.id ?? '').toLowerCase()
     const isAudio = idLower.includes('whisper')
+    const defaultInput = isAudio ? ['audio'] : ['text']
     return {
       id: m.id,
       displayName: m.id,
@@ -111,10 +140,7 @@ async function fetchGroq(apiKey: string): Promise<DiscoveredModel[]> {
       maxOutputTokens: null,
       rpd: null,
       rpm: null,
-      modalities: {
-        input: isAudio ? ['audio'] : ['text'],
-        output: ['text'],
-      },
+      modalities: getModalities(m.id, defaultInput, ['text']),
       inRegistry: false,
     }
   })
@@ -124,22 +150,24 @@ async function fetchPollinations(apiKey: string): Promise<DiscoveredModel[]> {
   const headers: Record<string, string> = {}
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
-  const res = await fetch('https://text.pollinations.ai/models', { headers })
+  const res = await fetch('https://gen.pollinations.ai/v1/models', { headers })
   if (!res.ok) throw new Error(`Pollinations API error: ${res.status} ${res.statusText}`)
   const data = await res.json()
 
-  const models = Array.isArray(data) ? data : (data.models ?? [])
-  return models.map((m: any) => ({
-    id: typeof m === 'string' ? m : (m.name ?? m.id ?? String(m)),
-    displayName: typeof m === 'string' ? m : (m.description ?? m.name ?? m.id ?? String(m)),
-    provider: 'pollinations',
-    contextWindow: m.contextLength ?? null,
-    maxOutputTokens: null,
-    rpd: null,
-    rpm: null,
-    modalities: { input: ['text'], output: ['text'] },
-    inRegistry: false,
-  }))
+  const list = data.data ?? []
+  return list.map((m: any) => {
+    return {
+      id: m.id,
+      displayName: m.id,
+      provider: 'pollinations',
+      contextWindow: m.context_length ?? null,
+      maxOutputTokens: null,
+      rpd: null,
+      rpm: null,
+      modalities: getModalities(m.id, m.input_modalities ?? ['text'], m.output_modalities ?? ['text']),
+      inRegistry: false,
+    }
+  })
 }
 
 async function fetchHuggingFace(apiKey: string): Promise<DiscoveredModel[]> {
@@ -160,7 +188,7 @@ async function fetchHuggingFace(apiKey: string): Promise<DiscoveredModel[]> {
       maxOutputTokens: null,
       rpd: null,
       rpm: null,
-      modalities: { input: ['text'], output: ['text'] },
+      modalities: getModalities(m.modelId ?? m.id, ['text'], ['text']),
       inRegistry: false,
     }))
 }
@@ -174,9 +202,13 @@ async function fetchOpenRouter(apiKey: string): Promise<DiscoveredModel[]> {
 
   return (data.data ?? [])
     .filter((m: any) => {
-      const isFreeId = (m.id ?? '').endsWith(':free')
-      const price = m.pricing?.prompt
-      const isFreePrice = price === '0' || price === '0.000' || price === 0
+      const id = (m.id ?? '').toLowerCase()
+      const isFreeId = id.endsWith(':free') || id.includes('/free')
+      
+      const promptPrice = parseFloat(m.pricing?.prompt ?? '0')
+      const completionPrice = parseFloat(m.pricing?.completion ?? '0')
+      const isFreePrice = promptPrice === 0 && completionPrice === 0
+
       return isFreeId || isFreePrice
     })
     .map((m: any) => {
@@ -189,10 +221,7 @@ async function fetchOpenRouter(apiKey: string): Promise<DiscoveredModel[]> {
         maxOutputTokens: null,
         rpd: null,
         rpm: null,
-        modalities: {
-          input: arch.input_modalities ?? ['text'],
-          output: arch.output_modalities ?? ['text'],
-        },
+        modalities: getModalities(m.id, arch.input_modalities ?? ['text'], arch.output_modalities ?? ['text']),
         inRegistry: false,
       }
     })
@@ -223,7 +252,7 @@ async function fetchCloudflare(apiKey: string): Promise<DiscoveredModel[]> {
       maxOutputTokens: null,
       rpd: null,
       rpm: null,
-      modalities: { input, output },
+      modalities: getModalities(m.name ?? m.id, input, output),
       inRegistry: false,
     }
   })

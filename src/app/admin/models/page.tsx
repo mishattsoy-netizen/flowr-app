@@ -8,7 +8,7 @@ export default async function ModelsPage() {
   return (
     <div className="space-y-[10px] animate-in fade-in duration-500">
       <div className="mb-2">
-        <h1 className="text-4xl font-display text-foreground mb-1">Model Registry</h1>
+        <h1 className="text-4xl font-display text-foreground mb-1">Models</h1>
         <p className="text-muted-foreground text-sm font-medium">
           Global model catalog — usage tracking, modalities, RPD limits.
         </p>

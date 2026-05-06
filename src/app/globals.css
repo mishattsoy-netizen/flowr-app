@@ -59,7 +59,7 @@
   --icon-active: var(--bone-60);
   --dim-foreground: var(--bone-60);
   --foreground: var(--bone-100);
-  --accent: #eea047;
+  --accent: #d38f36;
   /* Orange accent color */
   --on-accent: #242423;
   /* Neutral color for items on bone-fill */
@@ -781,27 +781,23 @@ html {
 }
 
 @keyframes ai-cursor-blink {
-
-  0%,
-  100% {
+  0%, 49% {
     opacity: 1;
   }
-
-  50% {
-    opacity: 0.15;
+  50%, 100% {
+    opacity: 0;
   }
 }
 
 /* AI Streaming Cursor Styling */
 .ai-cursor-inline {
   display: inline-block;
-  animation: ai-cursor-blink 1.2s ease-in-out infinite;
+  animation: ai-cursor-blink 1s step-end infinite;
   color: var(--accent);
   margin-left: 2px;
   font-size: 0.9em;
   vertical-align: middle;
   line-height: 1;
-  opacity: 0.8;
 }
 
 
@@ -865,18 +861,35 @@ html {
   border-radius: 50%;
   top: 2px;
   left: 2px;
-  background-color: var(--bone-60);
+  background-color: #ffffff;
   transition: none;
 }
 
 .toggle-switch .toggle-input:checked+.toggle-label {
-  background-color: var(--accent);
-  border-color: var(--accent);
+  background-color: #3b82f6; /* Vibrant Blue like screenshot */
+  border-color: #3b82f6;
 }
 
 .toggle-switch .toggle-input:checked+.toggle-label::before {
   transform: translateX(16px);
-  background-color: var(--on-accent);
+  background-color: #ffffff;
+}
+
+/* Small variant */
+.toggle-switch.toggle-sm {
+  width: 30px;
+  height: 18px;
+}
+
+.toggle-switch.toggle-sm .toggle-label::before {
+  width: 12px;
+  height: 12px;
+  top: 2px;
+  left: 2px;
+}
+
+.toggle-switch.toggle-sm .toggle-input:checked+.toggle-label::before {
+  transform: translateX(12px);
 }
 
 .toggle-switch:hover .toggle-label {
@@ -1000,6 +1013,7 @@ body.is-dragging-widget [data-widget-id] * {
 
 .note-editor-bg {
   cursor: text;
+  direction: ltr !important;
 }
 
 .note-editor-bg:active {

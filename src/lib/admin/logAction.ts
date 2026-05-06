@@ -17,6 +17,7 @@ export type AdminActionType =
   | 'user_unblocked'
   | 'logs_purged'
   | 'vault_updated'
+  | 'bulk_plans_deleted'
 
 export async function logAdminAction(
   actionType: AdminActionType,

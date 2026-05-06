@@ -67,7 +67,7 @@ function MetricCard({ title, value, change, icon: Icon, accent = false }: any) {
         <span className="text-[11px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase opacity-40">{title}</span>
         <Icon 
           className={cn("w-4 h-4", accent ? "text-accent fill-accent/10" : "text-muted-foreground/40")} 
-          strokeWidth={1.5}
+          strokeWidth={2}
         />
       </div>
       <div className="space-y-1">

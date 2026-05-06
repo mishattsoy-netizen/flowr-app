@@ -35,7 +35,7 @@ export function RecentWidget({ data, onUpdateData }: { data?: { filter?: Filter 
     <section className="bg-sidebar group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-muted-foreground group-hover/widget:text-accent transition-colors" />
+          <Clock strokeWidth={2} className="w-4 h-4 text-muted-foreground group-hover/widget:text-accent transition-colors" />
           <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground group-hover/widget:text-foreground">Recent</h2>
         </div>
         {onUpdateData && (
@@ -60,7 +60,7 @@ export function RecentWidget({ data, onUpdateData }: { data?: { filter?: Filter 
             <button key={entity.id} onClick={() => setActiveEntityId(entity.id)}
               className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bone-6)] transition-all group/item text-left">
               <div className="w-8 h-8 rounded-lg bg-[var(--bone-10)] border border-[var(--bone-3)] flex items-center justify-center text-[var(--bone-60)] group-hover/item:text-accent group-hover/item:border-accent/30 transition-all shadow-sm">
-                <Icon className="w-4 h-4" />
+                <Icon strokeWidth={2} className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-medium text-foreground truncate">{entity.title}</div>
@@ -69,15 +69,15 @@ export function RecentWidget({ data, onUpdateData }: { data?: { filter?: Filter 
                   {ws && <><span>·</span><span className="truncate max-w-[80px]">{ws.name}</span></>}
                 </div>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-[var(--bone-20)] opacity-0 group-hover/item:opacity-100 group-hover/item:translate-x-0.5 transition-all" />
+              <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-20)] opacity-0 group-hover/item:opacity-100 group-hover/item:translate-x-0.5 transition-all" />
             </button>
           );
         }) : (
           <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
-            <Clock strokeWidth={1} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
+            <Clock strokeWidth={2} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">No recent activities</p>
-              <p className="text-xs text-bone-40 opacity-25 mt-1 leading-snug text-balance">Pages you create or edit will show up here for quick access.</p>
+              <p className="text-xs text-bone-60 opacity-25 mt-1 leading-snug text-balance">Pages you create or edit will show up here for quick access.</p>
             </div>
             <button
               onClick={() => openModal({ kind: 'newItem' })}

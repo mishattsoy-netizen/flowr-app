@@ -46,7 +46,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
                   )}
                   role="button"
                 >
-                  <Folder className="w-4 h-4 text-[var(--bone-60)] group-hover/item:text-[var(--bone-100)] shrink-0 " />
+                  <Folder strokeWidth={2} className="w-4 h-4 text-[var(--bone-60)] group-hover/item:text-[var(--bone-100)] shrink-0 " />
                   
                   {isEditing ? (
                     <input
@@ -99,7 +99,7 @@ export function FoldersWidget({ entity }: { entity: Entity }) {
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <p className="text-sm text-muted-foreground">No folders.</p>
+            <p className="text-sm text-[var(--bone-60)] opacity-40">No folders.</p>
           </div>
         )}
       </div>

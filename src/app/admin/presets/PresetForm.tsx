@@ -140,12 +140,12 @@ function Toggle({ label, icon: Icon, active, onClick }: any) {
       <div className="flex items-center gap-3">
         <Icon 
           className={cn("w-3.5 h-3.5", active ? "text-accent fill-accent/10" : "text-bone-60 opacity-30")} 
-          strokeWidth={1.5}
+          strokeWidth={2}
         />
         <span className="text-[10px] font-bold tracking-tight">{label}</span>
       </div>
       {active && (
-        <CheckCircle2 className="w-3 h-3 text-accent animate-in zoom-in-50 duration-300" strokeWidth={1.5} />
+        <CheckCircle2 className="w-3 h-3 text-accent animate-in zoom-in-50 duration-300" strokeWidth={2} />
       )}
     </button>
   )

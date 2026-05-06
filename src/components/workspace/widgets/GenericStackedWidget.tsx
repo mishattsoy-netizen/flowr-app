@@ -136,7 +136,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
              <h3 className="text-[15px] font-bold text-[var(--bone-100)]">
               {widgetRegistry[widgets[0]]?.label || 'Widget'}
             </h3>
-            <span className="text-[9px] text-[var(--bone-40)] font-bold bg-[var(--bone-10)] px-1.5 py-0.5 rounded border border-[var(--bone-15)] uppercase tracking-widest">Stack</span>
+            <span className="text-[9px] text-[var(--bone-60)] font-bold bg-[var(--bone-10)] px-1.5 py-0.5 rounded border border-[var(--bone-15)] uppercase tracking-widest">Stack</span>
           </div>
         ) : (
           /* Empty State Header Placeholder */
@@ -163,7 +163,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
               <Plus className={clsx("w-6 h-6", isDragOver && "rotate-90")} />
             </div>
             <p className="text-[11px] font-medium tracking-wide uppercase">Drop widgets here to stack</p>
-            <p className="text-[10px] opacity-40 max-w-[140px] text-center leading-relaxed">Combine up to 3 widgets into a single view</p>
+            <p className="text-[10px] text-[var(--bone-60)] opacity-40 max-w-[140px] text-center leading-relaxed">Combine up to 3 widgets into a single view</p>
           </div>
         )}
       </div>

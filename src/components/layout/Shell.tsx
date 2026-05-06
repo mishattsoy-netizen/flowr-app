@@ -124,7 +124,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
     const currentState = window.history.state;
     if (activeEntityId && !isInternalNavRef.current && activeEntityId !== currentState?.entityId) {
-       window.history.pushState({ entityId: activeEntityId, index: Date.now() }, '');
+      window.history.pushState({ entityId: activeEntityId, index: Date.now() }, '');
     }
   }, [activeEntityId, hasHydrated]);
 
@@ -185,14 +185,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const currentSidebarPinned = hasHydrated ? isSidebarPinned : true;
 
   return (
-    <div 
+    <div
       className={clsx(
         shellClass,
         "shell-container flex flex-row",
         currentSidebarCollapsed ? "sidebar-collapsed" : "sidebar-expanded",
         (isResizingLeft || isResizingRight) && "resizing-active"
       )}
-      style={{ 
+      style={{
         ['--sidebar-w' as any]: currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px`,
         gridTemplateColumns: `${currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px`} 1fr`,
         transition: (isResizingLeft || isResizingRight) ? 'none' : 'grid-template-columns 300ms cubic-bezier(0.4, 0, 0.2, 1)'
@@ -200,12 +200,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
     >
       <SmoothScroll />
       {/* 1. Left Sidebar Section */}
-      <div 
+      <div
         className={clsx(
           "h-full min-h-0 shrink-0 flex flex-row relative border-r border-[var(--bone-15)]",
           currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
         )}
-        style={{ 
+        style={{
           width: currentSidebarCollapsed ? '64px' : `${currentSidebarWidth}px`,
           transition: (isResizingLeft || isResizingRight) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
         }}
@@ -228,12 +228,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
             }}
             className={clsx(
               "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors group",
-              isResizingLeft ? "bg-accent/10" : ""
+              isResizingLeft ? "bg-[var(--bone-15)]" : ""
             )}
           >
             <div className={clsx(
               "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-300",
-              isResizingLeft ? "bg-accent opacity-100" : "bg-accent/30 opacity-0 group-hover:opacity-100"
+              isResizingLeft ? "bg-[var(--bone-60)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
             )} />
           </div>
         )}
@@ -260,16 +260,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
             }}
             className={clsx(
               "w-2 h-full cursor-col-resize absolute left-0 z-50 transition-colors group",
-              isResizingRight ? "bg-accent/10" : "bg-transparent"
+              isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
             )}
-            style={{ 
+            style={{
               left: `calc(100% - ${currentAiSidebarWidth}px - 4px)`,
               pointerEvents: 'auto'
             }}
           >
             <div className={clsx(
               "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-300",
-              isResizingRight ? "bg-accent opacity-100" : "bg-accent/30 opacity-0 group-hover:opacity-100"
+              isResizingRight ? "bg-[var(--bone-60)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
             )} />
           </div>
         )}
@@ -300,7 +300,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <CommandPalette key="command-palette" />
 
 
-      
+
       {/* Only render the floating assistant if we are NOT in sidebar mode */}
       {hasHydrated && !isAIAssistantExtended && (
         <AIAssistant key="ai-assistant-floating" isFloating />

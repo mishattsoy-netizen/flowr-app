@@ -48,9 +48,10 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
 }
 
 export async function updateSessionState(chatId: string, updates: Partial<SessionState>): Promise<void> {
+  const { context_limit, compaction_threshold, ...dbUpdates } = updates as any
   const { error } = await supabase
     .from('bot_session_states')
-    .upsert({ chat_id: chatId, ...updates, updated_at: new Date().toISOString() })
+    .upsert({ chat_id: chatId, ...dbUpdates, updated_at: new Date().toISOString() })
   if (error) logger.error(`Failed to update session state for ${chatId}:`, error)
 }
 

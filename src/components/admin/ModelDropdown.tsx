@@ -1,48 +1,9 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Search, ChevronDown, Zap, Cpu, Globe, Image, Mic, Brain, Camera, Command, Layers, Star } from 'lucide-react'
+import { Search, ChevronDown, Cpu, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-export interface RegistryModel {
-  id: string
-  provider: string
-  max_rpd: number | null
-  is_favorite?: boolean
-}
-
-const PROVIDER_COLORS: Record<string, string> = {
-  google: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  groq: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  openrouter: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  ollama: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-  vault: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-  pollinations: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
-  huggingface: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  cloudflare: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-}
-
-const PROVIDER_DOTS: Record<string, string> = {
-  google: 'bg-blue-400',
-  groq: 'bg-orange-400',
-  openrouter: 'bg-purple-400',
-  ollama: 'bg-cyan-400',
-  vault: 'bg-emerald-400',
-  pollinations: 'bg-pink-400',
-  huggingface: 'bg-yellow-400',
-  cloudflare: 'bg-amber-400',
-}
-
-const PROVIDER_ICONS: Record<string, any> = {
-  google: Globe,
-  groq: Zap,
-  openrouter: Layers,
-  ollama: Cpu,
-  vault: Command,
-  pollinations: Image,
-  huggingface: Brain,
-  cloudflare: Zap,
-}
+import { PROVIDER_COLORS, PROVIDER_ICONS, RegistryModel } from './model-utils'
 
 interface ModelDropdownProps {
   value: string
@@ -63,7 +24,26 @@ export default function ModelDropdown({
 }: ModelDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [rect, setRect] = useState<DOMRect | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const updateRect = () => {
+      if (isOpen && containerRef.current) {
+        const rowEl = containerRef.current.closest('.group') || containerRef.current
+        setRect(rowEl.getBoundingClientRect())
+      }
+    }
+    if (isOpen) {
+      updateRect()
+      window.addEventListener('scroll', updateRect, true)
+      window.addEventListener('resize', updateRect)
+    }
+    return () => {
+      window.removeEventListener('scroll', updateRect, true)
+      window.removeEventListener('resize', updateRect)
+    }
+  }, [isOpen])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -90,14 +70,14 @@ export default function ModelDropdown({
 
   const currentModel = models.find(m => m.id === value)
   const currentProvider = currentModel?.provider.toLowerCase() || 'google'
-  const CurrentIcon = PROVIDER_ICONS[currentProvider] || Cpu
 
   return (
-    <div className={cn("w-full", className)} ref={containerRef}>
+    <div className={cn("w-full relative", className)} ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-2 py-1 bg-background border border-white/5 rounded-md text-left transition-all duration-0 hover:bg-white/[0.02] group"
+        title={value || undefined}
+        className="w-full flex items-center justify-between px-2 py-1 bg-background rounded-medium text-left transition-all duration-0 hover:bg-white/[0.02] group"
       >
         <div className="flex items-center gap-2 truncate">
           <span className={cn(
@@ -113,8 +93,15 @@ export default function ModelDropdown({
         )} />
       </button>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 w-full mt-1.5 bg-panel border border-white/10 rounded-[16px] shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+      {isOpen && rect && (
+        <div 
+          className="fixed bg-panel border border-white/10 rounded-[16px] shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-100 overflow-hidden min-w-[240px]"
+          style={{
+            top: rect.bottom + 6,
+            left: rect.left,
+            width: rect.width
+          }}
+        >
           {/* Search Header */}
           <div className="px-2 pt-2 pb-1.5 border-b border-white/5 bg-white/[0.01]">
             <div className="relative flex items-center gap-2 px-2 py-1 bg-background border border-white/5 rounded-[8px]">
@@ -134,7 +121,6 @@ export default function ModelDropdown({
             {filteredModels.length > 0 ? (
               filteredModels.map((model) => {
                 const provider = model.provider.toLowerCase()
-                const Icon = PROVIDER_ICONS[provider] || Cpu
                 const colorClass = PROVIDER_COLORS[provider] || 'text-bone-60'
                 
                 return (
@@ -155,7 +141,7 @@ export default function ModelDropdown({
                         {model.is_favorite && (
                           <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
                         )}
-                        <span className="text-[13px] font-medium truncate">{model.id}</span>
+                        <span className="text-[13px] font-medium truncate" title={model.id}>{model.id}</span>
                         <span className="text-[10px] text-muted-foreground/40 font-mono shrink-0">
                           {model.max_rpd !== null ? `${model.max_rpd.toLocaleString()} RPD` : '∞ RPD'}
                         </span>

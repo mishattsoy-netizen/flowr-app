@@ -42,14 +42,14 @@ export default async function UsersPage() {
           <div className="bg-sidebar group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200">
           <div className="flex items-center justify-between mb-3 opacity-40">
             <span className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase">Active today</span>
-            <Users className="w-4 h-4 text-accent" strokeWidth={1.5} />
+            <Users className="w-4 h-4 text-accent" strokeWidth={2} />
           </div>
           <div className="text-3xl font-bold text-accent tracking-tighter leading-none font-instrument">{activeCount}</div>
         </div>
           <div className="bg-sidebar group/widget px-5 pb-5 pt-4 rounded-[var(--radius-big)] widget-shadow h-full flex flex-col instrument-hover cursor-default transition-all duration-200">
           <div className="flex items-center justify-between mb-3 opacity-40">
             <span className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase">Blocked nodes</span>
-            <ShieldAlert className="w-4 h-4 text-rose-500" strokeWidth={1.5} />
+            <ShieldAlert className="w-4 h-4 text-rose-500" strokeWidth={2} />
           </div>
           <div className="text-3xl font-bold text-rose-500 tracking-tighter leading-none font-instrument">{blockedCount}</div>
         </div>

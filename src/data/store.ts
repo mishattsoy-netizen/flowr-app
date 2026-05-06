@@ -415,7 +415,12 @@ export const useStore = create<AppState>()(
                         set((s) => ({
                           aiMessages: s.aiMessages.map((m) =>
                             m.id === placeholderMessage.id
-                              ? { ...m, content: accumulatedContent, model: parsed.model || m.model }
+                              ? { 
+                                  ...m, 
+                                  content: accumulatedContent, 
+                                  model: parsed.model || m.model,
+                                  tokens_used: Math.ceil((content.length + accumulatedContent.length) / 4)
+                                }
                               : m
                           ),
                         }));
@@ -442,7 +447,8 @@ export const useStore = create<AppState>()(
                 model_chain: data.model_chain,
                 classification_trace: data.classification_trace,
                 routing_trace: data.routing_trace,
-                citations: data.citations
+                citations: data.citations,
+                tokens_used: data.tokens_used
               }
               : m
             ),
@@ -825,7 +831,6 @@ export const useStore = create<AppState>()(
 
       updateBlockPosition: (id, x, y) => set((state) => ({ blocks: state.blocks.map(b => b.id === id ? { ...b, x, y } : b) })),
 
-      setEntities: (entities) => set({ entities }),
       setTasks: (tasks) => set({ tasks }),
 
       addHabit: (habit) => set(s => ({ lifeHabits: [...s.lifeHabits, habit] })),

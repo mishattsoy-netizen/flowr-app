@@ -18,11 +18,16 @@ import {
   Minus,
   X,
   ChevronRight,
-  Plus
+  Plus,
+  Cloud,
+  CloudOff,
+  Database,
+  History
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Tooltip } from './Tooltip';
 import { Portal } from './Portal';
+import { Toggle } from '@/components/ui/Toggle';
 
 // Constants
 const POPUP_LEAVE_DELAY = 100; // ms to keep popup open when moving mouse
@@ -56,6 +61,9 @@ export const HeaderBar = memo(function HeaderBar() {
   const setActiveTab = useStore(state => state.setActiveTab);
   const removeTab = useStore(state => state.removeTab);
   const addTab = useStore(state => state.addTab);
+  const lastSaved = useStore(state => state.lastSaved);
+  const cloudSyncEnabled = useStore(state => state.cloudSyncEnabled);
+  const setCloudSyncEnabled = useStore(state => state.setCloudSyncEnabled);
 
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < navigationHistory.length - 1;
@@ -258,7 +266,7 @@ export const HeaderBar = memo(function HeaderBar() {
                   >
                     {p.icon && (() => { const PIcon = getEntityIcon(p.icon); return <PIcon strokeWidth={2} className="w-3.5 h-3.5 opacity-60 group-hover/item:opacity-100" />; })()}
                     <span className="text-fade">{p.title}</span>
-                    <ChevronRight className="w-3 h-3 ml-auto opacity-20 group-hover/item:opacity-40" />
+                    <ChevronRight strokeWidth={2} className="w-3 h-3 ml-auto opacity-20 group-hover/item:opacity-40" />
                   </button>
                 ))}
                 
@@ -282,6 +290,43 @@ export const HeaderBar = memo(function HeaderBar() {
           </div>
         </Portal>
       )}
+
+      {/* Save Status & Cloud Toggle */}
+      {(() => {
+        const activeEntity = entities.find(e => e.id === activeEntityId);
+        const isWorkspaceOrPage = activeEntity && ['workspace', 'folder', 'note', 'canvas', 'mixed'].includes(activeEntity.type);
+        if (!isWorkspaceOrPage) return null;
+
+        return (
+          <div className="flex items-center gap-3 px-3 border-l border-[var(--bone-6)] h-5 text-[11px]">
+            <div className="flex items-center gap-1.5 text-[var(--bone-40)]">
+              <History strokeWidth={2} className="w-3 h-3" />
+              <span>Last saved: {lastSaved ? new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Never'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 pl-3 border-l border-[var(--bone-6)] h-full">
+              <button 
+                onClick={() => setCloudSyncEnabled(!cloudSyncEnabled)}
+                className={clsx(
+                  "flex items-center gap-1.5 px-2 py-0.5 rounded-full transition-all border",
+                  cloudSyncEnabled 
+                    ? "bg-accent/10 border-accent/20 text-accent" 
+                    : "bg-[var(--bone-6)] border-[var(--bone-10)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
+                )}
+              >
+                {cloudSyncEnabled ? <Cloud strokeWidth={2} className="w-3 h-3" /> : <CloudOff strokeWidth={2} className="w-3 h-3" />}
+                <span className="font-medium">{cloudSyncEnabled ? 'Cloud Sync' : 'Local Only'}</span>
+                <Toggle 
+                  size="sm"
+                  checked={cloudSyncEnabled}
+                  onChange={() => {}}
+                  className="pointer-events-none scale-75 origin-right"
+                />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Right side actions */}
       {!isDashboard && (
@@ -308,14 +353,14 @@ export const HeaderBar = memo(function HeaderBar() {
                       isFullWidth ? (
                         <div className="flex items-center justify-center -space-x-1.5 ">
                           <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center -space-x-0.5 ">
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                        </div>
+                        <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                        <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center -space-x-0.5 ">
+                        <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                        <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                      </div>
                       )
                     ) : (
                       <action.icon strokeWidth={2} className={`w-4 h-4 ${action.id === 'favorite' && isFavorite ? 'animate-bounce-once' : ''}`} />

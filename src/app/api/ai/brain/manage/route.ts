@@ -62,6 +62,13 @@ Your output MUST be a valid JSON object with the following structure:
 
 DO NOT include markdown code fences or any conversational wrapper in the output. The response must be exactly a single JSON object.`
 
+    const { data: promptRow } = await supabase
+      .from('bot_compiled_prompt')
+      .select('backend_model')
+      .eq('mode', 'default')
+      .single()
+    const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
+
     const keys = await getProviderKeys('GEMINI')
     const apiKey = process.env.GEMINI_API_KEY || (keys && keys.length > 0 ? keys[0] : null)
     if (!apiKey) {
@@ -69,7 +76,7 @@ DO NOT include markdown code fences or any conversational wrapper in the output.
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: backendModel })
     const result = await model.generateContent(systemPrompt + '\n\n' + message)
     const raw = result.response.text().trim()
 

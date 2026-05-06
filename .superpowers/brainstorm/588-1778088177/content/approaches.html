@@ -1,0 +1,47 @@
+<h2>Three Approaches</h2>
+<p class="subtitle">How to add Excalidraw-style features to your existing canvas</p>
+
+<div class="options">
+  <div class="option" data-choice="svg-native" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>⭐ Native SVG shape layer (recommended)</h3>
+      <p>Add a new <code>shape</code> block type stored in the same Zustand store. Shapes are rendered as SVG elements in an overlay. New toolbar section for shape primitives. Style panel slides in on selection. Undo/redo via a history stack. Clean separation: existing blocks stay DOM-based, new shapes are SVG.</p>
+      <div style="margin-top:0.75rem;display:flex;gap:1rem;flex-wrap:wrap">
+        <span style="color:#4ade80;font-size:0.85rem">✓ No new dependencies</span>
+        <span style="color:#4ade80;font-size:0.85rem">✓ Fits existing architecture</span>
+        <span style="color:#4ade80;font-size:0.85rem">✓ Full control over look & feel</span>
+        <span style="color:#f87171;font-size:0.85rem">✗ More code to write</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="rough-js" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>SVG + Rough.js (sketch style)</h3>
+      <p>Same as A but uses <code>roughjs</code> to render shapes with the hand-drawn Excalidraw aesthetic. Since you said no hand-drawn style, this adds complexity without benefit.</p>
+      <div style="margin-top:0.75rem;display:flex;gap:1rem;flex-wrap:wrap">
+        <span style="color:#4ade80;font-size:0.85rem">✓ Exact Excalidraw look</span>
+        <span style="color:#f87171;font-size:0.85rem">✗ You didn't want hand-drawn style</span>
+        <span style="color:#f87171;font-size:0.85rem">✗ Extra dependency</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="tldraw" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Embed tldraw</h3>
+      <p>Drop in the <code>tldraw</code> React component — a modern, clean alternative to Excalidraw with all the primitives, style panel, undo/redo, and export built in. Styled to match your app. Existing canvas becomes a separate mode.</p>
+      <div style="margin-top:0.75rem;display:flex;gap:1rem;flex-wrap:wrap">
+        <span style="color:#4ade80;font-size:0.85rem">✓ Instant full feature parity</span>
+        <span style="color:#4ade80;font-size:0.85rem">✓ Actively maintained</span>
+        <span style="color:#f87171;font-size:0.85rem">✗ Large bundle (~1MB)</span>
+        <span style="color:#f87171;font-size:0.85rem">✗ Harder to integrate with your store</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem">My recommendation is <strong>A</strong> — it fits your existing architecture, keeps the bundle lean, and gives you full control. Reply in the terminal.</p>

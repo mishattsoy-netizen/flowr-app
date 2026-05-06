@@ -153,7 +153,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
                     onClick={e => { e.stopPropagation(); hideTab(tab.id); }}
                     className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 opacity-0 group-hover/tab:opacity-100 transition-opacity z-20"
                   >
-                    <X className="w-2 h-2" />
+                    <X strokeWidth={2} className="w-2 h-2" />
                   </button>
                 )}
               </div>
@@ -167,7 +167,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
                   className="w-full flex items-center justify-center py-1 transition-colors duration-200 text-muted-foreground hover:text-foreground"
                   title="Add tab"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus strokeWidth={2} className="w-3.5 h-3.5" />
                 </button>
                 {showAddMenu && (
                   <div className="absolute left-0 top-8 z-50 bg-background border border-border rounded-xl shadow-lg p-1.5 min-w-[140px] space-y-0.5">
@@ -178,7 +178,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
                         onClick={e => { e.stopPropagation(); showTab(tab.id); }}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)] transition-colors"
                       >
-                        <tab.icon className={clsx("w-3 h-3", tab.color)} />
+                        <tab.icon strokeWidth={2} className={clsx("w-3 h-3", tab.color)} />
                         {tab.label}
                       </button>
                     ))}
@@ -207,7 +207,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
             className="no-drag w-6 h-6 flex items-center justify-center rounded-full bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-muted-foreground hover:text-foreground transition-colors"
             title="Add task"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -230,10 +230,10 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
-            <CheckCircle2 strokeWidth={1} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
+            <CheckCircle2 strokeWidth={2} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">All caught up!</p>
-              <p className="text-xs text-bone-40 opacity-25 mt-1 leading-snug text-balance">No tasks to display in {activeTabDef.label}. Enjoy your day!</p>
+              <p className="text-xs text-bone-60 opacity-40 mt-1 leading-snug text-balance">No tasks to display in {activeTabDef.label}. Enjoy your day!</p>
             </div>
             <button
               onClick={() => setAdding(true)}

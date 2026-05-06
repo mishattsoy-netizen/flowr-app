@@ -25,112 +25,18 @@ import { updateRouterChain, getFallbackModes, setFallbackMode, getRouterTemperat
 import { saveChainPreset, loadChainPreset, listChainPresets } from '@/app/admin/bot/registry/actions'
 import { cn } from '@/lib/utils'
 import ModelDropdown from './ModelDropdown'
+import ProviderSelector from './ProviderSelector'
+import { PROVIDER_DOTS, PROVIDER_COLORS, RegistryModel } from './model-utils'
 
-interface RegistryModel {
-  id: string
-  provider: string
-  max_rpd: number | null
-}
 
-const PROVIDER_COLORS: Record<string, string> = {
-  google: 'text-blue-400',
-  groq: 'text-orange-400',
-  openrouter: 'text-purple-400',
-  ollama: 'text-cyan-400',
-  vault: 'text-emerald-400',
-  pollinations: 'text-pink-400',
-  huggingface: 'text-yellow-400',
-  cloudflare: 'text-amber-400',
-}
-
-const PROVIDER_DOTS: Record<string, string> = {
-  google: 'bg-blue-400',
-  groq: 'bg-orange-400',
-  openrouter: 'bg-purple-400',
-  ollama: 'bg-cyan-400',
-  vault: 'bg-emerald-400',
-  pollinations: 'bg-pink-400',
-  huggingface: 'bg-yellow-400',
-  cloudflare: 'bg-amber-400',
-}
 
 interface ModelConfig {
   id: string
   provider: string
   is_enabled: boolean
+  _key?: string
 }
 
-function ProviderSelector({
-  value,
-  providers,
-  onChange,
-  isEnabled
-}: {
-  value: string
-  providers: string[]
-  onChange: (val: string) => void
-  isEnabled: boolean
-}) {
-  const [isOpen, setIsOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const dotColor = PROVIDER_DOTS[value.toLowerCase()] || 'bg-bone-60'
-
-  return (
-    <div className="relative shrink-0 flex items-center justify-center select-none" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        title={value}
-        className={cn(
-          "flex items-center justify-center w-6 h-6 rounded-sm transition-all duration-0 hover:bg-white/5 focus:outline-none",
-          !isEnabled && "opacity-40"
-        )}
-      >
-        <div className={cn(
-          "w-2 h-2 rounded-full shrink-0 transition-all duration-0",
-          isEnabled ? dotColor : "bg-bone-60"
-        )} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-full right-0 mt-1 bg-panel border border-white/10 rounded-medium shadow-2xl z-50 min-w-[120px] max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-200 py-1 flex flex-col gap-0.5">
-          {providers.map((p) => {
-            const pDot = PROVIDER_DOTS[p] || 'bg-bone-60'
-            const pColor = PROVIDER_COLORS[p] || 'text-bone-60'
-            return (
-              <button
-                type="button"
-                key={p}
-                onClick={() => {
-                  onChange(p)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  "w-full flex items-center justify-start gap-2.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-0 select-none hover:bg-white/5",
-                  value === p ? "bg-white/[0.08] text-foreground" : "text-bone-60 hover:text-foreground"
-                )}
-              >
-                <div className={cn("w-2 h-2 rounded-full shrink-0", pDot)} />
-                <span className={cn("capitalize text-[10.5px] tracking-wide font-bold", pColor)}>{p}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ModelSelector({
   value,
@@ -194,8 +100,8 @@ function ModelSelector({
           placeholder="Model node ID..."
         />
         
-         <ChevronDown className="shrink-0 w-3 h-3 text-bone-60 opacity-20 group-hover:opacity-100" />
-       </div>
+        <ChevronDown className="shrink-0 w-3 h-3 text-bone-60 opacity-20 group-hover:opacity-100" />
+      </div>
 
       {isOpen && (
         <div className="absolute top-full left-0 w-full mt-1.5 bg-panel border border-white/10 rounded-medium shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-0 py-1">
@@ -266,7 +172,12 @@ export default function RouterManager({
   category?: string
   availableModels?: RegistryModel[]
 }) {
-  const [models, setModels] = useState<ModelConfig[]>(chain.model_list)
+  const [models, setModels] = useState<ModelConfig[]>(() => 
+    chain.model_list.map((m: any) => ({ 
+      ...m, 
+      _key: m._key || Math.random().toString(36).substr(2, 9) 
+    }))
+  )
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [isPresetOpen, setIsPresetOpen] = useState(false)
@@ -275,6 +186,35 @@ export default function RouterManager({
   const [isSavingPreset, setIsSavingPreset] = useState(false)
   const [fallbackMode, setFallbackModeState] = useState<'model_first' | 'api_key_first'>('model_first')
   const [temperature, setTemperature] = useState<number>(0.7)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+    
+    const newModels = [...models]
+    const draggedItem = newModels[draggedIndex]
+    
+    newModels.splice(draggedIndex, 1)
+    newModels.splice(index, 0, draggedItem)
+    
+    setModels(newModels)
+    setDraggedIndex(index)
+    setHasChanges(true)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    setDraggedIndex(null)
+  }
 
   useEffect(() => {
     const loadModesAndTemps = async () => {
@@ -385,8 +325,17 @@ export default function RouterManager({
   const providers = [...new Set(availableModels.map(m => m.provider.toLowerCase()))].sort()
 
   const addModel = () => {
+    if (models.length >= 10) {
+      alert('Maximum of 10 models allowed per chain.')
+      return
+    }
     const firstModel = availableModels[0]
-    setModels([...models, { id: firstModel?.id ?? '', provider: firstModel?.provider ?? 'google', is_enabled: true }])
+    setModels([...models, { 
+      id: firstModel?.id ?? '', 
+      provider: firstModel?.provider ?? 'google', 
+      is_enabled: true,
+      _key: Math.random().toString(36).substr(2, 9)
+    }])
     setHasChanges(true)
   }
 
@@ -477,14 +426,14 @@ export default function RouterManager({
       )}
 
       {title && (
-        <div className="px-3 py-2 mb-2 flex items-center justify-between group/header">
+        <div className="px-3 py-2 mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {category && CATEGORY_ICONS[category] && (
-              <div className="text-muted-foreground/40">
-                {React.createElement(CATEGORY_ICONS[category], { className: "w-3 h-3", strokeWidth: 2.5 })}
+              <div>
+                {React.createElement(CATEGORY_ICONS[category], { className: "w-3 h-3 text-[#eea047]", strokeWidth: 2.5 })}
               </div>
             )}
-            <h3 className="text-[10px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase opacity-60 group-hover/header:opacity-100 transition-opacity">
+            <h3 className="text-[10px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase">
               {title}
             </h3>
           </div>
@@ -492,17 +441,17 @@ export default function RouterManager({
             <button
               onClick={handleToggleMode}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-0.5 rounded-medium border transition-all duration-0 text-[9px] font-bold tracking-wide uppercase",
+                "flex items-center gap-1.5 px-2 py-0.5 rounded-sm transition-all duration-0 text-[9px] font-bold tracking-wide uppercase",
                 fallbackMode === 'api_key_first' 
-                  ? "bg-accent/10 border-accent/20 text-accent" 
-                  : "bg-white/5 border-white/5 text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.08]"
+                  ? "bg-accent/10 text-accent" 
+                  : "bg-white/5 text-bone-60 hover:text-foreground hover:bg-white/[0.08]"
               )}
               title={fallbackMode === 'api_key_first' ? 'Try alternative API keys first' : 'Try next model first'}
             >
               <span className="w-1 h-1 rounded-full bg-current" />
-              {fallbackMode === 'api_key_first' ? 'Alt Keys First' : 'Models First'}
+              {fallbackMode === 'api_key_first' ? 'Keys' : 'Models'}
             </button>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-medium border bg-white/5 border-white/5 text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.08] text-[9px] font-bold uppercase tracking-wide">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-white/5 text-bone-60 hover:text-foreground hover:bg-white/[0.08] text-[9px] font-bold uppercase tracking-wide">
               <span>Temp</span>
               <input
                 type="number"
@@ -525,9 +474,24 @@ export default function RouterManager({
         </div>
       )}
 
-      <div className="flex flex-col gap-1 pb-3">
+      <div 
+        className="flex flex-col gap-1 pb-3"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
          {models.map((model, index) => (
-           <div key={`${model.id}-${index}`} className="group flex items-center gap-3 px-2 py-0.5 rounded-medium hover:bg-white/[0.02] transition-all duration-0 relative">
+           <div 
+             key={model._key || `${model.id}-${index}`} 
+             draggable
+             onDragStart={(e) => handleDragStart(e, index)}
+             onDragOver={(e) => handleDragOver(e, index)}
+             onDragEnd={handleDragEnd}
+             onDrop={handleDrop}
+             className={cn(
+               "group flex items-center gap-3 px-2 py-0.5 rounded-medium hover:bg-white/[0.02] transition-all duration-200 relative cursor-grab active:cursor-grabbing",
+               draggedIndex === index ? "opacity-20 scale-[0.98] bg-white/5" : "opacity-100"
+             )}
+           >
              {/* Col 1: Model ID */}
              <div className="w-[200px] shrink-0 flex items-center">
                <ModelDropdown
@@ -540,7 +504,7 @@ export default function RouterManager({
              
              <div className="flex items-center gap-2.5 ml-auto">
                {/* Col 2: RPD */}
-               <div className="flex items-center gap-1 shrink-0 text-muted-foreground/60 group-hover:text-muted-foreground/80 transition-colors duration-0 w-16 justify-end">
+               <div className="flex items-center gap-1 shrink-0 text-bone-60 group-hover:text-bone-80 transition-colors duration-0 w-16 justify-end">
                  <span className="text-[9px] font-mono font-medium">
                    {(() => {
                      const matchingModel = availableModels.find(m => m.id === model.id)
@@ -563,10 +527,10 @@ export default function RouterManager({
                  <button 
                    onClick={() => toggle(index)}
                    className={cn(
-                     "p-1 rounded-full border transition-all duration-0",
+                     "p-1 rounded-full transition-all duration-0",
                      model.is_enabled 
-                       ? "bg-transparent border-accent/40 text-accent" 
-                       : "bg-background border-white/5 text-bone-60 opacity-20 hover:opacity-40"
+                       ? "bg-accent/10 text-accent" 
+                       : "bg-white/5 text-bone-60 opacity-20 hover:opacity-40"
                    )}
                  >
                    <Power className="w-3 h-3" />
@@ -574,7 +538,7 @@ export default function RouterManager({
                  
                  <button 
                    onClick={() => deleteModel(index)}
-                   className="p-1 rounded-full bg-background border border-white/5 text-bone-60 opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:border-rose-500/20 transition-all duration-0"
+                   className="p-1 rounded-full bg-white/5 text-bone-60 opacity-0 group-hover:opacity-100 hover:text-rose-500 transition-all duration-0"
                  >
                    <Trash2 className="w-3 h-3" />
                  </button>
@@ -587,9 +551,10 @@ export default function RouterManager({
       <div className="mt-auto px-3 py-1 flex justify-between items-center border-t border-white/[0.03]">
         <button 
           onClick={addModel}
-          className="text-[10px] flex items-center gap-2 text-muted-foreground/40 hover:text-foreground hover:bg-white/5 font-bold tracking-widest px-3 py-1.5 rounded-medium uppercase transition-all duration-0"
+          disabled={models.length >= 10}
+          className="text-[10px] flex items-center gap-2 text-bone-60 hover:text-foreground hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-bone-60 font-bold tracking-widest px-3 py-1.5 rounded-medium uppercase transition-all duration-0"
         >
-          <Plus className="w-3 h-3" /> Add node registry
+          <Plus className="w-3 h-3" /> Add node
         </button>
         
         {hasChanges && (
@@ -599,7 +564,7 @@ export default function RouterManager({
                 setModels(chain.model_list)
                 setHasChanges(false)
               }}
-              className="text-[10px] font-bold tracking-widest text-muted-foreground/40 hover:text-rose-500 uppercase transition-all duration-0"
+              className="text-[10px] font-bold tracking-widest text-bone-60 hover:text-rose-500 uppercase transition-all duration-0"
             >
               Cancel
             </button>

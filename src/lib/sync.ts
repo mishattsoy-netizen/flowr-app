@@ -348,3 +348,14 @@ export function subscribeRealtime(store: StoreSetters) {
     supabase!.removeChannel(channel);
   };
 }
+export async function clearAllDataFromCloud() {
+  if (!supabase) return;
+  
+  // Caution: This is a destructive operation!
+  await Promise.all([
+    supabase.from('entities').delete().neq('id', '0'), // delete all
+    supabase.from('tasks').delete().neq('id', '0'),
+    supabase.from('workspaces').delete().neq('id', '0'),
+    supabase.from('settings').delete().neq('id', '0'),
+  ]);
+}

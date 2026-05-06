@@ -124,6 +124,15 @@ export function rebalanceAll(layout: BentoLayoutItem[]): BentoLayoutItem[] {
             result[resIdx] = { ...b, order: i };
           }
         });
+      } else if (avail > 0 && avail < HALF_COLS) {
+        // Unfillable gap: spanners exist but no native items.
+        // Truncate spanners to end at row r-1, effectively making row r empty.
+        result = result.map(it => {
+          if (it.row < r && r < it.row + it.h) {
+            return { ...it, h: r - it.row };
+          }
+          return it;
+        });
       }
     }
 
@@ -669,12 +678,15 @@ export function resizeDivider(
         if (newVictim.h < (victimEntry?.minH ?? 1)) return null;
         if (newVictim.h > (victimEntry?.maxH ?? 4)) return null;
       } else {
-        if (posV.y + posV.h !== oldBoundary) return null;
+        // Victim is to the LEFT of claimer; claimer grows left, claiming victim's rightmost cols.
+        // Victim must start at the left grid edge (x=0) or have its right edge at oldBoundary.
+        if (posV.x + posV.w !== oldBoundary) return null;
         const colsGained = oldBoundary - newBoundary;
         if (colsGained !== posV.w) return null;
         const stripH = claimerBottom - claimerTop;
         newVictim.h = posV.h - stripH;
-        if (atTopEdge) newVictim.row = posV.y + stripH;
+        if (atBottomEdge) newVictim.row = posV.y; // victim shrinks upward, row stays
+        if (atTopEdge) newVictim.row = posV.y + stripH; // victim shrinks downward
         if (newVictim.h < (victimEntry?.minH ?? 1)) return null;
         if (newVictim.h > (victimEntry?.maxH ?? 4)) return null;
       }
@@ -825,6 +837,21 @@ export function validateLayout(layout: BentoLayoutItem[]): { valid: boolean; err
     }
   }
 
+  // Reject layouts where widgets overlap (same cell claimed by two widgets).
+  // computeGridPositions silently shifts widgets right on collision, producing positions
+  // that differ from what the layout declares — catch that here.
+  for (const item of layout) {
+    const pos = positions.get(item.i);
+    if (!pos) continue;
+    for (let r = pos.y; r < pos.y + pos.h; r++) {
+      for (let c = pos.x; c < pos.x + pos.w; c++) {
+        if (grid[r]?.[c] !== item.i) {
+          return { valid: false, error: `Overlap detected: widget ${item.i} at (${c},${r}) conflicts with ${grid[r]?.[c]}` };
+        }
+      }
+    }
+  }
+
   // Reject layouts with horizontal gaps: every occupied row must be fully covered.
   const occupiedRows = new Set<number>();
   for (const item of layout) {
@@ -860,7 +887,7 @@ export function recoverLayout(layout: BentoLayoutItem[]): BentoLayoutItem[] | nu
     };
   });
 
-  const recovered = compactLayout(rebalanceAll(clamped));
+  const recovered = fillGaps(compactLayout(rebalanceAll(clamped)));
   return validateLayout(recovered).valid ? recovered : null;
 }
 

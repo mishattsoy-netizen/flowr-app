@@ -1,6 +1,5 @@
 import { getVaultKeys } from '@/app/admin/vault/actions'
 import DiscoverClient from './DiscoverClient'
-import { Telescope } from 'lucide-react'
 
 export default async function DiscoverPage() {
   const vaultKeys = await getVaultKeys()

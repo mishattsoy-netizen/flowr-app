@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition, useEffect, useCallback } from 'react'
-import { Plus, Trash2, X, Send, Sparkles, Brain, Check, ArrowRight, ClipboardList, RefreshCw, Settings, RotateCcw, Cpu, Zap, Users, Key } from 'lucide-react'
+import { useState, useTransition, useEffect, useCallback, useRef } from 'react'
+import { Plus, Trash2, X, Send, Sparkles, Brain, Check, ArrowRight, ClipboardList, RefreshCw, Settings, RotateCcw, Cpu, Zap, Users, Key, Globe, Clock } from 'lucide-react'
 import { addBrainEntry, deleteBrainEntry, toggleBrainEntry, updateBrainEntry } from './actions'
 import type { BrainEntry, BrainCategory } from './actions'
 import { cn } from '@/lib/utils'
@@ -23,7 +23,7 @@ const ACTION_ICONS: Record<string, { icon: any; color: string }> = {
   brain_entry_deleted: { icon: Trash2,       color: 'text-red-400' },
   plan_accepted:       { icon: Check,        color: 'text-green-400' },
   plan_rejected:       { icon: X,            color: 'text-red-400' },
-  plan_edited:         { icon: Edit2,        color: 'text-blue-400' },
+  plan_edited:         { icon: Sparkles,     color: 'text-blue-400' },
   routine_ran:         { icon: RotateCcw,    color: 'text-blue-400' },
   prompt_synced:       { icon: RefreshCw,    color: 'text-cyan-400' },
   router_changed:      { icon: Cpu,          color: 'text-blue-400' },
@@ -34,11 +34,7 @@ const ACTION_ICONS: Record<string, { icon: any; color: string }> = {
   vault_updated:       { icon: Key,          color: 'text-yellow-400' },
 }
 
-const DEFAULT_ICON = { icon: ClipboardList, color: 'text-muted-foreground' }
-
-function Edit2(props: any) {
-  return <Sparkles {...props} />
-}
+const DEFAULT_ICON = { icon: ClipboardList, color: 'text-bone-60' }
 
 interface Props { initialEntries: BrainEntry[] }
 
@@ -75,6 +71,8 @@ export default function BrainClient({ initialEntries }: Props) {
   // Sidebar Layout
   const [sidebarWidth, setSidebarWidth] = useState(380)
   const [isResizing, setIsResizing] = useState(false)
+  const isResizingRef = useRef(false)
+  const rafRef = useRef<number | null>(null)
   const [activeTab, setActiveTab] = useState<'manager' | 'logs'>('manager')
 
   // Logs state
@@ -142,28 +140,44 @@ export default function BrainClient({ initialEntries }: Props) {
   // Mouse drag handles
   const startResizing = (e: React.MouseEvent) => {
     setIsResizing(true)
+    isResizingRef.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
     e.preventDefault()
-  }
-  const stopResizing = () => setIsResizing(false)
-  const resize = (e: MouseEvent) => {
-    if (isResizing) {
-      const newWidth = window.innerWidth - e.clientX
-      if (newWidth >= 320 && newWidth <= 650) {
-        setSidebarWidth(newWidth)
-      }
-    }
   }
 
   useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', resize)
-      window.addEventListener('mouseup', stopResizing)
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return
+      if (rafRef.current) return
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        const newWidth = window.innerWidth - e.clientX
+        if (newWidth >= 320 && newWidth <= 800) {
+          setSidebarWidth(newWidth)
+        }
+      })
     }
+
+    const handleMouseUp = () => {
+      if (!isResizingRef.current) return
+      setIsResizing(false)
+      isResizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
     return () => {
-      window.removeEventListener('mousemove', resize)
-      window.removeEventListener('mouseup', stopResizing)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isResizing])
+  }, [])
 
   async function handleChatSubmit(promptText: string) {
     const text = promptText.trim()
@@ -275,423 +289,452 @@ export default function BrainClient({ initialEntries }: Props) {
   }
 
   return (
-    <div className="animate-in fade-in duration-500 flex flex-col h-full relative max-w-[1200px]" style={{ paddingRight: sidebarWidth }}>
-      <div className="mb-4">
-        <h1 className="text-4xl font-display text-foreground mb-1">Bot Brain</h1>
-        <p className="text-muted-foreground text-sm font-medium">
-          Manage what your bot has learned via our AI Manager or manual filter controls.
-        </p>
-      </div>
-
-      <div className="flex-1 space-y-4">
-        {/* Filter chips + add button */}
-        <div className="flex gap-2 flex-wrap items-center">
-          <button
-            onClick={() => setSelected(null)}
-            className={cn(
-              'px-3 py-1 rounded-full text-xs font-medium transition-all',
-              !selected
-                ? 'bg-[var(--bone-15)] text-foreground'
-                : 'bg-[var(--bone-6)] text-muted-foreground hover:text-foreground'
-            )}
-          >
-            All ({entries.length})
-          </button>
-          {CATEGORIES.map(cat => {
-            const meta = CATEGORY_META[cat]
-            const count = entries.filter(e => e.category === cat).length
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelected(prev => prev === cat ? null : cat)}
-                className={cn(
-                  'px-3 py-1 rounded-full text-xs font-medium transition-all border',
-                  selected === cat ? 'text-white' : 'bg-[var(--bone-6)] text-muted-foreground hover:text-foreground'
-                )}
-                style={
-                  selected === cat
-                    ? { background: meta.color, borderColor: meta.color }
-                    : { borderColor: meta.color + '40' }
-                }
-              >
-                {meta.label} ({count})
-              </button>
-            )
-          })}
-          <button
-            onClick={() => setShowAdd(true)}
-            className="ml-auto flex items-center gap-1 px-3 py-1 bg-foreground text-background rounded-full text-xs font-medium hover:opacity-80 transition-opacity"
-          >
-            <Plus className="w-3 h-3" /> Add Entry
-          </button>
-        </div>
-
-        {/* Add entry form */}
-        {showAdd && (
-          <div className="bg-[var(--bone-6)] rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">New Brain Entry</h3>
-              <button onClick={() => setShowAdd(false)}>
-                <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={newCategory}
-                onChange={e => setNewCategory(e.target.value as BrainCategory)}
-                className="bg-background border border-[var(--bone-10)] rounded-lg px-3 py-1.5 text-sm text-foreground"
-              >
-                {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{CATEGORY_META[c].label}</option>
-                ))}
-              </select>
-              <input
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                placeholder="Short title (e.g. Don't over-use bullets)"
-                className="flex-1 bg-background border border-[var(--bone-10)] rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[var(--bone-30)]"
-              />
-            </div>
-            <textarea
-              value={newContent}
-              onChange={e => setNewContent(e.target.value)}
-              placeholder="Detailed content..."
-              rows={3}
-              className="w-full bg-background border border-[var(--bone-10)] rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[var(--bone-30)]"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowAdd(false)}
-                className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                disabled={isPending || !newTitle.trim() || !newContent.trim()}
-                className="px-4 py-1.5 bg-foreground text-background rounded-lg text-sm font-medium hover:opacity-80 disabled:opacity-50"
-              >
-                {isPending ? 'Adding…' : 'Add'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Entries list */}
-        <div className="flex flex-col gap-2">
-          {visibleEntries.length === 0 && (
-            <p className="text-muted-foreground text-sm text-center py-8">
-              No entries yet. Add one above.
+    <div className="animate-in fade-in duration-500 relative">
+      {/* MAIN CONTENT AREA */}
+      <div 
+        className="transition-all duration-300"
+        style={{ paddingRight: sidebarWidth }}
+      >
+        <div className="max-w-[1200px] mx-auto px-8 py-5 pb-24">
+          <div className="mb-6">
+            <h1 className="text-4xl font-display text-foreground mb-1">
+              Bot Brain
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
+              Manage learned intelligence via AI Manager or manual controls.
             </p>
-          )}
-          {visibleEntries.map(entry => {
-            const meta = CATEGORY_META[entry.category]
-            return (
-              <div
-                key={entry.id}
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex gap-2 flex-wrap items-center">
+              <button
+                onClick={() => setSelected(null)}
                 className={cn(
-                  'bg-[var(--bone-6)] rounded-xl p-4 flex gap-3 items-start group transition-opacity',
-                  !entry.is_active && 'opacity-40'
+                  'px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all',
+                  !selected
+                    ? 'bg-accent text-white shadow-md shadow-accent/20'
+                    : 'bg-white/5 text-bone-60 hover:text-foreground hover:bg-white/10 border border-white/5'
                 )}
               >
-                <div
-                  className="w-1 self-stretch rounded-full flex-shrink-0"
-                  style={{ background: meta.color }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-semibold text-foreground">{entry.title}</span>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={{ background: meta.color + '20', color: meta.color }}
-                    >
-                      {meta.label}
-                    </span>
-                    {!entry.is_active && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--bone-10)] text-muted-foreground font-medium">
-                        disabled
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{entry.content}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-1.5 flex items-center gap-1.5 flex-wrap">
-                    <span>Source: {entry.source.replace('_', ' ')}</span>
-                    <span>·</span>
-                    <span>Edited: {new Date(entry.updated_at || entry.created_at).toLocaleString()}</span>
-                  </p>
-                </div>
-
-                {/* Toggle + delete (visible on hover) */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                All ({entries.length})
+              </button>
+              {CATEGORIES.map(cat => {
+                const meta = CATEGORY_META[cat]
+                const count = entries.filter(e => e.category === cat).length
+                const isSelected = selected === cat
+                return (
                   <button
-                    onClick={() => handleToggle(entry.id, entry.is_active)}
-                    title={entry.is_active ? 'Disable entry' : 'Enable entry'}
+                    key={cat}
+                    onClick={() => setSelected(prev => prev === cat ? null : cat)}
                     className={cn(
-                      'p-1 rounded text-xs font-bold transition-colors',
-                      entry.is_active
-                        ? 'text-green-400 hover:text-[var(--bone-40)]'
-                        : 'text-[var(--bone-30)] hover:text-green-400'
+                      'px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border',
+                      isSelected
+                        ? 'bg-white/10 text-foreground border-white/20 shadow-sm'
+                        : 'bg-white/5 text-bone-60 hover:text-foreground hover:bg-white/10 border-white/5'
                     )}
                   >
-                    {entry.is_active ? '●' : '○'}
+                    {meta.label} ({count})
+                  </button>
+                )
+              })}
+
+              <div className="flex-1" />
+
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-accent text-white rounded-full text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-md shadow-accent/20 active:scale-95"
+              >
+                <Plus className="w-3 h-3" /> Add Entry
+              </button>
+            </div>
+
+            {showAdd && (
+              <div className="bg-[var(--bone-6)] border border-white/5 rounded-xl p-5 space-y-4 animate-in slide-in-from-top-2 duration-300 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-foreground tracking-tight">New Brain Entry</h3>
+                  <button onClick={() => setShowAdd(false)}>
+                    <X className="w-5 h-5 text-bone-60 hover:text-foreground transition-colors" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value as BrainCategory)}
+                    className="bg-background border border-white/10 rounded-xl px-4 py-2 text-sm text-foreground focus:ring-1 focus:ring-accent/20 outline-none transition-all"
+                  >
+                    {CATEGORIES.map(c => (
+                      <option key={c} value={c}>{CATEGORY_META[c].label}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={newTitle}
+                    onChange={e => setNewTitle(e.target.value)}
+                    placeholder="Short title (e.g. Don't over-use bullets)"
+                    className="md:col-span-3 bg-background border border-white/10 rounded-xl px-4 py-2 text-sm text-foreground placeholder:text-bone-60/30 focus:border-accent/50 outline-none transition-all"
+                  />
+                </div>
+                <textarea
+                  value={newContent}
+                  onChange={e => setNewContent(e.target.value)}
+                  placeholder="Detailed content..."
+                  rows={4}
+                  className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-bone-60/30 resize-none focus:border-accent/50 outline-none transition-all leading-relaxed"
+                />
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowAdd(false)}
+                    className="px-6 py-2 text-xs font-bold uppercase tracking-widest text-bone-60 hover:text-foreground transition-colors"
+                  >
+                    Cancel
                   </button>
                   <button
-                    onClick={() => handleDelete(entry.id, entry.title)}
-                    className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all"
+                    onClick={handleAdd}
+                    disabled={isPending || !newTitle.trim() || !newContent.trim()}
+                    className="px-8 py-2 bg-foreground text-background rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 transition-all active:scale-95 shadow-xl"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    {isPending ? 'Adding...' : 'Save Entry'}
                   </button>
                 </div>
               </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* FIXED, RESIZABLE RIGHT SIDEBAR PANEL */}
-      <div
-        className="fixed top-0 right-0 h-screen bg-sidebar border-l border-border z-10 flex flex-col overflow-hidden select-none animate-in slide-in-from-right duration-300"
-        style={{ width: sidebarWidth }}
-      >
-        {/* Resize Handler on the left edge */}
-        <div
-          onMouseDown={startResizing}
-          className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize bg-transparent hover:bg-accent/40 transition-colors z-20"
-        />
-
-        {/* Dynamic Header Tab Switcher */}
-        <div className="px-3 py-2.5 bg-[var(--bone-8)] border-b border-[var(--bone-10)] flex items-center gap-1.5 shrink-0 h-12">
-          <button
-            onClick={() => setActiveTab('manager')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors',
-              activeTab === 'manager'
-                ? 'bg-accent/15 text-accent border border-accent/20'
-                : 'text-muted-foreground hover:text-foreground'
             )}
-          >
-            <Brain className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-            <span>AI Manager</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors',
-              activeTab === 'logs'
-                ? 'bg-accent/15 text-accent border border-accent/20'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <ClipboardList className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-            <span>Activity Logs</span>
-          </button>
 
-          {activeTab === 'logs' && (
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                onClick={() => fetchLogs(true)}
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                title="Refresh logs"
-              >
-                <RefreshCw className={cn("w-3.5 h-3.5", logsLoading && "animate-spin")} strokeWidth={2} />
-              </button>
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                title="Clear activity logs"
-              >
-                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Tab Content 1: AI Manager */}
-        {activeTab === 'manager' && (
-          <>
-            <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              {messages.map((msg, mIdx) => (
-                <div key={mIdx} className={cn("flex flex-col gap-2 max-w-[85%]", msg.role === 'user' ? 'ml-auto items-end' : 'mr-auto items-start')}>
-                  <div className={cn("px-4 py-2.5 rounded-2xl text-sm leading-relaxed border", msg.role === 'user' ? 'bg-[var(--bone-15)] text-foreground border-[var(--bone-20)]' : 'bg-background text-foreground/90 border-[var(--bone-10)]')}>
-                    <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+            <div className="grid grid-cols-1 gap-4">
+              {visibleEntries.length === 0 && !showAdd && (
+                <div className="py-24 text-center bg-white/[0.02] border border-dashed border-white/5 rounded-2xl">
+                  <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mx-auto mb-4 opacity-40">
+                    <Brain className="w-6 h-6 text-bone-60" />
                   </div>
-
-                  {msg.actions && msg.actions.length > 0 && (
-                    <div className="space-y-2 mt-1 w-full min-w-[280px]">
-                      {msg.actions.map((action, aIdx) => {
-                        const existingEntry = entries.find(e => e.id === action.entryId)
-                        const title = action.title || existingEntry?.title || 'Untitled entry'
-                        const content = action.content || existingEntry?.content || ''
-                        const category = action.category || existingEntry?.category || 'rules'
-                        const meta = CATEGORY_META[category] || { label: category, color: 'var(--bone-30)' }
-                        return (
-                          <div key={aIdx} className="bg-background border border-[var(--bone-10)] rounded-xl p-3 flex flex-col gap-2 shadow-sm">
-                            <div className="flex items-center gap-1.5 justify-between flex-wrap">
-                              <span className={cn("text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider", action.type === 'delete' ? 'bg-red-500/10 text-red-400' : action.type === 'update' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-400')}>
-                                {action.type === 'delete' ? 'Delete entry' : action.type === 'update' ? 'Update entry' : 'New entry'}
-                              </span>
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.color + '15', color: meta.color }}>
-                                {meta.label}
-                              </span>
-                            </div>
-
-                            <p className="text-xs font-bold text-foreground truncate">{title}</p>
-
-                            {/* Normal content for Create/Delete actions */}
-                            {action.type !== 'update' && content && (
-                              <p className="text-xs text-muted-foreground bg-[var(--bone-6)] p-2 rounded border border-[var(--bone-10)] line-clamp-3">
-                                {content}
-                              </p>
-                            )}
-
-                            {/* Before and After content for Update actions */}
-                            {action.type === 'update' && (
-                              <div className="space-y-2 mt-1 select-none">
-                                <div className="text-[10px] uppercase font-bold text-muted-foreground/80">Before:</div>
-                                <p className="text-xs text-muted-foreground/80 bg-[var(--bone-6)] p-2 rounded border border-[var(--bone-10)] line-clamp-3">
-                                  {existingEntry?.content || 'Empty or new'}
-                                </p>
-                                <div className="text-[10px] uppercase font-bold text-accent flex items-center gap-1">
-                                  <span>After</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </div>
-                                <p className="text-xs text-foreground bg-[var(--bone-6)] p-2 rounded border border-accent/20 line-clamp-3">
-                                  {action.content}
-                                </p>
-                              </div>
-                            )}
-
-                            <div className="flex justify-end pt-1">
-                              {action.applied ? (
-                                <span className="text-xs text-green-400 font-medium flex items-center gap-1">
-                                  <Check className="w-3.5 h-3.5" /> Applied
-                                </span>
-                              ) : (
-                                <button
-                                  disabled={isPending}
-                                  onClick={() => applyAction(mIdx, aIdx, action)}
-                                  className="flex items-center gap-1 text-[11px] font-semibold bg-accent/10 text-accent hover:bg-accent/20 px-3 py-1.5 rounded-lg transition-colors border border-accent/10"
-                                >
-                                  <Check className="w-3.5 h-3.5" /> Apply Action
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {isAiLoading && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
-                  <Sparkles className="w-3.5 h-3.5 animate-pulse text-accent" />
-                  <span>Analyzing your brain entries...</span>
+                  <p className="text-bone-60 text-sm font-medium tracking-wide">No intelligence entries found in this category.</p>
                 </div>
               )}
-            </div>
-
-            {/* Templates + Input box */}
-            <div className="p-3 bg-[var(--bone-8)] border-t border-[var(--bone-10)] space-y-2 shrink-0">
-              <div className="flex gap-1.5 flex-wrap">
-                {templates.map((t, idx) => (
-                  <button
-                    key={idx}
-                    disabled={isAiLoading}
-                    onClick={() => handleChatSubmit(t.prompt)}
-                    className="text-[10px] px-2.5 py-1 bg-background hover:bg-[var(--bone-10)] text-muted-foreground hover:text-foreground border border-[var(--bone-10)] rounded-lg font-medium transition-colors select-none shrink-0"
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              <form
-                onSubmit={e => { e.preventDefault(); handleChatSubmit(chatInput) }}
-                className="flex gap-2"
-              >
-                <input
-                  disabled={isAiLoading}
-                  value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  placeholder="Ask the manager anything..."
-                  className="flex-1 bg-background border border-[var(--bone-10)] rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[var(--bone-30)]"
-                />
-                <button
-                  disabled={isAiLoading || !chatInput.trim()}
-                  type="submit"
-                  className="px-3 bg-accent text-white rounded-lg text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center shrink-0 transition-opacity"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            </div>
-          </>
-        )}
-
-        {/* Tab Content 2: Activity Logs */}
-        {activeTab === 'logs' && (
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
-            {logs.length === 0 && !logsLoading && (
-              <p className="text-xs text-muted-foreground text-center py-8">No activity yet.</p>
-            )}
-            <div className="space-y-2.5">
-              {logs.map(log => {
-                const { icon: Icon, color } = ACTION_ICONS[log.action_type] ?? DEFAULT_ICON
+              {visibleEntries.map(entry => {
+                const meta = CATEGORY_META[entry.category]
                 return (
-                  <div key={log.id} className="flex gap-2.5 p-3 rounded-lg border border-[var(--bone-10)] bg-[var(--bone-4)] select-none">
-                    <div className="mt-0.5 shrink-0">
-                      <Icon className={cn("w-3.5 h-3.5", color)} strokeWidth={2} />
-                    </div>
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      'bg-[var(--bone-6)] border border-white/5 hover:border-white/10 rounded-xl p-4 flex gap-4 items-start group transition-all duration-300',
+                      !entry.is_active && 'opacity-40'
+                    )}
+                  >
+                    <div
+                      className="w-1 self-stretch rounded-full flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity"
+                      style={{ background: meta.color }}
+                    />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-foreground/80 leading-normal break-words">{log.description}</p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-1">
-                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                      </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-foreground tracking-tight leading-none">{entry.title}</span>
+                        <span
+                          className="text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest"
+                          style={{ background: meta.color + '15', color: meta.color, border: `1px solid ${meta.color}25` }}
+                        >
+                          {meta.label}
+                        </span>
+                        {!entry.is_active && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-white/5 text-bone-60 font-bold uppercase tracking-widest border border-white/10">
+                            disabled
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-medium">{entry.content}</p>
+                      <div className="mt-4 flex items-center gap-4 text-[9px] font-bold text-bone-60/40 uppercase tracking-[0.15em]">
+                        <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> {entry.source.replace('_', ' ')}</span>
+                        <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {new Date(entry.updated_at || entry.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                      <button
+                        onClick={() => handleToggle(entry.id, entry.is_active)}
+                        className={cn(
+                          'w-8 h-8 flex items-center justify-center rounded-lg transition-all border',
+                          entry.is_active
+                            ? 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'
+                            : 'bg-white/5 text-bone-60 border-white/10 hover:text-green-400 hover:border-green-500/20'
+                        )}
+                      >
+                        <Zap className={cn("w-3.5 h-3.5", entry.is_active && "fill-current")} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry.id, entry.title)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-bone-60 hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/10 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 )
               })}
             </div>
+          </div>
+        </div>
+      </div>
 
-            {hasMore && (
+      {/* RIGHT SIDEBAR PANEL - FIXED DOCKED CHATBOT */}
+      <div
+        className="fixed top-0 right-0 bottom-0 bg-sidebar border-l border-white/5 flex flex-col overflow-hidden z-[100] group/sidebar"
+        style={{ width: sidebarWidth }}
+      >
+        {/* Resize Handler - Synced with Shell.tsx */}
+        <div
+          onMouseDown={startResizing}
+          className={cn(
+            "w-2 h-full cursor-col-resize absolute left-0 top-0 z-[110] transition-colors group",
+            isResizing ? "bg-[var(--bone-15)]" : "bg-transparent hover:bg-[var(--bone-6)]"
+          )}
+        >
+          <div className={cn(
+            "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-300",
+            isResizing ? "bg-[var(--bone-60)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
+          )} />
+        </div>
+
+        {/* Sidebar Header */}
+        <div className="py-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-sidebar px-6">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3">
+              <h1 className="text-[22px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Text", serif' }}>
+                AI Manager
+              </h1>
+              <div className="w-1.5 h-1.5 rounded-full mt-1 bg-[#22C55E] shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+            </div>
+            <p className="text-[10px] font-bold text-bone-60 tracking-[0.1em] uppercase mt-1 opacity-60">
+              Brain Intelligence
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <div className="flex p-0.5 bg-white/5 rounded-lg border border-white/10">
               <button
-                onClick={() => fetchLogs(false)}
-                disabled={logsLoading}
-                className="w-full py-2.5 mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors text-center font-medium"
+                onClick={() => setActiveTab('manager')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all',
+                  activeTab === 'manager' ? 'bg-white/10 text-foreground shadow-sm' : 'text-bone-60 hover:text-foreground'
+                )}
               >
-                {logsLoading ? 'Loading…' : 'Load more'}
+                Chat
+              </button>
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all',
+                  activeTab === 'logs' ? 'bg-white/10 text-foreground shadow-sm' : 'text-bone-60 hover:text-foreground'
+                )}
+              >
+                Logs
+              </button>
+            </div>
+            {activeTab === 'logs' && (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-bone-60 hover:text-red-400 hover:bg-red-400/10 transition-all border border-transparent hover:border-red-400/20"
+                title="Clear logs"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             )}
           </div>
-        )}
+        </div>
+
+        {/* Sidebar Content Area */}
+        <div className="flex-1 overflow-hidden relative flex flex-col bg-sidebar">
+          {activeTab === 'manager' && (
+            <>
+              <div className="flex-1 px-6 py-8 overflow-y-auto space-y-8 scrollbar-thin">
+                {messages.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                    <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mb-5 border border-accent/20 shadow-xl">
+                      <Brain className="w-7 h-7 text-accent" />
+                    </div>
+                    <h3 className="text-base font-bold text-foreground mb-2 tracking-tight">Intelligence Manager</h3>
+                    <p className="text-xs text-bone-60 leading-relaxed max-w-[220px] font-medium opacity-80">
+                      I can help you analyze, merge, or refine your bot's learned behavior patterns.
+                    </p>
+                  </div>
+                )}
+
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={cn("flex flex-col group animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === 'user' ? "items-end" : "items-start")}>
+                    <div className={cn("flex gap-3.5 w-full items-start", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}>
+                      {msg.role === 'assistant' && (
+                        <div className="w-6 h-6 shrink-0 flex items-center justify-center mt-1 select-none">
+                          <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30 shadow-[0_0_8px_rgba(var(--accent-rgb),0.2)]">
+                            <Sparkles className="w-3 h-3 text-accent" />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className={cn(
+                        "flex flex-col min-w-0",
+                        msg.role === 'user' ? "items-end max-w-[88%]" : "items-start max-w-[92%] flex-1"
+                      )}>
+                        <div
+                          className={cn(
+                            "leading-relaxed font-medium text-sm tracking-wide",
+                            msg.role === 'user' 
+                              ? "px-4 py-3 bg-[var(--bone-6)] border border-white/5 text-foreground/95" 
+                              : "px-0 py-1 text-foreground/95"
+                          )}
+                          style={msg.role === 'user' ? { borderRadius: '18px 18px 4px 18px' } : undefined}
+                        >
+                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                        </div>
+
+                        {msg.actions && msg.actions.length > 0 && (
+                          <div className="mt-5 w-full space-y-4">
+                            {msg.actions.map((action, aIdx) => {
+                              const meta = CATEGORY_META[action.category] || { label: action.category, color: 'var(--bone-30)' }
+                              return (
+                                <div key={aIdx} className="bg-white/[0.04] border border-white/5 rounded-2xl p-5 flex flex-col gap-4 group/card hover:border-white/20 transition-all duration-300">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(var(--accent-rgb),0.6)]" style={{ background: meta.color }} />
+                                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-bone-60 opacity-80">Suggested {meta.label}</span>
+                                    </div>
+                                    {action.applied && (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-400 uppercase tracking-[0.2em]">
+                                        <Check className="w-3.5 h-3.5" /> Applied
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <h4 className="text-[15px] font-bold text-foreground tracking-tight leading-snug">{action.title}</h4>
+                                    <p className="text-[13px] text-bone-60/90 leading-relaxed font-medium line-clamp-4 opacity-90">{action.content}</p>
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-end pt-2">
+                                    {!action.applied && (
+                                      <button
+                                        onClick={() => applyAction(idx, aIdx, action)}
+                                        className="flex items-center gap-2 text-[11px] font-bold bg-accent text-white hover:opacity-95 px-5 py-2.5 rounded-xl transition-all shadow-xl shadow-accent/25 active:scale-95"
+                                      >
+                                        <Check className="w-3.5 h-3.5" /> Apply Intelligence
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {isAiLoading && (
+                  <div className="flex items-center gap-4 px-0 py-2">
+                    <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+                       <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center border border-accent/20">
+                          <Sparkles className="w-3 h-3 text-accent animate-pulse" />
+                       </div>
+                    </div>
+                    <span className="text-sm font-medium text-bone-60 animate-pulse tracking-wide italic opacity-70">AI is analyzing brain state...</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input Area */}
+              <div className="px-6 pb-8 pt-4 shrink-0 bg-sidebar border-t border-white/5 relative">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-4">
+                  {templates.map((t, idx) => (
+                    <button
+                      key={idx}
+                      disabled={isAiLoading}
+                      onClick={() => handleChatSubmit(t.prompt)}
+                      className="text-[9.5px] px-3.5 py-1.5 bg-white/5 hover:bg-white/10 text-bone-60 hover:text-foreground border border-white/10 rounded-full font-bold uppercase tracking-[0.15em] transition-all select-none shrink-0"
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-white/[0.05] border border-white/5 rounded-[22px] p-2.5 flex items-center gap-2.5 focus-within:border-accent/40 transition-all">
+                  <form
+                    onSubmit={e => { e.preventDefault(); handleChatSubmit(chatInput) }}
+                    className="flex-1 flex items-center gap-2.5"
+                  >
+                    <input
+                      disabled={isAiLoading}
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      placeholder="Ask the manager anything..."
+                      className="flex-1 bg-transparent border-none px-4 py-2 text-sm text-foreground placeholder:text-bone-60/25 outline-none font-medium"
+                    />
+                    <button
+                      disabled={isAiLoading || !chatInput.trim()}
+                      type="submit"
+                      className="w-10 h-10 bg-accent text-white rounded-full flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 shadow-xl shadow-accent/40"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'logs' && (
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-2">
+              {logs.length === 0 && !logsLoading && (
+                <div className="py-24 text-center">
+                  <p className="text-[13px] text-bone-60 font-medium tracking-wide opacity-40 italic">Activity history is empty.</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                {logs.map(log => {
+                  const { icon: Icon, color } = ACTION_ICONS[log.action_type] ?? DEFAULT_ICON
+                  return (
+                    <div key={log.id} className="flex gap-4 p-4 rounded-2xl border border-white/5 bg-white/[0.02] group hover:border-white/10 transition-all duration-300 shadow-sm">
+                      <div className="mt-0.5 shrink-0">
+                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 shadow-inner transition-colors", color)}>
+                          <Icon className="w-4.5 h-4.5" strokeWidth={2.5} />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] text-foreground/90 leading-snug font-medium break-words tracking-tight">{log.description}</p>
+                        <p className="text-[10px] text-bone-60/30 mt-2 font-bold uppercase tracking-[0.2em]">
+                          {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {hasMore && (
+                <button
+                  onClick={() => fetchLogs(false)}
+                  disabled={logsLoading}
+                  className="w-full py-6 mt-2 text-[10px] font-bold text-bone-60 hover:text-foreground uppercase tracking-[0.25em] transition-all opacity-40 hover:opacity-100 active:scale-[0.98]"
+                >
+                  {logsLoading ? 'Loading archive...' : 'View Older Records'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
-          <div className="relative bg-[#1A1A1A] border border-white/5 rounded-xl w-full max-w-sm mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-rose-400" />
-                <h3 className="text-xs font-semibold text-foreground">Clear Activity Log</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={() => setShowClearConfirm(false)} />
+          <div className="relative bg-[#0F0F0F] border border-white/10 rounded-[24px] w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-300 overflow-hidden">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 rounded-[20px] bg-rose-500/10 flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
+                <Trash2 className="w-8 h-8 text-rose-500" />
               </div>
-              <button onClick={() => setShowClearConfirm(false)} className="text-bone-60 hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="px-4 py-3">
-              <p className="text-xs text-bone-60 leading-normal">
-                Are you sure you want to clear all activity logs? This action cannot be undone.
+              <h3 className="text-lg font-bold text-foreground mb-2 tracking-tight">Clear Activity Logs?</h3>
+              <p className="text-sm text-bone-60 leading-relaxed font-medium">
+                This will permanently delete all recorded intelligence actions. This cannot be undone.
               </p>
             </div>
-
-            <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-white/5 bg-white/[0.01]">
+            
+            <div className="flex items-center gap-3 p-8 pt-0">
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="px-3 py-1.5 rounded border border-white/10 text-[10px] font-bold text-bone-60 hover:text-foreground transition-all"
+                className="flex-1 py-3.5 rounded-2xl border border-white/10 text-xs font-bold text-bone-60 hover:text-foreground transition-all uppercase tracking-widest"
               >
                 Cancel
               </button>
@@ -700,9 +743,9 @@ export default function BrainClient({ initialEntries }: Props) {
                   setShowClearConfirm(false)
                   await handleClearLogs()
                 }}
-                className="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold transition-all"
+                className="flex-1 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-xl shadow-rose-600/30 uppercase tracking-widest"
               >
-                Clear All
+                Delete All
               </button>
             </div>
           </div>

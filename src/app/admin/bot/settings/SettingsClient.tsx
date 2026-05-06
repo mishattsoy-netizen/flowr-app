@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
-import { Settings, RefreshCw, Eye, EyeOff, Check, Cpu } from 'lucide-react'
+import { Settings, RefreshCw, Eye, EyeOff, Check, Cpu, Copy } from 'lucide-react'
 import { saveSettingBlock, syncCompiledPrompt, toggleSettingBlock, setGlobalPromptEnabled, setOllamaEnabled, setBackendModel } from './actions'
 import type { BotSetting, SettingsCategory } from './actions'
 import { cn } from '@/lib/utils'
 import ModelDropdown from '@/components/admin/ModelDropdown'
+import { RegistryModel } from '@/components/admin/model-utils'
+import { Toggle } from '@/components/ui/Toggle'
 
 const TABS: { key: SettingsCategory; label: string; description: string }[] = [
   { key: 'core_rules',       label: 'Core Rules',      description: 'Hard constraints — what the bot must always or never do' },
@@ -24,7 +26,7 @@ interface Props {
   initialActiveStates: Record<string, boolean>
   initialOllamaEnabled: boolean
   initialBackendModel: string
-  initialModels?: { id: string }[]
+  initialModels?: RegistryModel[]
 }
 
 export default function SettingsClient({
@@ -52,6 +54,7 @@ export default function SettingsClient({
   const [ollamaOn, setOllamaOn] = useState(initialOllamaEnabled)
   const [backendModel, setBackendModel_] = useState(initialBackendModel)
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>(initialActiveStates)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -96,6 +99,13 @@ export default function SettingsClient({
     await toggleSettingBlock(category, val)
   }
 
+  const handleCopy = () => {
+    if (!compiledContent) return
+    navigator.clipboard.writeText(compiledContent)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500 font-sans select-none">
       <div>
@@ -109,40 +119,24 @@ export default function SettingsClient({
        <div className="flex items-center justify-between p-4 bg-panel rounded-big transition-all">
         <div>
           <p className="text-sm font-semibold tracking-wide text-foreground">Global Prompt Injection</p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">Brain + Settings are active on every chat request</p>
+          <p className="text-xs text-bone-60 mt-0.5">Brain + Settings are active on every chat request</p>
         </div>
-        <button
-          onClick={() => handleGlobalToggle(!globalOn)}
-          className={cn(
-            "relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none",
-            globalOn ? "bg-blue-500" : "bg-white/10"
-          )}
-        >
-          <span className={cn(
-            "inline-block h-4.5 w-4.5 transform rounded-full bg-white transition-all",
-            globalOn ? "translate-x-5.5" : "translate-x-1"
-          )} />
-        </button>
+        <Toggle 
+          checked={globalOn}
+          onChange={handleGlobalToggle}
+        />
       </div>
 
       {/* Local Ollama */}
        <div className="flex items-center justify-between p-4 bg-panel rounded-big transition-all">
         <div>
           <p className="text-sm font-semibold tracking-wide text-foreground">Local Ollama</p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">Your local Ollama instance is active for all users</p>
+          <p className="text-xs text-bone-60 mt-0.5">Your local Ollama instance is active for all users</p>
         </div>
-        <button
-          onClick={() => handleOllamaToggle(!ollamaOn)}
-          className={cn(
-            "relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none",
-            ollamaOn ? "bg-blue-500" : "bg-white/10"
-          )}
-        >
-          <span className={cn(
-            "inline-block h-4.5 w-4.5 transform rounded-full bg-white transition-all",
-            ollamaOn ? "translate-x-5.5" : "translate-x-1"
-          )} />
-        </button>
+        <Toggle 
+          checked={ollamaOn}
+          onChange={handleOllamaToggle}
+        />
       </div>
 
       {/* Backend Model */}
@@ -153,13 +147,13 @@ export default function SettingsClient({
           </div>
           <div>
             <p className="text-sm font-semibold tracking-wide text-foreground">Backend Model</p>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">Used for routine analysis, brain sync, and all backend AI actions</p>
+            <p className="text-xs text-bone-60 mt-0.5">Used for routine analysis, brain sync, and all backend AI actions</p>
           </div>
         </div>
         <div className="relative w-[280px]">
           <ModelDropdown
             value={backendModel}
-            models={initialModels as any}
+            models={initialModels}
             onChange={(val) => handleBackendModelChange(val)}
           />
         </div>
@@ -179,21 +173,11 @@ export default function SettingsClient({
             )}
           >
             <span className="font-semibold tracking-wide select-none">{tab.label}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleBlockToggle(tab.key, !activeStates[tab.key]);
-              }}
-              className={cn(
-                "relative inline-flex h-4.5 w-8.5 items-center rounded-full transition-all focus:outline-none shrink-0 cursor-pointer",
-                activeStates[tab.key] ? "bg-blue-500" : "bg-white/10"
-              )}
-            >
-              <span className={cn(
-                "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-all shadow-sm",
-                activeStates[tab.key] ? "translate-x-4.5" : "translate-x-0.5"
-              )} />
-            </button>
+            <Toggle 
+              size="sm"
+              checked={activeStates[tab.key]}
+              onChange={(val) => handleBlockToggle(tab.key, val)}
+            />
           </div>
         ))}
       </div>
@@ -202,7 +186,7 @@ export default function SettingsClient({
       <div className="bg-panel rounded-big p-5 space-y-4">
         <div>
           <h3 className="text-sm font-semibold tracking-wide text-foreground select-none">{activeTab_.label}</h3>
-          <p className="text-xs text-muted-foreground/60 mt-0.5 select-none">{activeTab_.description}</p>
+          <p className="text-xs text-bone-60 mt-0.5 select-none">{activeTab_.description}</p>
         </div>
         <textarea
           value={currentDraft}
@@ -245,6 +229,14 @@ export default function SettingsClient({
           >
             {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             {showPreview ? 'Hide' : 'Preview'}
+          </button>
+          <button
+            onClick={handleCopy}
+            disabled={!compiledContent}
+            className="flex items-center gap-1 px-3 h-8 bg-white/[0.05] border border-white/[0.02] text-muted-foreground hover:text-foreground rounded-medium text-xs font-medium transition-all select-none"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
           </button>
           <button
             onClick={handleSync}

@@ -3,15 +3,15 @@
 import React, { useState, useTransition } from 'react'
 import { getMessageExchanges, Exchange } from './actions'
 import { cn } from '@/lib/utils'
-import { Bot, Globe, MessageSquare, Search, Wrench, Eye, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
+import { Bot, Globe, MessageSquare, Search, Wrench, Eye, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle, ArrowRight, ThumbsUp, ThumbsDown, Clock } from 'lucide-react'
 import ClearLogsModal from '@/components/admin/ClearLogsModal'
 
 const USAGE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  chat:   { label: 'Chat',   color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
-  tool:   { label: 'Tool',   color: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
-  search: { label: 'Search', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' },
-  vision: { label: 'Vision', color: 'text-purple-400 bg-purple-400/10 border-purple-400/20' },
-  image:  { label: 'Image',  color: 'text-pink-400 bg-pink-400/10 border-pink-400/20' },
+  chat:   { label: 'Chat',   color: 'text-blue-400 bg-blue-400/10' },
+  tool:   { label: 'Tool',   color: 'text-amber-400 bg-amber-400/10' },
+  search: { label: 'Search', color: 'text-emerald-400 bg-emerald-400/10' },
+  vision: { label: 'Vision', color: 'text-purple-400 bg-purple-400/10' },
+  image:  { label: 'Image',  color: 'text-pink-400 bg-pink-400/10' },
 }
 
 const USAGE_ICONS: Record<string, React.ReactNode> = {
@@ -32,11 +32,26 @@ function truncate(text: string | null, max = 100) {
   return text.length > max ? text.slice(0, max) + '…' : text
 }
 
-function parseChain(chain: string | null): { classifier: string; routed: string } | null {
+const KNOWN_CATEGORIES = new Set([
+  'FAST_SIMPLE', 'COMPLEX_THINKING', 'MEDIUM_THINKING', 'AUDIO_VOICE',
+  'TOOL_CALLING', 'IMAGE_GEN', 'WEB_SEARCH', 'CLASSIFIER', 'VISION', 'CODING', 'DEEP_RESEARCH'
+])
+
+function parseChain(chain: string | null): { classifier: string; category: string; routed: string } | null {
   if (!chain) return null
-  const parts = chain.split(' → ')
-  if (parts.length >= 2) return { classifier: parts[0], routed: parts.slice(1).join(' → ') }
-  return { classifier: '', routed: parts[0] }
+  const parts = chain.split(' → ').map(p => p.split('|')[0])
+  const catIdx = parts.findIndex(p => KNOWN_CATEGORIES.has(p))
+  if (catIdx !== -1) {
+    return {
+      classifier: parts.slice(0, catIdx).join(' → '),
+      category: parts[catIdx],
+      routed: parts.slice(catIdx + 1).join(' → ')
+    }
+  }
+  if (parts.length >= 2) {
+    return { classifier: parts[0], category: parts[1], routed: parts.slice(2).join(' → ') }
+  }
+  return { classifier: '', category: '', routed: parts[0] }
 }
 
 interface Filters {
@@ -116,7 +131,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
         {(['all', 'app', 'telegram'] as const).map(p => (
           <button key={p} onClick={() => setFilter('platform', p)}
             className={cn("px-3 py-1 rounded-full text-xs font-medium capitalize transition-all",
-              filters.platform === p ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-muted-foreground hover:text-foreground"
+              filters.platform === p ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-bone-60 hover:text-foreground"
             )}>
             {p}
           </button>
@@ -125,7 +140,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
         {(['all', 'chat', 'tool', 'search', 'vision', 'image'] as const).map(t => (
           <button key={t} onClick={() => setFilter('usage_type', t)}
             className={cn("px-3 py-1 rounded-full text-xs font-medium capitalize transition-all",
-              filters.usage_type === t ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-muted-foreground hover:text-foreground"
+              filters.usage_type === t ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-bone-60 hover:text-foreground"
             )}>
             {t}
           </button>
@@ -146,9 +161,9 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
       </div>
 
       {/* Table */}
-      <div className="bg-panel rounded-big overflow-hidden border border-white/5 animate-in fade-in duration-500">
+      <div className="bg-panel rounded-[16px] overflow-hidden border border-white/5 animate-in fade-in duration-500">
         {/* Header */}
-        <div className="grid grid-cols-[28px_90px_120px_1fr_1fr_140px_64px_48px] gap-3 px-4 py-2.5 border-b border-white/5 bg-background/40">
+        <div className="grid grid-cols-[28px_90px_32px_120px_1fr_1fr_140px_64px_48px_28px] gap-3 px-4 py-2.5 border-b border-white/5 bg-[var(--bone-6)]">
           <button
             onClick={toggleSelectAll}
             className={cn(
@@ -164,12 +179,14 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
           </button>
           {[
             { id: 'time', label: 'Time' },
-            { id: 'user', label: 'User' },
+            { id: 'fb', label: '' },
+            { id: 'mode', label: 'Mode' },
             { id: 'prompt', label: 'Prompt' },
             { id: 'response', label: 'Response' },
             { id: 'routing', label: 'Routing' },
             { id: 'type', label: 'Type' },
-            { id: 'status', label: 'Status' }
+            { id: 'status', label: 'Status' },
+            { id: 'done', label: '' }
           ].map(h => (
             <span key={h.id} className="text-[9px] font-bold uppercase tracking-[0.12em] text-bone-60 opacity-30 self-center">{h.label}</span>
           ))}
@@ -190,7 +207,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
 
             return (
               <div key={ex.id}>
-                <div className="w-full grid grid-cols-[28px_90px_120px_1fr_1fr_140px_64px_48px] gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors group">
+                <div className="w-full grid grid-cols-[28px_90px_32px_120px_1fr_1fr_140px_64px_48px_28px] gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors group">
                   {/* Checkbox */}
                   <button
                     onClick={(e) => toggleSelect(ex.id, e)}
@@ -213,21 +230,21 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                       {formatTime(ex.created_at)}
                     </span>
 
-                    {/* User */}
+                    {/* Feedback Icon */}
                     <div className="flex items-center gap-1.5 self-center min-w-0">
-                      {ex.platform === 'app'
-                        ? <Globe className="w-3 h-3 text-blue-400 opacity-50 shrink-0" />
-                        : <Bot className="w-3 h-3 text-orange-400 opacity-50 shrink-0" />
-                      }
-                      <span className="text-[9px] font-mono text-bone-60 opacity-50 truncate" title={ex.user_email || ex.auth_user_id || String(ex.telegram_id) || '—'}>
-                        {ex.user_email
-                          ? ex.user_email
-                          : ex.telegram_id
-                            ? `tg:${ex.telegram_id}`
-                            : ex.auth_user_id
-                              ? ex.auth_user_id.slice(0, 8)
-                              : '—'
-                        }
+                      {ex.feedback === 'like' ? (
+                        <ThumbsUp className="w-3.5 h-3.5 text-green-400 opacity-80 shrink-0" strokeWidth={2} />
+                      ) : ex.feedback === 'dislike' ? (
+                        <ThumbsDown className="w-3.5 h-3.5 text-red-400 opacity-80 shrink-0" strokeWidth={2} />
+                      ) : (
+                        <div className="w-3.5 h-3.5" />
+                      )}
+                    </div>
+
+                    {/* Mode (Extracted from chain) */}
+                    <div className="flex items-center gap-1.5 self-center min-w-0">
+                      <span className="text-[9px] font-bold text-accent opacity-70 uppercase tracking-widest truncate">
+                        {chain?.category?.replace(/_/g, ' ') || '—'}
                       </span>
                     </div>
 
@@ -249,7 +266,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                       {chain ? (
                         <div className="flex items-center gap-1 min-w-0">
                           <span className={cn(
-                            "text-[8px] font-mono truncate shrink-0 max-w-[50px]",
+                            "text-[8px] font-mono truncate shrink-0 max-w-[72px]",
                             chain.classifier === 'keyword' || chain.classifier === 'fallback'
                               ? 'text-accent/50'
                               : 'text-bone-60 opacity-35'
@@ -282,177 +299,220 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                     </div>
 
                     {/* Status */}
-                    <div className="self-center flex justify-center">
-                      {ex.status === 'error' ? (
-                        <XCircle className="w-3.5 h-3.5 text-red-400 opacity-70" />
-                      ) : ex.status === 'success' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 opacity-60" />
+                    <div className="self-center flex items-center justify-center">
+                      {ex.status === 'success' || ex.status === 'done' || ex.status === 'completed' ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-400/70" />
+                      ) : ex.status === 'error' || ex.status === 'failed' ? (
+                        <XCircle className="w-4 h-4 text-red-400/70" />
                       ) : (
-                        <span className="w-1.5 h-1.5 rounded-full bg-bone-60 opacity-20 inline-block" />
+                        <span className="text-[9px] font-mono text-bone-60 opacity-40 capitalize">{ex.status || '—'}</span>
                       )}
+                    </div>
+
+                    {/* Done Placeholder */}
+                    <div className="self-center flex justify-end">
+                      <div className="w-4 h-4 rounded-[3px] border border-white/10 opacity-20" />
                     </div>
                   </div>
                 </div>
 
                 {/* Expanded row */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-3 bg-background/40 border-t border-white/[0.03] space-y-4">
-                    {/* Meta */}
-                    <div className="flex flex-wrap gap-4 text-[10px] text-bone-60 opacity-40 font-mono">
-                      {ex.telegram_id && <span>Telegram ID: {ex.telegram_id}</span>}
-                      {ex.auth_user_id && <span>User ID: {ex.auth_user_id}</span>}
-                      {ex.user_email && <span>Email: {ex.user_email}</span>}
-                      <span>Exchange ID: {ex.id}</span>
-                      {ex.status && (
-                        <span className={ex.status === 'error' ? 'text-red-400 opacity-80' : 'text-emerald-400 opacity-80'}>
-                          {ex.status.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Routing breakdown */}
-                    {(() => {
-                      const getProviderFromModelId = (modelId: string): string => {
-                        const m = (modelId || '').toLowerCase()
-                        if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
-                        if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek')) return 'GROQ'
-                        if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
-                        if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
-                        if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
-                        if (m.includes('tavily')) return 'TAVILY'
-                        return 'GEMINI'
-                      }
-
-                      const rawParts = ex.model_chain ? ex.model_chain.split(' → ') : []
-                      const chainParts = rawParts.map(part => {
-                        if (part.includes('|')) return part.split('|')[0]
-                        return part
-                      })
-
-                      let classifyTrace: any[] = []
-                      let routingTrace: any[] = []
-
-                      if (ex.model_chain) {
-                        if (rawParts.length >= 2) {
-                          const classifier = rawParts[0]
-                          const category = rawParts[1]
-                          classifyTrace = [{ model: classifier, key: getProviderFromModelId(classifier), success: true }]
-                          routingTrace = rawParts.slice(2).map((part: string, i: number, arr: string[]) => {
-                            if (part.includes('|')) {
-                              const [m, k, successStr] = part.split('|')
-                              return {
-                                model: m,
-                                category,
-                                key: k,
-                                success: successStr === 'true'
-                              }
-                            }
-                            return {
-                              model: part,
-                              category,
-                              key: getProviderFromModelId(part),
-                              success: i === arr.length - 1
-                            }
-                          })
-                        }
-                      }
-
-                      return (
-                        <div className="space-y-3">
-                          {/* ROUTE CHAIN */}
-                          <div>
-                            <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-2">
-                              ROUTING CHAIN
-                            </h5>
-                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
-                              {chainParts.length > 0 ? (
-                                chainParts.map((part, i) => (
-                                  <React.Fragment key={i}>
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded-small h-[22px] flex items-center justify-center border border-white/5 bg-white/[0.03] text-bone-20 text-[10px]",
-                                      part.toUpperCase().includes('_') ? "text-muted-foreground/60" : "text-bone-100"
-                                    )}>
-                                      {part}
-                                    </span>
-                                    {i < chainParts.length - 1 && (
-                                      <span className="text-bone-40 opacity-40">→</span>
-                                    )}
-                                  </React.Fragment>
-                                ))
-                              ) : (
-                                <p className="text-[10px] text-bone-20 font-mono">No routing chain found</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* API KEYS USED */}
-                          <div>
-                            <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-2">
-                              API KEYS USED
-                            </h5>
-                            <div className="space-y-2">
-                              {/* Classify Row */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-bone-40 w-16 shrink-0">classify</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {classifyTrace.map((c, i) => (
-                                    <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
-                                      c.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                                    )}>
-                                      {(() => {
-                                        let baseKey = c.key === 'DEFAULT' ? getProviderFromModelId(c.model) : (c.key || getProviderFromModelId(c.model))
-                                        if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
-                                        return baseKey
-                                      })()} {c.success ? '✓' : '✗'}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Routing Row */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-bone-40 w-16 shrink-0">routing</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {routingTrace.map((r, i) => (
-                                    <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
-                                      r.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                                    )}>
-                                      {(() => {
-                                        let baseKey = r.key === 'DEFAULT' ? getProviderFromModelId(r.model) : (r.key || getProviderFromModelId(r.model))
-                                        if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
-                                        return baseKey
-                                      })()} {r.success ? '✓' : '✗'}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                <div 
+                  className={cn(
+                    "grid transition-all duration-100 ease-out",
+                    isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="px-4 py-3 bg-panel border-t border-white/[0.03]">
+                      <div className="mt-2 space-y-4 cursor-default" onClick={e => e.stopPropagation()}>
+                        {/* USER DETAILS */}
+                        <div className="flex flex-wrap gap-4 text-[10px] text-bone-60 opacity-40 font-mono select-text bg-white/[0.02] border border-white/5 rounded-[16px] px-3 py-1.5">
+                          {ex.user_email && <span>Email: {ex.user_email}</span>}
+                          {ex.telegram_id && <span>Telegram ID: {ex.telegram_id}</span>}
+                          {ex.auth_user_id && <span>Auth User ID: {ex.auth_user_id}</span>}
+                          <span>Exchange ID: {ex.id}</span>
+                          {ex.status && (
+                            <span className={ex.status === 'error' ? 'text-red-400 opacity-80' : 'text-emerald-400 opacity-80'}>
+                              {ex.status.toUpperCase()}
+                            </span>
+                          )}
                         </div>
-                      )
-                    })()}
 
-                    {/* USER REQUEST vs MODEL RESPONSE side-by-side */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-[var(--bone-4)] rounded-xl p-3">
-                        <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-1.5">
-                          USER REQUEST
-                        </h5>
-                        <p className="text-xs text-foreground/80 font-mono break-words leading-relaxed select-text">
-                          {ex.user_prompt || '(content unavailable)'}
-                        </p>
+                      {/* Routing breakdown */}
+                      {(() => {
+                        const getProviderFromModelId = (modelId: string): string => {
+                          const m = (modelId || '').toLowerCase()
+                          if (m.includes('gemini') || m.includes('gemma')) return 'GEMINI'
+                          if (m.includes('llama') || m.includes('mixtral') || m.includes('gemma-2-9b') || m.includes('deepseek') || m.includes('groq') || m.includes('openai')) return 'GROQ'
+                          if (m.includes('flux') || m.includes('sd-') || m.includes('stable-diffusion') || m.includes('pollinations')) return 'POLLINATIONS'
+                          if (m.includes('huggingface') || m.includes('hf')) return 'HUGGINGFACE'
+                          if (m.includes('cf') || m.includes('cloudflare')) return 'CLOUDFLARE'
+                          if (m.includes('tavily') || m.includes('search')) return 'TAVILY'
+                          return 'GEMINI'
+                        }
+
+                        const rawParts = ex.model_chain ? ex.model_chain.split(' → ') : []
+                        const chainParts = rawParts.map(part => {
+                          if (part.includes('|')) return part.split('|')[0]
+                          return part
+                        })
+
+                        let classifyTrace: any[] = []
+                        let routingTrace: any[] = []
+
+                        if (ex.model_chain) {
+                          const catIdx = rawParts.findIndex(p => KNOWN_CATEGORIES.has(p))
+                          if (catIdx !== -1) {
+                            const category = rawParts[catIdx]
+                            const classifyRawParts = rawParts.slice(0, catIdx)
+                            const routingRawParts = rawParts.slice(catIdx + 1)
+
+                            classifyTrace = classifyRawParts.map(part => {
+                              let model = part
+                              let key = getProviderFromModelId(part)
+                              let success = true
+
+                              if (part.includes('|')) {
+                                const [m, k, successStr] = part.split('|')
+                                model = m
+                                key = k === 'DEFAULT' ? getProviderFromModelId(m) : k
+                                success = successStr !== 'false'
+                              }
+                              return { model, key, success }
+                            })
+
+                            routingTrace = routingRawParts.map(part => {
+                              let model = part
+                              let key = getProviderFromModelId(part)
+                              let success = true
+
+                              if (part.includes('|')) {
+                                const [m, k, successStr] = part.split('|')
+                                model = m
+                                key = k === 'DEFAULT' ? getProviderFromModelId(m) : k
+                                success = successStr !== 'false'
+                              }
+                              return { model, key, success }
+                            })
+                          }
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {/* ROUTE CHAIN */}
+                            <div>
+                              <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-2">
+                                ROUTING CHAIN
+                              </h5>
+                              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
+                                {rawParts.length > 0 ? (
+                                  rawParts.map((part, i) => {
+                                    const [model, key, successStr] = part.split('|')
+                                    const success = successStr !== 'false'
+                                    const isAction = model.toUpperCase().includes('_') || !model.includes('/')
+
+                                    return (
+                                      <React.Fragment key={i}>
+                                        <span className={cn(
+                                          "px-2 py-0.5 rounded-small h-[22px] flex items-center justify-center border text-[10px] transition-all",
+                                          success 
+                                            ? (isAction ? "bg-white/[0.03] border-white/5 text-muted-foreground/60" : "bg-white/[0.05] border-white/10 text-bone-100")
+                                            : "bg-red-500/10 border-red-500/20 text-red-400 font-bold"
+                                        )} title={key ? `Used key: ${key}` : model}>
+                                          {model}
+                                          {!success && <XCircle className="w-2.5 h-2.5 ml-1.5 opacity-80" />}
+                                        </span>
+                                        {i < rawParts.length - 1 && (
+                                          <span className="text-bone-60 opacity-40">→</span>
+                                        )}
+                                      </React.Fragment>
+                                    )
+                                  })
+                                ) : (
+                                  <p className="text-[10px] text-bone-20 font-mono">No routing chain found</p>
+                                )}
+                                {ex.duration_ms !== null && (
+                                  <div className="flex items-center gap-1 ml-1 pl-2 border-l border-white/10">
+                                    <Clock className="w-2.5 h-2.5 text-bone-60 opacity-30" />
+                                    <span className="text-[9px] font-bold text-bone-60 opacity-40 uppercase tracking-tighter">
+                                      {(ex.duration_ms / 1000).toFixed(2)}s
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* API KEYS USED */}
+                            <div>
+                              <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-2">
+                                API KEYS USED
+                              </h5>
+                              <div className="space-y-2">
+                                {/* Classify Row */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-bone-60 w-16 shrink-0">classify</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {classifyTrace.map((c, i) => (
+                                      <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
+                                        c.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                      )}>
+                                        {(() => {
+                                          let baseKey = c.key === 'DEFAULT' ? getProviderFromModelId(c.model) : (c.key || getProviderFromModelId(c.model))
+                                          if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
+                                          return baseKey
+                                        })()} {c.success ? '✓' : '✗'}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Routing Row */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-bone-60 w-16 shrink-0">routing</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {routingTrace.map((r, i) => (
+                                      <span key={i} className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded-small h-[22px] flex items-center justify-center gap-1 border", 
+                                        r.success ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                      )}>
+                                        {(() => {
+                                          let baseKey = r.key === 'DEFAULT' ? getProviderFromModelId(r.model) : (r.key || getProviderFromModelId(r.model))
+                                          if (!/\d+$/.test(baseKey)) baseKey = `${baseKey} 1`
+                                          return baseKey
+                                        })()} {r.success ? '✓' : '✗'}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })()}
+
+                      {/* USER REQUEST vs MODEL RESPONSE side-by-side */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white/[0.03] rounded-[16px] px-3 py-1.5">
+                          <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-1.5 opacity-50">
+                            USER REQUEST
+                          </h5>
+                          <p className="text-xs text-foreground/80 font-mono break-words leading-relaxed select-text">
+                            {ex.user_prompt || '(content unavailable)'}
+                          </p>
+                        </div>
+                        <div className="bg-white/[0.03] rounded-[16px] px-3 py-1.5">
+                          <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-1.5 opacity-50">
+                            MODEL RESPONSE
+                          </h5>
+                          <p className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text">
+                            {ex.model_response || '(response unavailable)'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="bg-[var(--bone-4)] rounded-xl p-3">
-                        <h5 className="text-[10px] font-bold text-bone-40 uppercase tracking-widest mb-1.5">
-                          MODEL RESPONSE
-                        </h5>
-                        <p className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text">
-                          {ex.model_response || '(response unavailable)'}
-                        </p>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}

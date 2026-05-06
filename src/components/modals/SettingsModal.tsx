@@ -94,10 +94,10 @@ export function SettingsModal() {
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-medium)] group text-[15px]",
                     isActive
                       ? "bg-white/10 text-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      : "text-bone-60 hover:text-foreground hover:bg-white/5"
                   )}
                 >
-                  <Icon strokeWidth={2} className={clsx("w-5 h-5", isActive ? "text-accent" : "text-muted-foreground group-hover:text-foreground")} />
+                  <Icon strokeWidth={2} className={clsx("w-5 h-5", isActive ? "text-accent" : "text-bone-60 group-hover:text-foreground")} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -106,7 +106,7 @@ export function SettingsModal() {
 
           {/* Version Info */}
           <div className="pt-4 border-t border-border mt-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest text-center">Flowr 4.4.1 - Build 2304</p>
+            <p className="text-[10px] text-bone-60 uppercase tracking-widest text-center">Flowr 4.4.1 - Build 2304</p>
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export function SettingsModal() {
             </div>
             <button
               onClick={closeModal}
-              className="p-2 rounded-full hover:bg-hover text-muted-foreground hover:text-foreground"
+              className="p-2 rounded-full hover:bg-hover text-bone-60 hover:text-foreground"
             >
               <X strokeWidth={2} className="w-5 h-5" />
             </button>
@@ -132,8 +132,8 @@ export function SettingsModal() {
                 <div className="space-y-10">
                   {/* Theme Section */}
                   <section>
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Visual Theme</h4>
-                    <p className="text-sm text-muted-foreground mb-6">Choose an aesthetic that fits your focus.</p>
+                    <h4 className="text-xs font-semibold text-bone-60 uppercase tracking-widest mb-4">Visual Theme</h4>
+                    <p className="text-sm text-bone-60 mb-6">Choose an aesthetic that fits your focus.</p>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => theme === 'light' && toggleTheme()}
@@ -183,8 +183,8 @@ export function SettingsModal() {
                   <section>
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Interface Scaling</h4>
-                        <p className="text-sm text-muted-foreground mt-1">Adjust the overall size of the UI components.</p>
+                        <h4 className="text-xs font-semibold text-bone-60 uppercase tracking-widest">Interface Scaling</h4>
+                        <p className="text-sm text-bone-60 mt-1">Adjust the overall size of the UI components.</p>
                       </div>
                       <span className="px-2 py-1 rounded bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent uppercase tracking-tighter">New</span>
                     </div>
@@ -198,7 +198,7 @@ export function SettingsModal() {
                             "relative flex-1 py-3 px-4 rounded-xl text-[13px] font-medium capitalize z-10",
                             interfaceSize === size
                               ? "text-accent"
-                              : "text-muted-foreground/70 hover:text-foreground"
+                              : "text-bone-60/70 hover:text-foreground"
                           )}
                         >
                           {interfaceSize === size && (
@@ -210,7 +210,7 @@ export function SettingsModal() {
                         </button>
                       ))}
                     </div>
-                    <div className="mt-4 flex justify-between px-2 text-[10px] text-muted-foreground font-medium">
+                    <div className="mt-4 flex justify-between px-2 text-[10px] text-bone-60 font-medium">
                       <span>85% scale</span>
                       <span>Default (100%)</span>
                       <span>115% scale</span>
@@ -227,7 +227,7 @@ export function SettingsModal() {
                     <Zap strokeWidth={2} className="w-10 h-10 text-accent/60 relative z-10" />
                   </div>
                   <h4 className="text-2xl font-display mb-2">{tabs.find(t => t.id === activeTab)?.label} Settings</h4>
-                  <p className="text-muted-foreground/80 max-max-w-sm text-[15px] leading-relaxed">
+                  <p className="text-bone-60/80 max-max-w-sm text-[15px] leading-relaxed">
                     This module is currently being optimized for high-fidelity performance. Stay tuned for a seamless experience.
                   </p>
                   <button

@@ -232,7 +232,7 @@ export function CommandPalette() {
       return [{
         id: 'ask-ai',
         label: `Ask AI: "${query.slice(4).trim() || '...'}"`,
-        description: 'Send this question to the AI Agent',
+        description: 'Send this question to the Agent',
         icon: <Sparkles strokeWidth={2} className="w-4 h-4" />,
         action: handleAskAI,
         type: 'action' as const,
@@ -444,7 +444,7 @@ export function CommandPalette() {
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   {((item as any).tags as string[]).slice(0, 2).map((tag: string) => (
                     <span key={tag} className="px-1.5 py-0.5 rounded-full bg-[var(--bone-6)] text-[9px] font-bold text-[var(--bone-30)] uppercase tracking-wider">
-                      <Hash strokeWidth={2.5} className="w-2 h-2 inline mr-0.5 -mt-px" />{tag}
+                      <Hash strokeWidth={2} className="w-2 h-2 inline mr-0.5 -mt-px" />{tag}
                     </span>
                   ))}
                 </div>
@@ -473,7 +473,7 @@ export function CommandPalette() {
             onClick={() => { setAIAssistantOpen(true); close(); }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-medium)] text-[11px] font-bold text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-colors"
           >
-            <Sparkles strokeWidth={2.5} className="w-3 h-3" />
+            <Sparkles strokeWidth={2} className="w-3 h-3" />
             Ask AI
           </button>
           <div className="flex items-center gap-4 text-[10px] text-[var(--bone-30)] font-medium tracking-wide">
@@ -508,8 +508,6 @@ function getEntityTypeIcon(type: EntityType, entity?: Entity) {
     case 'canvas': return <Frame strokeWidth={2} className={cls} />;
     case 'note': return <FileText strokeWidth={2} className={cls} />;
     case 'mixed': return <Layers strokeWidth={2} className={cls} />;
-    case 'folder': return <Folder strokeWidth={2} className={cls} />;
-    case 'collection':
     case 'workspace': return <Folder strokeWidth={2} className={cls} />;
     default: return <Frame strokeWidth={2} className={cls} />;
   }

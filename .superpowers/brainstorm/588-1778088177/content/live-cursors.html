@@ -1,0 +1,28 @@
+<h2>Live cursors — what's the backend situation?</h2>
+<p class="subtitle">Real-time multiplayer requires a persistent connection. What do you have available?</p>
+
+<div class="options">
+  <div class="option" data-choice="supabase" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Supabase Realtime</h3>
+      <p>Already in the project — can broadcast cursor positions over Supabase channels with minimal backend work.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="websocket" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Custom WebSocket server</h3>
+      <p>A separate Node/Bun server that handles presence and broadcasting. More control, more work.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="skip" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Skip live cursors for now</h3>
+      <p>Defer multiplayer — focus on shape tools, workflow, export, and share links first.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem">Pick one, then reply in the terminal.</p>

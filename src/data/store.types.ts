@@ -227,6 +227,7 @@ export interface AIMessage {
   model_chain?: string;
   classification_trace?: any[];
   routing_trace?: any[];
+  tokens_used?: number;
 }
 
 export interface AISessionContext {

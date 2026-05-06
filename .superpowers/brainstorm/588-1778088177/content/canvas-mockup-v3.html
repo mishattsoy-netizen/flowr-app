@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Redesign v3</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #141413;
+    --panel: #1c1c1a;
+    --panel2: #232321;
+    --bone: #E9E9E2;
+    --bone-60: rgba(233,233,226,0.6);
+    --bone-30: rgba(233,233,226,0.3);
+    --bone-15: rgba(233,233,226,0.15);
+    --bone-10: rgba(233,233,226,0.1);
+    --bone-06: rgba(233,233,226,0.06);
+    --bone-03: rgba(233,233,226,0.03);
+    --accent: #d38f36;
+    --accent-dim: rgba(211,143,54,0.15);
+    --r-sm: 6px; --r-md: 8px; --r-lg: 10px;
+  }
+  body {
+    background: var(--bg);
+    color: var(--bone);
+    font-family: system-ui,-apple-system,sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    height: 40px; background: var(--panel);
+    border-bottom: 1px solid var(--bone-10);
+    display: flex; align-items: center; padding: 0 10px; gap: 6px;
+    flex-shrink: 0; z-index: 100;
+  }
+  .tb-left, .tb-right { display: flex; align-items: center; gap: 4px; min-width: 160px; }
+  .tb-right { justify-content: flex-end; }
+  .tb-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 3px; }
+  .tool-group { display: flex; align-items: center; background: var(--bone-06); border-radius: var(--r-md); padding: 3px; gap: 1px; }
+  .tool-pill {
+    width: 28px; height: 26px; border-radius: 5px;
+    background: transparent; color: var(--bone-30);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 100ms, color 100ms;
+  }
+  .tool-pill:hover { background: var(--bone-06); color: var(--bone-60); }
+  .tool-pill.active { background: var(--bone-15); color: var(--bone); }
+  .tool-sep-v { width: 1px; height: 14px; background: var(--bone-10); margin: 0 2px; }
+  .tb-btn {
+    width: 28px; height: 28px; border-radius: var(--r-sm);
+    background: transparent; color: var(--bone-30);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 100ms, color 100ms;
+  }
+  .tb-btn:hover { background: var(--bone-06); color: var(--bone-60); }
+  .tb-btn.on { color: var(--bone); }
+  .canvas-title { font-size: 12px; color: var(--bone-60); padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; }
+  .canvas-title span { color: var(--bone); }
+  .zoom-pill {
+    height: 26px; padding: 0 8px; border-radius: var(--r-sm);
+    background: var(--bone-06); color: var(--bone-30);
+    font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;
+  }
+  .btn-share {
+    height: 26px; padding: 0 12px; border-radius: var(--r-sm);
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer; border: none; outline: none;
+  }
+
+  /* ── BODY ── */
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── LEFT SIDEBAR ── */
+  .sidebar {
+    width: 216px; background: var(--panel);
+    border-right: 1px solid var(--bone-10);
+    display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+  }
+  .sidebar-header {
+    height: 36px; display: flex; align-items: center;
+    padding: 0 10px; gap: 4px; border-bottom: 1px solid var(--bone-10); flex-shrink: 0;
+  }
+  .sidebar-tab {
+    font-size: 11px; color: var(--bone-30); padding: 3px 7px;
+    border-radius: 5px; cursor: pointer; transition: background 100ms, color 100ms;
+    letter-spacing: 0.03em;
+  }
+  .sidebar-tab.active { background: var(--bone-10); color: var(--bone); }
+  .sidebar-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .sidebar-body::-webkit-scrollbar { width: 3px; }
+  .sidebar-body::-webkit-scrollbar-thumb { background: var(--bone-10); border-radius: 2px; }
+  .layer-row {
+    height: 28px; display: flex; align-items: center;
+    padding: 0 8px; gap: 5px; cursor: pointer; transition: background 80ms;
+  }
+  .layer-row:hover { background: var(--bone-03); }
+  .layer-row.selected { background: var(--bone-06); }
+  .layer-caret { font-size: 7px; color: var(--bone-30); width: 10px; text-align: center; }
+  .layer-icon { font-size: 11px; color: var(--bone-30); width: 14px; text-align: center; flex-shrink: 0; }
+  .layer-name { flex: 1; font-size: 11px; color: var(--bone-60); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer-vis { font-size: 9px; color: var(--bone-30); opacity: 0; transition: opacity 80ms; }
+  .layer-row:hover .layer-vis, .layer-row.selected .layer-vis { opacity: 1; }
+  .layer-row.selected .layer-name { color: var(--bone); }
+  .layer-section { padding: 14px 10px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--bone-30); }
+
+  /* ── CANVAS ── */
+  .canvas-wrap {
+    flex: 1; position: relative; overflow: hidden;
+    background: var(--bg);
+    background-image: radial-gradient(circle, rgba(233,233,226,0.055) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .canvas-svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  .c-el { position: absolute; }
+  .c-frame {
+    border: 1.5px dashed var(--bone-15); border-radius: 10px; background: var(--bone-03);
+    width: 340px; height: 220px; top: 40px; left: 60px;
+    display: flex; align-items: flex-start; padding: 10px 12px;
+  }
+  .c-frame-label { font-size: 10px; color: var(--bone-30); letter-spacing: 0.05em; text-transform: uppercase; }
+  .c-rect {
+    width: 140px; height: 70px; background: var(--accent-dim); border-radius: 10px;
+    top: 90px; left: 100px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--accent); outline: 1.5px solid var(--accent); outline-offset: 2px;
+  }
+  .c-ellipse {
+    width: 90px; height: 90px; border-radius: 50%;
+    background: rgba(91,156,246,0.1); border: 1.5px solid rgba(91,156,246,0.35);
+    top: 80px; left: 270px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(91,156,246,0.7);
+  }
+  .c-text { top: 200px; left: 110px; font-size: 13px; color: var(--bone-60); }
+  .c-note {
+    width: 130px; background: rgba(167,139,250,0.08); border-radius: 10px;
+    top: 300px; left: 160px; padding: 10px; font-size: 11px; color: rgba(167,139,250,0.6); line-height: 1.55;
+  }
+  .handle {
+    position: absolute; width: 6px; height: 6px;
+    background: var(--bg); border: 1.5px solid var(--accent); border-radius: 1.5px;
+  }
+  .h-tl{top:-4px;left:-4px} .h-tr{top:-4px;right:-4px}
+  .h-bl{bottom:-4px;left:-4px} .h-br{bottom:-4px;right:-4px}
+  .h-tm{top:-4px;left:calc(50% - 3px)} .h-bm{bottom:-4px;left:calc(50% - 3px)}
+  .h-ml{top:calc(50% - 3px);left:-4px} .h-mr{top:calc(50% - 3px);right:-4px}
+  .cursor { position:absolute; pointer-events:none; display:flex; align-items:flex-start; gap:3px; }
+  .cursor-tag { font-size:10px; padding:2px 7px; border-radius:5px; white-space:nowrap; margin-top:1px; }
+  .float-bar {
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    background: var(--panel); border: 1px solid var(--bone-10); border-radius: var(--r-md);
+    padding: 4px 6px; display:flex; gap:2px; align-items:center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .fb-btn {
+    width:28px; height:26px; border-radius:5px; background:transparent; color:var(--bone-30);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px;
+    transition: background 100ms, color 100ms;
+  }
+  .fb-btn:hover { background:var(--bone-06); color:var(--bone-60); }
+  .fb-btn.on { color:var(--accent); background:var(--accent-dim); }
+  .fb-sep { width:1px; height:14px; background:var(--bone-10); margin:0 2px; }
+
+  /* ══════════════════════════════════
+     RIGHT STYLE PANEL — Framer style
+     ══════════════════════════════════ */
+  .style-panel {
+    width: 220px; background: var(--panel);
+    border-left: 1px solid var(--bone-10);
+    display: flex; flex-direction: column;
+    flex-shrink: 0; overflow-y: auto;
+  }
+  .style-panel::-webkit-scrollbar { width: 3px; }
+  .style-panel::-webkit-scrollbar-thumb { background: var(--bone-10); border-radius: 2px; }
+
+  /* Alignment icon row at top */
+  .align-bar {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--bone-10);
+    display: flex; align-items: center; gap: 2px;
+  }
+  .align-btn {
+    flex: 1; height: 28px; border-radius: var(--r-sm);
+    background: transparent; color: var(--bone-30);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 100ms, color 100ms;
+  }
+  .align-btn:hover { background: var(--bone-06); color: var(--bone-60); }
+
+  /* Panel section */
+  .ps {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--bone-06);
+  }
+  .ps-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .ps-title { font-size: 11px; color: var(--bone-60); font-weight: 500; letter-spacing: 0.01em; }
+  .ps-add {
+    width: 18px; height: 18px; border-radius: 4px;
+    background: transparent; color: var(--bone-30);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; line-height: 1;
+    transition: background 100ms, color 100ms;
+  }
+  .ps-add:hover { background: var(--bone-06); color: var(--bone-60); }
+
+  /* Row: label + control */
+  .prop-row {
+    display: flex; align-items: center;
+    min-height: 28px; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .prop-row:last-child { margin-bottom: 0; }
+  .prop-label {
+    width: 54px; font-size: 11px; color: var(--bone-30);
+    flex-shrink: 0; letter-spacing: 0.01em;
+  }
+  .prop-controls { flex: 1; display: flex; gap: 4px; align-items: center; }
+
+  /* Input box — Framer dark pill */
+  .pi {
+    flex: 1; height: 28px; min-width: 0;
+    background: var(--panel2); border: none; outline: none;
+    border-radius: var(--r-sm); color: var(--bone-60);
+    font-size: 11px; text-align: center;
+    cursor: pointer; transition: background 100ms;
+    font-family: inherit; letter-spacing: 0.01em;
+  }
+  .pi:hover { background: rgba(233,233,226,0.08); }
+  .pi:focus { background: rgba(233,233,226,0.1); color: var(--bone); outline: 1px solid var(--bone-30); }
+
+  /* Dropdown pill */
+  .pd {
+    height: 28px; padding: 0 8px;
+    background: var(--panel2); border: none; outline: none;
+    border-radius: var(--r-sm); color: var(--bone-60);
+    font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+    transition: background 100ms; white-space: nowrap; font-family: inherit;
+  }
+  .pd:hover { background: rgba(233,233,226,0.08); }
+  .pd svg { color: var(--bone-30); flex-shrink: 0; }
+
+  /* Segmented control */
+  .seg {
+    display: flex; background: var(--panel2); border-radius: var(--r-sm); padding: 2px; gap: 1px; flex: 1;
+  }
+  .seg-opt {
+    flex: 1; height: 24px; border-radius: 5px;
+    background: transparent; color: var(--bone-30);
+    font-size: 11px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 100ms, color 100ms;
+  }
+  .seg-opt:hover { color: var(--bone-60); }
+  .seg-opt.active { background: var(--bone-15); color: var(--bone); }
+
+  /* Slider with value */
+  .slider-wrap { flex: 1; display: flex; align-items: center; gap: 6px; }
+  .slider-val {
+    width: 32px; height: 28px; text-align: center;
+    background: var(--panel2); border-radius: var(--r-sm);
+    font-size: 11px; color: var(--bone-60);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  input[type=range] {
+    -webkit-appearance: none; flex: 1; height: 3px;
+    border-radius: 2px; background: var(--bone-10); outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+
+  /* Color swatch inline */
+  .color-swatch {
+    width: 18px; height: 18px; border-radius: 4px;
+    cursor: pointer; flex-shrink: 0;
+    outline: 1.5px solid rgba(255,255,255,0.12);
+    outline-offset: 1px;
+  }
+
+  /* True/No toggle (Visible) */
+  .bool-seg {
+    display: flex; background: var(--panel2); border-radius: var(--r-sm); padding: 2px; gap: 1px;
+  }
+  .bool-opt {
+    padding: 0 10px; height: 24px; border-radius: 5px;
+    background: transparent; color: var(--bone-30);
+    font-size: 11px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 100ms, color 100ms;
+  }
+  .bool-opt.active { background: var(--bone-15); color: var(--bone); }
+
+  /* Switch */
+  .switch-wrap { display: flex; align-items: center; gap: 6px; }
+  .switch {
+    width: 28px; height: 16px; background: var(--bone-10); border-radius: 8px;
+    position: relative; cursor: pointer; transition: background 150ms; flex-shrink: 0;
+  }
+  .switch.on { background: var(--accent); }
+  .switch::after {
+    content:''; position:absolute; width:12px; height:12px; border-radius:50%;
+    background: var(--bone); top:2px; left:2px; transition: transform 150ms;
+  }
+  .switch.on::after { transform: translateX(12px); }
+
+  /* Radius icon buttons */
+  .radius-btns { display: flex; gap: 3px; }
+  .radius-btn {
+    width: 24px; height: 24px; border-radius: 5px;
+    background: var(--panel2); color: var(--bone-30);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 13px; transition: background 100ms, color 100ms;
+  }
+  .radius-btn.active { background: var(--bone-15); color: var(--bone); }
+
+  /* Divider row */
+  .ps-divider { height: 1px; background: var(--bone-06); margin: 2px 0; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-btn">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="canvas-title"><span>Product Roadmap</span></div>
+  </div>
+  <div class="tb-center">
+    <div class="tool-group">
+      <div class="tool-pill active" title="Select">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2L6 11L7.5 7.5L11 6L2 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="tool-pill" title="Pan">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="4" y="4" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2v1.5M6.5 9.5V11M2 6.5h1.5M9.5 6.5H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="tool-sep-v"></div>
+    <div class="tool-group">
+      <div class="tool-pill" title="Rect (R)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="3" width="9" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg></div>
+      <div class="tool-pill" title="Ellipse (O)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><ellipse cx="6.5" cy="6.5" rx="4.5" ry="3.5" stroke="currentColor" stroke-width="1.4"/></svg></div>
+      <div class="tool-pill" title="Diamond (D)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2L11 6.5L6.5 11L2 6.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+      <div class="tool-pill" title="Arrow (A)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 11L9 4M6.5 4H9v2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tool-pill" title="Line (L)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 11L11 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="tool-pill" title="Freedraw (P)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 9.5C4 6.5 5 8 7 5.5S10 3 11 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg></div>
+    </div>
+    <div class="tool-sep-v"></div>
+    <div class="tool-group">
+      <div class="tool-pill" title="Text (T)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 4h7M6.5 4v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="tool-pill" title="Image (I)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="2" y="3" width="9" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="4.5" cy="5.5" r="0.8" fill="currentColor"/><path d="M2 8.5l2.5-2.5 2 2 1.5-2L11 9" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+      <div class="tool-pill" title="Comment (C)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 3h9v6H7.5L6 11V9H2V3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+      <div class="tool-pill" title="Frame (F)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2.5 1.5"/></svg></div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="zoom-pill"><span>100%</span><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+    <div class="tb-btn on"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="10" height="1.5" rx="0.75" fill="currentColor"/><rect x="1.5" y="6" width="10" height="1.5" rx="0.75" fill="currentColor" opacity="0.5"/><rect x="1.5" y="9" width="6" height="1.5" rx="0.75" fill="currentColor" opacity="0.3"/></svg></div>
+    <div class="tb-btn"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2v7M4 7l2.5 2.5L9 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+    <div class="btn-share">Share</div>
+  </div>
+</div>
+
+<div class="body">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-tab active">Layers</div>
+      <div class="sidebar-tab">Assets</div>
+    </div>
+    <div class="sidebar-body">
+      <div class="layer-row"><div class="layer-caret">▶</div><div class="layer-icon">⊡</div><div class="layer-name">Sprint Frame</div><div class="layer-vis">◎</div></div>
+      <div class="layer-row selected" style="padding-left:22px"><div class="layer-icon" style="color:var(--accent)">▭</div><div class="layer-name">Planning</div><div class="layer-vis">◎</div></div>
+      <div class="layer-row" style="padding-left:22px"><div class="layer-icon">◯</div><div class="layer-name">Review</div><div class="layer-vis">◎</div></div>
+      <div class="layer-row" style="padding-left:22px"><div class="layer-icon">T</div><div class="layer-name">Sprint Q2 goals</div><div class="layer-vis">◎</div></div>
+      <div class="layer-section">Loose</div>
+      <div class="layer-row"><div class="layer-caret"></div><div class="layer-icon">▭</div><div class="layer-name">Note</div><div class="layer-vis">◎</div></div>
+      <div class="layer-row"><div class="layer-caret"></div><div class="layer-icon">→</div><div class="layer-name">Arrow 1</div><div class="layer-vis">◎</div></div>
+      <div class="layer-row"><div class="layer-caret"></div><div class="layer-icon">🖼</div><div class="layer-name">hero.png</div><div class="layer-vis">◎</div></div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
+    <svg class="canvas-svg">
+      <defs><marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,1 L0,6 L7,3.5 z" fill="rgba(233,233,226,0.2)"/></marker></defs>
+      <path d="M240,125 C280,125 300,120 330,120" stroke="rgba(233,233,226,0.18)" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+    </svg>
+    <div class="c-el c-frame"><div class="c-frame-label">Sprint Frame</div></div>
+    <div class="c-el c-rect">Planning
+      <div class="handle h-tl"></div><div class="handle h-tr"></div>
+      <div class="handle h-bl"></div><div class="handle h-br"></div>
+      <div class="handle h-tm"></div><div class="handle h-bm"></div>
+      <div class="handle h-ml"></div><div class="handle h-mr"></div>
+    </div>
+    <div class="c-el c-ellipse">Review</div>
+    <div class="c-el c-text">Sprint Q2 goals</div>
+    <div class="c-el c-note">Ship auth flow<br><span style="color:rgba(167,139,250,0.35)">by end of week</span></div>
+    <div class="cursor" style="top:190px;left:200px"><span style="font-size:14px;color:#5b9cf6">↖</span><div class="cursor-tag" style="background:rgba(91,156,246,0.12);color:#5b9cf6">Alex</div></div>
+    <div class="cursor" style="top:85px;left:380px"><span style="font-size:14px;color:#a78bfa">↖</span><div class="cursor-tag" style="background:rgba(167,139,250,0.12);color:#a78bfa">Sam</div></div>
+    <div class="float-bar">
+      <div class="fb-btn"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 5H7.5a3 3 0 0 1 0 6H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2.5 5L4.5 3M2.5 5L4.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="fb-btn"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M10.5 5H5.5a3 3 0 0 0 0 6H8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 5L8.5 3M10.5 5L8.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="fb-sep"></div>
+      <div class="fb-btn">−</div><div class="fb-btn">+</div>
+      <div class="fb-sep"></div>
+      <div class="fb-btn on"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="1.5" fill="currentColor"/><path d="M6.5 2v1.5M6.5 9.5V11M2 6.5h1.5M9.5 6.5H11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+      <div class="fb-btn"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="3" y="6" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6V4.5a2 2 0 0 1 4 0V6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="fb-btn"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="1.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1.5" y="7" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="7" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg></div>
+    </div>
+  </div>
+
+  <!-- RIGHT STYLE PANEL -->
+  <div class="style-panel">
+
+    <!-- 1. Alignment icons -->
+    <div class="align-bar">
+      <!-- align left -->
+      <div class="align-btn" title="Align left"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="3" width="6" height="2.5" rx="0.8" fill="currentColor"/><rect x="2" y="7" width="10" height="2.5" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="1.5" y="2" width="1" height="10" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <!-- align center h -->
+      <div class="align-btn" title="Align center"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="4" y="3" width="6" height="2.5" rx="0.8" fill="currentColor"/><rect x="2" y="7" width="10" height="2.5" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="6.5" y="2" width="1" height="10" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <!-- align right -->
+      <div class="align-btn" title="Align right"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="6" y="3" width="6" height="2.5" rx="0.8" fill="currentColor"/><rect x="2" y="7" width="10" height="2.5" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="11.5" y="2" width="1" height="10" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <div style="width:1px;height:14px;background:var(--bone-10);margin:0 2px"></div>
+      <!-- align top -->
+      <div class="align-btn" title="Align top"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3" y="4" width="2.5" height="6" rx="0.8" fill="currentColor"/><rect x="7" y="2" width="2.5" height="10" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="2" y="1.5" width="10" height="1" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <!-- align middle v -->
+      <div class="align-btn" title="Align middle"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3" y="4" width="2.5" height="6" rx="0.8" fill="currentColor"/><rect x="7" y="2" width="2.5" height="10" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="2" y="6.5" width="10" height="1" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <!-- align bottom -->
+      <div class="align-btn" title="Align bottom"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3" y="4" width="2.5" height="6" rx="0.8" fill="currentColor"/><rect x="7" y="2" width="2.5" height="10" rx="0.8" fill="currentColor" opacity="0.4"/><rect x="2" y="11.5" width="10" height="1" rx="0.5" fill="currentColor" opacity="0.5"/></svg></div>
+      <div style="width:1px;height:14px;background:var(--bone-10);margin:0 2px"></div>
+      <!-- distribute h -->
+      <div class="align-btn" title="Distribute horizontal"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="3.5" y="4" width="2.5" height="6" rx="0.8" fill="currentColor" opacity="0.5"/><rect x="8" y="4" width="2.5" height="6" rx="0.8" fill="currentColor" opacity="0.5"/><rect x="1" y="3" width="1" height="8" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="12" y="3" width="1" height="8" rx="0.5" fill="currentColor" opacity="0.3"/></svg></div>
+      <!-- distribute v -->
+      <div class="align-btn" title="Distribute vertical"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="4" y="3.5" width="6" height="2.5" rx="0.8" fill="currentColor" opacity="0.5"/><rect x="4" y="8" width="6" height="2.5" rx="0.8" fill="currentColor" opacity="0.5"/><rect x="3" y="1" width="8" height="1" rx="0.5" fill="currentColor" opacity="0.3"/><rect x="3" y="12" width="8" height="1" rx="0.5" fill="currentColor" opacity="0.3"/></svg></div>
+    </div>
+
+    <!-- 2. Size & Position -->
+    <div class="ps">
+      <div class="ps-header">
+        <span class="ps-title">Size</span>
+        <div class="ps-add">+</div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Width</div>
+        <div class="prop-controls">
+          <input class="pi" value="140" style="flex:1.2">
+          <div class="pd">Fill <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Height</div>
+        <div class="prop-controls">
+          <input class="pi" value="70" style="flex:1.2">
+          <div class="pd">Fit <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Position</div>
+        <div class="prop-controls">
+          <input class="pi" value="X  100">
+          <input class="pi" value="Y  90">
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Grow</div>
+        <div class="prop-controls">
+          <div class="seg">
+            <div class="seg-opt" title="Horizontal">↔</div>
+            <div class="seg-opt active" title="Vertical">↕</div>
+            <div class="seg-opt" title="Both">⤢</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Fill -->
+    <div class="ps">
+      <div class="ps-header">
+        <span class="ps-title">Fill</span>
+        <div class="ps-add">+</div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Color</div>
+        <div class="prop-controls">
+          <div class="color-swatch" style="background:#d38f36;opacity:0.2" onclick="this.style.outline='2px solid var(--bone-60)'"></div>
+          <input class="pi" value="#d38f36" style="flex:1;text-align:left;padding:0 8px">
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Opacity</div>
+        <div class="prop-controls">
+          <div class="slider-wrap">
+            <input type="range" min="0" max="1" step="0.01" value="0.15">
+          </div>
+          <div class="slider-val">15%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Border -->
+    <div class="ps">
+      <div class="ps-header">
+        <span class="ps-title">Border</span>
+        <div class="ps-add">+</div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Color</div>
+        <div class="prop-controls">
+          <div class="color-swatch" style="background:#d38f36" onclick="this.style.outline='2px solid var(--bone-60)'"></div>
+          <input class="pi" value="#d38f36" style="flex:1;text-align:left;padding:0 8px">
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Width</div>
+        <div class="prop-controls">
+          <input class="pi" value="1.5" style="max-width:52px">
+          <div class="seg" style="flex:1.4">
+            <div class="seg-opt active">—</div>
+            <div class="seg-opt">- -</div>
+            <div class="seg-opt">···</div>
+          </div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Radius</div>
+        <div class="prop-controls">
+          <input class="pi" value="10" style="max-width:52px">
+          <div class="radius-btns">
+            <div class="radius-btn active" title="All corners">□</div>
+            <div class="radius-btn" title="Individual">▣</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Options (Visible, Lock, Snap) -->
+    <div class="ps">
+      <div class="ps-header">
+        <span class="ps-title">Options</span>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Visible</div>
+        <div class="prop-controls">
+          <div class="bool-seg">
+            <div class="bool-opt active" onclick="setSeg(this)">True</div>
+            <div class="bool-opt" onclick="setSeg(this)">No</div>
+          </div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Locked</div>
+        <div class="prop-controls">
+          <div class="switch" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Snap</div>
+        <div class="prop-controls">
+          <div class="switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+      <div class="prop-row">
+        <div class="prop-label">Overflow</div>
+        <div class="prop-controls">
+          <div class="pd" style="flex:1">Visible <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /style-panel -->
+
+</div>
+
+<script>
+document.querySelectorAll('.tool-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.closest('.tool-group').querySelectorAll('.tool-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+function setSeg(el) {
+  el.closest('.bool-seg,.seg').querySelectorAll('.seg-opt,.bool-opt').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+document.querySelectorAll('.seg-opt').forEach(el => el.addEventListener('click', () => setSeg(el)));
+document.querySelectorAll('.radius-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.closest('.radius-btns').querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

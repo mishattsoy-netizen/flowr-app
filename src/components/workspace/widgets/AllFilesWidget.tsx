@@ -33,7 +33,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
       <div key={entity.id}>
         <button onClick={() => setActiveEntityId(entity.id)} style={{ paddingLeft: `${8 + depth * 16}px` }}
           className="w-full flex items-center gap-2 pr-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--bone-6)] transition-all group/item text-left">
-          <Icon className="w-3.5 h-3.5 text-[var(--bone-40)] group-hover/item:text-accent shrink-0 transition-colors" />
+          <Icon strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-40)] group-hover/item:text-accent shrink-0 transition-colors" />
           <span className="text-sm text-foreground truncate flex-1">{entity.title || 'Untitled'}</span>
         </button>
         {children.map(c => renderItem(c, depth + 1))}
@@ -55,13 +55,13 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
             <button onClick={() => onUpdateData({ ...data, view: view === 'flat' ? 'tree' : 'flat' })}
               className={clsx("w-6 h-6 flex items-center justify-center rounded-[4px] transition-colors",
                 view === 'tree' ? "bg-[var(--bone-15)] text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]")}>
-              {view === 'tree' ? <GitBranch className="w-3.5 h-3.5" /> : <List className="w-3.5 h-3.5" />}
+              {view === 'tree' ? <GitBranch strokeWidth={2} className="w-3.5 h-3.5" /> : <List strokeWidth={2} className="w-3.5 h-3.5" />}
             </button>
           </div>
         )}
       </div>
       <div className="relative mb-2">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--bone-30)]" />
+        <Search strokeWidth={2} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--bone-30)]" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter..."
           className="w-full pl-7 pr-3 py-1.5 bg-[var(--bone-5)] border border-[var(--bone-3)] rounded-[var(--radius-small)] text-sm text-foreground placeholder-muted-foreground outline-none focus:border-[var(--bone-20)]" />
       </div>
@@ -69,10 +69,10 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
         {(view === 'flat' ? filtered : rootItems).map(e => renderItem(e))}
         {filtered.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
-            <Search strokeWidth={1} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
+            <Search strokeWidth={2} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">No files found</p>
-              <p className="text-xs text-bone-40 opacity-25 mt-1 leading-snug text-balance">Files you add or sync will appear here.</p>
+              <p className="text-xs text-bone-60 opacity-40 mt-1 leading-snug text-balance">Files you add or sync will appear here.</p>
             </div>
             <button
               onClick={() => openModal({ kind: 'newItem' })}

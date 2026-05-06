@@ -108,7 +108,16 @@ export async function runGroq(
         }
       }
     } catch (error: any) {
-      logger.error(`Groq model ${modelId} execution failed:`, error.message)
+      const errorMsg = error.message || 'Unknown error'
+      if (errorMsg.includes('404') || errorMsg.includes('model_not_found')) {
+        logger.error(`Model ID "${modelId}" not found on Groq. Check your Router config.`)
+        throw error // Throw to abort this model entirely
+      } else if (errorMsg.includes('401') || errorMsg.includes('API key')) {
+        logger.error(`Authentication failed for Groq key index ${i + 1}.`)
+        // Continue to try next key
+      } else {
+        logger.error(`Groq model ${modelId} execution failed:`, errorMsg)
+      }
       continue 
     }
   }

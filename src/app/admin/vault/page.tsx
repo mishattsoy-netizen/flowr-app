@@ -3,7 +3,7 @@ import VaultProviderWidget from '@/components/admin/VaultProviderWidget'
 import CloudflareVaultWidget from '@/components/admin/CloudflareVaultWidget'
 
 const CLOUDFLARE_KEY_IDS = ['CLOUDFLARE_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']
-const KNOWN_PROVIDERS = ['gemini', 'groq', 'openrouter', 'tavily', 'huggingface']
+const KNOWN_PROVIDERS = ['gemini', 'groq', 'openrouter', 'tavily', 'huggingface', 'pollinations']
 
 function detectProvider(keyId: string): string {
   const id = keyId.toLowerCase()
@@ -12,6 +12,7 @@ function detectProvider(keyId: string): string {
   if (id.includes('groq'))       return 'groq'
   if (id.includes('tavily'))     return 'tavily'
   if (id.includes('huggingface') || id.includes('hugging_face') || id.includes('hf')) return 'huggingface'
+  if (id.includes('pollinations')) return 'pollinations'
   return 'general'
 }
 

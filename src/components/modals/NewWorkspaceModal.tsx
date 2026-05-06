@@ -32,7 +32,7 @@ export function NewWorkspaceModal() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display text-xl text-foreground">New workspace</h2>
           <button onClick={closeModal} className="btn-icon">
-            <X className="w-4 h-4" />
+            <X strokeWidth={2} className="w-4 h-4" />
           </button>
         </div>
 
@@ -51,7 +51,7 @@ export function NewWorkspaceModal() {
               onClick={() => setName('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 btn-icon !w-7 !h-7"
             >
-              <X className="w-3.5 h-3.5" />
+              <X strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -65,7 +65,7 @@ export function NewWorkspaceModal() {
             disabled={!name.trim()}
             className="btn-accent"
           >
-            <Plus className="w-4 h-4" />
+            <Plus strokeWidth={2} className="w-4 h-4" />
             Create
           </button>
         </div>

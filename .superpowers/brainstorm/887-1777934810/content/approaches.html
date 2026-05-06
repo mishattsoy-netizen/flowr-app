@@ -1,0 +1,42 @@
+<h2>Implementation Approaches</h2>
+<p class="subtitle">3 ways to architect the mode system + context controls</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Mode as a prompt overlay <span style="font-size:11px;color:#4ade80;margin-left:8px;">★ Recommended</span></h3>
+      <p>Each mode stores its own 5 settings blocks in the existing <code>bot_settings</code> table with a new <code>mode</code> column (<code>default</code> / <code>think</code> / <code>pro</code>). The compiled prompt system gets a mode parameter — on send, the active mode's compiled prompt is injected instead of the global one. Admin gets 3 pages mirroring the current settings page. Context controls added as a new settings section. Compaction chain stored as structured JSON in a new <code>bot_compaction_config</code> table.</p>
+      <div class="pros-cons" style="margin-top:10px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Minimal schema change — reuses existing tables</li><li>Each mode compiles independently — fast lookup</li><li>Clean separation, easy to extend</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>3 compiled prompts to keep in sync</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Mode as a full profile entity</h3>
+      <p>Create a new <code>bot_modes</code> table that owns everything — settings blocks, classifier prompt, compiled output — as a self-contained profile. Switching modes swaps the entire profile. Admin gets 3 separate pages each managing a mode profile. More normalized but requires a new abstraction layer.</p>
+      <div class="pros-cons" style="margin-top:10px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Cleaner data model long-term</li><li>Easy to add more modes later</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Larger schema change</li><li>More migration work</li><li>Breaks existing settings page — needs refactor</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Mode as a runtime injection</h3>
+      <p>Keep a single settings table, but store mode-specific prompt overrides as separate fields applied at runtime on top of the base settings. The chat route receives the mode and dynamically assembles the prompt by layering overrides. Lightest DB change but more complex runtime logic.</p>
+      <div class="pros-cons" style="margin-top:10px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Smallest DB footprint</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Complex prompt assembly at runtime</li><li>Harder to preview/debug per-mode prompts</li><li>No clean per-mode compilation</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

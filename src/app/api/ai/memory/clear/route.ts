@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin, isSupabaseEnabled } from '@/lib/supabase'
+import { clearSessionState } from '@/lib/bot/context'
 
 export async function POST(req: NextRequest) {
   let user = null;
@@ -24,35 +25,29 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1. Get message log IDs that have feedback for this user
-    const { data: feedbackLogs } = await supabaseAdmin
-      .from('message_feedback')
-      .select('message_log_id')
-      .eq('auth_user_id', user.id)
+    const { activeEntityId } = await req.json().catch(() => ({}));
 
-    const feedbackLogIds = (feedbackLogs ?? []).map((f: any) => f.message_log_id).filter(Boolean)
 
-    // 2. Delete message logs for this user except those that have feedback
-    let query = supabaseAdmin
-      .from('message_logs')
-      .delete()
-      .eq('auth_user_id', user.id)
-
-    if (feedbackLogIds.length > 0) {
-      query = query.not('id', 'in', `(${feedbackLogIds.join(',')})`)
-    }
-
-    const { error: logError } = await query
-
-    if (logError) throw logError
+    // 1. We no longer delete from message_logs to preserve history for analytics/admin.
+    // Instead, we just update memory_cleared_at in user_quotas.
+    // The context fetcher (getWebConversationMemory) will respect this timestamp.
 
     try {
       await supabaseAdmin
         .from('user_quotas')
-        .update({ memory_cleared_at: new Date().toISOString() })
-        .eq('auth_user_id', user.id)
+        .upsert({ 
+          auth_user_id: user.id,
+          memory_cleared_at: new Date().toISOString() 
+        }, { onConflict: 'auth_user_id' })
     } catch (err) {
       console.error('[Memory Clear Update Quota Error]', err)
+    }
+
+    // 2. Clear the session state (token usage, summary)
+    try {
+      await clearSessionState(activeEntityId || 'global')
+    } catch (err) {
+      console.error('[Memory Clear Session State Error]', err)
     }
 
     return NextResponse.json({ success: true, message: 'Conversation memory cleared' })

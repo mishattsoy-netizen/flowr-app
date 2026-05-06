@@ -39,16 +39,29 @@ export async function getConversationMemory(telegramId: number, limit: number = 
  */
 export async function getWebConversationMemory(authUserId: string, limit: number = 100): Promise<MemoryItem[]> {
   try {
-    const { data, error } = await supabaseAdmin
+    // Fetch the memory_cleared_at timestamp for this user
+    const { data: quota } = await supabaseAdmin
+      .from('user_quotas')
+      .select('memory_cleared_at')
+      .eq('auth_user_id', authUserId)
+      .maybeSingle();
+
+    let query = supabaseAdmin
       .from('message_logs')
       .select('role, content')
-      .eq('auth_user_id', authUserId)
+      .or(`auth_user_id.eq.${authUserId},topic_tag.eq.app:${authUserId.slice(0, 8)}`);
+
+    if (quota?.memory_cleared_at) {
+      query = query.gt('created_at', quota.memory_cleared_at);
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(limit)
+      .limit(limit);
 
     if (error) {
-      logger.warn(`Web memory unavailable for ${authUserId}: ${error.message}`)
-      return []
+      logger.warn(`Web memory unavailable for ${authUserId}: ${error.message}`);
+      return [];
     }
 
     const history = (data || []).reverse().map((msg: any) => ({

@@ -30,6 +30,8 @@ export interface Exchange {
   user_email: string | null
   topic_tag: string | null
   request_id: string | null
+  feedback: 'like' | 'dislike' | null
+  duration_ms: number | null
 }
 
 // Detect whether auth_user_id column exists (migration may not have run yet)
@@ -108,6 +110,17 @@ export async function getMessageExchanges(options: {
   }
 
   const { data: userRows } = await userQ
+  
+  // Fetch feedback for these model logs
+  const modelIds = modelRows.map((m: any) => m.id)
+  const { data: feedbackRows } = await supabaseAdmin
+    .from('message_feedback')
+    .select('message_log_id, feedback')
+    .in('message_log_id', modelIds)
+
+  const feedbackMap = Object.fromEntries(
+    (feedbackRows || []).map((f: any) => [f.message_log_id, f.feedback])
+  )
 
   // Pair: prefer request_id match; fall back to closest preceding user row from same identity
   const exchanges: Exchange[] = modelRows.map((m: any) => {
@@ -141,6 +154,8 @@ export async function getMessageExchanges(options: {
       user_email: null,
       topic_tag: m.topic_tag?.startsWith('app:') ? null : (m.topic_tag ?? null),
       request_id: m.request_id ?? null,
+      feedback: feedbackMap[m.id] ?? null,
+      duration_ms: matched ? (new Date(m.created_at).getTime() - new Date(matched.created_at).getTime()) : null,
     }
   })
 

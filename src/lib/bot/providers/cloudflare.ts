@@ -5,7 +5,7 @@ const MODEL_MAP: Record<string, string> = {
   'cloudflare-workers-ai': '@cf/black-forest-labs/flux-1-schnell',
 }
 
-export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: string): Promise<Buffer | null> {
+export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: string): Promise<Buffer | string | null> {
   const token = aiApiKey || await getVaultKey('CLOUDFLARE_TOKEN')
   const accountId = await getVaultKey('CLOUDFLARE_ACCOUNT_ID')
 
@@ -37,14 +37,20 @@ export async function runCloudflare(modelId: string, prompt: string, aiApiKey?: 
 
     const contentType = response.headers.get('content-type') || ''
 
-    // Some Cloudflare models return JSON with base64 image or error info
+    // Some Cloudflare models return JSON with base64 image, text response, or error info
     if (contentType.includes('application/json')) {
       const json = await response.json() as any
-      // success:true with result.image = base64 string
-      if (json?.success && json?.result?.image) {
-        return Buffer.from(json.result.image, 'base64')
+      if (json?.success) {
+        if (json?.result?.image) {
+          return Buffer.from(json.result.image, 'base64')
+        }
+        if (json?.result?.response) {
+          return json.result.response
+        }
+        if (json?.result?.text) {
+          return json.result.text
+        }
       }
-      // success:false or unexpected shape
       throw new Error(`Cloudflare AI JSON response: ${JSON.stringify(json).slice(0, 200)}`)
     }
 

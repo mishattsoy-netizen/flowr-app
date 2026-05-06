@@ -5,6 +5,7 @@ import { runGroq } from './providers/groq'
 import { supabaseAdmin } from '../supabase'
 import { DEFAULT_KEYWORDS, DEFAULT_CLASSIFICATION_PROMPT } from '@/app/admin/bot/classifier/defaults'
 import type { BotMode } from '@/data/store.types'
+import { isModelFailed, markModelFailed } from './chainRouter'
 
 function trackModelUsage(modelId: string, provider: string) {
   supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
@@ -34,6 +35,7 @@ const TAG_CATEGORY_MAP: Record<string, IntentCategory> = {
   '/research': 'DEEP_RESEARCH',
   '/code':     'CODING',
   '/image':    'IMAGE_GEN',
+  '/tool':     'TOOL_CALLING',
 }
 
 const MAPS_KEYWORDS = ['map', 'maps', 'directions', 'navigate', 'route to', 'how do i get to', 'where is', 'location of', 'near me', 'nearby']
@@ -65,9 +67,9 @@ export async function classifyIntentWithModel(
   // Intent tag handling — tags are trusted directly
   if (intentTag && TAG_CATEGORY_MAP[intentTag]) {
     if (intentTag === '/research' && detectMapsIntent(lowerMsg)) {
-      return { category: 'WEB_SEARCH', classifierModel: 'maps-override', trace: [] }
+      return { category: 'WEB_SEARCH', classifierModel: 'Maps Override', trace: [] }
     }
-    return { category: TAG_CATEGORY_MAP[intentTag], classifierModel: 'tag', trace: [] }
+    return { category: TAG_CATEGORY_MAP[intentTag], classifierModel: 'Intent Tag', trace: [] }
   }
 
   // Load mode-specific classifier config
@@ -119,7 +121,7 @@ export async function classifyIntentWithModel(
         const regex = new RegExp(`\\b${escapedKw}\\b`, 'i')
         
         if (regex.test(lowerMsg)) {
-          return { category: cat, classifierModel: kw, trace: [] }
+          return { category: cat, classifierModel: 'Keywords', trace: [] }
         }
       }
     }
@@ -127,25 +129,69 @@ export async function classifyIntentWithModel(
 
   // Model classification
   const { chain } = await getRouterChain('CLASSIFIER')
-  const activeChain = modelId ? [{ id: modelId, provider: 'google', is_enabled: true }] : chain
+  let activeChain = chain
+  
+  if (modelId) {
+    const selected = chain.find(m => m.id === modelId)
+    if (selected) {
+      activeChain = [selected]
+    } else {
+      // Fallback if not found in current enabled chain
+      activeChain = [{ id: modelId, provider: 'google', is_enabled: true } as any]
+    }
+  }
+
   const trace: ClassifyTrace[] = []
 
   for (const modelConfig of activeChain) {
     if (!modelConfig.is_enabled) continue
-    const key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
+    if (isModelFailed(modelConfig.id)) {
+      logger.info(`Classifier skipping failed model: ${modelConfig.id}`)
+      trace.push({ model: modelConfig.id, key: 'SKIPPED', success: false })
+      continue
+    }
+    
+    let key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
+    if (modelConfig.provider.toLowerCase().includes('ollama')) key = 'LOCAL'
+    
     try {
       let rawResponse: string | null = null
       const traceContext: any = { aiApiKey }
+      const prompt = `${activePrompt}\n"${message}"`
 
-      if (modelConfig.provider === 'google') {
-        rawResponse = await runGoogle(modelConfig.id, `${activePrompt}\n"${message}"`, undefined, undefined, traceContext)
-      } else if (modelConfig.provider === 'groq') {
-        rawResponse = await runGroq(modelConfig.id, `${activePrompt}\n"${message}"`, undefined, aiApiKey, traceContext)
+      const provider = modelConfig.provider.toLowerCase()
+      if (provider === 'google') {
+        rawResponse = await runGoogle(modelConfig.id, prompt, undefined, undefined, traceContext)
+      } else if (provider === 'groq') {
+        rawResponse = await runGroq(modelConfig.id, prompt, undefined, aiApiKey, traceContext)
+      } else if (provider === 'openrouter') {
+        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, prompt, '', [], aiApiKey)
+        rawResponse = typeof orRes === 'string' ? orRes : null
+      } else if (provider === 'ollama' || provider === 'local') {
+        const olRes = await (await import('./providers/ollama')).runOllama(modelConfig.id, prompt, '', [])
+        rawResponse = typeof olRes === 'string' ? olRes : null
+      } else if (provider === 'pollinations') {
+        const polRes = await (await import('./providers/pollinations')).runPollinationsText(modelConfig.id, prompt, '', [])
+        rawResponse = typeof polRes === 'string' ? polRes : null
       }
 
       if (rawResponse) {
+        const cleaned = rawResponse.trim().toUpperCase()
+        
+        // Strategy 1: Check for exact match (most accurate)
         for (const cat of VALID_CATEGORIES) {
-          if (rawResponse.toUpperCase().includes(cat)) {
+          if (cleaned === cat) {
+            const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
+            trace.push({ model: modelConfig.id, key: displayKey, success: true })
+            trackModelUsage(modelConfig.id, modelConfig.provider)
+            return { category: cat, classifierModel: modelConfig.id, trace }
+          }
+        }
+
+        // Strategy 2: Check for category with word boundaries (handles chatty models)
+        for (const cat of VALID_CATEGORIES) {
+          const regex = new RegExp(`\\b${cat}\\b`, 'i')
+          if (regex.test(cleaned)) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
             trace.push({ model: modelConfig.id, key: displayKey, success: true })
             trackModelUsage(modelConfig.id, modelConfig.provider)
@@ -153,12 +199,14 @@ export async function classifyIntentWithModel(
           }
         }
       }
+      
       trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
     } catch (error: any) {
+      markModelFailed(modelConfig.id)
       trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
       logger.warn(`Classification failure [${modelConfig.id}]: ${error.message}`)
     }
   }
 
-  return { category: 'FAST_SIMPLE', classifierModel: 'fallback', trace }
+  return { category: 'FAST_SIMPLE', classifierModel: 'Fallback', trace }
 }

@@ -39,7 +39,7 @@ export function DeleteConfirmModal() {
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 rounded-full bg-danger/10">
-            <AlertTriangle className="w-4.5 h-4.5 text-danger" />
+            <AlertTriangle strokeWidth={2} className="w-4.5 h-4.5 text-danger" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         </div>

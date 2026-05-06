@@ -115,7 +115,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
     >
       {/* Search */}
       <div className="flex items-center bg-background border border-border rounded-[var(--radius-small)] px-3 py-2 mb-3 group focus-within:border-[var(--bone-60)] ">
-        <Search className="w-3.5 h-3.5 text-muted-foreground mr-2 shrink-0 group-focus-within:text-foreground" />
+        <Search strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground mr-2 shrink-0 group-focus-within:text-foreground" />
         <input
           autoFocus
           type="text"
@@ -130,7 +130,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
               onClick={() => setSearch('')}
               className="p-0.5 rounded-[var(--radius-small)] hover:bg-hover text-muted-foreground hover:text-foreground "
             >
-              <X className="w-3 h-3" />
+              <X strokeWidth={2} className="w-3 h-3" />
             </button>
           </Tooltip>
         )}

@@ -31,6 +31,7 @@ const PROVIDER_INFO: Record<string, ProviderInfo> = {
   openrouter:  { name: 'OpenRouter',  color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20', dot: 'bg-purple-400' },
   tavily:      { name: 'Tavily',      color: 'text-cyan-400',   bg: 'bg-cyan-400/10',   border: 'border-cyan-400/20',   dot: 'bg-cyan-400'   },
   huggingface: { name: 'Hugging Face', color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', dot: 'bg-yellow-500' },
+  pollinations: { name: 'Pollinations', color: 'text-pink-400',   bg: 'bg-pink-400/10',   border: 'border-pink-400/20',   dot: 'bg-pink-400'   },
   general:     { name: 'General',     color: 'text-bone-60',    bg: 'bg-bone-60/10',    border: 'border-bone-60/20',    dot: 'bg-bone-60'    },
 }
 

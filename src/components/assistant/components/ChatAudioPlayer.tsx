@@ -45,7 +45,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
         onClick={togglePlay}
         className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20"
       >
-        {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+        {isPlaying ? <Pause strokeWidth={2} className="w-3.5 h-3.5 fill-current" /> : <Play strokeWidth={2} className="w-3.5 h-3.5 fill-current ml-0.5" />}
       </button>
 
       <div className="flex-1 flex items-center gap-0.5 h-4 min-w-[100px]">
@@ -76,7 +76,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="w-7 h-7 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all ml-1"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Trash2 strokeWidth={2} className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

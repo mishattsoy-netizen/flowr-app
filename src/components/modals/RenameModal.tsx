@@ -32,7 +32,7 @@ export function RenameModal() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-foreground">Rename</h2>
           <button onClick={closeModal} className="p-1 rounded-full hover:bg-hover  text-muted-foreground hover:text-foreground">
-            <X className="w-4.5 h-4.5" />
+            <X strokeWidth={2} className="w-4.5 h-4.5" />
           </button>
         </div>
 
@@ -51,7 +51,7 @@ export function RenameModal() {
               onClick={() => setName('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-hover text-muted-foreground hover:text-foreground "
             >
-              <X className="w-3.5 h-3.5" />
+              <X strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

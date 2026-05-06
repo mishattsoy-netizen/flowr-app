@@ -6,7 +6,9 @@ export const DEFAULT_CLASSIFICATION_PROMPT = `You are the brain of Flowr AI. Cla
 4. IMAGE_GEN: Requests to generate, draw, create, or visualize an image.
 5. WEB_SEARCH: Questions about current events, news, specific people/companies, or requests to "search the web".
 6. TOOL_CALLING: Requests to create, edit, delete, move, or modify notes, folders, tasks, or workspace items.
-7. AUDIO_VOICE: Requests to transcribe, speak, or handle audio (if explicitly mentioned).
+7. CODING: Programming, software architecture, debugging, or SQL.
+8. DEEP_RESEARCH: Complex research queries (usually triggered by /research tag).
+9. AUDIO_VOICE: Requests to transcribe, speak, or handle audio (if explicitly mentioned).
 
 Respond with ONLY the category name.
 
@@ -19,7 +21,7 @@ export const DEFAULT_KEYWORDS: Record<string, string[]> = {
     'good morning', 'good evening', 'good afternoon',
     'what can you do', 'who are you', 'capabilities', 'features',
     'your name', 'what you can do', 'write everything', 'how can you help',
-    'what are your skills'
+    'what are your skills', 'what are u', 'what is your name', 'tell me about yourself'
   ],
   MEDIUM_THINKING: [],
   COMPLEX_THINKING: [],

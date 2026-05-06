@@ -206,7 +206,7 @@ Each item must have exactly these fields: topic (string), title (string), reason
         const { data: promptRow } = await supabase
           .from('bot_compiled_prompt')
           .select('backend_model')
-          .eq('id', 1)
+          .eq('mode', 'default')
           .single()
         const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
 

@@ -265,7 +265,7 @@ function TagItem({
               aria-label={`Delete tag ${tag}`}
               className="hover:text-danger rounded-full p-0.5 transition-colors opacity-60 hover:opacity-100"
             >
-              <X className="w-3 h-3" />
+              <X strokeWidth={2} className="w-3 h-3" />
             </button>
           </>
         )}
@@ -319,6 +319,23 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   const lastEntityId = useRef<string>(entity.id);
   const isFirstMount = useRef<boolean>(true);
   const isUserModified = useRef<boolean>(false);
+  const blocksRef = useRef<EditorBlock[]>(blocks);
+  
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
+
+  // Debounced Store Sync
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const debouncedSyncToStore = useCallback((id: string, content: EditorBlock[]) => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+       updateEntityContent(id, content);
+       lastSyncedVersion.current = JSON.stringify(content || []);
+       isUserModified.current = false; // Reset after sync
+    }, 1000); // 1s debounce for store persistence
+  }, [updateEntityContent]);
 
   useEffect(() => {
     // 1. Entity Switch Protection
@@ -330,31 +347,42 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
        lastSyncedVersion.current = JSON.stringify(entity.content || []);
        lastEntityId.current = entity.id;
        isFirstMount.current = true;
-       isUserModified.current = false; // Reset modification flag on switch
+       isUserModified.current = false;
        return;
     }
 
-    const storeJson = JSON.stringify(entity.content || []);
-    const localJson = JSON.stringify(blocks);
-
     const isAiWritingThis = aiCursor?.id === entity.id;
-    const shouldPrioritizeStore = isAiWritingThis || isFirstMount.current;
-
+    const storeJson = JSON.stringify(entity.content || []);
+    
+    // CASE A: External update (AI or another tab/component)
     if (storeJson !== lastSyncedVersion.current) {
+      const localJson = JSON.stringify(blocks);
       if (storeJson !== localJson) {
         setBlocks(entity.content || []);
       }
       lastSyncedVersion.current = storeJson;
       isFirstMount.current = false;
     } 
-    else if (localJson !== storeJson && isUserModified.current && !isAiWritingThis) {
-      // ONLY push to store if the user has explicitly modified the content
-      updateEntityContent(entity.id, blocks);
-      lastSyncedVersion.current = localJson;
-    } else if (localJson === storeJson) {
+    // CASE B: Local user update
+    else if (isUserModified.current && !isAiWritingThis) {
+      const localJson = JSON.stringify(blocks);
+      if (localJson !== lastSyncedVersion.current) {
+        debouncedSyncToStore(entity.id, blocks);
+      }
+    } else {
       isFirstMount.current = false;
     }
-  }, [entity.id, entity.content, blocks, updateEntityContent, aiCursor]);
+  }, [entity.id, entity.content, blocks, debouncedSyncToStore, aiCursor]);
+
+  // Flush sync on unmount or entity change
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current && isUserModified.current) {
+        clearTimeout(syncTimeoutRef.current);
+        updateEntityContent(lastEntityId.current, blocksRef.current);
+      }
+    };
+  }, [updateEntityContent]); // Only depend on store action
 
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
 
@@ -457,6 +485,33 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       }
     }
   }, []);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    // Only trigger if clicking on the background container or empty space
+    const target = e.target as HTMLElement;
+    const isEditorBg = target.closest('.note-editor-bg') && !target.closest('[data-block-id]');
+    
+    if (isEditorBg) {
+      const newBlock = createBlock('text', { style: 'body' });
+      const newBlocks = [...blocks, newBlock];
+      persistBlocks(newBlocks);
+      
+      // Auto-focus the new block
+      setTimeout(() => {
+        const newEl = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
+        if (newEl) {
+          newEl.focus();
+          // Place cursor at the end
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(newEl);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }, 50);
+    }
+  }, [blocks, persistBlocks]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (selectionBox?.active) {
@@ -654,24 +709,21 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       return { newList, found: foundInChild };
     };
 
-    setBlocks(prev => {
-      const { newList, found } = insertRecursive([...prev]);
-      if (found) {
-        setTimeout(() => {
-          const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
-          if (el) {
-            el.focus();
-            if (openSlash) {
-              const rect = el.getBoundingClientRect();
-              setSlashMenu({ blockId: newBlock.id, position: { x: rect.left, y: rect.bottom + 4 } });
-            }
+    const { newList, found } = insertRecursive([...blocks]);
+    if (found) {
+      persistBlocks(newList);
+      setTimeout(() => {
+        const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
+        if (el) {
+          el.focus();
+          if (openSlash) {
+            const rect = el.getBoundingClientRect();
+            setSlashMenu({ blockId: newBlock.id, position: { x: rect.left, y: rect.bottom + 4 } });
           }
-        }, 50);
-        return newList;
-      }
-      return prev;
-    });
-  }, []);
+        }
+      }, 50);
+    }
+  }, [blocks, persistBlocks]);
 
   const handleSlash = useCallback((blockId: string, rect: DOMRect) => {
     setSlashMenu({
@@ -939,9 +991,12 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       ref={editorRef}
       className="flex-1 flex flex-col relative overflow-hidden note-editor-bg"
       onMouseDown={handleMouseDown}
+      onDoubleClick={handleDoubleClick}
       onPaste={handlePaste}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
+      dir="ltr"
+      style={{ direction: 'ltr' }}
     >
       <div 
         className="flex-1 overflow-y-auto custom-scrollbar note-editor-bg"
@@ -952,6 +1007,8 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
               isFullWidth ? "max-w-[1240px] px-8" : "max-w-[850px] px-4",
               isDragging && "dragging-active-content"
             )}
+            dir="ltr"
+            style={{ direction: 'ltr' }}
             data-dragging={isDragging}
           >
           {/* ... (Header and Metadata sections - keeping unchanged) */}
@@ -1039,7 +1096,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                         onClick={handleAddTag}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-all"
                       >
-                        <Plus strokeWidth={2.5} className="w-3 h-3" />
+                        <Plus strokeWidth={2} className="w-3 h-3" />
                         <span>New</span>
                       </button>
                     </div>
@@ -1063,9 +1120,39 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             canRedo={historyIndex < history.length - 1}
           />
 
-          <div
-            className="space-y-2 min-h-[50vh]"
-          >
+          {/* Hierarchical Folding Logic */}
+          {(() => {
+            const getLevel = (block: EditorBlock) => {
+              if (block.type !== 'text') return 4;
+              switch (block.style) {
+                case 'title': return 1;
+                case 'heading': return 2;
+                case 'subheading': return 3;
+                default: return 4;
+              }
+            };
+
+            let currentFoldLevel = Infinity;
+            const renderedBlocks = blocks.filter((block) => {
+              const level = getLevel(block);
+              
+              if (level <= currentFoldLevel) {
+                currentFoldLevel = Infinity;
+              }
+              
+              const isVisible = currentFoldLevel === Infinity;
+              
+              if (block.isFolded && currentFoldLevel === Infinity) {
+                currentFoldLevel = level;
+              }
+              
+              return isVisible;
+            });
+
+            return (
+              <div
+                className="space-y-2 min-h-[50vh] note-editor-bg"
+              >
                 <DndContext 
                   sensors={sensors} 
                   collisionDetection={closestCenter} 
@@ -1073,8 +1160,8 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                   onDragEnd={handleDragEnd}
                   modifiers={[restrictToVerticalAxis]}
                 >
-                  <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                    <div className="flex flex-col">
+                  <SortableContext items={renderedBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col note-editor-bg">
                       {blocks.length === 0 ? (
                         <div 
                           className="py-20 text-center cursor-text  group opacity-0 "
@@ -1086,7 +1173,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                           <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
                         </div>
                       ) : (
-                        blocks.map((block, idx) => {
+                        renderedBlocks.map((block, idx) => {
                           return (
                             <BlockRenderer
                               key={block.id}
@@ -1110,8 +1197,28 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                     </div>
                   </SortableContext>
                 </DndContext>
-          </div>
-          <div className="h-32" />
+              </div>
+            );
+          })()}
+          <div 
+            className="h-32 note-editor-bg cursor-text" 
+            onClick={() => {
+              const newBlock = createBlock('text', { style: 'body' });
+              persistBlocks([...blocks, newBlock]);
+              setTimeout(() => {
+                const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
+                if (el) {
+                  el.focus();
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  range.selectNodeContents(el);
+                  range.collapse(false);
+                  sel?.removeAllRanges();
+                  sel?.addRange(range);
+                }
+              }, 50);
+            }}
+          />
         </div>
       </div>
 

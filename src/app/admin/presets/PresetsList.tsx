@@ -47,7 +47,7 @@ export default function PresetsList({ initialPresets = [] }: { initialPresets: a
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
               <div className="p-2.5 rounded-regular bg-accent/10 border border-accent/20 text-accent">
-                <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <Activity className="w-3.5 h-3.5" strokeWidth={2} />
               </div>
             </div>
           </div>

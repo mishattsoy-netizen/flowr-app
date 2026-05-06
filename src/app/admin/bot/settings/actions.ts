@@ -122,3 +122,24 @@ export async function setBackendModel(model: string): Promise<void> {
   if (error) throw error
   revalidatePath('/admin/bot/global')
 }
+
+export async function getKeywordsEnabled(): Promise<boolean> {
+  const { data } = await supabase
+    .from('bot_settings')
+    .select('is_active')
+    .eq('category', 'classifier_keywords_enabled')
+    .eq('mode', 'default')
+    .maybeSingle()
+  return data?.is_active ?? true
+}
+
+export async function setKeywordsEnabled(enabled: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('bot_settings')
+    .upsert(
+      { category: 'classifier_keywords_enabled', mode: 'default', is_active: enabled, content: '', updated_at: new Date().toISOString() },
+      { onConflict: 'category,mode' }
+    )
+  if (error) throw error
+  revalidatePath('/admin/bot/global')
+}

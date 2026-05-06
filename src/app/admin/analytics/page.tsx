@@ -64,7 +64,7 @@ export default async function AnalyticsPage() {
           
           <div className="pt-4 border-t border-[var(--bone-15)] flex items-center justify-center">
             <p className="text-[10px] text-bone-60 opacity-20 font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-              <ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2} />
               Aggregate Data Pipeline: Production Stream
             </p>
           </div>

@@ -4,6 +4,15 @@ import { logger } from '../../logger'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 
+const GOOGLE_TIMEOUT_MS = 15000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Google API timeout after ${ms}ms`)), ms))
+  ])
+}
+
 export async function runGoogle(
   modelId: string,
   prompt: string,
@@ -13,11 +22,11 @@ export async function runGoogle(
   history: any[] = []
 ): Promise<string | null> {
   let keys = context?.aiApiKey ? [context.aiApiKey] : []
-  
+
   if (keys.length === 0) {
     keys = await getProviderKeys('GEMINI')
   }
-  
+
   if (keys.length === 0) {
     logger.error('No Gemini keys found (vault or provided)')
     return null
@@ -27,7 +36,7 @@ export async function runGoogle(
     const key = keys[i]
     try {
       const genAI = new GoogleGenerativeAI(key)
-      
+
       const isGemma = modelId.toLowerCase().includes('gemma')
       let finalPrompt = prompt || "Analyze this."
 
@@ -45,9 +54,9 @@ export async function runGoogle(
           temperature: typeof context?.temperature === 'number' ? context.temperature : 0.7
         }
       }, { apiVersion: 'v1beta' })
-      
+
       const parts: any[] = [{ text: finalPrompt }]
-      
+
       if (imageBuffer) {
         parts.push({
           inlineData: {
@@ -56,7 +65,7 @@ export async function runGoogle(
           }
         })
       }
-      
+
       // Gemini requires history to start with 'user' and alternate user/model
       // Drop any leading model messages and enforce alternation
       const safeHistory: any[] = []
@@ -69,8 +78,8 @@ export async function runGoogle(
       if (safeHistory.length % 2 !== 0) safeHistory.pop()
 
       let chat = model.startChat({ history: safeHistory })
-      
-      let result = await chat.sendMessage(parts)
+
+      let result = await withTimeout(chat.sendMessage(parts), GOOGLE_TIMEOUT_MS)
       let response = result.response
 
       const MAX_TOOL_HOPS = 4
@@ -94,18 +103,26 @@ export async function runGoogle(
         result = await chat.sendMessage(toolResults)
         response = result.response
       }
-      
+
       const finalAnswer = response.text()
       if (finalAnswer) {
         if (context) (context as any).usedKeyIndex = (context as any).usedKeyIndex || i + 1
         return finalAnswer
       }
     } catch (error: any) {
-      if (error.message?.includes('429') || error.message?.includes('quota')) {
+      const errorMsg = error.message || 'Unknown error'
+      if (errorMsg.includes('429') || errorMsg.includes('quota')) {
         logger.warn(`Gemini key rate limited. Trying next key...`)
         continue
       }
-      logger.error(`Google model ${modelId} execution failed:`, error.message)
+
+      if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+        logger.error(`Model ID "${modelId}" not found. Check your Router config.`)
+      } else if (errorMsg.includes('401') || errorMsg.includes('API key')) {
+        logger.error(`Authentication failed for Gemini key.`)
+      } else {
+        logger.error(`Google model ${modelId} execution failed:`, errorMsg)
+      }
       throw error
     }
   }

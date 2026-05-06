@@ -43,7 +43,18 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
         }}
         className="group text-4xl font-display text-foreground mb-1 flex items-center gap-3"
       >
-        <div className="shrink-0 p-1">
+        <div 
+          className="shrink-0 p-1 cursor-pointer hover:bg-hover rounded-xl transition-colors"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setIconPickerAnchor({
+              x: rect.left,
+              y: rect.top,
+              width: rect.width,
+              height: rect.height
+            });
+          }}
+        >
           {(() => { const Icon = getEntityIcon(entity.icon); return <Icon className="w-8 h-8 !text-accent" />; })()}
         </div>
 

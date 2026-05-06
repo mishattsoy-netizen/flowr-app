@@ -16,6 +16,9 @@ export async function getRouterChains(platform: 'app' | 'telegram') {
 }
 
 export async function updateRouterChain(id: string, modelList: any[]) {
+  if (modelList.length > 10) {
+    throw new Error('Maximum of 10 models allowed per chain')
+  }
   const { error } = await supabase
     .from('router_chains')
     .update({

@@ -1,7 +1,7 @@
--- Add UNIQUE constraint to bot_settings for (category, mode) idempotency
+-- Update bot_settings to support multiple modes
 ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'default';
-ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS uq_bot_settings_category_mode;
-ALTER TABLE bot_settings ADD CONSTRAINT uq_bot_settings_category_mode UNIQUE (category, mode);
+ALTER TABLE bot_settings DROP CONSTRAINT IF EXISTS bot_settings_pkey;
+ALTER TABLE bot_settings ADD PRIMARY KEY (category, mode);
 
 -- Seed think and pro prompt rows from default
 INSERT INTO bot_settings (category, content, is_active, mode, updated_at)
@@ -33,10 +33,12 @@ WHERE mode = 'default'
   AND category IN ('classifier_prompt', 'classifier_keywords')
 ON CONFLICT (category, mode) DO NOTHING;
 
--- Add mode column and UNIQUE constraint to bot_compiled_prompt
+-- Add mode column and set it as PRIMARY KEY for bot_compiled_prompt
 ALTER TABLE bot_compiled_prompt ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'default';
-ALTER TABLE bot_compiled_prompt DROP CONSTRAINT IF EXISTS uq_bot_compiled_prompt_mode;
-ALTER TABLE bot_compiled_prompt ADD CONSTRAINT uq_bot_compiled_prompt_mode UNIQUE (mode);
+ALTER TABLE bot_compiled_prompt DROP CONSTRAINT IF EXISTS bot_compiled_prompt_pkey;
+-- Drop legacy id column if it was used for singleton enforcement
+ALTER TABLE bot_compiled_prompt DROP COLUMN IF EXISTS id;
+ALTER TABLE bot_compiled_prompt ADD PRIMARY KEY (mode);
 
 -- Warn if no default compiled prompt row exists (think/pro seeds will be empty)
 DO $$

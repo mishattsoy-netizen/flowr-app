@@ -15,6 +15,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   huggingface: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10',
   vault: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
   pollinations: 'text-pink-400 border-pink-400/20 bg-pink-400/10',
+  openrouter: 'text-purple-400 border-purple-400/20 bg-purple-400/10',
   local: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
   ollama: 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
   'ollama(my pc)': 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
@@ -46,7 +47,7 @@ function ModalityBadges({
                 key={m}
                 onClick={() => onToggle?.(m)}
                 className={cn(
-                  'px-1.5 py-0.5 rounded-[5px] text-[9px] font-bold uppercase tracking-wider border transition-all',
+                  'px-1.5 py-0.5 rounded-medium text-[9px] font-bold uppercase tracking-wider border transition-all',
                   active ? MODALITY_COLORS[m] : 'text-bone-60/30 border-white/5 bg-transparent'
                 )}
               >
@@ -58,7 +59,7 @@ function ModalityBadges({
             <span
               key={m}
               className={cn(
-                'px-1.5 py-0.5 rounded-[5px] text-[9px] font-bold uppercase tracking-wider border',
+                'px-1.5 py-0.5 rounded-medium text-[9px] font-bold uppercase tracking-wider border',
                 MODALITY_COLORS[m] ?? 'text-bone-60 border-white/10 bg-white/5'
               )}
             >
@@ -141,14 +142,14 @@ function EditableRow({
         <input
           value={draft.id}
           onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value }))}
-          className="bg-transparent border-none rounded-[5px] px-2 py-1 text-[12px] font-mono text-foreground w-full focus:outline-none"
+          className="bg-transparent border-none rounded-medium px-2 py-1 text-[12px] font-mono text-foreground w-full focus:outline-none"
         />
       </td>
       <td className="px-4 py-3">
         <select
           value={draft.provider}
           onChange={(e) => setDraft((d) => ({ ...d, provider: e.target.value }))}
-          className="bg-background border border-white/10 text-foreground text-[12px] px-2 py-1 h-8 rounded-[5px] focus:outline-none w-28 select-none cursor-pointer hover:border-white/20 transition-all font-sans tracking-wide"
+          className="bg-white/5 text-foreground text-[12px] px-2 py-1 h-8 rounded-medium focus:outline-none w-28 select-none cursor-pointer hover:bg-white/10 transition-all font-sans tracking-wide"
         >
           <option value="google">google</option>
           <option value="groq">groq</option>
@@ -156,6 +157,7 @@ function EditableRow({
           <option value="huggingface">huggingface</option>
           <option value="vault">vault</option>
           <option value="pollinations">pollinations</option>
+          <option value="openrouter">openrouter</option>
           <option value="ollama">ollama</option>
           <option value="local">local</option>
         </select>
@@ -177,20 +179,20 @@ function EditableRow({
               max_rpd: e.target.value === '' ? null : Number(e.target.value),
             }))
           }
-          className="bg-transparent border-none rounded-[5px] px-2 py-1 text-[12px] font-mono text-foreground w-24 focus:outline-none"
+          className="bg-transparent border-none rounded-medium px-2 py-1 text-[12px] font-mono text-foreground w-24 focus:outline-none"
         />
       </td>
       <td className="px-4 py-3 text-center" colSpan={2}>
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => onSave(draft)}
-            className="flex items-center gap-1 px-3 py-1 rounded-[5px] bg-accent text-background text-[10px] font-bold uppercase tracking-wider hover:brightness-110 transition-all"
+            className="flex items-center gap-1 px-3 py-1 rounded-medium bg-accent text-background text-[10px] font-bold uppercase tracking-wider hover:brightness-110 transition-all"
           >
             <Check className="w-3 h-3" /> Save
           </button>
           <button
             onClick={onCancel}
-            className="flex items-center gap-1 px-3 py-1 rounded-[5px] bg-background border border-white/10 text-bone-60 text-[10px] font-bold uppercase tracking-wider hover:text-foreground transition-all"
+            className="flex items-center gap-1 px-3 py-1 rounded-medium bg-background border border-white/10 text-bone-60 text-[10px] font-bold uppercase tracking-wider hover:text-foreground transition-all"
           >
             <X className="w-3 h-3" /> Cancel
           </button>
@@ -251,14 +253,14 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
           value={draft.id}
           placeholder="model-id"
           onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value }))}
-          className="bg-transparent border-none rounded-[5px] px-2 py-1 text-[12px] font-mono text-foreground w-full focus:outline-none"
+          className="bg-transparent border-none rounded-medium px-2 py-1 text-[12px] font-mono text-foreground w-full focus:outline-none"
         />
       </td>
       <td className="px-4 py-3">
         <select
           value={draft.provider}
           onChange={(e) => setDraft((d) => ({ ...d, provider: e.target.value }))}
-          className="bg-background border border-white/10 text-foreground text-[12px] px-2 py-1 h-8 rounded-[5px] focus:outline-none w-28 select-none cursor-pointer hover:border-white/20 transition-all font-sans tracking-wide"
+          className="bg-white/5 text-foreground text-[12px] px-2 py-1 h-8 rounded-medium focus:outline-none w-28 select-none cursor-pointer hover:bg-white/10 transition-all font-sans tracking-wide"
         >
           <option value="google">google</option>
           <option value="groq">groq</option>
@@ -266,6 +268,7 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
           <option value="huggingface">huggingface</option>
           <option value="vault">vault</option>
           <option value="pollinations">pollinations</option>
+          <option value="openrouter">openrouter</option>
           <option value="ollama">ollama</option>
           <option value="local">local</option>
         </select>
@@ -287,7 +290,7 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
               max_rpd: e.target.value === '' ? null : Number(e.target.value),
             }))
           }
-          className="bg-transparent border-none rounded-[5px] px-2 py-1 text-[12px] font-mono text-foreground w-24 focus:outline-none"
+          className="bg-transparent border-none rounded-medium px-2 py-1 text-[12px] font-mono text-foreground w-24 focus:outline-none"
         />
       </td>
       <td className="px-4 py-3 text-center" colSpan={2}>
@@ -295,13 +298,13 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
           <button
             onClick={() => { onAdd(draft); setOpen(false) }}
             disabled={!draft.id.trim()}
-            className="flex items-center gap-1 px-3 py-1 rounded-[5px] bg-accent text-background text-[10px] font-bold uppercase tracking-wider hover:brightness-110 transition-all disabled:opacity-30"
+            className="flex items-center gap-1 px-3 py-1 rounded-medium bg-accent text-background text-[10px] font-bold uppercase tracking-wider hover:brightness-110 transition-all disabled:opacity-30"
           >
             <Plus className="w-3 h-3" /> Add
           </button>
           <button
             onClick={() => setOpen(false)}
-            className="flex items-center gap-1 px-3 py-1 rounded-[5px] bg-background border border-white/10 text-bone-60 text-[10px] font-bold uppercase tracking-wider hover:text-foreground transition-all"
+            className="flex items-center gap-1 px-3 py-1 rounded-medium bg-background border border-white/10 text-bone-60 text-[10px] font-bold uppercase tracking-wider hover:text-foreground transition-all"
           >
             <X className="w-3 h-3" /> Cancel
           </button>
@@ -439,12 +442,12 @@ export default function ModelsTable({ initialModels }: { initialModels: ModelRow
             placeholder="Preset Name..."
             value={presetName}
             onChange={(e) => setPresetName(e.target.value)}
-            className="bg-transparent border border-white/10 hover:border-white/20 focus:border-accent rounded-[5px] px-3 py-1 text-[12px] text-foreground focus:outline-none w-48 font-sans h-8 transition-all"
+            className="bg-white/5 hover:bg-white/10 focus:bg-white/15 rounded-medium px-3 py-1 text-[12px] text-foreground focus:outline-none w-48 font-sans h-8 transition-all"
           />
           <button
             onClick={handleSavePreset}
             disabled={isSavingPreset || !presetName.trim()}
-            className="flex items-center gap-1.5 px-3 py-1 bg-accent text-background rounded-[5px] text-[10px] font-bold uppercase tracking-wider h-8 hover:brightness-110 disabled:opacity-50 transition-all select-none"
+            className="flex items-center gap-1.5 px-3 py-1 bg-accent text-background rounded-medium text-[10px] font-bold uppercase tracking-wider h-8 hover:brightness-110 disabled:opacity-50 transition-all select-none"
           >
             <Plus className="w-3.5 h-3.5" />
             {isSavingPreset ? 'Saving...' : 'Save as preset'}
@@ -458,7 +461,7 @@ export default function ModelsTable({ initialModels }: { initialModels: ModelRow
           <select
             onChange={(e) => handleLoadPreset(e.target.value)}
             defaultValue=""
-            className="bg-background border border-white/10 text-foreground text-[11px] font-bold uppercase tracking-wider px-2 h-8 rounded-[5px] focus:outline-none hover:border-white/20 select-none cursor-pointer"
+            className="bg-white/5 text-foreground text-[11px] font-bold uppercase tracking-wider px-2 h-8 rounded-medium focus:outline-none hover:bg-white/10 select-none cursor-pointer"
           >
             <option value="" disabled>Select Preset...</option>
             {presetsList.map((p) => (
@@ -533,7 +536,7 @@ export default function ModelsTable({ initialModels }: { initialModels: ModelRow
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        'px-2 py-0.5 rounded-[5px] text-[10px] font-bold uppercase tracking-wider border',
+                        'px-2 py-0.5 rounded-medium text-[10px] font-bold uppercase tracking-wider border',
                         PROVIDER_COLORS[model.provider.toLowerCase()] ?? 'text-bone-60 border-white/10 bg-white/5'
                       )}
                     >
@@ -554,13 +557,13 @@ export default function ModelsTable({ initialModels }: { initialModels: ModelRow
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => setEditingId(model.id)}
-                          className="px-2.5 py-1 rounded-[5px] border border-white/10 bg-background text-[10px] font-bold text-bone-60 hover:text-foreground hover:border-white/20 transition-all uppercase tracking-wider"
+                          className="px-2.5 py-1 rounded-medium bg-white/5 text-bone-60 hover:text-foreground hover:bg-white/10 transition-all uppercase tracking-wider"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(model.id)}
-                          className="p-1.5 rounded-[5px] border border-white/5 bg-background text-bone-60 hover:text-rose-400 hover:border-rose-400/20 transition-all"
+                          className="p-1.5 rounded-medium bg-white/5 text-bone-60 hover:text-rose-400 hover:bg-rose-400/10 transition-all"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -568,10 +571,10 @@ export default function ModelsTable({ initialModels }: { initialModels: ModelRow
                       <button
                         onClick={() => handleFavorite(model.id)}
                         className={cn(
-                          'p-1.5 rounded-[5px] border transition-all shrink-0',
+                          'p-1.5 rounded-medium transition-all shrink-0',
                           model.is_favorite
-                            ? 'text-amber-400 border-amber-400/20 bg-amber-400/10'
-                            : 'text-bone-60/30 border-white/5 hover:text-amber-400 hover:border-amber-400/20'
+                            ? 'text-amber-400 bg-amber-400/10'
+                            : 'text-bone-60/30 bg-white/5 hover:text-amber-400 hover:bg-amber-400/10'
                         )}
                       >
                         <Star className={cn('w-3 h-3', model.is_favorite && 'fill-amber-400')} />

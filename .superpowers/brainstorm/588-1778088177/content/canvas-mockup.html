@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Redesign Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #141413;
+    color: #E9E9E2;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    height: 44px;
+    background: #1a1a18;
+    border-bottom: 1px solid rgba(233,233,226,0.08);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .topbar-title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(233,233,226,0.6);
+    letter-spacing: 0.02em;
+  }
+  .topbar-title span { color: #E9E9E2; }
+  .topbar-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(233,233,226,0.1);
+    background: rgba(233,233,226,0.03);
+    color: rgba(233,233,226,0.5);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 200ms;
+  }
+  .topbar-btn:hover { background: rgba(233,233,226,0.06); color: #E9E9E2; }
+  .topbar-btn.active { background: rgba(211,143,54,0.12); border-color: rgba(211,143,54,0.3); color: #d38f36; }
+  .zoom-display {
+    font-size: 11px;
+    color: rgba(233,233,226,0.4);
+    min-width: 36px;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+  .share-btn {
+    height: 28px; padding: 0 12px;
+    border-radius: 6px;
+    background: rgba(211,143,54,0.15);
+    border: 1px solid rgba(211,143,54,0.25);
+    color: #d38f36;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 200ms;
+  }
+  .share-btn:hover { background: rgba(211,143,54,0.22); }
+
+  /* ── Main area ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Toolbar (left, vertical) ── */
+  .toolbar {
+    width: 44px;
+    background: #1a1a18;
+    border-right: 1px solid rgba(233,233,226,0.08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 2px;
+    z-index: 50;
+    flex-shrink: 0;
+  }
+  .tool-sep { width: 20px; height: 1px; background: rgba(233,233,226,0.08); margin: 4px 0; }
+  .tool-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(233,233,226,0.35);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 150ms;
+    position: relative;
+  }
+  .tool-btn:hover { background: rgba(233,233,226,0.05); color: rgba(233,233,226,0.8); }
+  .tool-btn.active {
+    background: rgba(211,143,54,0.12);
+    border-color: rgba(211,143,54,0.3);
+    color: #d38f36;
+  }
+  .tool-key {
+    position: absolute;
+    bottom: 2px; right: 3px;
+    font-size: 7px;
+    color: rgba(233,233,226,0.2);
+    letter-spacing: 0;
+  }
+
+  /* ── Canvas area ── */
+  .canvas-area {
+    flex: 1;
+    background: #141413;
+    position: relative;
+    overflow: hidden;
+    background-image:
+      radial-gradient(circle, rgba(233,233,226,0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* ── Sample elements on canvas ── */
+  .canvas-el {
+    position: absolute;
+    border-radius: 8px;
+  }
+  .canvas-rect {
+    border: 1.5px solid rgba(211,143,54,0.7);
+    background: rgba(211,143,54,0.05);
+    width: 160px; height: 80px;
+    top: 80px; left: 120px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: rgba(233,233,226,0.7);
+  }
+  .canvas-rect.selected {
+    border-color: #d38f36;
+    box-shadow: 0 0 0 1px rgba(211,143,54,0.3);
+  }
+  .canvas-ellipse {
+    border: 1.5px solid rgba(233,233,226,0.3);
+    background: rgba(233,233,226,0.03);
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    top: 60px; left: 360px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(233,233,226,0.5);
+  }
+  .canvas-text {
+    top: 220px; left: 140px;
+    font-size: 14px; color: rgba(233,233,226,0.85);
+    letter-spacing: 0.02em;
+    padding: 4px;
+  }
+  .canvas-sticky {
+    width: 140px; height: 100px;
+    background: rgba(211,143,54,0.08);
+    border: 1px solid rgba(211,143,54,0.18);
+    border-radius: 10px;
+    top: 160px; left: 340px;
+    padding: 10px;
+    font-size: 11px; color: rgba(233,233,226,0.6);
+    line-height: 1.5;
+  }
+  /* Selection handles */
+  .handle {
+    position: absolute;
+    width: 7px; height: 7px;
+    background: #141413;
+    border: 1.5px solid #d38f36;
+    border-radius: 2px;
+  }
+  .handle.tl { top: -4px; left: -4px; }
+  .handle.tr { top: -4px; right: -4px; }
+  .handle.bl { bottom: -4px; left: -4px; }
+  .handle.br { bottom: -4px; right: -4px; }
+  .handle.tm { top: -4px; left: calc(50% - 3.5px); }
+  .handle.bm { bottom: -4px; left: calc(50% - 3.5px); }
+  .handle.ml { top: calc(50% - 3.5px); left: -4px; }
+  .handle.mr { top: calc(50% - 3.5px); right: -4px; }
+
+  /* SVG arrow overlay */
+  .canvas-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* ── Style panel (right, slides in on selection) ── */
+  .style-panel {
+    width: 200px;
+    background: #1a1a18;
+    border-left: 1px solid rgba(233,233,226,0.08);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .panel-section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: rgba(233,233,226,0.3);
+    margin-bottom: 8px;
+  }
+  .color-row {
+    display: flex; gap: 5px; flex-wrap: wrap;
+  }
+  .color-swatch {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: all 150ms;
+  }
+  .color-swatch.active { border-color: #d38f36; transform: scale(1.1); }
+  .slider-row { display: flex; flex-direction: column; gap: 5px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: rgba(233,233,226,0.4); }
+  .slider {
+    width: 100%; -webkit-appearance: none;
+    height: 3px; border-radius: 2px;
+    background: rgba(233,233,226,0.1);
+    outline: none;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #d38f36;
+    cursor: pointer;
+  }
+  .stroke-options { display: flex; gap: 4px; }
+  .stroke-opt {
+    flex: 1; height: 26px;
+    border-radius: 6px;
+    border: 1px solid rgba(233,233,226,0.1);
+    background: rgba(233,233,226,0.03);
+    color: rgba(233,233,226,0.4);
+    font-size: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 150ms;
+  }
+  .stroke-opt.active { border-color: rgba(211,143,54,0.4); background: rgba(211,143,54,0.08); color: #d38f36; }
+
+  /* ── Cursor indicators (live collab) ── */
+  .cursor {
+    position: absolute;
+    pointer-events: none;
+    display: flex; align-items: flex-start; gap: 4px;
+  }
+  .cursor-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-top: 2px;
+  }
+  .cursor-label {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Bottom mini toolbar ── */
+  .bottom-bar {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e1e1c;
+    border: 1px solid rgba(233,233,226,0.1);
+    border-radius: 10px;
+    padding: 5px 8px;
+    display: flex; gap: 4px; align-items: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .bb-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: rgba(233,233,226,0.4);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 150ms;
+  }
+  .bb-btn:hover { background: rgba(233,233,226,0.06); color: #E9E9E2; }
+  .bb-sep { width: 1px; height: 16px; background: rgba(233,233,226,0.1); margin: 0 2px; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-btn">←</div>
+  <div class="topbar-btn active" title="Layers">≡</div>
+  <div class="topbar-title"><span>Product Roadmap</span> · canvas</div>
+  <div class="zoom-display">100%</div>
+  <div class="topbar-btn" title="Fit to screen">⊡</div>
+  <div class="topbar-btn" title="Export">↓</div>
+  <div class="share-btn">Share</div>
+</div>
+
+<div class="main">
+
+  <!-- Left toolbar -->
+  <div class="toolbar">
+    <div class="tool-btn active" title="Select (V)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2L6.5 12L8 8L12 6.5L2 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <span class="tool-key">V</span>
+    </div>
+    <div class="tool-btn" title="Pan (H)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+      <span class="tool-key">H</span>
+    </div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" title="Rectangle (R)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="3" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="tool-key">R</span>
+    </div>
+    <div class="tool-btn" title="Ellipse (O)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><ellipse cx="7" cy="7" rx="5" ry="4" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="tool-key">O</span>
+    </div>
+    <div class="tool-btn" title="Diamond (D)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2L12 7L7 12L2 7L7 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <span class="tool-key">D</span>
+    </div>
+    <div class="tool-btn" title="Arrow (A)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 12L10 4M7 4h3v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="tool-key">A</span>
+    </div>
+    <div class="tool-btn" title="Line (L)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 12L12 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span class="tool-key">L</span>
+    </div>
+    <div class="tool-btn" title="Freedraw (P)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10 C4 6, 6 8, 8 5 S11 3, 12 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+      <span class="tool-key">P</span>
+    </div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" title="Text (T)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 4h8M7 4v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span class="tool-key">T</span>
+    </div>
+    <div class="tool-btn" title="Image (I)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="3" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="6" r="1" fill="currentColor"/><path d="M2 10l3-3 2 2 2-2.5 3 3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      <span class="tool-key">I</span>
+    </div>
+    <div class="tool-btn" title="Comment (C)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10v7H8l-2 2V10H2V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <span class="tool-key">C</span>
+    </div>
+    <div class="tool-sep"></div>
+    <div class="tool-btn" title="Section frame (F)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>
+      <span class="tool-key">F</span>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-area">
+
+    <!-- Grid dots are via CSS background -->
+
+    <!-- SVG for arrows -->
+    <svg class="canvas-svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(233,233,226,0.3)"/>
+        </marker>
+      </defs>
+      <!-- Arrow from rect to ellipse -->
+      <path d="M280,120 C320,120 340,120 360,120" stroke="rgba(233,233,226,0.25)" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="none"/>
+    </svg>
+
+    <!-- Rectangle (selected) -->
+    <div class="canvas-el canvas-rect selected">
+      Planning
+      <div class="handle tl"></div>
+      <div class="handle tr"></div>
+      <div class="handle bl"></div>
+      <div class="handle br"></div>
+      <div class="handle tm"></div>
+      <div class="handle bm"></div>
+      <div class="handle ml"></div>
+      <div class="handle mr"></div>
+    </div>
+
+    <!-- Ellipse -->
+    <div class="canvas-el canvas-ellipse">Review</div>
+
+    <!-- Text -->
+    <div class="canvas-el canvas-text">Sprint Q2 goals</div>
+
+    <!-- Sticky / note -->
+    <div class="canvas-el canvas-sticky">
+      Ship auth flow<br>
+      <span style="color:rgba(233,233,226,0.35)">by end of week</span>
+    </div>
+
+    <!-- Live cursor 1 -->
+    <div class="cursor" style="top:180px;left:220px;">
+      <div class="cursor-dot" style="background:#5b9cf6"></div>
+      <div class="cursor-label" style="background:rgba(91,156,246,0.15);color:#5b9cf6;border:1px solid rgba(91,156,246,0.25)">Alex</div>
+    </div>
+
+    <!-- Live cursor 2 -->
+    <div class="cursor" style="top:100px;left:420px;">
+      <div class="cursor-dot" style="background:#a78bfa"></div>
+      <div class="cursor-label" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.25)">Sam</div>
+    </div>
+
+    <!-- Bottom mini toolbar -->
+    <div class="bottom-bar">
+      <div class="bb-btn" title="Undo">↩</div>
+      <div class="bb-btn" title="Redo">↪</div>
+      <div class="bb-sep"></div>
+      <div class="bb-btn" title="Zoom out">−</div>
+      <div class="bb-btn" title="Zoom in">+</div>
+      <div class="bb-sep"></div>
+      <div class="bb-btn" title="Lock">🔒</div>
+      <div class="bb-btn" title="Group">⊞</div>
+      <div class="bb-sep"></div>
+      <div class="bb-btn" title="Snap to grid" style="color:#d38f36">⊹</div>
+    </div>
+
+  </div>
+
+  <!-- Style panel -->
+  <div class="style-panel">
+    <div>
+      <div class="panel-section-title">Fill</div>
+      <div class="color-row">
+        <div class="color-swatch" style="background:transparent;border-color:rgba(233,233,226,0.15)">∅</div>
+        <div class="color-swatch active" style="background:rgba(211,143,54,0.15)"></div>
+        <div class="color-swatch" style="background:rgba(91,156,246,0.2)"></div>
+        <div class="color-swatch" style="background:rgba(167,139,250,0.2)"></div>
+        <div class="color-swatch" style="background:rgba(74,222,128,0.2)"></div>
+        <div class="color-swatch" style="background:rgba(248,113,113,0.2)"></div>
+        <div class="color-swatch" style="background:rgba(233,233,226,0.08)"></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel-section-title">Stroke</div>
+      <div class="color-row">
+        <div class="color-swatch" style="background:transparent;border-color:rgba(233,233,226,0.15)">∅</div>
+        <div class="color-swatch active" style="background:#d38f36"></div>
+        <div class="color-swatch" style="background:#5b9cf6"></div>
+        <div class="color-swatch" style="background:#a78bfa"></div>
+        <div class="color-swatch" style="background:#4ade80"></div>
+        <div class="color-swatch" style="background:#f87171"></div>
+        <div class="color-swatch" style="background:rgba(233,233,226,0.4)"></div>
+      </div>
+      <div style="margin-top:8px">
+        <div class="stroke-options">
+          <div class="stroke-opt active">—</div>
+          <div class="stroke-opt">- -</div>
+          <div class="stroke-opt">···</div>
+        </div>
+      </div>
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Stroke width</span><span style="color:#E9E9E2">2</span></div>
+      <input type="range" class="slider" min="1" max="8" value="2">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label"><span>Opacity</span><span style="color:#E9E9E2">100%</span></div>
+      <input type="range" class="slider" min="0" max="100" value="100">
+    </div>
+    <div>
+      <div class="panel-section-title">Corner radius</div>
+      <div class="stroke-options">
+        <div class="stroke-opt active">□</div>
+        <div class="stroke-opt">▢</div>
+        <div class="stroke-opt">◯</div>
+      </div>
+    </div>
+    <div>
+      <div class="panel-section-title">Arrange</div>
+      <div style="display:flex;gap:4px">
+        <div class="stroke-opt" style="flex:1;font-size:9px">Bring up</div>
+        <div class="stroke-opt" style="flex:1;font-size:9px">Send down</div>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:4px">
+        <div class="stroke-opt" style="flex:1;font-size:9px">Lock</div>
+        <div class="stroke-opt" style="flex:1;font-size:9px">Group</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Make tool buttons interactive
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+// Color swatches
+document.querySelectorAll('.color-row').forEach(row => {
+  row.querySelectorAll('.color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      row.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    });
+  });
+});
+// Stroke options
+document.querySelectorAll('.stroke-options').forEach(group => {
+  group.querySelectorAll('.stroke-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      group.querySelectorAll('.stroke-opt').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+    });
+  });
+});
+</script>
+</body>
+</html>

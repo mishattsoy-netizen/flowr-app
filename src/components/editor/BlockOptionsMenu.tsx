@@ -11,6 +11,7 @@ import {
 , Check} from 'lucide-react';
 import clsx from 'clsx';
 import { useStore } from '@/data/store';
+import { Toggle } from '@/components/ui/Toggle';
 import type { EditorBlock, BlockType, DatabaseViewType } from '@/data/store';
 
 /* ────────────────────────────────────────────────── */
@@ -214,6 +215,29 @@ export function BlockOptionsMenu({
           <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
           <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
         </button>
+        {['title', 'heading', 'subheading'].includes(block.style || '') && (
+          <>
+            <button 
+              className={clsx(btnCls, "justify-between")}
+              onClick={() => {
+                const newEnabled = !block.foldingEnabled;
+                onUpdate(block.id, { 
+                  foldingEnabled: newEnabled,
+                  isFolded: newEnabled ? block.isFolded : false 
+                });
+              }}
+            >
+              <span className="flex items-center gap-2.5"><SeparatorHorizontal strokeWidth={2} className="w-4 h-4" /> Fold content</span>
+              <Toggle 
+                size="sm"
+                checked={!!block.foldingEnabled}
+                onChange={() => {}} 
+                className="pointer-events-none"
+              />
+            </button>
+            <div className="h-px bg-border/50 my-1 mx-2" />
+          </>
+        )}
         <button className={btnCls} onClick={() => { onMoveToTop(block.id); onClose(); }}>
           <Pin strokeWidth={2} className="w-4 h-4" /> Pin to top
         </button>
@@ -238,6 +262,7 @@ export function BlockOptionsMenu({
             <Plus strokeWidth={2} className="w-4 h-4" /> Add Column
           </button>
         )}
+        <div className="h-px bg-border/50 my-1 mx-2" />
         <button className={dangerBtnCls} onClick={() => { onDelete(block.id); onClose(); }}>
           <Trash2 strokeWidth={2} className="w-4 h-4" /> Delete
         </button>
@@ -250,16 +275,16 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] max-h-[400px] p-1.5 gap-[3px]"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[260px] max-h-[400px] pt-1.5 pb-1.5 pl-1.5 pr-0 gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button
-          className={btnCls}
+          className={clsx(btnCls, "mr-1.5")}
           onClick={() => setSubMenu(null)}
         >
           <ChevronLeft strokeWidth={2} className="w-3.5 h-3.5" /> Turn into
         </button>
-        <div className="px-2 py-1.5 bg-hover/20">
+        <div className="px-2 py-1.5 bg-hover/20 mr-1.5">
           <div className="relative">
             <Search strokeWidth={2} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
             <input
@@ -268,12 +293,12 @@ export function BlockOptionsMenu({
               placeholder="Search blocks..."
               value={turnIntoSearch}
               onChange={(e) => setTurnIntoSearch(e.target.value)}
-              className="w-full bg-hover/50 text-xs pl-8 pr-2.5 py-1.5 rounded-[var(--radius-medium)] outline-none placeholder:text-muted-foreground/30 border border-transparent focus:border-accent/20 "
+              className="w-full bg-hover/50 text-xs pl-8 pr-2.5 py-1.5 rounded-[var(--radius-medium)] outline-none placeholder:text-muted-foreground/30 border border-transparent focus:border-[var(--bone-6)] "
             />
           </div>
         </div>
-        <div className="popup-divider" />
-        <div className="overflow-y-auto scrollbar-thin flex-1 min-h-[160px] flex flex-col gap-[3px]">
+        <div className="popup-divider mr-1.5" />
+        <div className="overflow-y-auto scrollbar-thin flex-1 min-h-[160px] flex flex-col gap-[3px] pr-1.5">
           {groupedTurnInto.length > 0 ? (
             groupedTurnInto.map(group => (
               <div key={group.category} className="pb-1 flex flex-col gap-[3px]">

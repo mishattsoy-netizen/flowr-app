@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useTransition, useEffect } from 'react'
-import { Play, Check, X, Edit2, Trash2, ChevronDown, ChevronUp, Calendar, MessageSquare, Compass, RefreshCw } from 'lucide-react'
-import { acceptPlan, rejectPlan, submitPlanEdit, deletePlan, getLatestPlans } from './planActions'
+import { Play, Check, X, Edit2, Trash2, ChevronDown, ChevronUp, Calendar, MessageSquare, Compass, RefreshCw, Square, CheckSquare } from 'lucide-react'
+import { acceptPlan, rejectPlan, submitPlanEdit, deletePlan, getLatestPlans, deletePlans } from './planActions'
 import type { ImprovementPlan } from './planActions'
 import { cn } from '@/lib/utils'
 
@@ -57,6 +57,7 @@ export default function RoutineClient({ initialPlans }: Props) {
   const [autoRun, setAutoRun] = useState('Manual only')
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [planFilter, setPlanFilter] = useState('All')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -172,6 +173,34 @@ export default function RoutineClient({ initialPlans }: Props) {
       setPlans(prev => prev.map(p => p.id === plan.id ? updated : p))
       setEditingId(null)
       setEditNote('')
+    })
+  }
+
+  function toggleSelectAll(filteredPlans: ImprovementPlan[]) {
+    if (selectedIds.size === filteredPlans.length && filteredPlans.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredPlans.map(p => p.id)))
+    }
+  }
+
+  function toggleSelectOne(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function handleBulkDelete() {
+    if (!selectedIds.size) return
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} plans permanently?`)) return
+    
+    startTransition(async () => {
+      await deletePlans(Array.from(selectedIds))
+      setPlans(prev => prev.filter(p => !selectedIds.has(p.id)))
+      setSelectedIds(new Set())
     })
   }
 
@@ -291,7 +320,32 @@ export default function RoutineClient({ initialPlans }: Props) {
         return (
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold text-foreground">{filteredPlans.length} plans generated</h3>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => toggleSelectAll(filteredPlans)}
+                  className="p-1 hover:bg-[var(--bone-10)] rounded transition-colors text-muted-foreground"
+                >
+                  {selectedIds.size > 0 && selectedIds.size === filteredPlans.length 
+                    ? <CheckSquare className="w-4 h-4 text-accent" /> 
+                    : <Square className="w-4 h-4" />
+                  }
+                </button>
+                <h3 className="text-sm font-semibold text-foreground">{filteredPlans.length} plans generated</h3>
+                
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200 ml-2">
+                    <div className="w-px h-4 bg-[var(--bone-20)] mx-1" />
+                    <span className="text-xs font-bold text-accent">{selectedIds.size} selected</span>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={isPending}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete Selected
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-1">
                 {['All', 'Pending', 'Accepted', 'Rejected'].map(opt => (
                   <button
@@ -352,11 +406,23 @@ export default function RoutineClient({ initialPlans }: Props) {
                 {/* Card header */}
                 <div
                   className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--bone-8)]"
-                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
                 >
-                  <div className="flex-1 min-w-0">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleSelectOne(plan.id) }}
+                    className="p-1 hover:bg-[var(--bone-10)] rounded transition-colors text-muted-foreground shrink-0"
+                  >
+                    {selectedIds.has(plan.id) 
+                      ? <CheckSquare className="w-4 h-4 text-accent" /> 
+                      : <Square className="w-4 h-4" />
+                    }
+                  </button>
+
+                  <div className="flex-1 min-w-0" onClick={() => setExpandedId(isExpanded ? null : plan.id)}>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-semibold text-foreground truncate">{plan.title}</span>
+                      <span className="text-[10px] text-muted-foreground opacity-50 shrink-0 font-mono">
+                        {new Date(plan.created_at).toLocaleDateString()} {new Date(plan.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--bone-10)] text-muted-foreground shrink-0">{plan.topic}</span>
                       
                       {(() => {

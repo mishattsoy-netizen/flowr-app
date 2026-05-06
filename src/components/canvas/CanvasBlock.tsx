@@ -32,6 +32,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const [isOverSection, setIsOverSection] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
+  const isNoteBlock = block.type !== 'section' && block.type !== 'comment' && block.type !== 'connection' && block.type !== 'shape';
+
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block.x || 0, y: block.y || 0 });
   const finalSizeRef = useRef({ w: block.width || 280, h: block.height || 150 });
@@ -57,14 +59,14 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       if (entry) {
         const height = entry.contentRect.height;
         // Only update store if it significantly differs and we are not dragging
-        if (!isDragging && !isResizing && block.type !== 'connection' && Math.abs(heightRef.current - height) > 1) {
+        if (!isDragging && !isResizing && isNoteBlock && Math.abs(heightRef.current - height) > 1) {
           updateCanvasBlock(block.id, { height });
         }
       }
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [block.id, isDragging, isResizing, updateCanvasBlock, block.type]);
+  }, [block.id, isDragging, isResizing, updateCanvasBlock, isNoteBlock]);
 
   // --- DRAG ---
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -99,10 +101,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         : { x: newX, y: newY };
       setPosition({ x: snapped.x, y: snapped.y });
 
-      // Live update store for connection tracking
-      if (block.type !== 'connection' && (blocks.some(b => b.fromId === block.id || b.toId === block.id))) {
-        updateCanvasBlock(block.id, { x: snapped.x, y: snapped.y });
-      }
+      // Live update store for connection tracking and live shape moving
+      updateCanvasBlock(block.id, { x: snapped.x, y: snapped.y });
 
       const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
       const sectionEl = over?.closest('[data-block-type="section"]');
@@ -177,6 +177,14 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       finalSizeRef.current = { w: newW, h: newH };
       setPosition({ x: newX, y: newY });
       setSize({ width: newW, height: newH });
+
+      // Live update store so shapes visually resize during drag
+      updateCanvasBlock(block.id, {
+        x: newX,
+        y: newY,
+        width: newW,
+        height: newH,
+      });
     };
 
     const handlePointerUp = () => {
@@ -210,7 +218,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     }
   };
 
-  const isNoteBlock = block.type !== 'section' && block.type !== 'comment' && block.type !== 'connection';
   const connectionPoints = ['top', 'right', 'bottom', 'left'] as const;
   const HANDLES: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 

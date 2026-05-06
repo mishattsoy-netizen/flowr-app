@@ -119,13 +119,14 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
     }
   }, [isLoading]);
 
-  const [isFullWidth, setIsFullWidth] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`bento_fullwidth_${contextId}`);
-      return saved !== 'false';
+  const [isFullWidth, setIsFullWidth] = useState<boolean>(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`bento_fullwidth_${contextId}`);
+    if (saved !== null) {
+      setIsFullWidth(saved !== 'false');
     }
-    return true;
-  });
+  }, [contextId]);
 
   useEffect(() => {
     localStorage.setItem(`bento_fullwidth_${contextId}`, String(isFullWidth));
@@ -470,7 +471,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                   onClick={toggleEditMode}
                   className={editMode ? 'btn-bento-active' : 'btn-bento'}
                 >
-                  {editMode ? <><Check /> Done</> : <><Settings2 /> Edit Layout</>}
+                  {editMode ? <><Check strokeWidth={2} className="w-3.5 h-3.5" /> Done</> : <><Settings2 strokeWidth={2} className="w-3.5 h-3.5" /> Edit Layout</>}
                 </button>
               </div>
 

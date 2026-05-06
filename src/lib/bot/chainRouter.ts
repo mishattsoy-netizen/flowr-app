@@ -17,9 +17,28 @@ import { supabaseAdmin } from '../supabase'
 import { getCompiledPrompt } from './compilePrompt'
 import { getSessionState, updateSessionState, estimateTokens, summarizeSession } from './context'
 
-function trackModelUsage(modelId: string, provider: string) {
-  supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
-    .then(({ error }: { error: any }) => { if (error) logger.warn(`Usage track failed [${modelId}]: ${error.message}`) })
+function trackModelUsage(p_model_id: string, p_provider: string) {
+  supabaseAdmin.rpc('increment_model_usage', { p_model_id, p_provider })
+    .then(({ error }: { error: any }) => { if (error) logger.warn(`Usage track failed [${p_model_id}]: ${error.message}`) })
+}
+
+// Simple circuit breaker to skip models that failed recently
+const FAILURE_CACHE_MS = 60000 // 1 minute
+const modelFailureCache: Record<string, number> = {}
+
+export function markModelFailed(modelId: string) {
+  modelFailureCache[modelId] = Date.now()
+  logger.warn(`Model ${modelId} marked as failed. Skipping for ${FAILURE_CACHE_MS/1000}s.`)
+}
+
+export function isModelFailed(modelId: string): boolean {
+  const failedAt = modelFailureCache[modelId]
+  if (!failedAt) return false
+  if (Date.now() - failedAt > FAILURE_CACHE_MS) {
+    delete modelFailureCache[modelId]
+    return false
+  }
+  return true
 }
 
 export interface RoutingTrace {
@@ -39,12 +58,13 @@ export interface ChainResponse {
   classification_trace?: any[]
   routing_trace?: RoutingTrace[]
   citations?: string[]
+  tokens_used?: number
 }
 
 export async function runChain(
   prompt: string,
   inputBuffer?: Buffer,
-  context?: { chatId?: number; userId?: string; aiApiKey?: string; activeEntityId?: string; activeWorkspaceId?: string; classificationModelId?: string; agentEnabled?: boolean; temperature?: number; mode?: BotMode; intentTag?: string | null }
+  context?: { chatId?: number; userId?: string; aiApiKey?: string; activeEntityId?: string; activeWorkspaceId?: string; classificationModelId?: string; temperature?: number; mode?: BotMode; intentTag?: string | null }
 ): Promise<ChainResponse> {
   let history: any[] = []
   if (context?.chatId) {
@@ -113,8 +133,12 @@ export async function runChain(
       }
     }
 
-    if (visionChain.length === 0) logger.warn('No VISION chain configured in DB. Add models via Router admin.')
-    return { type: 'text', content: "Vision chain is empty. Configure models in the VISION router.", usage_type: 'vision', model_chain: 'vision → (none)', status: 'error' }
+    if (visionChain.length === 0) {
+      logger.warn('No VISION chain configured in DB. Add models via Router admin.')
+      return { type: 'text', content: "Vision chain is empty. Configure models in the VISION router.", usage_type: 'vision', model_chain: 'vision → (none)', status: 'error' }
+    }
+    
+    return { type: 'text', content: "Vision failed. The configured models are either unreachable or do not support these images. Check your Router config and model IDs.", usage_type: 'vision', model_chain: 'vision → (none)', status: 'error' }
   }
 
   // 2. Standard Routing Flow
@@ -122,11 +146,6 @@ export async function runChain(
   let category = rawCategory
   const routingTrace: RoutingTrace[] = []
 
-  // Agent mode: override non-specific categories to TOOL_CALLING so the full tool loop engages
-  if (context?.agentEnabled && (category === 'FAST_SIMPLE' || category === 'MEDIUM_THINKING')) {
-    logger.info(`Agent mode active: overriding ${category} → TOOL_CALLING`)
-    category = 'TOOL_CALLING'
-  }
   let { chain, system_prompt, temperature } = await getRouterChain(category)
 
   // 3. Ensure System Prompt for Tool Calling
@@ -179,6 +198,11 @@ export async function runChain(
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
+    if (isModelFailed(modelConfig.id)) {
+      logger.info(`Skipping failed model: ${modelConfig.id}`)
+      routingTrace.push({ model: modelConfig.id, category, key: 'SKIPPED', success: false })
+      continue
+    }
 
     let key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
     if (modelConfig.id.includes('tavily')) key = 'TAVILY'
@@ -271,13 +295,25 @@ export async function runChain(
             }
             trackModelUsage(modelConfig.id, modelConfig.provider)
 
-            const chainParts = [classifierModel, category]
+            const chainParts: string[] = []
+            
+            // Add classification trace to chain parts
+            if (classificationTrace && classificationTrace.length > 0) {
+              classificationTrace.forEach(t => {
+                chainParts.push(`${t.model}|${t.key || 'DEFAULT'}|${t.success ? 'true' : 'false'}`)
+              })
+            } else if (classifierModel) {
+              chainParts.push(classifierModel)
+            }
+
+            if (category) chainParts.push(category)
             routingTrace.forEach(r => chainParts.push(`${r.model}|${r.key}|${r.success ? 'true' : 'false'}`))
             const detailedModelChain = chainParts.join(' → ')
 
             // BACKGROUND: Update token usage and check for summarization trigger
-            if (typeof finalContent === 'string' && (context?.chatId || context?.activeEntityId)) {
-              const sessionId = (context?.chatId || context?.activeEntityId || 'global').toString()
+            if (typeof finalContent === 'string') {
+              const sessionId = (context?.chatId?.toString() || context?.activeEntityId || 'global')
+
               const newTokens = estimateTokens(prompt + finalContent + (system_prompt || ''))
               const totalUsage = (sessionState?.token_usage_total || 0) + newTokens
               const limit = sessionState?.context_limit ?? 32000
@@ -287,7 +323,11 @@ export async function runChain(
                 logger.info(`Context limit (${Math.round(threshold * 100)}%) reached for ${sessionId}. Triggering summarization...`)
                 summarizeSession(sessionId, history, currentSummary)
               } else {
-                updateSessionState(sessionId, { token_usage_total: totalUsage })
+                updateSessionState(sessionId, { 
+                  token_usage_total: totalUsage,
+                  context_limit: limit,
+                  compaction_threshold: threshold
+                })
               }
             }
 
@@ -300,7 +340,8 @@ export async function runChain(
               status: 'success',
               classification_trace: classificationTrace,
               routing_trace: routingTrace,
-              citations
+              citations,
+              tokens_used: (typeof finalContent === 'string') ? estimateTokens(prompt + finalContent + (system_prompt || '')) : undefined
             }
           } else {
             triedKeysCount[key] = k + 1
@@ -311,6 +352,7 @@ export async function runChain(
             }
           }
         } catch (error: any) {
+          markModelFailed(modelConfig.id)
           triedKeysCount[key] = k + 1
           routingTrace.push({ model: modelConfig.id, category, key: `${key} ${k + 1}`, success: false })
           logger.warn(`Failure with key ${k + 1} for [${modelConfig.id}]: ${error.message}`)
@@ -325,7 +367,15 @@ export async function runChain(
     }
   }
 
-  const chainParts = [classifierModel, category]
+  const chainParts: string[] = []
+  if (classificationTrace && classificationTrace.length > 0) {
+    classificationTrace.forEach(t => {
+      chainParts.push(`${t.model}|${t.key || 'DEFAULT'}|${t.success ? 'true' : 'false'}`)
+    })
+  } else if (classifierModel) {
+    chainParts.push(classifierModel)
+  }
+  if (category) chainParts.push(category)
   routingTrace.forEach(r => chainParts.push(`${r.model}|${r.key}|${r.success ? 'true' : 'false'}`))
   const detailedModelChain = chainParts.join(' → ')
 
