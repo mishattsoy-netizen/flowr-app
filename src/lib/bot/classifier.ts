@@ -18,9 +18,10 @@ export interface ClassifyTrace {
 }
 
 export interface ClassifyResult {
-  category: IntentCategory
+  category: IntentCategory | null
   classifierModel: string
   trace: ClassifyTrace[]
+  error?: string
 }
 
 const VALID_CATEGORIES: IntentCategory[] = [
@@ -37,14 +38,7 @@ const TAG_CATEGORY_MAP: Record<string, IntentCategory> = {
   '/tool':     'TOOL_CALLING',
 }
 
-const MAPS_KEYWORDS = ['map', 'maps', 'directions', 'navigate', 'route to', 'how do i get to', 'where is', 'location of', 'near me', 'nearby']
-
-function detectMapsIntent(message: string): boolean {
-  const lower = message.toLowerCase()
-  return MAPS_KEYWORDS.some(kw => lower.includes(kw))
-}
-
-export async function classifyIntent(message: string, aiApiKey?: string, modelId?: string): Promise<IntentCategory> {
+export async function classifyIntent(message: string, aiApiKey?: string, modelId?: string): Promise<IntentCategory | null> {
   const result = await classifyIntentWithModel(message, aiApiKey, modelId)
   return result.category
 }
@@ -54,72 +48,71 @@ export async function classifyIntentWithModel(
   aiApiKey?: string,
   modelId?: string,
   mode: BotMode = 'default',
-  intentTag?: string | null,
-  replyContext?: any
+  intentTag?: string | null
 ): Promise<ClassifyResult> {
   const lowerMsg = message.trim().toLowerCase()
 
-  // Maps override: always use WEB_SEARCH (grounding chain) for map queries
-  if (detectMapsIntent(lowerMsg)) {
-    return { category: 'WEB_SEARCH', classifierModel: 'maps-override', trace: [] }
-  }
-
   // Intent tag handling — tags are trusted directly
   if (intentTag && TAG_CATEGORY_MAP[intentTag]) {
-    if (intentTag === '/research' && detectMapsIntent(lowerMsg)) {
-      return { category: 'WEB_SEARCH', classifierModel: 'Maps Override', trace: [] }
-    }
     return { category: TAG_CATEGORY_MAP[intentTag], classifierModel: 'Intent Tag', trace: [] }
   }
 
-  // Load mode-specific classifier config — no fallbacks, fail loudly if DB unavailable
-  let keywordsObj: Record<string, string[]> = {}
+  // Load mode-specific classifier config — no fallbacks, missing = error
+  let keywordsObj: Record<string, string[]> | null = null
   let activePrompt: string | null = null
   let keywordsEnabled = true
 
-  const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
-    supabaseAdmin
-      .from('bot_settings')
-      .select('is_active')
-      .eq('category', 'classifier_keywords_enabled')
-      .eq('mode', 'default')
-      .maybeSingle(),
-    supabaseAdmin
-      .from('bot_settings')
-      .select('content')
-      .eq('category', 'classifier_prompt')
-      .eq('mode', mode)
-      .maybeSingle(),
-    supabaseAdmin
-      .from('bot_settings')
-      .select('content')
-      .eq('category', 'classifier_keywords')
-      .eq('mode', 'default')
-      .maybeSingle(),
-  ])
+  try {
+    const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
+      supabaseAdmin
+        .from('bot_settings')
+        .select('is_active')
+        .eq('category', 'classifier_keywords_enabled')
+        .eq('mode', 'default')
+        .maybeSingle(),
+      supabaseAdmin
+        .from('bot_settings')
+        .select('content')
+        .eq('category', 'classifier_prompt')
+        .eq('mode', mode)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('bot_settings')
+        .select('content')
+        .eq('category', 'classifier_keywords')
+        .eq('mode', 'default')
+        .maybeSingle(),
+    ])
 
-  if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
-  if (promptResult.data?.content) activePrompt = promptResult.data.content
-  if (keywordsResult.data?.content) {
-    try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch {}
+    if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
+
+    activePrompt = promptResult.data?.content ?? null
+    if (!activePrompt) {
+      const errMsg = `Classifier prompt missing for mode "${mode}" — configure it in Admin > Bot > Classifier`
+      logger.error(errMsg)
+      return { category: null, classifierModel: 'Error', trace: [], error: errMsg }
+    }
+
+    if (keywordsResult.data?.content) {
+      try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch {
+        logger.warn(`Classifier keywords JSON parse failed for mode "${mode}" — skipping keyword step`)
+      }
+    }
+  } catch (err) {
+    const errMsg = `Classifier DB config load failed [${mode}]: ${(err as Error).message}`
+    logger.error(errMsg)
+    return { category: null, classifierModel: 'Error', trace: [], error: errMsg }
   }
 
-  if (!activePrompt) {
-    throw new Error(`Classifier prompt not found in DB for mode "${mode}". Seed bot_settings with category=classifier_prompt.`)
-  }
-
-  // Keyword fast-path
-  if (keywordsEnabled) {
+  // Keyword fast-path — only runs if keywords are configured and enabled
+  if (keywordsEnabled && keywordsObj) {
     for (const cat of Object.keys(keywordsObj) as IntentCategory[]) {
       const list = keywordsObj[cat] || []
       for (const kw of list) {
         const kwLower = kw.trim().toLowerCase()
         if (!kwLower) continue
-        
-        // Use regex for whole-word matching to avoid substring bugs (e.g. 'yo' in 'you')
         const escapedKw = kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         const regex = new RegExp(`\\b${escapedKw}\\b`, 'i')
-        
         if (regex.test(lowerMsg)) {
           return { category: cat, classifierModel: 'Keywords', trace: [] }
         }
@@ -130,13 +123,12 @@ export async function classifyIntentWithModel(
   // Model classification
   const { chain } = await getRouterChain('CLASSIFIER')
   let activeChain = chain
-  
+
   if (modelId) {
     const selected = chain.find(m => m.id === modelId)
     if (selected) {
       activeChain = [selected]
     } else {
-      // Fallback if not found in current enabled chain
       activeChain = [{ id: modelId, provider: 'google', is_enabled: true } as any]
     }
   }
@@ -150,16 +142,14 @@ export async function classifyIntentWithModel(
       trace.push({ model: modelConfig.id, key: 'SKIPPED', success: false })
       continue
     }
-    
+
     let key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
     if (modelConfig.provider.toLowerCase().includes('ollama')) key = 'LOCAL'
-    
-      try {
-        let rawResponse: string | null = null
-        const traceContext: any = { aiApiKey }
-        const prompt = replyContext
-          ? `${replyContext.attentionBlock}\n${replyContext.historyBlock}\n${activePrompt}\n"${message}"`
-          : `${activePrompt}\n"${message}"`
+
+    try {
+      let rawResponse: string | null = null
+      const traceContext: any = { aiApiKey }
+      const prompt = `${activePrompt}\n"${message}"`
 
       const provider = modelConfig.provider.toLowerCase()
       if (provider === 'google') {
@@ -179,8 +169,7 @@ export async function classifyIntentWithModel(
 
       if (rawResponse) {
         const cleaned = rawResponse.trim().toUpperCase()
-        
-        // Strategy 1: Check for exact match (most accurate)
+
         for (const cat of VALID_CATEGORIES) {
           if (cleaned === cat) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
@@ -190,7 +179,6 @@ export async function classifyIntentWithModel(
           }
         }
 
-        // Strategy 2: Check for category with word boundaries (handles chatty models)
         for (const cat of VALID_CATEGORIES) {
           const regex = new RegExp(`\\b${cat}\\b`, 'i')
           if (regex.test(cleaned)) {
@@ -201,7 +189,7 @@ export async function classifyIntentWithModel(
           }
         }
       }
-      
+
       trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
     } catch (error: any) {
       markModelFailed(modelConfig.id)
@@ -210,5 +198,8 @@ export async function classifyIntentWithModel(
     }
   }
 
-  return { category: 'FAST_SIMPLE', classifierModel: 'Fallback', trace }
+  // All models exhausted — no fallback, fail loudly
+  const errMsg = `Classifier: all models exhausted for mode "${mode}" — no category could be determined. Check Admin > Router > CLASSIFIER chain.`
+  logger.error(errMsg)
+  return { category: null, classifierModel: 'Error', trace, error: errMsg }
 }

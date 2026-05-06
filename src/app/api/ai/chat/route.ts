@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     user = data.user
   }
 
-  const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, mode, intentTag } = await req.json()
+  const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext } = await req.json()
   const activeMode = (mode === 'think' || mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -76,7 +76,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const { category: rawCategory } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId, activeMode, intentTag ?? null)
-    let category = rawCategory
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let category = (rawCategory ?? 'FAST_SIMPLE') as any
     const [{ chain, system_prompt, temperature }, globalPromptForOllama, ollamaHistory] = await Promise.all([
       getRouterChain(category),
       getCompiledPrompt(),
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
     const result = await runChain(
       prompt,
       buffer ? Buffer.from(buffer, 'base64') : undefined,
-      { userId, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, temperature, mode: activeMode, intentTag: intentTag ?? null }
+      { userId, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, temperature, mode: activeMode, intentTag: intentTag ?? null, replyContext }
     )
 
     let content = result.content
