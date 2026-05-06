@@ -94,6 +94,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         case 'delete': case 'backspace':
           selectedIds.forEach(id => deleteCanvasBlock(id));
           setSelectedIds(new Set());
+          history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
           break;
       }
     };
@@ -150,7 +151,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   function handleUndo() {
     const prev = history.undo();
     if (prev) {
-      const others = blocks.filter(b => b.canvasId !== entity.id);
+      const currentBlocks = useStore.getState().blocks;
+      const others = currentBlocks.filter(b => b.canvasId !== entity.id);
       useStore.setState({ blocks: [...others, ...prev] });
     }
   }
@@ -158,7 +160,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   function handleRedo() {
     const next = history.redo();
     if (next) {
-      const others = blocks.filter(b => b.canvasId !== entity.id);
+      const currentBlocks = useStore.getState().blocks;
+      const others = currentBlocks.filter(b => b.canvasId !== entity.id);
       useStore.setState({ blocks: [...others, ...next] });
     }
   }
@@ -167,7 +170,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     if (selectedIds.size < 2) return;
     const groupId = generateId();
     selectedIds.forEach(id => updateCanvasBlock(id, { groupId }));
-    history.push(blocks.filter(b => b.canvasId === entity.id));
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }
 
   function handleUngroup() {
@@ -175,7 +178,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       const b = blocks.find(x => x.id === id);
       if (b?.groupId) updateCanvasBlock(id, { groupId: undefined });
     });
-    history.push(blocks.filter(b => b.canvasId === entity.id));
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }
 
   function alignBlocks(axis: 'left' | 'centerH' | 'right' | 'top' | 'centerV' | 'bottom') {
@@ -196,7 +199,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         case 'bottom':  updateCanvasBlock(b.id, { y: maxBottom - (b.height ?? 0) }); break;
       }
     });
-    history.push(blocks.filter(b => b.canvasId === entity.id));
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }
 
   const handleBgPointerDown = (e: React.PointerEvent) => {
@@ -254,17 +257,17 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     if (activeTool === 'text') {
       addCanvasBlock({ id: generateId(), type: 'text', content: 'Text', x, y, canvasId: entity.id });
       setActiveTool('select');
-      history.push(blocks.filter(b => b.canvasId === entity.id));
+      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     } else if (activeTool === 'image') {
       setMediaPopover({ x: e.clientX, y: e.clientY, canvasX: x, canvasY: y });
     } else if (activeTool === 'section') {
       addCanvasBlock({ id: generateId(), type: 'section', content: 'Frame', x, y, width: 300, height: 200, canvasId: entity.id });
       setActiveTool('select');
-      history.push(blocks.filter(b => b.canvasId === entity.id));
+      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     } else if (activeTool === 'comment') {
       addCanvasBlock({ id: generateId(), type: 'comment', content: '', x, y, canvasId: entity.id });
       setActiveTool('select');
-      history.push(blocks.filter(b => b.canvasId === entity.id));
+      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     }
   };
 
@@ -369,7 +372,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     snapWithObjects={snapWithObjects}
                     isSelected={selectedIds.has(b.id)}
                     onSelect={selectBlock}
-                    onCommit={() => history.push(blocks.filter(x => x.canvasId === entity.id))}
+                    onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                     onConnectStart={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
                       if (!pendingConnection) {
@@ -385,7 +388,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                         });
                         setPendingConnection(null);
                         setActiveTool('select');
-                        history.push(blocks.filter(x => x.canvasId === entity.id));
+                        history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
                       }
                     }}
                   />
@@ -407,7 +410,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 });
                 setMediaPopover(null);
                 setActiveTool('select');
-                history.push(blocks.filter(x => x.canvasId === entity.id));
+                history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
               }}
               onClose={() => setMediaPopover(null)}
             />

@@ -195,7 +195,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
     document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerup', handlePointerUp);
-  }, [block, viewport.scale, updateCanvasBlock, onSelect, onCommit]);
+  }, [block.id, block.x, block.y, block.width, block.height, viewport.scale, updateCanvasBlock, onSelect, onCommit]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
