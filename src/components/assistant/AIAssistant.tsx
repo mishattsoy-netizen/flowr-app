@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain } from 'lucide-react';
+import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles } from 'lucide-react';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
@@ -72,6 +72,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const setReplyMessage = useStore(state => state.setReplyMessage)
   const thinkingEnabled = useStore(state => state.thinkingEnabled)
   const setThinkingEnabled = useStore(state => state.setThinkingEnabled)
+  const advisorEnabled = useStore(state => state.advisorEnabled)
+  const setAdvisorEnabled = useStore(state => state.setAdvisorEnabled)
   const [showModeMenu, setShowModeMenu] = useState(false)
 
   const [input, setInput] = useState("");
@@ -106,7 +108,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
   const MODE_OPTIONS: { key: BotMode; label: string; description: string }[] = [
     { key: 'default', label: 'Default', description: 'Fast, universal' },
-    { key: 'pro',     label: 'Pro',     description: 'Max precision' },
+    { key: 'pro', label: 'Pro', description: 'Max precision' },
   ]
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
@@ -738,8 +740,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     onClick={() => setShowModeMenu(v => !v)}
                     className={clsx(
                       "flex items-center gap-1.5 px-2 py-1 rounded-[8px] border transition-all duration-200",
-                      showModeMenu 
-                        ? "bg-white/10 border-accent/30 text-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]" 
+                      showModeMenu
+                        ? "bg-white/10 border-accent/30 text-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]"
                         : "border-white/10 text-bone-60 hover:text-bone-100 hover:border-white/20"
                     )}
                   >
@@ -749,8 +751,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
                   {showModeMenu && (
                     <>
-                      <div 
-                        className="fixed inset-0 z-[140]" 
+                      <div
+                        className="fixed inset-0 z-[140]"
                         onClick={() => setShowModeMenu(false)}
                       />
                       <div className="absolute bottom-full mb-2 right-0 z-[150] bg-[var(--color-panel)] border border-white/10 rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden min-w-[160px] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
@@ -773,7 +775,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             </button>
                           ))}
                         </div>
-                        <div className="border-t border-white/5 mt-1 pt-1 px-2 pb-1">
+                        <div className="border-t border-white/5 mt-1 pt-1 px-2 pb-1 space-y-0.5">
                           <button
                             onClick={() => setThinkingEnabled(!thinkingEnabled)}
                             className={clsx(
@@ -783,7 +785,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                                 : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
                             )}
                           >
-                            <Brain className="w-3.5 h-3.5" strokeWidth={2} />
+                            <Brain className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
                             <div className="flex flex-col items-start">
                               <span className="text-[11px] font-bold">Thinking</span>
                               <span className="text-[10px] opacity-60">{thinkingEnabled ? 'On — reasons before answering' : 'Off'}</span>
@@ -791,6 +793,27 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             <div className={clsx(
                               'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
                               thinkingEnabled ? 'bg-accent justify-end' : 'bg-white/10 justify-start'
+                            )}>
+                              <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => setAdvisorEnabled(!advisorEnabled)}
+                            className={clsx(
+                              'w-full flex items-center gap-3 px-2 py-2 rounded-[10px] text-xs transition-all duration-200',
+                              advisorEnabled
+                                ? 'bg-accent/10 text-accent font-bold'
+                                : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
+                            )}
+                          >
+                            <Sparkles className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                            <div className="flex flex-col items-start">
+                              <span className="text-[11px] font-bold">Advisor</span>
+                              <span className="text-[10px] opacity-60">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
+                            </div>
+                            <div className={clsx(
+                              'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
+                              advisorEnabled ? 'bg-accent justify-end' : 'bg-white/10 justify-start'
                             )}>
                               <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
                             </div>
@@ -809,11 +832,11 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                   <div className="flex items-center gap-2 z-10 cursor-help">
                     {aiSessionContext && (
                       <div className="relative w-4 h-4 flex items-center justify-center">
-                        <ContextMeter 
-                          usage={aiSessionContext.token_usage_total} 
-                          limit={aiSessionContext.context_limit} 
+                        <ContextMeter
+                          usage={aiSessionContext.token_usage_total}
+                          limit={aiSessionContext.context_limit}
                           threshold={aiSessionContext.compaction_threshold}
-                          size={16} 
+                          size={16}
                         />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="text-[7px] font-bold text-accent">
