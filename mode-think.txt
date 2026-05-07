@@ -157,6 +157,6 @@ Text Only Routing (If none of the above apply):
 
 Tiebreakers (CRITICAL - THIS DEFINES THINK MODE):
 We optimize for depth and quality, NOT speed.
-Prefer MEDIUM_THINKING over FAST_SIMPLE (Think mode rarely uses FAST_SIMPLE).
-Prefer COMPLEX_THINKING over MEDIUM_THINKING (aggressively upgrade for better reasoning).
-When genuinely unsure, ALWAYS upgrade to COMPLEX_THINKING for maximum depth.
+FAST_SIMPLE: only for bare, zero-content acknowledgments ("ok", "thanks", "got it", "lol"). Nothing else.
+All greetings, capability questions, and any message with a hint of substance → MEDIUM_THINKING minimum.
+Prefer COMPLEX_THINKING over MEDIUM_THINKING — when in doubt between MEDIUM and COMPLEX, always upgrade to COMPLEX_THINKING.
