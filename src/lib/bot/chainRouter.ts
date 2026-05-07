@@ -84,10 +84,11 @@ export async function runChain(
 
   // 0. Prefetch independent config in parallel
   const sessionId = context?.chatId?.toString() || context?.activeEntityId || 'global'
-  const [sessionState, globalPrompt, fallbackModes] = await Promise.all([
+  const [sessionState, globalPrompt, fallbackModes, pipelineSettings] = await Promise.all([
     getSessionState(sessionId),
     getCompiledPrompt(context?.mode ?? 'default'),
     getFallbackModes(),
+    getPipelineSettings(),
   ])
   const currentSummary = sessionState?.distilled_summary || null
 
@@ -150,7 +151,6 @@ export async function runChain(
   }
 
   // Resolve pipeline settings and thinking toggle
-  const pipelineSettings = await getPipelineSettings()
   const thinkingEnabled = context?.thinkingEnabled ?? pipelineSettings.thinkingToggleDefault
   const onStatus: StatusCallback = context?.onStatus ?? (() => {})
 
@@ -190,8 +190,16 @@ export async function runChain(
         thinkSteps.push(...thinkResult.steps)
       }
 
-      // Final output chain — COMPLEX_THINKING for orchestrated requests
-      let { chain: finalChain, system_prompt: finalSysPrompt } = await getRouterChain('COMPLEX_THINKING')
+      // Use orchestrator's planned final output chain (last step), fallback to COMPLEX_THINKING
+      const TEXT_CHAINS: IntentCategory[] = ['FAST_SIMPLE', 'MEDIUM_THINKING', 'COMPLEX_THINKING']
+      const plannedFinalChain = plan.steps.length > 0
+        ? plan.steps[plan.steps.length - 1]
+        : 'COMPLEX_THINKING'
+      const finalChainType: IntentCategory = TEXT_CHAINS.includes(plannedFinalChain as IntentCategory)
+        ? plannedFinalChain as IntentCategory
+        : 'COMPLEX_THINKING'
+
+      let { chain: finalChain, system_prompt: finalSysPrompt } = await getRouterChain(finalChainType)
 
       finalSysPrompt = dateContext + '\n\n' + (finalSysPrompt || '')
       if (currentSummary) finalSysPrompt = `[SESSION MEMORY SUMMARY]\n${currentSummary}\n\n` + finalSysPrompt
@@ -200,7 +208,7 @@ export async function runChain(
       if (finalAccumulated) finalSysPrompt = `[PIPELINE CONTEXT]\n${finalAccumulated}\n\n` + finalSysPrompt
       if (thinkDirection) finalSysPrompt = `[THINK CHAIN DIRECTION]\n${thinkDirection}\n\n` + finalSysPrompt
 
-      const finalOutputStep: PipelineStep = { chain: 'COMPLEX_THINKING', goal: 'Write final answer', status: 'running' }
+      const finalOutputStep: PipelineStep = { chain: finalChainType, goal: 'Write final answer', status: 'running' }
       onStatus(finalOutputStep)
 
       for (const modelConfig of finalChain) {
@@ -299,8 +307,14 @@ export async function runChain(
 
     providerKeys = prefetchedKeys[key] ?? []
 
+    if (providerKeys.length === 0 && context?.aiApiKey) {
+      providerKeys = [context.aiApiKey]
+    }
+
     if (providerKeys.length === 0) {
-      providerKeys = [context?.aiApiKey || '']
+      logger.warn(`No API keys for ${modelConfig.id} (${key}) — skipping`)
+      routingTrace.push({ model: modelConfig.id, category, key: 'NO_KEY', success: false })
+      continue
     }
 
     const startIndex = triedKeysCount[key] || 0
@@ -338,7 +352,7 @@ export async function runChain(
               }
               break
             case 'cloudflare':
-              response = await runCloudflare(modelConfig.id, prompt, activeKey || context?.aiApiKey)
+              response = await runCloudflare(modelConfig.id, prompt, activeKey || context?.aiApiKey, system_prompt)
               break
             case 'vault':
               if (modelConfig.id === 'tavily-search') response = await runWebSearchChain(prompt, routeContext)
