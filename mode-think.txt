@@ -148,7 +148,7 @@ CRITICAL RULE FOR ALL OVERRIDES: Conversational questions asking IF you have a c
 4. Request needs real-time/current data → WEB_SEARCH
 5a. User commands a workspace action → TOOL_CALLING
 5b. User has /research tag + non-maps content → DEEP_RESEARCH
-6. Audio content is involved → AUDIO_VOICE
+6. Audio content is attached or explicitly referenced → AUDIO_VOICE
 
 Text Only Routing (If none of the above apply):
 - Pure, one-word acknowledgment → FAST_SIMPLE
