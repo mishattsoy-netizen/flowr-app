@@ -166,6 +166,7 @@ export const useStore = create<AppState>()(
       activeIntentTag: null,
       activeReplyMessage: null,
       thinkingEnabled: false,
+      advisorEnabled: false,
 
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
@@ -328,6 +329,7 @@ export const useStore = create<AppState>()(
       },
       setActiveMode: (mode) => set({ activeMode: mode }),
       setThinkingEnabled: (enabled) => set({ thinkingEnabled: enabled }),
+      setAdvisorEnabled: (enabled) => set({ advisorEnabled: enabled }),
       setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
       setReplyMessage: (msg) => set({ activeReplyMessage: msg }),
 
@@ -415,6 +417,7 @@ export const useStore = create<AppState>()(
               intentTag: get().activeIntentTag ?? null,
               replyContext,
               thinkingEnabled: get().thinkingEnabled,
+              advisorEnabled: get().advisorEnabled,
             }),
           });
 
@@ -487,7 +490,8 @@ export const useStore = create<AppState>()(
                 classification_trace: data.classification_trace,
                 routing_trace: data.routing_trace,
                 citations: data.citations,
-                tokens_used: data.tokens_used
+                tokens_used: data.tokens_used,
+                pipelineSteps: data.pipeline_steps
               }
               : m
             ),

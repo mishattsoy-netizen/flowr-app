@@ -109,6 +109,7 @@ export interface EditorBlock {
   tableData?: string[][];
   align?: 'left' | 'center' | 'right' | 'justify';
   mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'file';
   mediaWidth?: 1 | 2 | 3 | 4;
   mediaCaption?: string;
   textColor?: string;
@@ -205,6 +206,13 @@ export type ModalType =
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces';
 
+export interface PipelineStep {
+  chain: string
+  goal: string
+  status: 'running' | 'done' | 'failed'
+  output?: string
+}
+
 export interface AIAttachment {
   type: 'image' | 'audio' | 'file';
   url: string;
@@ -228,6 +236,7 @@ export interface AIMessage {
   classification_trace?: any[];
   routing_trace?: any[];
   tokens_used?: number;
+  pipelineSteps?: PipelineStep[];
 }
 
 export interface AISessionContext {
@@ -263,7 +272,7 @@ export interface ProjectQuota {
   timestamp: string;
 }
 
-export type BotMode = 'default' | 'think' | 'pro'
+export type BotMode = 'default' | 'pro'
 
 export type FlowIntentCategory = 'tool_call' | 'web_search' | 'complex' | 'medium' | 'fast' | 'image_generation' | 'audio_voice' | 'CLASSIFIER';
 
@@ -383,6 +392,9 @@ export interface AppState {
   aiSessionContext: AISessionContext | null;
   activeMode: BotMode;
   activeIntentTag: string | null;
+  activeReplyMessage: AIMessage | null;
+  thinkingEnabled: boolean;
+  advisorEnabled: boolean;
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;
@@ -418,7 +430,10 @@ export interface AppState {
   toggleAIAssistantExtended: () => void;
   setAIBehaviorMode: (mode: 'fast' | 'thinking' | 'auto') => void;
   setActiveMode: (mode: BotMode) => void;
+  setThinkingEnabled: (enabled: boolean) => void;
+  setAdvisorEnabled: (enabled: boolean) => void;
   setActiveIntentTag: (tag: string | null) => void;
+  setReplyMessage: (msg: AIMessage | null) => void;
   setAIClassificationModelId: (id: string) => void;
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
