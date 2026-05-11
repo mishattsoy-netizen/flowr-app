@@ -102,14 +102,88 @@ export const useStore = create<AppState>()(
       setCloudSyncEnabled: (enabled) => {
         set({ cloudSyncEnabled: enabled });
         if (enabled) {
-          // Sync everything to cloud immediately
-          const { entities, tasks } = get();
-          entities.forEach(e => upsertEntity(e));
+          // Sync everything to cloud immediately, hierarchically ordered (Fix 1.3)
+          const { entities, tasks, workspaces } = get();
+          
+          // Pre-sync workspaces to avoid FK violations
+          workspaces.forEach(w => upsertWorkspace(w));
+
+          // Build parenting map for ordered traversal
+          const byParent = new Map<string | null, Entity[]>();
+          entities.forEach(e => {
+            const p = e.parentId || null;
+            if (!byParent.has(p)) byParent.set(p, []);
+            byParent.get(p)!.push(e);
+          });
+
+          const ordered: Entity[] = [];
+          const visited = new Set<string>();
+
+          const collect = (pid: string | null) => {
+            const children = byParent.get(pid) || [];
+            children.forEach(c => {
+              if (visited.has(c.id)) return;
+              ordered.push(c);
+              visited.add(c.id);
+              collect(c.id);
+            });
+          };
+          collect(null); // Begin at root
+          // Append any orphans not caught in tree
+          entities.forEach(e => { if (!visited.has(e.id)) ordered.push(e); });
+
+          // Bulk upsert hierarchically
+          ordered.forEach(e => upsertEntity(e));
           tasks.forEach(t => upsertTask(t));
           set({ lastSaved: Date.now() });
         } else {
           // Destructive: Clear cloud data when switching to local-only
           clearAllDataFromCloud();
+        }
+      },
+      toggleEntityCloudSync: (entityId: string) => {
+        const { entities, workspaces } = get();
+        const target = entities.find(e => e.id === entityId);
+        if (!target) return;
+
+        const newState = !target.cloudSyncEnabled;
+        const wsId = target.workspaceId || 'ws-personal';
+
+        if (newState) {
+          // Enable: Propagate upwards to guarantee access path (Fix 1.4)
+          const toEnableIds = new Set<string>();
+          const lineage: Entity[] = [];
+          let curr: Entity | undefined = target;
+          while (curr) {
+            toEnableIds.add(curr.id);
+            lineage.unshift(curr); // Oldest ancestor first
+            const pid = curr.parentId as string | null | undefined;
+            curr = pid ? entities.find(e => e.id === pid) : undefined;
+          }
+
+          set({ 
+            entities: entities.map(e => toEnableIds.has(e.id) ? { ...e, cloudSyncEnabled: true } : e),
+            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: true } : w)
+          });
+
+          // Dispatch side-effects async
+          (async () => {
+            const updatedWs = get().workspaces.find(w => w.id === wsId);
+            if (updatedWs) await upsertWorkspace(updatedWs);
+            for (const n of lineage) {
+              await upsertEntity({ ...n, cloudSyncEnabled: true });
+            }
+            set({ lastSaved: Date.now() });
+          })();
+        } else {
+          // Disable: Keep locally but purge from database
+          set({ 
+            entities: entities.map(e => e.id === entityId ? { ...e, cloudSyncEnabled: false } : e) 
+          });
+          (async () => {
+            await deleteEntityFromDB(entityId);
+            set({ lastSaved: Date.now() });
+          })();
         }
       },
       setLastSaved: (time) => set({ lastSaved: time }),
@@ -167,6 +241,7 @@ export const useStore = create<AppState>()(
       activeReplyMessage: null,
       thinkingEnabled: false,
       advisorEnabled: false,
+      showPaidModels: false,
 
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
@@ -332,6 +407,7 @@ export const useStore = create<AppState>()(
       setAdvisorEnabled: (enabled) => set({ advisorEnabled: enabled }),
       setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
       setReplyMessage: (msg) => set({ activeReplyMessage: msg }),
+      setShowPaidModels: (show) => set({ showPaidModels: show }),
 
       sendAIMessage: async (content, attachments = []) => {
         const { aiMessages, activeReplyMessage } = get();
@@ -648,7 +724,8 @@ export const useStore = create<AppState>()(
           lastModified: entity.lastModified || Date.now()
         } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));
-        if (get().cloudSyncEnabled) upsertEntity(finalEntity);
+        if (finalEntity.cloudSyncEnabled) upsertEntity(finalEntity);
+        return finalEntity.id;
       },
 
       deleteEntity: (id) => {
@@ -681,7 +758,7 @@ export const useStore = create<AppState>()(
           })
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated && get().cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
       },
 
       reorderEntities: (orderedIds) => {
@@ -701,9 +778,9 @@ export const useStore = create<AppState>()(
           editingEntity: null
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated && get().cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
         const updatedWs = get().workspaces.find(w => w.id === id);
-        if (updatedWs && get().cloudSyncEnabled) upsertWorkspace(updatedWs);
+        if (updatedWs && updatedWs.cloudSyncEnabled) upsertWorkspace(updatedWs);
       },
 
       duplicateEntity: (id: string) => {
@@ -720,7 +797,7 @@ export const useStore = create<AppState>()(
         };
         duplicateRecursive(rootEntity, rootEntity.parentId);
         set((state) => ({ entities: [...state.entities, ...newEntities] }));
-        if (get().cloudSyncEnabled) newEntities.forEach(e => upsertEntity(e));
+        newEntities.filter(e => e.cloudSyncEnabled).forEach(e => upsertEntity(e));
       },
 
       setEntityIcon: (id, icon) => {
@@ -729,10 +806,10 @@ export const useStore = create<AppState>()(
           workspaces: state.workspaces.map(w => w.id === id ? { ...w, icon } : w)
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated && get().cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
         // Also sync workspace if needed
         const updatedWs = get().workspaces.find(w => w.id === id);
-        if (updatedWs && get().cloudSyncEnabled) upsertWorkspace(updatedWs);
+        if (updatedWs && updatedWs.cloudSyncEnabled) upsertWorkspace(updatedWs);
       },
 
       setEditingEntityId: (id, source) => set({ editingEntity: id && source ? { id, source } : null }),
@@ -770,7 +847,9 @@ export const useStore = create<AppState>()(
         const id = generateId();
         const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999 };
         set(s => ({ entities: [...s.entities, divider] }));
-        if (get().cloudSyncEnabled) upsertEntity(divider);
+        // Inherit divider sync from parent context if applicable (cast so compiler knows it's complete)
+        const typedDivider = divider as Entity;
+        if (typedDivider.cloudSyncEnabled) upsertEntity(typedDivider);
       },
       updateEntityContent: (id, content) => {
         const now = Date.now();
@@ -779,10 +858,9 @@ export const useStore = create<AppState>()(
           lastSaved: now
         }));
 
-        const { cloudSyncEnabled } = get();
         const updated = get().entities.find(e => e.id === id);
 
-        if (updated && cloudSyncEnabled) {
+        if (updated && updated.cloudSyncEnabled) {
           upsertEntity(updated);
         }
       },
@@ -810,6 +888,15 @@ export const useStore = create<AppState>()(
       updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => set((state) => ({
         blocks: state.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
       })),
+      updateCanvasBlocks: (batch: { id: string; updates: Partial<EditorBlock> }[]) => set((state) => {
+        const map = new Map(batch.map(u => [u.id, u.updates]));
+        return {
+          blocks: state.blocks.map(b => {
+            const up = map.get(b.id);
+            return up ? { ...b, ...up } : b;
+          })
+        };
+      }),
       deleteCanvasBlock: (id: string) => set((state) => ({
         blocks: state.blocks.filter(b => b.id !== id)
       })),
@@ -865,7 +952,7 @@ export const useStore = create<AppState>()(
           )
         }));
         const updated = get().entities.find(e => e.id === entityId);
-        if (updated && get().cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
       },
 
       sortEntities: (criteria) => set((s) => ({ entities: [...s.entities].sort((a, b) => criteria === 'title' ? a.title.localeCompare(b.title) : (b.lastModified || 0) - (a.lastModified || 0)) })),

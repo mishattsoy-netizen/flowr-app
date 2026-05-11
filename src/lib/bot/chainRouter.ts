@@ -13,6 +13,7 @@ import { runCloudflare } from './providers/cloudflare'
 import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runOpenRouter } from './providers/openrouter'
 import { runOllama } from './providers/ollama'
+import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
 import { getConversationMemory, getWebConversationMemory } from './memory'
 import { supabaseAdmin } from '../supabase'
 import { getCompiledPrompt } from './compilePrompt'
@@ -66,6 +67,7 @@ export interface ChainResponse {
   tokens_used?: number
   pipeline_steps?: PipelineStep[]
   advisor_questions?: string
+  text_content?: string
 }
 
 export async function runChain(
@@ -73,13 +75,6 @@ export async function runChain(
   inputBuffer?: Buffer,
   context?: { chatId?: number; userId?: string; aiApiKey?: string; activeEntityId?: string; activeWorkspaceId?: string; classificationModelId?: string; temperature?: number; mode?: BotMode; intentTag?: string | null; replyContext?: any; thinkingEnabled?: boolean; advisorEnabled?: boolean; onStatus?: StatusCallback }
 ): Promise<ChainResponse> {
-  let history: any[] = []
-  if (context?.chatId) {
-    history = await getConversationMemory(context.chatId)
-  } else if (context?.userId && context.userId !== 'anonymous') {
-    history = await getWebConversationMemory(context.userId)
-  }
-
   // Inject current date context to help bot understand knowledge cutoff and current time
   const now = new Date()
   const dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
@@ -92,6 +87,15 @@ export async function runChain(
     getFallbackModes(),
     getPipelineSettings(),
   ])
+
+  const historyLimit = pipelineSettings.historyLimit ?? 20
+
+  let history: any[] = []
+  if (context?.chatId) {
+    history = await getConversationMemory(context.chatId, historyLimit)
+  } else if (context?.userId && context.userId !== 'anonymous') {
+    history = await getWebConversationMemory(context.userId, historyLimit)
+  }
   const currentSummary = sessionState?.distilled_summary || null
 
   // Advisor pre-flight — runs before classification if enabled and no image attached
@@ -151,8 +155,9 @@ export async function runChain(
         logger.info(`Routing vision to: ${modelConfig.id} (${modelConfig.provider})`)
         const visionRes = await runGoogle(modelConfig.id, activePrompt ?? '', dateContext + "\n\n" + (globalPrompt || ''), activeBuffer, context as any, history)
         if (visionRes) {
+          const content = typeof visionRes === 'object' ? visionRes.content : visionRes
           trackModelUsage(modelConfig.id, modelConfig.provider)
-          return { type: 'text', content: visionRes, usage_type: 'vision', model: modelConfig.id, model_chain: `vision → ${modelConfig.id}`, status: 'success' }
+          return { type: 'text', content, usage_type: 'vision', model: modelConfig.id, model_chain: `vision → ${modelConfig.id}`, status: 'success' }
         }
       } catch (e: any) {
         logger.warn(`Vision failure [${modelConfig.id}]: ${e.message}`)
@@ -166,21 +171,37 @@ export async function runChain(
     return { type: 'text', content: "⚡ *System Overload*", usage_type: 'vision', model_chain: 'vision → (none)', status: 'error' }
   }
 
-  // 2. Standard Routing Flow
-  const { category: rawCategory, classifierModel, trace: classificationTrace, error: classifyError } = await classifyIntentWithModel(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, history, context?.replyContext ?? null)
-
-  if (!rawCategory) {
-    logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
-    return { type: 'text', content: "⚡ *System Overload*", usage_type: 'chat', model_chain: 'classifier → (failed)', status: 'error' }
-  }
-
   // Resolve pipeline settings and thinking toggle
   const thinkingEnabled = context?.thinkingEnabled ?? pipelineSettings.thinkingToggleDefault
   const onStatus: StatusCallback = context?.onStatus ?? (() => {})
 
+  const getStatusLabel = (chain: string, fallback?: string) => {
+    const custom = pipelineSettings.statusMessages?.[chain]
+    return custom ? `${custom.emoji} ${custom.label}`.trim() : (fallback || 'Working')
+  }
+
+  // 2. Standard Routing Flow
+  onStatus({
+    chain: 'CLASSIFIER',
+    goal: 'Classifying intent',
+    label: getStatusLabel('CLASSIFIER'),
+    status: 'running'
+  })
+  const { category: rawCategory, classifierModel, trace: classificationTrace, error: classifyError } = await classifyIntentWithModel(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, history, context?.replyContext ?? null)
+
+  if (!rawCategory) {
+    onStatus({ chain: 'CLASSIFIER', status: 'failed', goal: 'Classifying intent' })
+    logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
+    return { type: 'text', content: "⚡ *System Overload*", usage_type: 'chat', model_chain: 'classifier → (failed)', status: 'error' }
+  }
+
+  onStatus({ chain: 'CLASSIFIER', status: 'done', goal: 'Classifying intent' })
+
+
+
   // MULTI_CHAIN path — orchestrator plans and executes a chain sequence
   if (rawCategory === 'MULTI_CHAIN' && pipelineSettings.orchestratorEnabled) {
-    onStatus({ chain: 'ORCHESTRATOR', goal: 'Planning chain sequence', status: 'running' })
+    onStatus({ chain: 'ORCHESTRATOR', goal: 'Planning chain sequence', status: 'running', label: getStatusLabel('ORCHESTRATOR') })
 
     const plan = await planChainSequence(
       prompt,
@@ -232,21 +253,34 @@ export async function runChain(
       if (finalAccumulated) finalSysPrompt = `[PIPELINE CONTEXT]\n${finalAccumulated}\n\n` + finalSysPrompt
       if (thinkDirection) finalSysPrompt = `[THINK CHAIN DIRECTION]\n${thinkDirection}\n\n` + finalSysPrompt
 
-      const finalOutputStep: PipelineStep = { chain: finalChainType, goal: 'Write final answer', status: 'running' }
+      const finalOutputStep: PipelineStep = { chain: finalChainType, goal: 'Write final answer', status: 'running', label: getStatusLabel(finalChainType) }
       onStatus(finalOutputStep)
 
       for (const modelConfig of finalChain) {
         if (!modelConfig.is_enabled) continue
         try {
-          const response = await runGoogle(modelConfig.id, prompt, finalSysPrompt, undefined, context as any, history)
+          const provider = modelConfig.provider.toLowerCase()
+          let response: any = null
+
+          if (provider === 'google') {
+            response = await runGoogle(modelConfig.id, prompt, finalSysPrompt, undefined, context as any, history)
+          } else if (provider === 'groq') {
+            response = await runGroq(modelConfig.id, prompt, finalSysPrompt, undefined, context as any, history)
+          } else if (provider === 'openrouter') {
+            const keys = await getProviderKeys('OPENROUTER')
+            response = await runOpenRouter(modelConfig.id, prompt, finalSysPrompt, history, context?.aiApiKey || keys[0], modelConfig.openrouter_provider || undefined)
+          }
+
           if (response) {
+            const content = typeof response === 'object' ? response.content : response
             finalOutputStep.status = 'done'
             onStatus({ ...finalOutputStep })
 
             const allSteps = [...pipelineResult.steps, ...thinkSteps, finalOutputStep]
             return {
               type: pipelineResult.imageBuffer ? 'photo' : 'text',
-              content: pipelineResult.imageBuffer ?? response,
+              content: pipelineResult.imageBuffer ?? content,
+              text_content: pipelineResult.imageBuffer ? content : undefined,
               usage_type: 'chat',
               model: modelConfig.id,
               model_chain: `orchestrator → ${allSteps.map(s => s.chain).join(' → ')}`,
@@ -270,6 +304,24 @@ export async function runChain(
   // Single-chain path
   let category: IntentCategory = (rawCategory === 'MULTI_CHAIN') ? 'COMPLEX_THINKING' : rawCategory
   const routingTrace: RoutingTrace[] = []
+
+  // Explicit ADVISOR intent override — if classified as advisor, force execution
+  if (category === 'ADVISOR') {
+    const availableTools = ['web_search', 'deep_research', 'image_gen', 'tool_calling']
+    const advisorResult = await runAdvisor(prompt, context?.mode ?? 'default', context?.thinkingEnabled ?? false, availableTools, context)
+    if (advisorResult.shouldAsk && advisorResult.questions) {
+      return {
+        type: 'text',
+        content: advisorResult.questions,
+        usage_type: 'chat',
+        model_chain: 'classifier → advisor → (awaiting user response)',
+        status: 'success',
+        advisor_questions: advisorResult.questions,
+      }
+    }
+    // If PASS, fallback to complex thinking to actually process the user query
+    category = 'COMPLEX_THINKING'
+  }
 
   let { chain, system_prompt, temperature } = await getRouterChain(category)
 
@@ -319,6 +371,27 @@ export async function runChain(
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
+
+    // ── CostGuard: project cost from prompt + estimated completion tokens ──
+    if (modelConfig.is_paid && (modelConfig.prompt_cost || modelConfig.completion_cost)) {
+      const promptTokens = Math.ceil((prompt?.length || 0) / 4)
+      const sysPromptTokens = Math.ceil((system_prompt?.length || 0) / 4)
+      // Estimate completion output at 1/3 of total input (rough heuristic)
+      const estimatedCompletionTokens = Math.ceil((promptTokens + sysPromptTokens) / 3)
+      const promptCost = (modelConfig.prompt_cost ?? 0) * promptTokens
+      const sysPromptCost = (modelConfig.prompt_cost ?? 0) * sysPromptTokens
+      const completionCost = (modelConfig.completion_cost ?? 0) * estimatedCompletionTokens
+      const projectedCost = promptCost + sysPromptCost + completionCost
+
+      logger.info(`[CostGuard] ${modelConfig.id}: ~${promptTokens + sysPromptTokens} input + ~${estimatedCompletionTokens} output tokens → projected $${projectedCost.toFixed(6)}`)
+
+      if (projectedCost > 0.50) {
+        logger.warn(`[CostGuard] Skipping ${modelConfig.id} - projected cost $${projectedCost.toFixed(4)} exceeds limit $0.50`)
+        routingTrace.push({ model: modelConfig.id, category, key: 'SKIPPED_COST', success: false })
+        continue
+      }
+    }
+
     if (isModelFailed(modelConfig.id)) {
       logger.info(`Skipping failed model: ${modelConfig.id}`)
       routingTrace.push({ model: modelConfig.id, category, key: 'SKIPPED', success: false })
@@ -347,9 +420,14 @@ export async function runChain(
       for (let k = startIndex; k < providerKeys.length; k++) {
         const activeKey = providerKeys[k]
 
+        // Warn if on the last available key
+        if (k === providerKeys.length - 1 && providerKeys.length > 1) {
+          logger.warn(`[KeyExhaustion] On last key (${k + 1}/${providerKeys.length}) for ${modelConfig.id}`)
+        }
+
         try {
           logger.info(`Attempting model: ${modelConfig.id} (${modelConfig.provider}) for ${category}, API key index: ${k + 1}`)
-          let response: string | Buffer | null = null
+          let response: any = null
 
           let usedSynthesisModel = ''
           const routeContext: any = { 
@@ -376,7 +454,7 @@ export async function runChain(
               }
               break
             case 'cloudflare':
-              response = await runCloudflare(modelConfig.id, prompt, activeKey || context?.aiApiKey)
+              response = await runCloudflare(modelConfig.id, prompt, activeKey || context?.aiApiKey, system_prompt, history, category)
               break
             case 'vault':
               if (modelConfig.id === 'tavily-search') response = await runWebSearchChain(prompt, routeContext)
@@ -390,12 +468,20 @@ export async function runChain(
               }
               break
             case 'openrouter':
-              response = await runOpenRouter(modelConfig.id, prompt, system_prompt, history, activeKey || providerKeys[0])
+              console.log(`[DEBUG chainRouter] openrouter_provider value:`, modelConfig.openrouter_provider, `| model:`, modelConfig.id, `| category:`, category);
+              response = await runOpenRouter(modelConfig.id, prompt, system_prompt, history, activeKey || providerKeys[0], modelConfig.openrouter_provider || undefined)
               break
             case 'local':
             case 'ollama':
             case 'ollama(my pc)':
               response = await runOllama(modelConfig.id, prompt, system_prompt, history, temperature)
+              break
+            case 'siliconflow':
+              if (category === 'IMAGE_GEN') {
+                response = await runSiliconFlow(modelConfig.id, prompt, activeKey || providerKeys[0])
+              } else {
+                response = await runSiliconFlowText(modelConfig.id, prompt, system_prompt, history, activeKey || providerKeys[0])
+              }
               break
           }
 
@@ -409,10 +495,20 @@ export async function runChain(
             }
 
             if (category === 'IMAGE_GEN' && typeof finalContent === 'string') {
-              logger.info(`Model ${modelConfig.id} returned text for IMAGE_GEN. Skipping to next fallback.`)
-              const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
-              routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false })
-              continue
+              const looksLikeImage = 
+                finalContent.startsWith('data:image') || 
+                finalContent.startsWith('http') || 
+                finalContent.includes('![' ) ||
+                finalContent.includes('.ai/') || 
+                finalContent.includes('.com/') ||
+                finalContent.includes('.org/')
+              
+              if (!looksLikeImage) {
+                logger.info(`Model ${modelConfig.id} returned non-image text for IMAGE_GEN. Skipping to next fallback.`)
+                const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
+                routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false })
+                continue
+              }
             }
 
             const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
@@ -471,16 +567,29 @@ export async function runChain(
               tokens_used: (typeof finalContent === 'string') ? estimateTokens(prompt + finalContent + (system_prompt || '')) : undefined
             }
           } else {
+            // Provider returned null (exhausted all its internal keys or failed)
             triedKeysCount[key] = k + 1
-            const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
+            const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} ${k + 1}`
             routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false })
             if (fallbackMode !== 'api_key_first') {
-              throw new Error(`Model ${modelConfig.id} returned empty response`)
+              throw new Error(`Model ${modelConfig.id} returned empty response (exhausted keys)`)
             }
           }
         } catch (error: any) {
-          markModelFailed(modelConfig.id)
-          triedKeysCount[key] = k + 1
+          const errMsg = error.message || ''
+          const isKeyExhausted = errMsg.includes('KEY_EXHAUSTED:')
+
+          if (isKeyExhausted) {
+            logger.warn(`[KeyRotation] Key ${k + 1} exhausted for ${modelConfig.id} — trying next key`)
+          } else {
+            markModelFailed(modelConfig.id)
+          }
+
+          // Only mark key as exhausted across models if it's a permanent failure (auth/credits)
+          if (isKeyExhausted) {
+            triedKeysCount[key] = k + 1
+          }
+
           routingTrace.push({ model: modelConfig.id, category, key: `${key} ${k + 1}`, success: false })
           logger.warn(`Failure with key ${k + 1} for [${modelConfig.id}]: ${error.message}`)
           if (fallbackMode !== 'api_key_first') {

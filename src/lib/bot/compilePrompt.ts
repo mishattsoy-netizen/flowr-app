@@ -1,5 +1,8 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import type { BotMode } from '@/data/store.types'
+import fs from 'fs'
+import path from 'path'
+import { logger } from '../logger'
 
 const CATEGORY_LABELS: Record<string, string> = {
   core_rules:       'CORE RULES',
@@ -73,15 +76,32 @@ export async function recompileAllModes(): Promise<void> {
 }
 
 export async function getCompiledPrompt(mode: BotMode = 'default'): Promise<string> {
+  // 1. Supabase primary
   const { data, error } = await supabase
     .from('bot_compiled_prompt')
     .select('content, global_enabled')
     .eq('mode', mode)
     .single()
 
-  if (error || !data) return ''
-  if (!data.global_enabled) return ''
-  return data.content ?? ''
+  if (!error && data && data.global_enabled && data.content?.trim()) {
+    return data.content.trim()
+  }
+
+  // 2. Local file fallback
+  try {
+    const filePath = path.join(process.cwd(), `mode-${mode}.txt`)
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8')
+      if (content?.trim()) {
+        logger.info(`Loaded fallback prompt from ${filePath}`)
+        return content.trim()
+      }
+    }
+  } catch (err) {
+    logger.warn(`Failed to read fallback mode file: ${err}`)
+  }
+
+  return ''
 }
 
 const DEFAULT_INTERNAL_PROMPTS: Record<string, string> = {
@@ -95,6 +115,9 @@ const DEFAULT_INTERNAL_PROMPTS: Record<string, string> = {
 }
 
 export async function getInternalPrompt(chainType: string, mode: BotMode = 'default'): Promise<string> {
+  let rolePrompt = ''
+
+  // 1. Supabase settings primary
   const { data } = await supabase
     .from('settings')
     .select('value')
@@ -102,7 +125,26 @@ export async function getInternalPrompt(chainType: string, mode: BotMode = 'defa
     .maybeSingle()
 
   const customPrompts = (data?.value as Record<string, string>) ?? {}
-  const rolePrompt = customPrompts[chainType] ?? DEFAULT_INTERNAL_PROMPTS[chainType] ?? `You are the ${chainType} step in a multi-step pipeline. Write structured output for the next chain.`
+  rolePrompt = customPrompts[chainType]
+
+  // 2. Local file fallback
+  if (!rolePrompt) {
+    try {
+      const fileName = `pipeline-${chainType.toLowerCase().replace(/_/g, '-')}.txt`
+      const filePath = path.join(process.cwd(), fileName)
+      if (fs.existsSync(filePath)) {
+        rolePrompt = fs.readFileSync(filePath, 'utf8').trim()
+        logger.info(`Loaded fallback internal prompt from ${filePath}`)
+      }
+    } catch (err) {
+      logger.warn(`Failed to read fallback pipeline file: ${err}`)
+    }
+  }
+
+  // 3. Hardcoded default fallback
+  if (!rolePrompt) {
+    rolePrompt = DEFAULT_INTERNAL_PROMPTS[chainType] ?? `You are the ${chainType} step in a multi-step pipeline. Write structured output for the next chain.`
+  }
 
   const brainResult = await supabase
     .from('bot_brain_entries')

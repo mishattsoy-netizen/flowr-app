@@ -27,7 +27,7 @@ export interface ClassifyResult {
 const VALID_CATEGORIES: (IntentCategory | 'MULTI_CHAIN')[] = [
   'FAST_SIMPLE', 'COMPLEX_THINKING', 'MEDIUM_THINKING',
   'IMAGE_GEN', 'WEB_SEARCH', 'AUDIO_VOICE', 'TOOL_CALLING',
-  'CODING', 'DEEP_RESEARCH', 'MULTI_CHAIN',
+  'CODING', 'DEEP_RESEARCH', 'MULTI_CHAIN', 'ADVISOR',
 ]
 
 const TAG_CATEGORY_MAP: Record<string, IntentCategory> = {
@@ -121,8 +121,16 @@ export async function classifyIntentWithModel(
       for (const kw of list) {
         const kwLower = kw.trim().toLowerCase()
         if (!kwLower) continue
-        const escapedKw = kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const regex = new RegExp(`\\b${escapedKw}\\b`, 'i')
+        
+        // Split keyword into words and create a regex that allows words in between
+        const words = kwLower.split(/\s+/).filter(Boolean)
+        if (words.length === 0) continue
+        
+        const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        // Match words in order with up to 5 words in between
+        const pattern = `\\b${escapedWords.join('\\s+(?:\\w+\\s+){0,5}')}\\b`
+        const regex = new RegExp(pattern, 'i')
+        
         if (regex.test(lowerMsg)) {
           return { category: cat, classifierModel: 'Keywords', trace: [] }
         }
@@ -131,7 +139,7 @@ export async function classifyIntentWithModel(
   }
 
   // Last 3 turns (user+model pairs) for context
-  const recentHistory = history.slice(-6)
+  const recentHistory = history.slice(-20)
 
   // Reply context prefix
   const replyPrefix = replyContext?.attentionBlock ? replyContext.attentionBlock + '\n\n' : ''
@@ -163,7 +171,7 @@ export async function classifyIntentWithModel(
     if (modelConfig.provider.toLowerCase().includes('ollama')) key = 'LOCAL'
 
     try {
-      let rawResponse: string | null = null
+      let rawResponse: any = null
       const traceContext: any = { aiApiKey }
       const prompt = `${replyPrefix}${activePrompt}\n"${message}"`
 
@@ -173,7 +181,7 @@ export async function classifyIntentWithModel(
       } else if (provider === 'groq') {
         rawResponse = await runGroq(modelConfig.id, prompt, undefined, aiApiKey, traceContext, recentHistory)
       } else if (provider === 'openrouter') {
-        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, prompt, '', recentHistory, aiApiKey)
+        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, prompt, '', recentHistory, aiApiKey, modelConfig.openrouter_provider || undefined)
         rawResponse = typeof orRes === 'string' ? orRes : null
       } else if (provider === 'ollama' || provider === 'local') {
         const olRes = await (await import('./providers/ollama')).runOllama(modelConfig.id, prompt, '', recentHistory)
@@ -184,10 +192,18 @@ export async function classifyIntentWithModel(
       }
 
       if (rawResponse) {
-        const cleaned = rawResponse.trim().toUpperCase()
+        const content = typeof rawResponse === 'object' ? rawResponse.content : rawResponse
+        const cleaned = content.trim().toUpperCase()
+
+        // Extract category strictly from the CATEGORY: line if present
+        let categoryText = cleaned
+        const catMatch = cleaned.match(/CATEGORY:\s*([A-Z_]+)/)
+        if (catMatch) {
+          categoryText = catMatch[1]
+        }
 
         for (const cat of VALID_CATEGORIES) {
-          if (cleaned === cat) {
+          if (categoryText === cat || cleaned === cat) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
             trace.push({ model: modelConfig.id, key: displayKey, success: true })
             trackModelUsage(modelConfig.id, modelConfig.provider)
@@ -197,7 +213,7 @@ export async function classifyIntentWithModel(
 
         for (const cat of VALID_CATEGORIES) {
           const regex = new RegExp(`\\b${cat}\\b`, 'i')
-          if (regex.test(cleaned)) {
+          if (regex.test(categoryText)) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
             trace.push({ model: modelConfig.id, key: displayKey, success: true })
             trackModelUsage(modelConfig.id, modelConfig.provider)

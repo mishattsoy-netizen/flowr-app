@@ -1,6 +1,8 @@
 "use client";
 
-import { GripVertical, Plus, Check, ChevronRight, ChevronDown, ImageIcon, Video, Maximize2, Minimize2, ExternalLink, Play, FileText, Link as LinkIcon, Quote, List, ListOrdered, CheckSquare, Pencil } from 'lucide-react';
+import {
+  GripVertical, Plus, Check, ChevronRight, ChevronDown, Copy, Link as LinkIcon, ExternalLink, Trash2
+} from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
 import clsx from 'clsx';
 import { EditorBlock, BlockStyle, BlockType, Entity, generateId } from '@/data/store';
@@ -20,7 +22,7 @@ interface BlockViewProps {
   listNumber?: number;
   slashMenuOpen?: boolean;
   menuOpen?: boolean;
-  onOpenMenu: (id: string, position: { x: number; y: number }) => void;
+  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean) => void;
   onFocus?: (id: string) => void;
   isSelected?: boolean;
   isInsideColumn?: boolean;
@@ -46,6 +48,8 @@ export function BlockRenderer({
   menuOpen,
   onOpenMenu,
   onFocus,
+  onIndent,
+  onUnindent,
   isSelected = false,
   isInsideColumn = false,
   onDragStart,
@@ -70,7 +74,7 @@ export function BlockRenderer({
   };
 
   const contentRef = useRef<HTMLDivElement>(null);
-  const lastTypedContent = useRef(block.content);
+  const lastTypedContent = useRef<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const entities = useStore(s => s.entities);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
@@ -86,8 +90,10 @@ export function BlockRenderer({
   }, [block.id, onUpdate]);
 
   useEffect(() => {
-    if (contentRef.current && contentRef.current.innerHTML !== block.content) {
-      if (block.content !== lastTypedContent.current) {
+    if (contentRef.current) {
+      const shouldUpdate = lastTypedContent.current === null ||
+        (contentRef.current.innerHTML !== block.content && block.content !== lastTypedContent.current);
+      if (shouldUpdate) {
         contentRef.current.innerHTML = block.content;
       }
     }
@@ -107,14 +113,42 @@ export function BlockRenderer({
       // However, for lists, we might still want Enter to add a new item
       if (['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(block.type)) {
         e.preventDefault();
-        onInsertAfter(block.id);
+        onInsertAfter(block.id, block.type);
         return;
       }
       // For standard text, let it be (soft break)
     }
     if (e.key === ' ' && contentRef.current) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        const offset = range.startOffset;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const txt = node.textContent || "";
+          const before = txt.substring(0, offset);
+          const shortcuts: Record<string, string> = {
+            '-->': '⟶', '->': '→', '==>': '⇒',
+            '<--': '⟵', '<-': '←', '<==': '⇐',
+            '<->': '↔', '/arrowdown': '↓', '/arrowup': '↑',
+            '/arrowright': '→', '/arrowleft': '←'
+          };
+          for (const [trig, repl] of Object.entries(shortcuts)) {
+            if (before.endsWith(trig)) {
+              e.preventDefault();
+              range.setStart(node, offset - trig.length);
+              range.setEnd(node, offset);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              document.execCommand('insertText', false, repl + ' ');
+              return;
+            }
+          }
+        }
+      }
+
       const text = contentRef.current.textContent ?? '';
-      
+
       const transform = (updates: Partial<EditorBlock>) => {
         e.preventDefault();
         if (contentRef.current) contentRef.current.innerHTML = '';
@@ -133,11 +167,37 @@ export function BlockRenderer({
       if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
     }
 
-    if (e.key === 'Backspace' && contentRef.current) {
-      const text = contentRef.current.textContent ?? '';
-      if (text === '' && index > 0) {
+    if (e.key === 'Tab' && contentRef.current) {
+      const selection = window.getSelection();
+      const range = selection?.getRangeAt(0);
+      if (range && (range.startOffset === 0 || contentRef.current.textContent === '')) {
         e.preventDefault();
-        onDelete(block.id);
+        onIndent?.(block.id);
+      }
+    }
+
+    if (e.key === 'Backspace' && contentRef.current) {
+      const selection = window.getSelection();
+      const range = selection?.getRangeAt(0);
+      const isAtStart = range && range.startOffset === 0;
+      const text = contentRef.current.textContent ?? '';
+
+      if (isAtStart) {
+        // If it's a nested block, unindent it
+        // We can check if it's nested by checking if onUnindent is actually needed
+        // For now, let's just try to unindent if it's a list or has potential to be nested
+        if (isList || isChecklist || text === '') {
+          e.preventDefault();
+          onUnindent?.(block.id);
+          // If it wasn't unindented (i.e. was already top level), it might need to merge
+          // But our unindent logic should handle whether it was successful.
+          // For now, let's assume if it's at start and Backspace is pressed:
+          // 1. Try unindent.
+          // 2. If already top level, delete/merge.
+          if (text === '' && index > 0) {
+            onDelete(block.id);
+          }
+        }
       }
     }
     if (e.key === '/' && contentRef.current) {
@@ -182,7 +242,7 @@ export function BlockRenderer({
   // ─── Divider ──────────────────────────────────────────
   if (block.type === 'divider') {
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={style}
@@ -190,9 +250,9 @@ export function BlockRenderer({
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className={clsx(
-          "flex items-center w-full py-4 relative group rounded-[var(--radius-medium)] transition-colors duration-0", 
+          "flex items-center w-full py-4 relative group rounded-[var(--radius-medium)] transition-colors duration-0",
           isSelected && "bg-white/[0.01]",
-          isDragging && "opacity-60 shadow-2xl bg-sidebar/80 rounded-[var(--radius-medium)]"
+          isDragging && "opacity-60 bg-sidebar/80 rounded-[var(--radius-medium)]"
         )}>
           <div className="flex-1 h-px bg-border/50" />
         </div>
@@ -203,7 +263,7 @@ export function BlockRenderer({
   // ─── Database ─────────────────────────────────────────
   if (block.type === 'database') {
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
@@ -211,9 +271,9 @@ export function BlockRenderer({
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className={clsx(
-          "relative w-full rounded-[var(--radius-medium)] transition-colors duration-0", 
+          "relative w-full rounded-3xl transition-colors duration-0",
           isSelected && "bg-white/[0.01]",
-          isDragging && "opacity-60 shadow-2xl"
+          isDragging && "opacity-60"
         )}>
           <DatabaseBlock block={block} onUpdate={onUpdate} />
         </div>
@@ -225,7 +285,7 @@ export function BlockRenderer({
   if (block.type === 'table') {
     const tableData = block.tableData ?? [['', '', ''], ['', '', ''], ['', '', '']];
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
@@ -233,45 +293,99 @@ export function BlockRenderer({
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className={clsx(
-          "relative w-full rounded-[var(--radius-medium)] transition-colors duration-0", 
+          "relative w-full rounded-3xl transition-colors duration-0 group/table",
           isSelected && "bg-white/[0.01]",
-          isDragging && "opacity-60 shadow-2xl"
+          isDragging && "opacity-60"
         )}>
-          <div className="border border-white/10 rounded-[var(--radius-medium)] overflow-hidden bg-white/[0.02]">
-            <table className="w-full border-collapse">
-              <tbody>
-                {tableData.map((row: string[], ri: number) => (
-                  <tr key={ri} className="group/row">
-                    {row.map((cell: string, ci: number) => (
-                      <td
-                        key={ci}
-                        contentEditable
-                        suppressContentEditableWarning
-                        className={clsx(
-                          "px-4 py-3 text-sm border-b border-r border-white/5 last:border-r-0 outline-none ",
-                          ri === 0 ? "font-bold text-foreground bg-white/[0.03]  text-[10px] " : "text-foreground/80 focus:bg-white/[0.05]",
-                          ri === tableData.length - 1 && "border-b-0"
-                        )}
-                        onBlur={(e) => {
-                          const newData = [...tableData.map((r: string[]) => [...r])];
-                          newData[ri][ci] = (e.target as HTMLElement).textContent ?? '';
-                          onUpdate(block.id, { tableData: newData });
-                        }}
-                      >
-                        {cell}
+          <div className="relative flex flex-col">
+            <div className="border border-white/10 rounded-3xl overflow-hidden bg-white/[0.02]">
+              <table className="w-full border-collapse">
+                <tbody>
+                  {tableData.map((row: string[], ri: number) => (
+                    <tr key={ri} className="group/row relative">
+                      <td className="w-8 border-b border-white/5 bg-white/[0.01] relative group/rowhandle border-r border-white/5">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              if (tableData.length <= 1) return;
+                              const newData = tableData.filter((_: any, idx: number) => idx !== ri);
+                              onUpdate(block.id, { tableData: newData });
+                            }}
+                            className="p-1 rounded hover:bg-white/10 text-muted-foreground/40 hover:text-red-400"
+                          >
+                            <Trash2 strokeWidth={2} className="w-3 h-3" />
+                          </button>
+                        </div>
                       </td>
-                    ))}
-                  </tr>
+                      {row.map((cell: string, ci: number) => (
+                        <td
+                          key={ci}
+                          contentEditable
+                          suppressContentEditableWarning
+                          className={clsx(
+                            "px-4 py-2.5 text-[13px] font-sans border-b border-r border-white/5 last:border-r-0 outline-none transition-colors leading-snug",
+                            ri === 0 ? "font-bold text-foreground bg-white/[0.03] text-[10.5px] uppercase tracking-wider" : "text-bone-80/90 focus:bg-white/[0.04]",
+                            ci === 0 && ri !== 0 && "font-semibold text-bone-100", // Bold first column
+                            ri === tableData.length - 1 && "border-b-0"
+                          )}
+                          onBlur={(e) => {
+                            const newData = [...tableData.map((r: string[]) => [...r])];
+                            newData[ri][ci] = (e.target as HTMLElement).innerHTML ?? '';
+                            onUpdate(block.id, { tableData: newData });
+                          }}
+                          dangerouslySetInnerHTML={{ __html: cell }}
+                        />
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Top Header Column Delete Triggers - Renders transparently above column headers to support deletion */}
+            {tableData.length > 0 && tableData[0].length > 1 && (
+              <div className="absolute top-0 left-8 right-0 flex h-8 pointer-events-none">
+                {tableData[0].map((_: any, ci: number) => (
+                  <div key={`header-overlay-${ci}`} className="flex-1 relative group/colheader h-full">
+                    <button
+                      onClick={() => {
+                        if (tableData[0].length <= 1) return;
+                        const newData = tableData.map((row: string[]) => {
+                          const newRow = [...row];
+                          newRow.splice(ci, 1);
+                          return newRow;
+                        });
+                        onUpdate(block.id, { tableData: newData });
+                      }}
+                      className="absolute -top-2 right-2 opacity-0 group-hover/colheader:opacity-100 bg-sidebar border border-border pointer-events-auto p-0.5 rounded shadow-sm hover:text-red-400 transition-all text-muted-foreground/50 z-[10]"
+                      title="Delete Column"
+                    >
+                      <Trash2 strokeWidth={2} className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-            <div className="flex border-t border-white/10 bg-white/[0.01]">
-              <button onClick={() => {
+              </div>
+            )}
+
+            {/* Perimeter Ghost Triggers */}
+            {/* Bottom Edge Row Adder */}
+            <button
+              onClick={() => {
                 const cols = tableData[0]?.length ?? 3;
                 onUpdate(block.id, { tableData: [...tableData, Array(cols).fill('')] });
-              }} className="flex-1 py-2 text-[10px]  font-bold  text-muted-foreground/40 hover:text-foreground hover:bg-white/5">+ Add Row</button>
-              <button onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })} className="flex-1 py-2 text-[10px]  font-bold  text-muted-foreground/40 hover:text-foreground hover:bg-white/5">+ Add Column</button>
-            </div>
+              }}
+              className="h-6 w-full opacity-0 group-hover/table:opacity-100 flex items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-b-[var(--radius-medium)] transition-all mt-0.5 uppercase tracking-widest"
+            >
+              + Add Row
+            </button>
+
+            {/* Right Edge Column Adder */}
+            <button
+              onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })}
+              className="absolute top-0 bottom-0 right-[-1.5rem] w-5 opacity-0 group-hover/table:opacity-100 flex flex-col items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-r-[var(--radius-medium)] transition-all [writing-mode:vertical-rl] uppercase tracking-widest"
+            >
+              + Add Column
+            </button>
           </div>
         </div>
       </div>
@@ -298,27 +412,27 @@ export function BlockRenderer({
     const alignVariant = block.align || 'left';
 
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         className={clsx(
-        "editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
-        alignVariant === 'center' && "items-center",
-        alignVariant === 'right' && "items-end",
-        alignVariant === 'left' && "items-start",
-        isDragging && "z-50"
-      )}
-      style={{ ...style }}
+          "editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
+          alignVariant === 'center' && "items-center",
+          alignVariant === 'right' && "items-end",
+          alignVariant === 'left' && "items-start",
+          isDragging && "z-50"
+        )}
+        style={{ ...style }}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className={clsx(
-          "relative w-full transition-colors duration-0", 
-          isSelected && "bg-white/[0.01] rounded-[var(--radius-medium)]",
-          isDragging && "opacity-60 shadow-2xl"
+          "relative w-full transition-colors duration-0",
+          isSelected && "bg-white/[0.01] rounded-3xl",
+          isDragging && "opacity-60"
         )}>
-          <div className={clsx("relative group/media border border-white/5 bg-white/5", widthClass, "rounded-[var(--radius-medium)] ")}>
+          <div className={clsx("relative group/media border border-white/5 bg-white/5", widthClass, "rounded-3xl ")}>
             <MediaControls blockId={block.id} currentWidth={block.mediaWidth || 4} onWidthChange={(w) => onUpdate(block.id, { mediaWidth: w as any })} />
-            <div className="overflow-hidden rounded-[var(--radius-medium)]">
+            <div className="overflow-hidden rounded-3xl">
               {isImage ? (
                 <img src={block.mediaUrl} alt={block.mediaCaption || 'Image'} className="w-full h-auto object-cover select-none" onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1544391496-1ca7c97651a2?q=80&w=2000&auto=format&fit=crop')} />
               ) : (
@@ -338,7 +452,7 @@ export function BlockRenderer({
   if (block.type === 'embed') {
     const linked = entities.find((e: Entity) => e.id === block.embedEntityId);
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
@@ -346,12 +460,12 @@ export function BlockRenderer({
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className={clsx(
-          "relative w-full transition-colors duration-0 rounded-[var(--radius-medium)]", 
+          "relative w-full transition-colors duration-0 rounded-3xl",
           isSelected && "bg-white/[0.01]",
-          isDragging && "opacity-60 shadow-2xl"
+          isDragging && "opacity-60"
         )}>
-          <div onClick={() => linked && setActiveEntityId(linked.id)} className="border border-white/5 rounded-[var(--radius-medium)] px-5 py-4 group-hover:bg-white/5 flex items-center gap-4 transition-colors">
-            <div className="w-10 h-10 rounded-[var(--radius-medium)] bg-accent/10 flex items-center justify-center text-accent text-lg font-bold border border-accent/20 group-hover/embed:bg-accent/20">{linked?.title?.charAt(0) ?? '?'}</div>
+          <div onClick={() => linked && setActiveEntityId(linked.id)} className="border border-white/5 rounded-3xl px-5 py-4 group-hover:bg-white/5 flex items-center gap-4 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent text-lg font-bold border border-accent/20 group-hover/embed:bg-accent/20">{linked?.title?.charAt(0) ?? '?'}</div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground tracking-tight truncate">{linked?.title ?? 'Untitled Page'}</p>
               <p className="text-[10px] font-bold text-muted-foreground/40   pt-0.5">{linked?.type ?? 'page'}</p>
@@ -363,10 +477,66 @@ export function BlockRenderer({
     );
   }
 
+  // ─── Link Block ───────────────────────────────────────
+  if (block.type === 'link') {
+    let faviconUrl = '';
+    try {
+      if (block.linkUrl) faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(block.linkUrl).hostname}&sz=32`;
+    } catch (e) { }
+
+    return (
+      <div
+        ref={setNodeRef}
+        data-block-id={block.id}
+        style={{ ...style, ...colorStyle }}
+        className={clsx("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+      >
+        <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
+        <div className="flex items-center gap-3 group/link ml-4 relative z-10">
+          <a
+            href={block.linkUrl || '#'}
+            onClick={(e) => { if (!block.linkUrl) e.preventDefault(); }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 rounded-lg text-[14px] font-medium text-accent border border-accent/20 transition-all duration-200 select-none"
+          >
+            {faviconUrl ? (
+              <img src={faviconUrl} className="w-3.5 h-3.5 object-contain rounded-sm shrink-0" alt="" />
+            ) : (
+              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={(e) => onUpdate(block.id, { content: e.currentTarget.textContent || '' })}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+              className="min-w-[40px] outline-none border-b border-transparent focus:border-accent/40"
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+            >
+              {block.content || 'Link Label'}
+            </span>
+            <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
+          </a>
+
+          <div className="opacity-0 group-hover/link:opacity-100 transition-opacity duration-200 flex items-center bg-[#151515]/80 backdrop-blur border border-white/5 rounded-md px-2 py-1 relative z-20">
+            <input
+              type="text"
+              placeholder="Paste URL here..."
+              className="bg-transparent border-none outline-none text-[11px] w-[180px] text-bone-60 focus:text-bone-90 font-sans"
+              defaultValue={block.linkUrl || ''}
+              onBlur={(e) => onUpdate(block.id, { linkUrl: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Column / Columns ────────────────────────────────
   if (block.type === 'column') {
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={style}
@@ -380,7 +550,7 @@ export function BlockRenderer({
         <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} listeners={listeners} attributes={attributes} isSelected={isSelected} isFocused={false} />
         <div className={clsx("flex flex-col gap-2 relative z-10", isDragging && "opacity-60")}>
           {(block.children || []).map((subBlock: EditorBlock, sIdx: number) => (
-            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
+            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
           ))}
         </div>
       </div>
@@ -389,7 +559,7 @@ export function BlockRenderer({
 
   if (block.type === 'columns') {
     return (
-      <div 
+      <div
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
@@ -400,7 +570,7 @@ export function BlockRenderer({
           <div className="flex gap-4 w-full h-full">
             {(block.children || []).map((colBlock: EditorBlock, cIdx: number) => (
               <div key={colBlock.id} className="relative flex-1 basis-0 min-w-0 flex flex-col">
-                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
+                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
               </div>
             ))}
           </div>
@@ -411,13 +581,13 @@ export function BlockRenderer({
 
   // ─── Default (Text, List, Checklist, Quote) ───────────
   const listMarker = () => {
-    if (block.type === 'bulletList') return <div className="w-[6px] h-[6px] rounded-full bg-accent flex-shrink-0" />;
-    if (block.type === 'dashedList') return <div className="w-[8px] h-[1px] bg-muted-foreground flex-shrink-0" />;
-    if (block.type === 'numberedList') return <span className="text-muted-foreground/60 text-[0.95rem] font-mono tabular-nums leading-none">{(listNumber ?? 1)}.</span>;
+    if (block.type === 'bulletList') return <div className="w-[5px] h-[5px] rounded-full bg-[var(--bone-60)] flex-shrink-0" />;
+    if (block.type === 'dashedList') return <div className="w-[8px] h-[1px] bg-[var(--bone-60)] flex-shrink-0" />;
+    if (block.type === 'numberedList') return <span className="text-[var(--bone-60)] text-[19px] font-display leading-none">{(listNumber ?? 1)}.</span>;
     if (block.type === 'checklist') return (
-       <div onClick={() => onUpdate(block.id, { checked: !block.checked })} className={clsx("w-[18px] h-[18px] rounded-full border flex items-center justify-center transition-all", block.checked ? "bg-accent/20 border-accent/40" : "border-border hover:border-accent/50")}>
-         {block.checked && <Check strokeWidth={2} className="w-3 h-3 text-accent stroke-[3px]" />}
-       </div>
+      <div onClick={() => onUpdate(block.id, { checked: !block.checked })} className={clsx("w-[16px] h-[16px] shrink-0 rounded-[4px] border-[1.5px] flex items-center justify-center transition-all cursor-pointer", block.checked ? "bg-white/20 border-white/40" : "border-white/20 hover:border-white/40")}>
+        {block.checked && <Check className="w-[12px] h-[12px] text-bone-100" strokeWidth={3} />}
+      </div>
     );
     return null;
   };
@@ -427,7 +597,8 @@ export function BlockRenderer({
       ref={setNodeRef}
       data-block-id={block.id}
       className={clsx(
-        "editor-block group flex flex-col relative overflow-visible py-0.5 transition-all duration-0",
+        "editor-block group flex flex-col relative overflow-visible transition-all duration-0",
+        effectiveStyle === 'mono' ? "py-2" : "py-0.5",
         "before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
         isFocused && "focused",
         isDragging && "z-50",
@@ -439,27 +610,29 @@ export function BlockRenderer({
       onMouseDown={() => onFocus?.(block.id)}
     >
       <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-      <div 
+      <div
         className={clsx(
-          "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] px-4 py-1",
-          !isSelected && (isFocused ? "bg-white/[0.01]" : "group-hover:bg-white/[0.01]"),
+          effectiveStyle === 'mono'
+            ? "relative w-full rounded-3xl transition-colors duration-0"
+            : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] px-4 py-1",
+          (!isSelected && effectiveStyle !== 'mono') && (isFocused ? "bg-white/[0.01]" : "group-hover:bg-white/[0.01]"),
           block.bgColor && "border px-[16px] py-[8px]",
-          isDragging && "opacity-60 shadow-2xl"
+          isDragging && "opacity-60"
         )}
         style={{ ... (block.bgColor ? colorStyle : {}) }}
       >
         <div className="flex-1 flex items-start w-full min-h-[1.5em] h-full relative">
           {(isList || isChecklist) && (
-            <div className={clsx("absolute left-[-32px] shrink-0 flex items-center justify-center", getLineHeightClass(effectiveStyle))} style={{ width: '32px' }}>
+            <div className={clsx("mr-2.5 shrink-0 flex items-start justify-center", getLineHeightClass(effectiveStyle))} style={{ width: '24px', paddingTop: isChecklist ? '4px' : '1px' }}>
               {listMarker()}
             </div>
           )}
           {block.foldingEnabled && (
-            <div 
+            <div
               className={clsx(
-                "absolute left-[-24px] shrink-0 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded transition-colors text-muted-foreground/40 hover:text-foreground", 
+                "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded transition-colors text-muted-foreground/40 hover:text-foreground",
                 getLineHeightClass(effectiveStyle)
-              )} 
+              )}
               style={{ width: '20px' }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -473,6 +646,7 @@ export function BlockRenderer({
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
+            spellCheck={effectiveStyle === 'mono' ? "false" : "true"}
             onFocus={() => { setIsFocused(true); onFocus?.(block.id); }}
             onBlur={() => setIsFocused(false)}
             data-placeholder={getPlaceholder(effectiveStyle, block.type, isFocused)}
@@ -481,14 +655,43 @@ export function BlockRenderer({
               !block.textColor && "text-foreground",
               getStyleClasses(effectiveStyle),
               isQuote && "italic text-muted-foreground",
-              block.checked && "line-through text-muted-foreground",
+              block.checked && "text-muted-foreground",
             )}
             dir="ltr"
-            style={{ textAlign: block.align ?? 'left', direction: 'ltr' }}
+            style={{
+              textAlign: block.align ?? 'left',
+              direction: 'ltr',
+              ...(block.checked ? {
+                color: 'var(--bone-30)',
+                textDecoration: 'line-through',
+                textDecorationThickness: '1px',
+                textDecorationColor: 'var(--bone-60)',
+              } : {}),
+            }}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onClick={handleContentClick}
+            onPaste={(e) => {
+              // Clean paste for mono code blocks always, and enforce text only for normal blocks to strip external styling
+              e.preventDefault();
+              const text = e.clipboardData.getData('text/plain');
+              document.execCommand('insertText', false, text);
+            }}
           />
+          {effectiveStyle === 'mono' && (
+            <button
+              contentEditable={false}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const text = contentRef.current?.textContent || '';
+                navigator.clipboard.writeText(text);
+              }}
+              className="absolute top-2.5 right-3 px-2 py-1.5 rounded bg-white/[0.05] text-white/40 hover:bg-white/[0.1] hover:text-white border border-white/10 transition-all opacity-0 group-hover:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -497,12 +700,12 @@ export function BlockRenderer({
 
 function getStyleClasses(style?: BlockStyle): string {
   switch (style) {
-    case 'title': return 'text-3xl font-bold tracking-tight leading-[1.3]';
-    case 'heading': return 'text-2xl font-bold leading-[1.3]';
-    case 'subheading': return 'text-xl font-semibold text-muted-foreground leading-[1.3]';
-    case 'mono': return 'font-mono text-sm bg-hover/50 rounded-lg px-3 py-2';
+    case 'title': return 'text-[30px] font-bold tracking-tight font-display leading-snug';
+    case 'heading': return 'text-[26px] font-bold font-display leading-snug';
+    case 'subheading': return 'text-[22px] font-semibold font-display text-muted-foreground leading-snug';
+    case 'mono': return 'font-mono text-[15px] bg-white/[0.02] border border-white/10 rounded-3xl px-4 py-3 leading-[1.6] overflow-x-auto whitespace-pre text-[#E6EDF3] w-full';
     case 'body':
-    default: return 'text-base font-ui leading-[1.5]';
+    default: return 'text-[19px] font-display leading-[133%] tracking-[0.01em]';
   }
 }
 
@@ -512,7 +715,7 @@ function getLineHeightClass(style?: BlockStyle): string {
     case 'heading':
     case 'subheading': return 'h-[1.3em]';
     case 'body':
-    default: return 'h-[1.5em]';
+    default: return 'h-[1.7em]';
   }
 }
 
@@ -522,7 +725,7 @@ function getPlaceholder(style?: BlockStyle, type?: string, isFocused?: boolean):
   if (type === 'checklist') return 'To-do...';
   if (type === 'quote') return 'Type a quote...';
   if (type === 'bulletList' || type === 'dashedList' || type === 'numberedList') return 'List item...';
-  
+
   switch (style) {
     case 'title': return 'Title';
     case 'heading': return 'Heading';
@@ -560,7 +763,7 @@ interface ControlsProps {
   blockId: string;
   menuOpen?: boolean;
   onInsertAfter: (afterId: string, forceType?: BlockType, openSlash?: boolean, inside?: boolean) => void;
-  onOpenMenu: (id: string, position: { x: number; y: number }) => void;
+  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean) => void;
   isDragging?: boolean;
   variant?: 'standard' | 'column' | 'section';
   listeners?: any;
@@ -575,16 +778,16 @@ interface BlockControlsProps extends ControlsProps {
   onDragStart?: (id: string, e: React.DragEvent) => void;
 }
 
-function BlockControls({ 
-  blockId, 
-  menuOpen, 
-  onInsertAfter, 
-  onOpenMenu, 
-  isDragging, 
-  onDragStart, 
+function BlockControls({
+  blockId,
+  menuOpen,
+  onInsertAfter,
+  onOpenMenu,
+  isDragging,
+  onDragStart,
   attributes,
   listeners,
-  blockStyle, 
+  blockStyle,
   hasBgColor,
   isFocused,
   isSelected
@@ -593,27 +796,28 @@ function BlockControls({
 
   const handleGripClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    onOpenMenu(blockId, { x: rect.right + 8, y: rect.top });
+    // User requested left side popup. Setting X to left edge - estimate menu width (approx 210px). 
+    // BlockOptionsMenu has internal bounding logic to keep it safe inside screen width.
+    onOpenMenu(blockId, { x: rect.left - 218, y: rect.top }, e.shiftKey);
   };
 
-  const styleClasses = getStyleClasses(blockStyle as BlockStyle);
   const heightClass = getLineHeightClass(blockStyle as BlockStyle);
 
   return (
-    <div 
+    <div
       className={clsx(
         "absolute right-full pr-[8px] flex items-center justify-center gap-1",
-        styleClasses,
         heightClass,
         (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 invisible group-hover:opacity-100 group-hover:visible has-[:active]:opacity-100 has-[:active]:visible"
       )}
-      style={{ 
+      style={{
         width: 'auto',
         minWidth: '42px',
         top: hasBgColor ? '0.5rem' : '0',
         zIndex: 101,
-        height: heightClass ? undefined : '1.5em' 
+        height: heightClass ? undefined : '1.5em'
       }}
     >
       <Tooltip content="Add below">
@@ -656,8 +860,8 @@ function MediaControls({ blockId, currentWidth, onWidthChange }: { blockId: stri
           onClick={(e) => { e.stopPropagation(); onWidthChange(size.value as any); }}
           className={clsx(
             "px-2.5 py-1.5 text-[9px] font-bold rounded-lg  ",
-            currentWidth === size.value 
-              ? "bg-accent/10 border border-accent/30 text-accent" 
+            currentWidth === size.value
+              ? "bg-accent/10 border border-accent/30 text-accent"
               : "text-muted-foreground/60 hover:bg-white/10 hover:text-foreground"
           )}
         >

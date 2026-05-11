@@ -13,7 +13,17 @@ export async function getModels() {
     .order('id', { ascending: true })
 
   if (error) throw new Error(error.message)
-  return data ?? []
+  
+  // Deduplicate by ID just in case of DB anomalies or trailing spaces
+  const unique = new Map<string, any>()
+  for (const m of (data ?? [])) {
+    const cleanId = m.id.trim()
+    if (!unique.has(cleanId)) {
+      unique.set(cleanId, { ...m, id: cleanId })
+    }
+  }
+  
+  return Array.from(unique.values())
 }
 
 export async function updateModel(id: string, updates: {
@@ -24,6 +34,9 @@ export async function updateModel(id: string, updates: {
   is_favorite?: boolean
   sort_order?: number
   provider?: string
+  is_paid?: boolean
+  prompt_cost?: number | null
+  completion_cost?: number | null
 }) {
   const { error } = await supabaseAdmin
     .from('models')
@@ -96,11 +109,35 @@ export async function addModel(model: {
   input_modalities: string[]
   output_modalities: string[]
   max_rpd?: number | null
+  is_paid?: boolean
+  prompt_cost?: number | null
+  completion_cost?: number | null
 }) {
   const { error } = await supabaseAdmin
     .from('models')
-    .insert({ ...model, usage_today: 0, last_reset_date: new Date().toISOString().split('T')[0] })
+    .insert({ 
+      ...model, 
+      id: model.id.trim(),
+      is_paid: model.is_paid ?? false,
+      prompt_cost: model.prompt_cost ?? null,
+      completion_cost: model.completion_cost ?? null,
+      usage_today: 0, 
+      last_reset_date: new Date().toISOString().split('T')[0] 
+    })
 
   if (error) throw new Error(error.message)
   revalidatePath('/admin/models')
+}
+
+export async function logModelCost(cost: {
+  model_id: string
+  provider: string
+  prompt_cost: number
+  completion_cost: number
+  total_cost: number
+  prompt_tokens: number
+  completion_tokens: number
+}) {
+  const { error } = await supabaseAdmin.from('cost_log').insert(cost)
+  if (error) console.error('[CostLog] Failed to log cost:', error.message)
 }

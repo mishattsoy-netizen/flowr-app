@@ -30,15 +30,26 @@ export function TaskCardUI({
   const today = new Date().toISOString().split('T')[0];
   const isOverdue = !task.completed && task.dueDate && task.dueDate < today;
 
+  const openModal = useStore(s => s.openModal);
+  const onClick = () => {
+    openModal({ kind: 'newTask', taskId: task.id });
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      onClick={(e) => {
+        // Prevent default click behavior if drag was initiated (though dnd-kit usually handles this, be explicit)
+        if (!isDragging) {
+          onClick();
+        }
+      }}
       className={clsx(
-        "group relative bg-[var(--bone-2)] border border-[var(--bone-6)] p-3 rounded-[var(--radius-medium)] cursor-grab active:cursor-grabbing shrink-0",
-        "touch-none select-none", // Important for dnd-kit
+        "group relative bg-[var(--bone-2)] border border-[var(--bone-6)] p-3 rounded-[12px] cursor-pointer active:cursor-grabbing shrink-0",
+        "touch-none select-none",
         !isDragging && "hover:bg-[var(--bone-6)] transition-colors duration-150",
         "flex flex-col gap-2"
       )}
@@ -64,23 +75,63 @@ export function TaskCardUI({
         {task.title}
       </h3>
 
-      {/* Meta (Due Date) */}
-      {task.dueDate && (
-        <div className="flex items-center gap-1.5 mt-1">
-          <Calendar className={clsx("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
-          <span className={clsx(
-            "text-[10px] font-ui",
-            isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-40)]"
-          )}>
-            {task.dueDate}
-          </span>
+      {/* Description/Note Clamped */}
+      {(task.description || task.note) && (
+        <p className="text-[11px] text-[var(--bone-60)] leading-relaxed line-clamp-2 break-words">
+          {task.description || task.note}
+        </p>
+      )}
+
+      {/* Embedded Subtasks (Fix 3.7) */}
+      {task.subtasks && task.subtasks.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-1">
+          {task.subtasks.slice(0, 3).map(sub => (
+            <div key={sub.id} className="flex items-center gap-2 text-[10px] text-[var(--bone-70)]">
+              <div className={clsx(
+                "w-2.5 h-2.5 rounded-full border flex items-center justify-center flex-shrink-0",
+                sub.completed ? "bg-[var(--accent)] border-[var(--accent)]" : "border-[var(--bone-30)]"
+              )}>
+                {sub.completed && <div className="w-1 h-1 rounded-full bg-white" />}
+              </div>
+              <span className={clsx(sub.completed && "line-through text-[var(--bone-40)]")}>{sub.text}</span>
+            </div>
+          ))}
+          {task.subtasks.length > 3 && (
+            <span className="text-[9px] text-[var(--bone-40)] ml-4.5 font-medium">+{task.subtasks.length - 3} more</span>
+          )}
         </div>
       )}
+
+      {/* Meta (Due Date & Priority) */}
+      <div className="flex items-center justify-between mt-auto pt-1">
+        {task.dueDate ? (
+          <div className="flex items-center gap-1.5">
+            <Calendar className={clsx("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
+            <span className={clsx(
+              "text-[10px] font-ui",
+              isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-40)]"
+            )}>
+              {task.dueDate}
+            </span>
+          </div>
+        ) : <div />}
+
+        {task.priority && (
+          <div className={clsx(
+            "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider",
+            task.priority === 'high' ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+            task.priority === 'medium' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+            "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+          )}>
+            {task.priority}
+          </div>
+        )}
+      </div>
 
       {/* Decorative side strip */}
       <div 
         className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full" 
-        style={{ backgroundColor: task.completed ? 'var(--bone-20)' : 'var(--accent)' }}
+        style={{ backgroundColor: task.completed ? 'var(--bone-20)' : (task.color || 'var(--accent)') }}
       />
     </div>
   );
@@ -112,7 +163,7 @@ export function TaskCard({ task }: { task: AppTask }) {
       <div
         ref={setNodeRef}
         style={style}
-        className="rounded-[var(--radius-medium)] border-2 border-dashed border-[var(--accent)]/40 bg-[var(--accent)]/5 h-[88px]"
+        className="rounded-[12px] border-2 border-dashed border-[var(--accent)]/40 bg-[var(--accent)]/5 h-[88px]"
       />
     );
   }

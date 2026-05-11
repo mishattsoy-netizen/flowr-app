@@ -5,6 +5,13 @@
 .font-thin,
 .font-extralight,
 .font-light,
+.font-normal {
+  font-weight: 500 !important;
+}
+
+.font-thin,
+.font-extralight,
+.font-light,
 .font-normal,
 .font-medium,
 .font-semibold,
@@ -69,8 +76,20 @@
   --radius-medium: 8px;
   --radius-8: 8px;
   --radius-small: 6px;
+  --color-brand-blue: #2A78D6;
+  --brand-blue: #2A78D6;
   --: 0;
   color-scheme: dark;
+}
+
+@layer base {
+  body {
+    font-weight: 500;
+  }
+}
+
+.toggle-switch:checked {
+  background-color: var(--brand-blue);
 }
 
 .is-dragging-widget {
@@ -133,9 +152,10 @@ html[data-interface-size="big"] {
   --radius-small: var(--radius-small);
   --radius-big: var(--radius-big);
   --radius-lg: var(--radius-big);
-  --radius-xl: var(--radius-big);
-  --radius-2xl: var(--radius-big);
-  --radius-3xl: var(--radius-big);
+  --radius-xl: 16px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
+  --color-brand-blue: var(--brand-blue);
 }
 
 @utility widget {
@@ -723,8 +743,8 @@ html {
 }
 
 .prose ul>li::before,
-.prose ul>li svg,
-.prose ul>li span[aria-hidden="true"] {
+.prose ul>li>svg,
+.prose ul>li>span[aria-hidden="true"] {
   margin-top: 0.45em !important;
   /* Aligned with first row cap-height */
 }
@@ -793,7 +813,7 @@ html {
 .ai-cursor-inline {
   display: inline-block;
   animation: ai-cursor-blink 1s step-end infinite;
-  color: var(--accent);
+  color: var(--bone-100);
   margin-left: 2px;
   font-size: 0.9em;
   vertical-align: middle;
@@ -1020,7 +1040,8 @@ body.is-dragging-widget [data-widget-id] * {
   cursor: crosshair;
 }
 
-.selected-block .flex-1.flex.items-start {
+.selected-block .flex-1.flex.items-start,
+.selected-block .relative.w-full {
   background-color: var(--bone-5);
   box-shadow: 0 0 0 1px var(--bone-15);
 }

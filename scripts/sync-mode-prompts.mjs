@@ -13,6 +13,7 @@ import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
+const promptDir = join(root, 'bot prompts(premission to edit needed!)')
 
 // Load env
 const envRaw = readFileSync(join(root, '.env'), 'utf8')
@@ -39,7 +40,6 @@ const SECTION_MAP = {
 
 const MODE_FILES = [
   { mode: 'default', file: 'mode-default.txt' },
-  { mode: 'think',   file: 'mode-think.txt'   },
   { mode: 'pro',     file: 'mode-pro.txt'     },
 ]
 
@@ -71,7 +71,7 @@ function parseSections(text) {
 }
 
 async function syncMode(mode, file) {
-  const text = readFileSync(join(root, file), 'utf8')
+  const text = readFileSync(join(promptDir, file), 'utf8')
   const sections = parseSections(text)
 
   const categories = Object.keys(sections)
@@ -94,7 +94,7 @@ async function syncMode(mode, file) {
 }
 
 async function recompileAll() {
-  for (const mode of ['default', 'think', 'pro']) {
+  for (const mode of ['default', 'pro']) {
     // Load all active settings for this mode
     const { data: settings, error: sErr } = await supabase
       .from('bot_settings')

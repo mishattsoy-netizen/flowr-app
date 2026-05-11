@@ -82,15 +82,16 @@ Rules:
 
 Message: "${message}"`
 
-      let response: string | null = null
+      let response: any = null
       const ctx: any = {}
       if (model.provider === 'google') response = await runGoogle(model.id, prompt, undefined, undefined, ctx)
       else if (model.provider === 'groq') response = await runGroq(model.id, prompt, undefined, undefined, ctx)
 
       if (response) {
+        const content = typeof response === 'object' ? response.content : response
         const cats: RoadmapCategory[] = ['COMPLEX', 'FAST', 'WEB_SEARCH', 'VISION']
         for (const cat of cats) {
-          if (response.toUpperCase().includes(cat)) return cat
+          if (content.toUpperCase().includes(cat)) return cat
         }
       }
     } catch (e: any) {
@@ -118,7 +119,7 @@ export async function runRoadmapChain(
       if (providerKeys.length === 0) providerKeys = ['']
 
       const routeContext: any = { aiApiKey: providerKeys[0] }
-      let response: string | null = null
+      let response: any = null
 
       if (model.provider === 'google') {
         response = await runGoogle(model.id, prompt, systemPrompt, buffer, routeContext, history)
@@ -130,7 +131,8 @@ export async function runRoadmapChain(
       }
 
       if (response) {
-        let cleanResponse = response.trim()
+        const content = typeof response === 'object' ? response.content : response
+        let cleanResponse = content.trim()
 
         // Normalize: strip backtick-wrapped tags the model sometimes outputs (e.g. `<answer>`)
         cleanResponse = cleanResponse.replace(/`(<\/?(?:answer|thought|think)>)`/gi, '$1')
@@ -140,7 +142,7 @@ export async function runRoadmapChain(
 
         // Extract all [ROADMAP_ACTION] blocks BEFORE cleaning (they may be outside <answer>)
         const actionBlocks: string[] = []
-        cleanResponse = cleanResponse.replace(/(\[ROADMAP_ACTION\][\s\S]*?\[\/ROADMAP_ACTION\])/gi, (match) => {
+        cleanResponse = cleanResponse.replace(/(\[ROADMAP_ACTION\][\s\S]*?\[\/ROADMAP_ACTION\])/gi, (match: string) => {
           actionBlocks.push(match)
           return ''
         })
@@ -162,16 +164,16 @@ export async function runRoadmapChain(
           // Detects patterns like "* The user said..." or "* I should..." which are internal reasoning
           const lines = cleanResponse.split('\n')
           const reasoningPatterns = /^\s*[\*\-•]\s*(The user|I should|I need to|Therefore|This is|Keep it|Greeting|Acknowledge|Introduce|Wrap|No \[|Output|Respond with)/i
-          const hasReasoningBlock = lines.some(l => reasoningPatterns.test(l))
+          const hasReasoningBlock = lines.some((l: string) => reasoningPatterns.test(l))
 
           if (hasReasoningBlock) {
             // Find the last block of non-bullet, non-empty text — that's the actual answer
             const paragraphs = cleanResponse.split(/\n\n+/)
-            const answerParagraphs = paragraphs.filter(p => {
+            const answerParagraphs = paragraphs.filter((p: string) => {
               const trimmed = p.trim()
               if (!trimmed) return false
               // Skip blocks that are entirely bullet points
-              const bulletLines = trimmed.split('\n').filter(l => /^\s*[\*\-•]/.test(l))
+              const bulletLines = trimmed.split('\n').filter((l: string) => /^\s*[\*\-•]/.test(l))
               return bulletLines.length < trimmed.split('\n').length / 2
             })
             if (answerParagraphs.length > 0) {

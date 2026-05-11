@@ -145,7 +145,14 @@ export const Sidebar = React.memo(function Sidebar() {
     [entities, favoriteIds, isEntityVisible, sidebarSectionSettings]
   );
   const unsortedEntitiesBase = useMemo(
-    () => sortEntities(entities.filter(e => (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') && !e.parentId && isEntityVisible(e)), 'unsorted'),
+    () => sortEntities(
+      entities.filter(e => 
+        (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') && 
+        (!e.parentId || !entities.some(p => p.id === e.parentId)) && 
+        isEntityVisible(e)
+      ),
+      'unsorted'
+    ),
     [entities, isEntityVisible, sidebarSectionSettings]
   );
 

@@ -6,7 +6,10 @@ import { useMemo } from 'react';
 interface Props {
   blocks: EditorBlock[];
   selectedIds: Set<string>;
+  viewport: { x: number; y: number; scale: number };
+  updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   onSelect: (id: string, addToSelection: boolean) => void;
+  onCommit?: () => void;
 }
 
 function shapeStroke(style: CanvasStyleExt): string {
@@ -28,8 +31,8 @@ function strokeDasharray(style: CanvasStyleExt): string {
   return 'none';
 }
 
-function ShapeEl({ block, isSelected, onSelect }: {
-  block: EditorBlock; isSelected: boolean; onSelect: (id: string, shift: boolean) => void;
+function ShapeEl({ block, isSelected, onPointerDown }: {
+  block: EditorBlock; isSelected: boolean; onPointerDown: (e: React.PointerEvent) => void;
 }) {
   const style = block.canvasStyleExt ?? {};
   const x = block.x ?? 0, y = block.y ?? 0;
@@ -40,7 +43,7 @@ function ShapeEl({ block, isSelected, onSelect }: {
   const fill = shapeFill(style);
   const da = strokeDasharray(style);
   const opacity = style.opacity ?? 1;
-  const selectionStroke = 'rgba(211,143,54,0.9)';
+  const selectionStroke = 'var(--brand-blue)';
 
   const sharedProps = {
     stroke: isSelected ? selectionStroke : stroke,
@@ -49,10 +52,7 @@ function ShapeEl({ block, isSelected, onSelect }: {
     fill,
     opacity,
     style: { cursor: 'move' },
-    onPointerDown: (e: React.PointerEvent) => {
-      e.stopPropagation();
-      onSelect(block.id, e.shiftKey);
-    },
+    onPointerDown,
   };
 
   if (block.shapeKind === 'rect') {
@@ -63,7 +63,7 @@ function ShapeEl({ block, isSelected, onSelect }: {
   }
   if (block.shapeKind === 'diamond') {
     const pts = `${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`;
-    return <polygon points={pts} {...sharedProps} />;
+    return <polygon points={pts} {...sharedProps} strokeLinejoin={r > 0 ? "round" : "miter"} />;
   }
   if (block.shapeKind === 'line' || block.shapeKind === 'arrow') {
     const pts = block.points ?? [[x, y], [x + w, y + h]];
@@ -87,7 +87,7 @@ function ShapeEl({ block, isSelected, onSelect }: {
           opacity={opacity}
           markerEnd={block.shapeKind === 'arrow' ? `url(#${markerId})` : undefined}
           style={{ cursor: 'move' }}
-          onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id, e.shiftKey); }}
+          onPointerDown={onPointerDown}
         />
       </>
     );
@@ -104,15 +104,79 @@ function ShapeEl({ block, isSelected, onSelect }: {
         opacity={opacity}
         strokeLinecap="round" strokeLinejoin="round"
         style={{ cursor: 'move' }}
-        onPointerDown={(e) => { e.stopPropagation(); onSelect(block.id, e.shiftKey); }}
+        onPointerDown={onPointerDown}
       />
     );
   }
   return null;
 }
 
-export function CanvasShapeLayer({ blocks, selectedIds, onSelect }: Props) {
+export function CanvasShapeLayer({ blocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit }: Props) {
   const shapes = useMemo(() => blocks.filter(b => b.type === 'shape'), [blocks]);
+
+  const handleShapePointerDown = (e: React.PointerEvent, clickedBlock: EditorBlock) => {
+    e.stopPropagation();
+    const isAlreadySelected = selectedIds.has(clickedBlock.id);
+    
+    if (!isAlreadySelected) {
+      onSelect(clickedBlock.id, e.shiftKey);
+    }
+
+    if (e.button !== 0) return;
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+
+    const groupIds = isAlreadySelected ? Array.from(selectedIds) : [clickedBlock.id];
+    
+    // Rigid group capture snapshot
+    const snapshot = new Map<string, { x: number; y: number; points?: [number, number][] }>();
+    blocks.forEach(b => {
+      if (groupIds.includes(b.id)) {
+        snapshot.set(b.id, {
+          x: b.x ?? 0,
+          y: b.y ?? 0,
+          points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined
+        });
+      }
+    });
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const deltaX = (moveEvent.clientX - startClientX) / viewport.scale;
+      const deltaY = (moveEvent.clientY - startClientY) / viewport.scale;
+
+      const updates: { id: string; updates: Partial<EditorBlock> }[] = [];
+      snapshot.forEach((snap, id) => {
+        if (snap.points) {
+          updates.push({
+            id,
+            updates: { points: snap.points.map(p => [p[0] + deltaX, p[1] + deltaY] as [number, number]) }
+          });
+        } else {
+          updates.push({
+            id,
+            updates: { x: snap.x + deltaX, y: snap.y + deltaY }
+          });
+        }
+      });
+      updateCanvasBlocks(updates);
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      const movedDist = Math.hypot(upEvent.clientX - startClientX, upEvent.clientY - startClientY);
+      
+      if (movedDist < 4 && isAlreadySelected && !upEvent.shiftKey) {
+        onSelect(clickedBlock.id, false);
+      }
+      
+      onCommit?.();
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  };
 
   return (
     <svg
@@ -121,7 +185,11 @@ export function CanvasShapeLayer({ blocks, selectedIds, onSelect }: Props) {
     >
       {shapes.map(b => (
         <g key={b.id} style={{ pointerEvents: 'auto' }}>
-          <ShapeEl block={b} isSelected={selectedIds.has(b.id)} onSelect={onSelect} />
+          <ShapeEl 
+            block={b} 
+            isSelected={selectedIds.has(b.id)} 
+            onPointerDown={(e) => handleShapePointerDown(e, b)} 
+          />
         </g>
       ))}
     </svg>

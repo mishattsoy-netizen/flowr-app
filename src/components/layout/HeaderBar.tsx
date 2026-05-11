@@ -63,7 +63,7 @@ export const HeaderBar = memo(function HeaderBar() {
   const addTab = useStore(state => state.addTab);
   const lastSaved = useStore(state => state.lastSaved);
   const cloudSyncEnabled = useStore(state => state.cloudSyncEnabled);
-  const setCloudSyncEnabled = useStore(state => state.setCloudSyncEnabled);
+  const toggleEntityCloudSync = useStore(state => state.toggleEntityCloudSync);
 
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < navigationHistory.length - 1;
@@ -305,24 +305,29 @@ export const HeaderBar = memo(function HeaderBar() {
             </div>
 
             <div className="flex items-center gap-2 pl-3 border-l border-[var(--bone-6)] h-full">
-              <button 
-                onClick={() => setCloudSyncEnabled(!cloudSyncEnabled)}
-                className={clsx(
-                  "flex items-center gap-1.5 px-2 py-0.5 rounded-full transition-all border",
-                  cloudSyncEnabled 
-                    ? "bg-accent/10 border-accent/20 text-accent" 
-                    : "bg-[var(--bone-6)] border-[var(--bone-10)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                )}
-              >
-                {cloudSyncEnabled ? <Cloud strokeWidth={2} className="w-3 h-3" /> : <CloudOff strokeWidth={2} className="w-3 h-3" />}
-                <span className="font-medium">{cloudSyncEnabled ? 'Cloud Sync' : 'Local Only'}</span>
-                <Toggle 
-                  size="sm"
-                  checked={cloudSyncEnabled}
-                  onChange={() => {}}
-                  className="pointer-events-none scale-75 origin-right"
-                />
-              </button>
+              {(() => {
+                const isSynced = !!activeEntity.cloudSyncEnabled;
+                return (
+                  <button 
+                    onClick={() => toggleEntityCloudSync(activeEntity.id)}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-small)] transition-all bg-[var(--bone-6)]",
+                      isSynced 
+                        ? "text-accent" 
+                        : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
+                    )}
+                  >
+                    {isSynced ? <Cloud strokeWidth={2} className="w-3 h-3" /> : <CloudOff strokeWidth={2} className="w-3 h-3" />}
+                    <span className="font-medium">{isSynced ? 'Cloud Sync' : 'Local Only'}</span>
+                    <Toggle 
+                      size="sm"
+                      checked={isSynced}
+                      onChange={() => {}}
+                      className="pointer-events-none scale-75 origin-right"
+                    />
+                  </button>
+                );
+              })()}
             </div>
           </div>
         );

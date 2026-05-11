@@ -82,34 +82,44 @@ export default function ActivityLogSidebar({ defaultOpen = false }: Props) {
         open ? "w-64" : "w-10"
       )}>
         {/* Toggle button */}
-        <button
-          onClick={() => setOpen(v => !v)}
-          className="flex items-center justify-center h-12 w-full border-b border-border hover:bg-[var(--bone-6)] transition-colors shrink-0"
-          title={open ? 'Collapse activity log' : 'Open activity log'}
+        <div
+          className="flex items-center justify-center h-12 w-full border-b border-border transition-colors shrink-0"
         >
           {open ? (
             <div className="flex items-center gap-2 w-full px-3">
-              <ClipboardList className="w-3.5 h-3.5 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
-              <span className="text-xs font-medium text-[var(--bone-60)] flex-1">Activity Log</span>
+              <div 
+                className="flex items-center gap-2 flex-1 cursor-pointer hover:text-foreground transition-colors py-2"
+                onClick={() => setOpen(false)}
+                title="Collapse activity log"
+              >
+                <ClipboardList className="w-3.5 h-3.5 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
+                <span className="text-xs font-medium text-[var(--bone-60)]">Activity Log</span>
+              </div>
               <button
                 onClick={e => { e.stopPropagation(); fetchLogs(true) }}
-                className="p-0.5 rounded hover:text-foreground text-[var(--bone-40)]"
+                className="p-0.5 rounded hover:text-foreground text-[var(--bone-40)] transition-colors"
                 title="Refresh logs"
               >
                 <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} strokeWidth={2} />
               </button>
               <button
                 onClick={e => { e.stopPropagation(); setShowClearConfirm(true) }}
-                className="p-0.5 rounded hover:text-red-400 text-[var(--bone-40)] ml-1"
+                className="p-0.5 rounded hover:text-red-400 text-[var(--bone-40)] ml-1 transition-colors"
                 title="Clear activity logs"
               >
                 <Trash2 className="w-3 h-3" strokeWidth={2} />
               </button>
             </div>
           ) : (
-            <ClipboardList className="w-3.5 h-3.5 text-[var(--bone-40)]" strokeWidth={2} />
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center justify-center w-full h-full hover:bg-[var(--bone-6)] transition-colors"
+              title="Open activity log"
+            >
+              <ClipboardList className="w-3.5 h-3.5 text-[var(--bone-40)]" strokeWidth={2} />
+            </button>
           )}
-        </button>
+        </div>
 
         {/* Log list */}
         {open && (

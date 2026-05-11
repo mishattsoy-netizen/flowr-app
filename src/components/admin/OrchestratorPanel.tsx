@@ -10,12 +10,14 @@ interface Props {
     orchestrator_enabled?: boolean
     max_pipeline_steps?: number
     image_gen_auto_last?: boolean
+    history_limit?: number
   }
 }
 
 export default function OrchestratorPanel({ settings }: Props) {
   const [orchestratorOn, setOrchestratorOn] = useState(settings.orchestrator_enabled !== false)
   const [maxSteps, setMaxSteps] = useState(settings.max_pipeline_steps ?? 7)
+  const [historyLimit, setHistoryLimit] = useState(settings.history_limit ?? 10)
   const [autoLast, setAutoLast] = useState(settings.image_gen_auto_last !== false)
   const [, startTransition] = useTransition()
 
@@ -40,11 +42,14 @@ export default function OrchestratorPanel({ settings }: Props) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-bone-80 font-medium">Max Pipeline Steps</span>
-              <Info className="w-3 h-3 text-bone-40 cursor-help" />
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-bone-80 font-medium">Max Pipeline Steps</span>
+                <Info className="w-3 h-3 text-bone-40 cursor-help" />
+              </div>
+              <p className="text-[10px] text-bone-40 italic">Max steps in a single reasoning loop</p>
             </div>
             <div className="flex items-center gap-2">
               <input 
@@ -56,7 +61,25 @@ export default function OrchestratorPanel({ settings }: Props) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-white/5 pt-4">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-bone-80 font-medium">Conversation History Limit</span>
+                <Info className="w-3 h-3 text-bone-40 cursor-help" />
+              </div>
+              <p className="text-[10px] text-bone-40 italic">Number of past messages to include in context</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="range" min={2} max={50} step={2} value={historyLimit}
+                onChange={e => handleUpdate('history_limit', parseInt(e.target.value), setHistoryLimit)}
+                className="w-24 accent-accent" 
+              />
+              <span className="text-xs font-mono text-accent w-5">{historyLimit}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-white/5 pt-4">
             <span className="text-xs text-bone-80 font-medium">Auto-Last Image Gen</span>
             <Toggle checked={autoLast} onChange={v => handleUpdate('image_gen_auto_last', v, setAutoLast)} />
           </div>

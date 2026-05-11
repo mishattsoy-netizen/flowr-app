@@ -16,6 +16,9 @@ function buildAdvisorPrompt(
   thinkingEnabled: boolean,
   availableTools: string[]
 ): string {
+  const now = new Date()
+  const dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
+
   const sessionState = [
     `Mode: ${mode}`,
     `Think mode: ${thinkingEnabled ? 'on' : 'off'}`,
@@ -23,7 +26,7 @@ function buildAdvisorPrompt(
     `Available tools: ${availableTools.length > 0 ? availableTools.join(', ') : 'none'}`,
   ].join('\n')
 
-  return `[CURRENT SESSION STATE]\n${sessionState}\n\n[USER MESSAGE]\n${message}`
+  return `${dateContext}\n[CURRENT SESSION STATE]\n${sessionState}\n\n[USER MESSAGE]\n${message}`
 }
 
 export async function runAdvisor(
@@ -52,7 +55,7 @@ export async function runAdvisor(
     if (!modelConfig.is_enabled) continue
     try {
       const provider = modelConfig.provider.toLowerCase()
-      let response: string | null = null
+      let response: any = null
 
       if (provider === 'google') {
         const { runGoogle } = await import('./providers/google')
@@ -63,11 +66,12 @@ export async function runAdvisor(
       } else if (provider === 'openrouter') {
         const { runOpenRouter } = await import('./providers/openrouter')
         const keys = await getProviderKeys('OPENROUTER')
-        response = await runOpenRouter(modelConfig.id, advisorPrompt, systemPrompt, [], keys[0] || '')
+        response = await runOpenRouter(modelConfig.id, advisorPrompt, systemPrompt, [], keys[0] || '', modelConfig.openrouter_provider || undefined)
       }
 
       if (response) {
-        const trimmed = response.trim()
+        const content = typeof response === 'object' ? response.content : response
+        const trimmed = content.trim()
         if (trimmed.toUpperCase() === PASS_SIGNAL) {
           return { shouldAsk: false, questions: null }
         }

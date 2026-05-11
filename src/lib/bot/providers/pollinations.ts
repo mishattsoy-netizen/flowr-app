@@ -1,6 +1,6 @@
 import { logger } from '../../logger'
 
-const POLLINATIONS_TIMEOUT_MS = 30000
+const POLLINATIONS_TIMEOUT_MS = 60000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -12,8 +12,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export async function runPollinations(prompt: string, model?: string): Promise<Buffer | null> {
   try {
     const seed = Math.floor(Math.random() * 1000000)
-    let url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&width=1024&height=1024&nologo=true`
+    let url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true`
     if (model) url += `&model=${encodeURIComponent(model)}`
+    // Appending resolution last to ensure it takes precedence
+    url += `&width=1024&height=1024`
 
     logger.info(`Generating image via Pollinations [${model || 'default'}]: ${url}`)
     const response = await withTimeout(fetch(url), POLLINATIONS_TIMEOUT_MS, `Pollinations image [${model}]`)

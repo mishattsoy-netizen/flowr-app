@@ -113,57 +113,51 @@ export default function PipelinePromptsPanel({ initialPrompts }: Props) {
                     placeholder="Enter custom internal prompt for this chain... (leave empty to use default)"
                     className="w-full h-32 bg-black/40 border border-white/5 rounded-[8px] p-3 text-xs text-bone-80 focus:outline-none focus:border-accent/40 font-mono leading-relaxed"
                   />
-                  <div className="flex justify-end gap-2">
-                    {hasCustom && (
-                      <button 
-                        onClick={() => handleReset(type)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-rose-500/10 text-rose-400 text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition-colors"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        Reset Default
-                      </button>
-                    )}
-                    <button onClick={() => handleSave(type)} disabled={saving === type || prompts[type] === (initialPrompts.value[type] || '')} className="flex items-center gap-1 px-3 py-1 bg-accent text-on-accent rounded-[8px] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all">
-                      {saving === type ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                      {saving === type ? 'Saving...' : 'Save'}
-                    </button>
-                    <div className="flex flex-col items-end min-w-[60px]">
-                      <span className="text-[9px] font-bold text-bone-40 uppercase tracking-tighter">Length</span>
-                      <span className="text-[10px] font-mono text-bone-60 opacity-60">
-                        {(prompts[type] || '').length.toLocaleString()} chars
-                      </span>
+                  <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
+                    <div className="flex flex-col">
+                      {initialPrompts.value[type] && (
+                        <div className="flex flex-col items-start">
+                          <span className="text-[9px] font-bold text-bone-40 uppercase tracking-tighter">Last Synced</span>
+                          <span className="text-[10px] font-mono text-bone-60 opacity-60">
+                            {new Date(initialPrompts.updated_at || '').toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-1">
-                    {initialPrompts.value[type] && (
-                      <div className="flex flex-col items-end mr-auto">
-                        <span className="text-[9px] font-bold text-bone-40 uppercase tracking-tighter">Last Synced</span>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-end mr-2">
+                        <span className="text-[9px] font-bold text-bone-40 uppercase tracking-tighter">Length</span>
                         <span className="text-[10px] font-mono text-bone-60 opacity-60">
-                          {new Date(initialPrompts.updated_at || '').toLocaleString()}
+                          {(prompts[type] || '').length.toLocaleString()} chars
                         </span>
                       </div>
-                    )}
-                    {hasCustom && (
+
+                      {hasCustom && (
+                        <button 
+                          onClick={() => handleReset(type)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] bg-rose-500/10 text-rose-400 text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition-colors"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Reset Default
+                        </button>
+                      )}
+                      
                       <button 
-                        onClick={() => handleReset(type)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-rose-500/10 text-rose-400 text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition-colors"
+                        onClick={() => handleSave(type)} 
+                        disabled={saving === type || (prompts[type] || '') === (initialPrompts.value[type] || '')} 
+                        className="flex items-center gap-2 px-6 py-2 bg-accent text-on-accent rounded-[8px] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all shadow-lg"
                       >
-                        <RotateCcw className="w-3 h-3" />
-                        Reset Default
+                        {saving === type ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        {saving === type ? 'Saving...' : 'Save Prompt'}
                       </button>
-                    )}
-                    {(prompts[type] || '') !== (initialPrompts.value[type] || '') && (
-                      <span className="text-[9px] font-bold text-accent animate-pulse uppercase tracking-widest self-center mr-2">Unsaved Changes</span>
-                    )}
-                    <button 
-                      onClick={() => handleSave(type)} 
-                      disabled={saving === type || (prompts[type] || '') === (initialPrompts.value[type] || '')} 
-                      className="flex items-center gap-2 px-6 py-2 bg-accent text-on-accent rounded-[8px] text-[10px] font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all shadow-lg"
-                    >
-                      {saving === type ? <RotateCcw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                      {saving === type ? 'Saving...' : 'Save Prompt'}
-                    </button>
+                    </div>
                   </div>
+                  {(prompts[type] || '') !== (initialPrompts.value[type] || '') && (
+                    <div className="flex justify-end mt-1">
+                      <span className="text-[9px] font-bold text-accent animate-pulse uppercase tracking-widest">Unsaved Changes</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

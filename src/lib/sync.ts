@@ -99,7 +99,10 @@ function rowToTask(row: Record<string, any>): AppTask {
     entityId:    row.entity_id ?? null,
     workspaceId: row.workspace_id ?? null,
     note:        row.note ?? undefined,
+    description: row.description ?? undefined,
     color:       row.color ?? undefined,
+    priority:    row.priority ?? undefined,
+    subtasks:    row.subtasks ?? undefined,
     difficulty:  row.difficulty ?? undefined,
     createdAt:   row.created_at ?? undefined,
   };
@@ -118,7 +121,10 @@ function taskToRow(t: AppTask): Record<string, any> {
   if (t.entityId)   row.entity_id   = t.entityId;
   if (t.workspaceId) row.workspace_id = t.workspaceId;
   if (t.note)       row.note        = t.note;
+  if (t.description) row.description = t.description;
   if (t.color)      row.color       = t.color;
+  if (t.priority)   row.priority    = t.priority;
+  if (t.subtasks)   row.subtasks    = t.subtasks;
   if (t.difficulty) row.difficulty  = t.difficulty;
   if (t.createdAt)  row.created_at  = t.createdAt;
   
@@ -186,20 +192,37 @@ export async function deleteWorkspaceFromDB(id: string) {
 export async function upsertEntity(entity: Entity) {
   if (!supabase) return;
   const row = entityToRow(entity);
-  let { error } = await supabase
-    .from('entities')
-    .upsert(row, { onConflict: 'id' });
-  
-  // If the new widget_layout column doesn't exist yet, retry without it
-  if (error && error.message.includes('widget_layout')) {
-    const fallbackRow = { ...row };
-    delete fallbackRow.widget_layout;
-    const { error: error2 } = await supabase
-      .from('entities')
-      .upsert(fallbackRow, { onConflict: 'id' });
-    error = error2;
+
+  async function performUpsert(currentRow: Record<string, any>): Promise<{ error: any }> {
+    const result = await supabase!.from('entities').upsert(currentRow, { onConflict: 'id' });
+    
+    // If a column is missing OR a foreign key is violated, remove the offending field and retry
+    const isColumnError = result.error && result.error.message.includes('column') && result.error.message.includes('not find');
+    const isFKError = result.error && result.error.message.includes('violates foreign key constraint');
+    
+    if (result.error && (isColumnError || isFKError)) {
+      const match = result.error.message.match(/'([^']+)'/);
+      const missingColumn = match ? match[1] : null;
+      
+      // For FK errors, we need to extract the column name (e.g. from "tasks_workspace_id_fkey")
+      let fieldToRemove = missingColumn;
+      if (isFKError) {
+        if (result.error.message.includes('workspace_id')) fieldToRemove = 'workspace_id';
+        else if (result.error.message.includes('parent_id')) fieldToRemove = 'parent_id';
+        else if (result.error.message.includes('entity_id')) fieldToRemove = 'entity_id';
+      }
+      
+      if (fieldToRemove && currentRow[fieldToRemove] !== undefined) {
+        console.warn(`[Flowr sync] Field '${fieldToRemove}' caused error in 'entities' table. Retrying without it.`);
+        const nextRow = { ...currentRow };
+        delete nextRow[fieldToRemove];
+        return performUpsert(nextRow);
+      }
+    }
+    return result;
   }
-  
+
+  const { error } = await performUpsert(row);
   if (error) console.error('[Flowr sync] upsertEntity:', error.message);
 }
 
@@ -212,20 +235,36 @@ export async function deleteEntityFromDB(id: string) {
 export async function upsertTask(task: AppTask) {
   if (!supabase) return;
   const row = taskToRow(task);
-  let { error } = await supabase
-    .from('tasks')
-    .upsert(row, { onConflict: 'id' });
+  
+  async function performUpsert(currentRow: Record<string, any>): Promise<{ error: any }> {
+    const result = await supabase!.from('tasks').upsert(currentRow, { onConflict: 'id' });
+    
+    // If a column is missing OR a foreign key is violated, remove the offending field and retry
+    const isColumnError = result.error && result.error.message.includes('column') && result.error.message.includes('not find');
+    const isFKError = result.error && result.error.message.includes('violates foreign key constraint');
 
-  // If the new workspace_id column doesn't exist yet, retry without it
-  if (error && error.message.includes('workspace_id')) {
-    const fallbackRow = { ...row };
-    delete fallbackRow.workspace_id;
-    const { error: error2 } = await supabase
-      .from('tasks')
-      .upsert(fallbackRow, { onConflict: 'id' });
-    error = error2;
+    if (result.error && (isColumnError || isFKError)) {
+      const match = result.error.message.match(/'([^']+)'/);
+      const missingColumn = match ? match[1] : null;
+
+      // For FK errors, we need to extract the column name (e.g. from "tasks_workspace_id_fkey")
+      let fieldToRemove = missingColumn;
+      if (isFKError) {
+        if (result.error.message.includes('workspace_id')) fieldToRemove = 'workspace_id';
+        else if (result.error.message.includes('entity_id')) fieldToRemove = 'entity_id';
+      }
+
+      if (fieldToRemove && currentRow[fieldToRemove] !== undefined) {
+        console.warn(`[Flowr sync] Field '${fieldToRemove}' caused error in 'tasks' table. Retrying without it.`);
+        const nextRow = { ...currentRow };
+        delete nextRow[fieldToRemove];
+        return performUpsert(nextRow);
+      }
+    }
+    return result;
   }
 
+  const { error } = await performUpsert(row);
   if (error) console.error('[Flowr sync] upsertTask:', error.message);
 }
 

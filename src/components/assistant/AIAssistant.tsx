@@ -36,7 +36,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
           strokeDashoffset={strokeDashoffset}
           className={clsx(
             "transition-all duration-500",
-            (usage / limit) > threshold ? "text-amber-500" : "text-accent"
+            (usage / limit) > threshold ? "text-white/60" : "text-bone-100"
           )}
           strokeLinecap="round"
         />
@@ -407,7 +407,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             onContextMenu={(e) => { e.preventDefault(); setShowMicSettings(false); }}
           />
           <div
-            className="fixed z-[1001] bg-[var(--color-panel)] backdrop-blur-2xl rounded-[16px] p-4 w-72 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-white/10 animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+            className="fixed z-[1001] bg-[var(--color-panel)] backdrop-blur-2xl rounded-[16px] p-4 w-72 border border-white/10 animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
             style={{
               left: Math.min(micSettingsPos.x, window.innerWidth - 300),
               top: Math.min(micSettingsPos.y - 220, window.innerHeight - 280)
@@ -430,12 +430,12 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                       className={clsx(
                         "w-full px-3 py-2 rounded-xl text-left text-[11px] flex items-center justify-between group tracking-wide",
                         selectedMicId === mic.deviceId
-                          ? "bg-accent/10 text-accent font-bold"
+                          ? "bg-white/10 text-bone-100 font-bold"
                           : "text-muted-foreground/60 hover:text-foreground hover:bg-hover"
                       )}
                     >
                       <span className="truncate flex-1">{mic.label || `Microphone ${mic.deviceId.slice(0, 4)}`}</span>
-                      {selectedMicId === mic.deviceId && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
+                      {selectedMicId === mic.deviceId && <div className="w-1.5 h-1.5 rounded-full bg-bone-100" />}
                     </button>
                   ))}
                 </div>
@@ -451,7 +451,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                       key={i}
                       className={clsx(
                         "w-1 h-3 rounded-full",
-                        (volume * 8) >= i ? "bg-accent" : "bg-white/5"
+                        (volume * 8) >= i ? "bg-bone-100" : "bg-white/5"
                       )}
                     />
                   ))}
@@ -478,8 +478,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
       >
         {isDragging && (
           <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-accent/15 backdrop-blur-xl border border-accent/30 p-4 rounded-3xl flex items-center justify-center gap-4 shadow-2xl">
-              <div className="w-10 h-10 rounded-2xl bg-accent text-white flex items-center justify-center">
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-3xl flex items-center justify-center gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 text-bone-100 flex items-center justify-center">
                 <ImageIcon strokeWidth={2} className="w-5 h-5" />
               </div>
               <p className="text-[13px] font-bold text-white tracking-tight pr-4">Drop files to attach</p>
@@ -493,7 +493,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               <h1 className="text-[28px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Text", serif' }}>
                 Agent
               </h1>
-              <div className={clsx("w-1 h-1 rounded-full mt-2 shadow-[0_0_8px_rgba(34,197,94,0.3)]", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
+              <div className={clsx("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
             </div>
           </div>
 
@@ -537,7 +537,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           {aiMessages.length === 0 && !isAILoading && (
             <div className="flex-1 flex flex-col justify-end text-center pb-5 min-h-0">
               <div className="flex items-center justify-center gap-6">
-                <StarIcon className="w-8 h-8" style={{ color: 'var(--accent)', fill: 'var(--accent)' }} />
+              <StarIcon className="w-8 h-8" style={{ color: 'var(--bone-100)', fill: 'var(--bone-100)' }} />
                 <p className="text-[26px] font-medium text-bone-60 leading-tight tracking-tight font-[family-name:var(--font-display)]">
                   How can I help you today?
                 </p>
@@ -575,14 +575,14 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                   lastUserMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
               }}
-              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto shadow-2xl hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
               title="Jump to your last message"
             >
               <ChevronUp strokeWidth={2} className="w-3.5 h-3.5 group-hover/nav:-translate-y-0.5" />
             </button>
             <button
               onClick={() => scrollToBottom('smooth')}
-              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto shadow-xl hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
               title="Scroll to bottom"
             >
               <ChevronUp strokeWidth={2} className="w-3.5 h-3.5 rotate-180 group-hover/nav:translate-y-0.5" />
@@ -595,7 +595,21 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
 
           {/* Unified Message Bar Container */}
-          <div className="bg-[var(--bone-6)] border border-white/5 rounded-[16px] p-3 flex flex-col gap-2 relative focus-within:border-white/10 transition-colors">
+          <div className="bg-[var(--bone-6)] border border-white/5 rounded-[16px] p-3 flex flex-col relative focus-within:border-white/10 transition-colors">
+            {activeIntentTag && (
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-white/20 w-fit mb-2 animate-in fade-in slide-in-from-bottom-1">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-bone-100" />
+                  <span className="text-[10px] font-bold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
+                </div>
+                <button 
+                  onClick={() => useStore.getState().setActiveIntentTag(null)}
+                  className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {attachments.length > 0 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-white/5">
                 {attachments.map((att, i) => (
@@ -614,13 +628,13 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                           onRemove={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
                         />
                       ) : (
-                        <Paperclip strokeWidth={2} className="w-4 h-4 text-accent" />
+                        <Paperclip strokeWidth={2} className="w-4 h-4 text-bone-60" />
                       )}
                     </div>
                     {att.type !== 'audio' && (
                       <button
                         onClick={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
-                        className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10 shadow-xl transition-all hover:scale-110"
+                        className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10 transition-all hover:scale-110"
                       >
                         <X strokeWidth={2} className="w-2.5 h-2.5" />
                       </button>
@@ -640,10 +654,10 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     targetRow.classList.add('pulse-highlight');
                   }
                 }}
-                className="flex items-center justify-between bg-white/5 rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-accent gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-white/10 transition-colors"
+                className="flex items-center justify-between bg-white/5 rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-white/30 gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-white/10 transition-colors"
               >
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-accent">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-bone-60">
                     Replying to {activeReplyMessage.role === 'user' ? 'You' : 'AI'}
                   </span>
                   <span className="text-[11px] text-[var(--bone-60)] truncate font-medium">
@@ -741,7 +755,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     className={clsx(
                       "flex items-center gap-1.5 px-2 py-1 rounded-[8px] border transition-all duration-200",
                       showModeMenu
-                        ? "bg-white/10 border-accent/30 text-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]"
+                        ? "bg-white/10 border-white/20 text-bone-100"
                         : "border-white/10 text-bone-60 hover:text-bone-100 hover:border-white/20"
                     )}
                   >
@@ -755,7 +769,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                         className="fixed inset-0 z-[140]"
                         onClick={() => setShowModeMenu(false)}
                       />
-                      <div className="absolute bottom-full mb-2 right-0 z-[150] bg-[var(--color-panel)] border border-white/10 rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden min-w-[160px] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
+                      <div className="absolute bottom-full mb-2 right-0 z-[150] bg-[var(--color-panel)] border border-white/10 rounded-[16px] overflow-hidden min-w-[160px] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
                         <div className="p-1.5 space-y-0.5">
                           {MODE_OPTIONS.map(opt => (
                             <button
@@ -764,7 +778,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                               className={clsx(
                                 'w-full flex items-center px-4 py-2.5 rounded-[10px] text-xs transition-all duration-200 text-left group',
                                 activeMode === opt.key
-                                  ? 'bg-accent/10 text-accent font-bold'
+                                  ? 'bg-white/10 text-bone-100 font-bold'
                                   : 'text-bone-80 hover:bg-white/5 hover:text-bone-100'
                               )}
                             >
@@ -781,7 +795,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             className={clsx(
                               'w-full flex items-center gap-3 px-2 py-2 rounded-[10px] text-xs transition-all duration-200',
                               thinkingEnabled
-                                ? 'bg-accent/10 text-accent font-bold'
+                                ? 'bg-white/10 text-bone-100 font-bold'
                                 : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
                             )}
                           >
@@ -792,7 +806,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             </div>
                             <div className={clsx(
                               'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
-                              thinkingEnabled ? 'bg-accent justify-end' : 'bg-white/10 justify-start'
+                              thinkingEnabled ? 'bg-white/30 justify-end' : 'bg-white/10 justify-start'
                             )}>
                               <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
                             </div>
@@ -802,7 +816,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             className={clsx(
                               'w-full flex items-center gap-3 px-2 py-2 rounded-[10px] text-xs transition-all duration-200',
                               advisorEnabled
-                                ? 'bg-accent/10 text-accent font-bold'
+                                ? 'bg-white/10 text-bone-100 font-bold'
                                 : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
                             )}
                           >
@@ -813,7 +827,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             </div>
                             <div className={clsx(
                               'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
-                              advisorEnabled ? 'bg-accent justify-end' : 'bg-white/10 justify-start'
+                              advisorEnabled ? 'bg-white/30 justify-end' : 'bg-white/10 justify-start'
                             )}>
                               <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
                             </div>
@@ -839,7 +853,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                           size={16}
                         />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-[7px] font-bold text-accent">
+                          <span className="text-[7px] font-bold text-bone-100">
                             {Math.round((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100)}
                           </span>
                         </div>
@@ -849,22 +863,36 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
                   {/* Detailed Context Tooltip */}
                   {aiSessionContext && (
-                    <div className="absolute bottom-full right-0 mb-4 bg-[var(--color-panel)] p-4 rounded-[16px] opacity-0 group-hover:opacity-100 transition-all duration-200 scale-95 group-hover:scale-100 pointer-events-none shadow-[0_4px_24px_rgba(0,0,0,0.4)] border border-white/10 z-[130] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 min-w-[280px]">
+                    <div className="absolute bottom-full right-0 mb-4 bg-[var(--color-panel)] p-4 rounded-[16px] opacity-0 group-hover:opacity-100 transition-all duration-200 scale-95 group-hover:scale-100 pointer-events-none border border-white/10 z-[130] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 min-w-[280px]">
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center text-[11px] font-bold text-bone-80">
                           <span className="tracking-tight">Memory Usage ({sessionId})</span>
-                          <span className="text-accent">{Math.round((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100)}%</span>
+                          <span className="text-bone-100">{Math.round((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100)}%</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
                             className={clsx(
                               "h-full transition-all duration-1000",
-                              (aiSessionContext.token_usage_total / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-amber-500" : "bg-accent"
+                              (aiSessionContext.token_usage_total / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-white/40" : "bg-white/20"
                             )}
                             style={{ width: `${Math.min((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100, 100)}%` }}
                           />
                         </div>
-                        <div className="flex flex-col gap-0.5 mt-1 mb-2">
+                        <div className="flex flex-col gap-2 mb-2 shrink-0">
+                          {activeIntentTag && (
+                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-white/20 w-fit animate-in fade-in slide-in-from-bottom-1">
+                              <div className="flex items-center gap-1.5">
+                                <Sparkles className="w-3 h-3 text-bone-100" />
+                                <span className="text-[10px] font-bold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
+                              </div>
+                              <button 
+                                onClick={() => useStore.getState().setActiveIntentTag(null)}
+                                className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                           <p className="text-[10px] text-bone-60 font-medium">
                             {aiSessionContext.token_usage_total.toLocaleString()} / {aiSessionContext.context_limit.toLocaleString()} tokens
                           </p>
@@ -887,12 +915,12 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             "w-full py-1.5 rounded-[8px] text-[10px] font-bold tracking-tight transition-all pointer-events-auto flex items-center justify-center gap-2",
                             aiSessionContext.token_usage_total < 500
                               ? "bg-white/5 text-bone-20 cursor-not-allowed opacity-50"
-                              : "bg-accent/10 text-accent hover:bg-accent/20 active:scale-[0.98]"
+                              : "bg-white/10 text-bone-100 hover:bg-white/20 active:scale-[0.98]"
                           )}
                         >
                           {isCompacting ? (
                             <>
-                              <div className="w-2.5 h-2.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                              <div className="w-2.5 h-2.5 border-2 border-bone-100 border-t-transparent rounded-full animate-spin" />
                               <span>Distilling...</span>
                             </>
                           ) : (
@@ -924,7 +952,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     className={clsx(
                       "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0 transition-all group/mic",
                       isRecording
-                        ? "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] scale-110"
+                        ? "bg-red-500 text-white scale-110"
                         : clsx("text-bone-60 hover:text-foreground hover:bg-white/5", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
                     )}
                     title="Hold to record (Max 60s) — Right-click for settings"
@@ -937,7 +965,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 ) : (
                   <button
                     onClick={() => handleSend()}
-                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-accent text-white hover:opacity-90 transition-all active:scale-90"
+                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20 transition-all active:scale-90"
                   >
                     <Send strokeWidth={2} className="w-3.5 h-3.5" />
                   </button>
@@ -947,7 +975,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
             {/* Command Menu Portal (Local to container) */}
             {showCommandMenu && filteredCommands.length > 0 && (
-              <div className="absolute bottom-full left-0 right-0 mb-4 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[140] p-2">
+              <div className="absolute bottom-full left-0 right-0 mb-4 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[16px] border border-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[140] p-2">
                 <div className="px-3 pt-1 pb-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--bone-30)]">
                     Actions & Commands
@@ -968,7 +996,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     >
                       <div className={clsx(
                         "w-6 h-6 flex items-center justify-center shrink-0",
-                        i === activeCommandIndex ? "text-accent" : "text-bone-60"
+                        i === activeCommandIndex ? "text-bone-100" : "text-bone-60"
                       )}>
                         {cmd.icon}
                       </div>

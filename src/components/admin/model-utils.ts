@@ -5,9 +5,12 @@ export interface RegistryModel {
   is_favorite: boolean
   input_modalities?: string[]
   output_modalities?: string[]
+  is_paid?: boolean
+  prompt_cost?: number
+  completion_cost?: number
 }
 
-import { Globe, Zap, Layers, Cpu, Command, Image, Brain } from 'lucide-react'
+import { Globe, Zap, Layers, Cpu, Command, Image, Brain, Sparkles } from 'lucide-react'
 
 export const PROVIDER_COLORS: Record<string, string> = {
   google: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
@@ -18,6 +21,7 @@ export const PROVIDER_COLORS: Record<string, string> = {
   pollinations: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
   huggingface: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
   cloudflare: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  siliconflow: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20',
 }
 
 export const PROVIDER_DOTS: Record<string, string> = {
@@ -29,6 +33,7 @@ export const PROVIDER_DOTS: Record<string, string> = {
   pollinations: 'bg-pink-400',
   huggingface: 'bg-yellow-400',
   cloudflare: 'bg-amber-400',
+  siliconflow: 'bg-indigo-400',
 }
 
 export const PROVIDER_ICONS: Record<string, any> = {
@@ -40,4 +45,5 @@ export const PROVIDER_ICONS: Record<string, any> = {
   pollinations: Image,
   huggingface: Brain,
   cloudflare: Zap,
+  siliconflow: Sparkles,
 }

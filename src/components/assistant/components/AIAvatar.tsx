@@ -12,7 +12,7 @@ export const AIAvatar = memo(({ className = "w-4 h-4", isTyping = false }: { cla
     <StarIcon
       className={clsx(
         className,
-        "shrink-0 transition-opacity duration-300 text-[#eea047]",
+        "shrink-0 transition-opacity duration-300 text-bone-100",
         shouldPulse && "animate-thinking-pulse"
       )}
     />

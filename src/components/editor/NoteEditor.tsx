@@ -62,6 +62,7 @@ function createBlock(type: BlockType = 'text', extra?: Record<string, unknown>):
     mediaWidth: (extra?.mediaWidth as any) || 4,
     mediaCaption: (extra?.mediaCaption as string) || '',
     align: 'left',
+    linkUrl: type === 'link' ? '' : undefined,
     ...extra,
   };
 }
@@ -716,6 +717,12 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
         if (el) {
           el.focus();
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(el);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
           if (openSlash) {
             const rect = el.getBoundingClientRect();
             setSlashMenu({ blockId: newBlock.id, position: { x: rect.left, y: rect.bottom + 4 } });
@@ -732,14 +739,95 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     });
   }, []);
 
-  const handleOpenMenu = useCallback((blockId: string, position: { x: number; y: number }) => {
-    setActiveOptionsMenu({ blockId, position });
+  const indentBlock = useCallback((id: string) => {
+    setBlocks(prev => {
+      const findAndIndent = (list: EditorBlock[]): { newList: EditorBlock[], found: boolean } => {
+        const idx = list.findIndex(b => b.id === id);
+        if (idx > 0) {
+          const newList = [...list];
+          const target = { ...newList[idx] };
+          const prevSibling = { ...newList[idx - 1] };
+          if (prevSibling.type !== 'divider' && prevSibling.type !== 'columns') {
+             newList.splice(idx, 1);
+             prevSibling.children = [...(prevSibling.children || []), target];
+             newList[idx - 1] = prevSibling;
+             return { newList, found: true };
+          }
+        }
+        let found = false;
+        const newList = list.map(b => {
+          if (!found && b.children) {
+            const res = findAndIndent(b.children);
+            if (res.found) {
+              found = true;
+              return { ...b, children: res.newList };
+            }
+          }
+          return b;
+        });
+        return { newList, found };
+      };
+      const { newList, found } = findAndIndent(prev);
+      if (found) {
+        updateEntityContent(entity.id, newList);
+        return newList;
+      }
+      return prev;
+    });
+  }, [entity.id, updateEntityContent]);
+
+  const unindentBlock = useCallback((id: string) => {
+    setBlocks(prev => {
+      let found = false;
+      const process = (list: EditorBlock[]): EditorBlock[] => {
+        const localList: EditorBlock[] = [];
+        for (let i = 0; i < list.length; i++) {
+          const b = list[i];
+          if (b.children) {
+            const childIdx = b.children.findIndex(c => c.id === id);
+            if (childIdx !== -1) {
+              const child = b.children[childIdx];
+              const newChildren = [...b.children];
+              newChildren.splice(childIdx, 1);
+              localList.push({ ...b, children: newChildren });
+              localList.push(child);
+              found = true;
+              continue;
+            }
+            localList.push({ ...b, children: process(b.children) });
+          } else {
+            localList.push(b);
+          }
+        }
+        return localList;
+      };
+      const newList = process(prev);
+      if (found) {
+        updateEntityContent(entity.id, newList);
+        return newList;
+      }
+      return prev;
+    });
+  }, [entity.id, updateEntityContent]);
+
+  const handleOpenMenu = useCallback((blockId: string, position: { x: number; y: number }, shiftKey?: boolean) => {
+    if (shiftKey) {
+      setActiveOptionsMenu(null);
+      setSelectedBlockIds(prev => {
+        const next = new Set(prev);
+        if (next.has(blockId)) next.delete(blockId);
+        else next.add(blockId);
+        return next;
+      });
+    } else {
+      setSelectedBlockIds(new Set([blockId]));
+      setActiveOptionsMenu({ blockId, position });
+    }
   }, []);
 
   const insertBlock = useCallback((type: BlockType, extra?: Record<string, unknown>) => {
     if (!slashMenu) return;
 
-    // Helper to replace block in nested structure
     const replaceRecursive = (list: EditorBlock[]): EditorBlock[] => {
       return list.map(b => {
         if (b.id === slashMenu.blockId) {
@@ -755,10 +843,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     const newBlocks = replaceRecursive(blocks);
     persistBlocks(newBlocks);
     setSlashMenu(null);
-
-    // Find the new block ID (it changed in replaceRecursive)
-    // Actually createBlock generates a NEW ID.
-    // We should probably focus the block that was just created.
   }, [blocks, slashMenu, persistBlocks]);
 
   const duplicateBlock = useCallback((id: string) => {
@@ -854,6 +938,13 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         }
       }
     }
+
+    const target = e.target as HTMLElement;
+    if (target.isContentEditable) {
+      e.preventDefault();
+      const plainText = e.clipboardData.getData('text/plain');
+      document.execCommand('insertText', false, plainText);
+    }
   }, [blocks, insertAfter, persistBlocks, updateBlock]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -918,15 +1009,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     return text.substring(lastSlash + 1);
   }, [slashMenu, blocks]);
 
-  useEffect(() => {
-    if (slashMenu) {
-      const block = findBlockById(blocks, slashMenu.blockId);
-      if (!block || !block.content.includes('/')) {
-        setSlashMenu(null);
-      }
-    }
-  }, [blocks, slashMenu]);
-
   const changeBlockStyle = useCallback((style: BlockStyle) => {
     if (activeBlock) {
       const isList = ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(activeBlock.type);
@@ -946,8 +1028,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       updateBlock(activeBlock.id, { type, style: 'body' });
     }
   }, [activeBlock, updateBlock]);
-
-
 
   const handleTitleBlur = () => {
     const value = tempTitle.trim();
@@ -986,6 +1066,39 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     return 1;
   }, [blocks]);
 
+  const renderBlocksRecursive = (list: EditorBlock[], depth: number = 0): React.ReactNode[] => {
+    return list.flatMap((block, idx) => {
+      const rendered = [
+        <BlockRenderer
+          key={block.id}
+          block={block}
+          index={idx}
+          onUpdate={updateBlock}
+          onDelete={deleteBlock}
+          onIndent={indentBlock}
+          onUnindent={unindentBlock}
+          onInsertAfter={insertAfter}
+          onSlash={handleSlash}
+          onOpenMenu={handleOpenMenu}
+          onFocus={handleBlockFocus}
+          isSelected={selectedBlockIds.has(block.id)}
+          onDragStart={handleDragStart}
+          listNumber={block.type === 'numberedList' ? getListNumber(block.id) : undefined}
+          slashMenuOpen={slashMenu?.blockId === block.id}
+          menuOpen={activeOptionsMenu?.blockId === block.id}
+        />
+      ];
+      if (block.children && block.children.length > 0 && !block.isFolded) {
+        rendered.push(
+          <div key={`${block.id}-children`} className="pl-8">
+            {renderBlocksRecursive(block.children, depth + 1)}
+          </div>
+        );
+      }
+      return rendered;
+    });
+  };
+
   return (
     <div 
       ref={editorRef}
@@ -1004,17 +1117,15 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         <div 
             className={clsx(
               "mx-auto py-8 editor-content-container note-editor-bg",
-              isFullWidth ? "max-w-[1240px] px-8" : "max-w-[850px] px-4",
+              isFullWidth ? "w-full px-8" : "max-w-[850px] px-4",
               isDragging && "dragging-active-content"
             )}
             dir="ltr"
             style={{ direction: 'ltr' }}
             data-dragging={isDragging}
           >
-          {/* ... (Header and Metadata sections - keeping unchanged) */}
           <div className="flex flex-col items-center gap-4 mb-4">
               <div className="flex flex-col w-full bg-sidebar border border-border rounded-3xl widget-shadow overflow-hidden transition-none">
-                {/* Top Section: Title */}
                 <div 
                   className="pr-9 py-6 group relative transition-none duration-0"
                   style={{ paddingLeft: '44px' }}
@@ -1061,7 +1172,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                 </div>
                 </div>
 
-                {/* Bottom Section: Metadata */}
                 <div 
                   className="pr-9 py-5 bg-sidebar flex items-start justify-between"
                   style={{ paddingLeft: '44px' }}
@@ -1120,7 +1230,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             canRedo={historyIndex < history.length - 1}
           />
 
-          {/* Hierarchical Folding Logic */}
           {(() => {
             const getLevel = (block: EditorBlock) => {
               if (block.type !== 'text') return 4;
@@ -1173,26 +1282,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                           <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
                         </div>
                       ) : (
-                        renderedBlocks.map((block, idx) => {
-                          return (
-                            <BlockRenderer
-                              key={block.id}
-                              block={block}
-                              index={idx}
-                              onUpdate={updateBlock}
-                              onDelete={deleteBlock}
-                              onInsertAfter={insertAfter}
-                              onSlash={handleSlash}
-                              listNumber={block.type === 'numberedList' ? getListNumber(block.id) : undefined}
-                              slashMenuOpen={slashMenu?.blockId === block.id}
-                              menuOpen={activeOptionsMenu?.blockId === block.id}
-                              onOpenMenu={handleOpenMenu}
-                              onFocus={handleBlockFocus}
-                              isSelected={selectedBlockIds.has(block.id)}
-                              onDragStart={handleDragStart}
-                            />
-                          );
-                        })
+                        renderBlocksRecursive(renderedBlocks)
                       )}
                     </div>
                   </SortableContext>

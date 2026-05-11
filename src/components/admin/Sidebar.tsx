@@ -48,7 +48,6 @@ export default function Sidebar() {
             <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Modes</span>
           </div>
           <NavLink href="/admin/bot/default" icon={Zap}>Default Mode</NavLink>
-          <NavLink href="/admin/bot/think" icon={Brain}>Think Mode</NavLink>
           <NavLink href="/admin/bot/pro" icon={Cpu}>Pro Mode</NavLink>
           <div className="px-3 py-[3px] mt-1">
             <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Intelligence</span>

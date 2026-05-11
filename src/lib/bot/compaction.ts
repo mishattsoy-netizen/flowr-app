@@ -83,8 +83,11 @@ export async function compactSession(
   let draft: string | null = null
   for (const model of [config.draft_primary_model, config.draft_fallback_model]) {
     try {
-      const result = await runGoogle(model, DRAFT_PROMPT(currentSummary, historyText), 'You are a summarization engine.')
-      if (result) { draft = result; break }
+      const res = await runGoogle(model, DRAFT_PROMPT(currentSummary, historyText), 'You are a summarization engine.')
+      if (res) {
+        draft = typeof res === 'object' ? res.content : res
+        break
+      }
     } catch (e: any) {
       logger.warn(`Compaction draft failed [${model}]: ${e.message}`)
     }
@@ -99,8 +102,11 @@ export async function compactSession(
   let refined: string | null = null
   for (const model of [config.refine_primary_model, config.refine_fallback_model]) {
     try {
-      const result = await runGoogle(model, REFINE_PROMPT(draft), 'You are a summary verification engine.')
-      if (result) { refined = result; break }
+      const res = await runGoogle(model, REFINE_PROMPT(draft), 'You are a summary verification engine.')
+      if (res) {
+        refined = typeof res === 'object' ? res.content : res
+        break
+      }
     } catch (e: any) {
       logger.warn(`Compaction refine failed [${model}]: ${e.message}`)
     }

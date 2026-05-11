@@ -17,6 +17,9 @@ export interface DiscoveredModel {
     output: string[]
   }
   inRegistry: boolean
+  isPaid?: boolean
+  promptCost?: number | null
+  completionCost?: number | null
 }
 
 export async function fetchProviderModels(
@@ -48,9 +51,21 @@ export async function fetchProviderModels(
     case 'cloudflare':
       raw = await fetchCloudflare(apiKey)
       break
+    case 'siliconflow':
+      raw = await fetchSiliconFlow(apiKey)
+      break
     default:
       throw new Error(`Unknown provider: ${provider}`)
   }
+
+  // deduplicate by ID
+  const uniqueRaw = new Map<string, DiscoveredModel>()
+  for (const m of raw) {
+    if (!uniqueRaw.has(m.id)) {
+      uniqueRaw.set(m.id, m)
+    }
+  }
+  raw = Array.from(uniqueRaw.values())
 
   // cross-reference registry
   const { data: existing } = await supabaseAdmin
@@ -200,31 +215,27 @@ async function fetchOpenRouter(apiKey: string): Promise<DiscoveredModel[]> {
   if (!res.ok) throw new Error(`OpenRouter API error: ${res.status} ${res.statusText}`)
   const data = await res.json()
 
-  return (data.data ?? [])
-    .filter((m: any) => {
-      const id = (m.id ?? '').toLowerCase()
-      const isFreeId = id.endsWith(':free') || id.includes('/free')
-      
-      const promptPrice = parseFloat(m.pricing?.prompt ?? '0')
-      const completionPrice = parseFloat(m.pricing?.completion ?? '0')
-      const isFreePrice = promptPrice === 0 && completionPrice === 0
+  return (data.data ?? []).map((m: any) => {
+    const arch = m.architecture ?? {}
+    const promptPrice = parseFloat(m.pricing?.prompt ?? '0')
+    const completionPrice = parseFloat(m.pricing?.completion ?? '0')
+    const isFree = (m.id ?? '').toLowerCase().endsWith(':free') || (promptPrice === 0 && completionPrice === 0)
 
-      return isFreeId || isFreePrice
-    })
-    .map((m: any) => {
-      const arch = m.architecture ?? {}
-      return {
-        id: m.id,
-        displayName: m.name ?? m.id,
-        provider: 'openrouter',
-        contextWindow: m.context_length ?? null,
-        maxOutputTokens: null,
-        rpd: null,
-        rpm: null,
-        modalities: getModalities(m.id, arch.input_modalities ?? ['text'], arch.output_modalities ?? ['text']),
-        inRegistry: false,
-      }
-    })
+    return {
+      id: m.id,
+      displayName: m.name ?? m.id,
+      provider: 'openrouter',
+      contextWindow: m.context_length ?? null,
+      maxOutputTokens: null,
+      rpd: null,
+      rpm: null,
+      modalities: getModalities(m.id, arch.input_modalities ?? ['text'], arch.output_modalities ?? ['text']),
+      inRegistry: false,
+      isPaid: !isFree,
+      promptCost: isFree ? 0 : promptPrice,
+      completionCost: isFree ? 0 : completionPrice,
+    }
+  })
 }
 
 async function fetchCloudflare(apiKey: string): Promise<DiscoveredModel[]> {
@@ -253,6 +264,36 @@ async function fetchCloudflare(apiKey: string): Promise<DiscoveredModel[]> {
       rpd: null,
       rpm: null,
       modalities: getModalities(m.name ?? m.id, input, output),
+      inRegistry: false,
+    }
+  })
+}
+
+async function fetchSiliconFlow(apiKey: string): Promise<DiscoveredModel[]> {
+  const res = await fetch('https://api.siliconflow.cn/v1/models', {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  if (!res.ok) throw new Error(`SiliconFlow API error: ${res.status} ${res.statusText}`)
+  const data = await res.json()
+
+  // SiliconFlow sometimes returns duplicates; deduplicate by ID
+  const seenIds = new Set<string>()
+  const filtered = (data.data ?? []).filter((m: any) => {
+    if (seenIds.has(m.id)) return false
+    seenIds.add(m.id)
+    return true
+  })
+
+  return filtered.map((m: any) => {
+    return {
+      id: m.id,
+      displayName: m.id,
+      provider: 'siliconflow',
+      contextWindow: null,
+      maxOutputTokens: null,
+      rpd: null,
+      rpm: null,
+      modalities: getModalities(m.id),
       inRegistry: false,
     }
   })

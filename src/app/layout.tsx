@@ -1,6 +1,6 @@
 import Script from "next/script";
 import { Crimson_Text, DM_Sans, DM_Mono } from "next/font/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SupabaseProvider from "@/components/SupabaseProvider";
 
@@ -20,6 +20,13 @@ const dmMono = DM_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: "Flowr",

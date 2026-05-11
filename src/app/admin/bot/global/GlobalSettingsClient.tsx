@@ -11,6 +11,9 @@ import {
   setGlobalPromptEnabled, setOllamaEnabled, setBackendModel,
   syncCompiledPrompt, updateCompactionConfig, setKeywordsEnabled, getCompiledPromptMeta
 } from './actions'
+import OrchestratorPanel from '@/components/admin/OrchestratorPanel'
+import PipelinePromptsPanel from '@/components/admin/PipelinePromptsPanel'
+import PipelineStatusPanel from '@/components/admin/PipelineStatusPanel'
 import type { CompactionConfig } from '@/lib/bot/compaction'
 import type { BotMode } from '@/data/store.types'
 
@@ -22,17 +25,20 @@ interface Props {
   compiledMeta: Record<BotMode, { content: string; compiled_at: string; entry_count: number }>
   models: RegistryModel[]
   keywordsEnabled: boolean
+  initialPipelinePrompts: { value: Record<string, string>; updated_at: string | null }
+  initialStatusMessages: Record<string, { label: string; emoji: string }>
+  initialPipelineSettings: any
 }
 
 const MODE_TABS: { key: BotMode; label: string }[] = [
   { key: 'default', label: 'Default' },
-  { key: 'think',   label: 'Think' },
   { key: 'pro',     label: 'Pro' },
 ]
 
 export default function GlobalSettingsClient({
   globalEnabled, ollamaEnabled, backendModel,
   compactionConfig, compiledMeta, models, keywordsEnabled,
+  initialPipelinePrompts, initialStatusMessages, initialPipelineSettings
 }: Props) {
   const [globalOn, setGlobalOn] = useState(globalEnabled)
   const [ollamaOn, setOllamaOn] = useState(ollamaEnabled)
@@ -64,10 +70,9 @@ export default function GlobalSettingsClient({
       // Re-fetch all metas to update UI
       const newMetas = {
         default: await getCompiledPromptMeta('default'),
-        think: await getCompiledPromptMeta('think'),
         pro: await getCompiledPromptMeta('pro'),
       }
-      setMeta(newMetas)
+      setMeta(newMetas as any)
       setSyncStatus('done')
       setTimeout(() => setSyncStatus('idle'), 2000)
     })
@@ -293,6 +298,17 @@ export default function GlobalSettingsClient({
           {meta[activeTab]?.content || 'No compiled content yet. Click Sync Brain.'}
         </pre>
       )}
+
+      {/* Pipeline & Chain Configuration */}
+      <div className="h-4" />
+      <div className="border-t border-white/5 pt-6">
+        <h2 className="text-lg font-bold text-bone-100 uppercase tracking-widest mb-4 opacity-60">Pipeline & Chain Configuration</h2>
+        <div className="flex flex-col gap-6">
+          <OrchestratorPanel settings={initialPipelineSettings} />
+          <PipelinePromptsPanel initialPrompts={initialPipelinePrompts} />
+          <PipelineStatusPanel initialMessages={initialStatusMessages} />
+        </div>
+      </div>
     </div>
   )
 }

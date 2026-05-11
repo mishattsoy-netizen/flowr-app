@@ -65,12 +65,14 @@ export default function ProviderSelector({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  "w-full flex items-center justify-start gap-2.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-0 select-none hover:bg-white/5",
-                  value.toLowerCase() === p.toLowerCase() ? "bg-white/[0.08] text-foreground" : "text-bone-60 hover:text-foreground"
+                  "w-full flex items-center justify-start gap-2.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-0 select-none",
+                  value.toLowerCase() === p.toLowerCase() 
+                    ? "bg-white/[0.12] text-foreground" 
+                    : "text-bone-60 hover:text-foreground hover:bg-white/5"
                 )}
               >
                 <div className={cn("w-2 h-2 rounded-full shrink-0", pDot)} />
-                <span className={cn("capitalize text-[10.5px] tracking-wide font-bold", pColor)}>{p}</span>
+                <span className={cn("text-[10.5px] tracking-wide font-bold", pColor)}>{p}</span>
               </button>
             )
           })}

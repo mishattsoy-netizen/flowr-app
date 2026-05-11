@@ -70,8 +70,9 @@ ${prompt}
 
   for (const m of uniqueModels) {
     try {
-      answer = await runGoogle(m, synthesisPrompt, undefined, undefined, context)
-      if (answer) {
+      const res = await runGoogle(m, synthesisPrompt, undefined, undefined, context)
+      if (res) {
+        answer = typeof res === 'object' ? res.content : res
         if (context?.setSynthesisModel) context.setSynthesisModel(m)
         break
       }

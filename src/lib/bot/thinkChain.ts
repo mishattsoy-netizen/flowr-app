@@ -71,15 +71,21 @@ async function runThinkModel(
       if (provider === 'google') {
         const { runGoogle } = await import('./providers/google')
         const res = await runGoogle(modelConfig.id, prompt, systemPrompt, undefined, context, history)
-        if (res) return res
+        if (res) {
+          return typeof res === 'object' ? res.content : res
+        }
       } else if (provider === 'groq') {
         const { runGroq } = await import('./providers/groq')
         const res = await runGroq(modelConfig.id, prompt, systemPrompt, undefined, context, history)
-        if (res) return res
+        if (res) {
+          return typeof res === 'object' ? (res as any).content : res
+        }
       } else if (provider === 'openrouter') {
         const { runOpenRouter } = await import('./providers/openrouter')
-        const res = await runOpenRouter(modelConfig.id, prompt, systemPrompt, history, '')
-        if (res) return res
+        const res = await runOpenRouter(modelConfig.id, prompt, systemPrompt, history, '', modelConfig.openrouter_provider || undefined)
+        if (res) {
+          return typeof res === 'object' ? (res as any).content : res
+        }
       }
     } catch (e: any) {
       logger.warn(`Think chain model ${modelConfig.id} failed: ${e.message}`)
@@ -97,11 +103,19 @@ export async function runThinkChain(
   context: any,
   onStatus: StatusCallback,
 ): Promise<ThinkChainOutput> {
+  const { statusMessages } = await import('../router-config').then(m => m.getPipelineSettings())
+  const customStatus = statusMessages['THINKING']
+  const label = customStatus ? `${customStatus.emoji} ${customStatus.label}`.trim() : 'Working'
+
   const { system_prompt } = await getRouterChain('THINKING' as any)
   const systemPrompt = system_prompt || DEFAULT_THINK_SYSTEM_PROMPT
 
   const buildThinkPrompt = (ctx: string): string => {
+    const now = new Date()
+    const dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
+    
     const parts: string[] = []
+    parts.push(dateContext)
     if (replyContext?.attentionBlock) parts.push(replyContext.attentionBlock)
     if (sessionSummary) parts.push(`[SESSION MEMORY SUMMARY]\n${sessionSummary}`)
     parts.push(`[ORIGINAL REQUEST]\n${originalPrompt}`)
@@ -110,11 +124,11 @@ export async function runThinkChain(
     return parts.join('\n\n')
   }
 
-  const thinkStep: PipelineStep = { chain: 'THINKING', goal: 'Review all outputs and plan final answer', status: 'running' }
+  const thinkStep: PipelineStep = { chain: 'THINKING', goal: 'Review all outputs and plan final answer', status: 'running', label }
   onStatus(thinkStep)
 
   const thinkPrompt = buildThinkPrompt(accumulatedContext)
-  const raw = await runThinkModel(thinkPrompt, systemPrompt, history.slice(-6), context)
+  const raw = await runThinkModel(thinkPrompt, systemPrompt, history.slice(-20), context)
 
   if (!raw) {
     thinkStep.status = 'failed'
@@ -148,11 +162,11 @@ export async function runThinkChain(
     allSteps.push(...correctionResult.steps)
 
     // Second think pass — no more corrections
-    const thinkStep2: PipelineStep = { chain: 'THINKING', goal: 'Final review after correction', status: 'running' }
+    const thinkStep2: PipelineStep = { chain: 'THINKING', goal: 'Final review after correction', status: 'running', label }
     onStatus(thinkStep2)
 
     const thinkPrompt2 = buildThinkPrompt(correctedContext)
-    const raw2 = await runThinkModel(thinkPrompt2, systemPrompt, history.slice(-6), context)
+    const raw2 = await runThinkModel(thinkPrompt2, systemPrompt, history.slice(-20), context)
 
     if (raw2) {
       const result2 = parseThinkOutput(raw2)

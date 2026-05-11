@@ -16,43 +16,71 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    let apiKey = req.headers.get('x-api-key');
-    if (!apiKey) {
-      const keys = await getProviderKeys('OPENROUTER');
-      apiKey = keys[0] || null;
-    }
-    
-    if (!apiKey) {
+    const keys = await getProviderKeys('OPENROUTER');
+
+    if (keys.length === 0) {
       return NextResponse.json({ error: "OpenRouter API Key not configured. Add it to the Vault in Admin Suite." }, { status: 401 });
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 300000);
+    // Try keys with rotation on 401/402/403 (key exhausted or insufficient credits)
+    let lastError: string | null = null;
+    for (let keyIdx = 0; keyIdx < keys.length; keyIdx++) {
+      const apiKey = keys[keyIdx];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 300000);
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://flowr.ai',
-        'X-Title': 'Flowr 4.1',
-      },
-      signal: controller.signal,
-      body: JSON.stringify(body),
-    });
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://flowr.ai',
+            'X-Title': 'Flowr 4.1',
+          },
+          signal: controller.signal,
+          body: JSON.stringify(body),
+        });
 
-    clearTimeout(timeout);
+        clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      let errMsg = errText;
-      try { errMsg = JSON.parse(errText)?.error?.message || errText; } catch {}
-      return NextResponse.json({ error: errMsg }, { status: response.status });
+        if (!response.ok) {
+          const errText = await response.text();
+          let errMsg = errText;
+          try { errMsg = JSON.parse(errText)?.error?.message || errText; } catch {}
+          
+          // If key is exhausted (401/402/403) and we have more keys, try next one
+          if ((response.status === 401 || response.status === 402 || response.status === 403) && keyIdx < keys.length - 1) {
+            lastError = `Key ${keyIdx + 1} exhausted (${response.status}), trying next key...`;
+            console.warn(`[OpenRouter Proxy] ${lastError}`);
+            continue; // Try next key
+          }
+          
+          return NextResponse.json({ error: errMsg }, { status: response.status });
+        }
+
+        // If we had to rotate past a bad key, log success
+        if (keyIdx > 0) {
+          console.log(`[OpenRouter Proxy] Key rotation succeeded: key ${keyIdx + 1}/${keys.length}`);
+        }
+
+        return new NextResponse(response.body, {
+          headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError.name === 'AbortError') {
+          return NextResponse.json({ error: "Request timed out. Please try again." }, { status: 504 });
+        }
+        lastError = fetchError.message;
+        console.warn(`[OpenRouter Proxy] Key ${keyIdx + 1} error: ${fetchError.message}`);
+        // If last key also failed, return the error
+        if (keyIdx < keys.length - 1) continue;
+      }
     }
 
-    return new NextResponse(response.body, {
-      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
-    });
+    // All keys exhausted
+    return NextResponse.json({ error: lastError || "All OpenRouter API keys exhausted." }, { status: 503 });
   } catch (error: any) {
     if (error.name === 'AbortError') {
       return NextResponse.json({ error: "Request timed out. Please try again." }, { status: 504 });

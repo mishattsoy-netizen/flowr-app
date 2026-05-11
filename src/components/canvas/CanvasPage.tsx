@@ -12,6 +12,8 @@ import { useCanvasHistory } from '@/hooks/useCanvasHistory';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
 import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useFlowState } from '@/hooks/useFlowState';
+import { FlowPreview } from './FlowPreview';
 import { exportCanvasToPng } from '@/lib/canvasExport';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
@@ -40,7 +42,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
   const [remoteCursors, setRemoteCursors] = useState<{ userId: string; name: string; x: number; y: number; color: string }[]>([]);
 
-  const cloudSyncEnabled = useStore(s => s.cloudSyncEnabled);
+  const cloudSyncEnabled = !!entity.cloudSyncEnabled;
 
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
@@ -51,6 +53,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const blocks = useStore(s => s.blocks);
   const addCanvasBlock = useStore(s => s.addCanvasBlock);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
+  const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
 
   const pageBlocks = useMemo(
@@ -61,6 +64,76 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const history = useCanvasHistory(pageBlocks);
   const { snapWithObjects } = useCanvasSnap(snapEnabled, pageBlocks);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
+
+  const flowState = useFlowState();
+
+  // Proximity snap detector for connections
+  const findClosestBlockHandle = useCallback((cx: number, cy: number) => {
+    let best = { id: '', side: '', dist: Infinity };
+    // Access current block snapshot for realtime resolution during fast click streams
+    const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
+    liveBlocks.forEach(b => {
+      if (b.type === 'connection' || b.type === 'shape') return;
+      const bx = b.x || 0, by = b.y || 0;
+      const bw = b.width || 280, bh = b.height || 100;
+      
+      const points = [
+        { side: 'top', x: bx + bw / 2, y: by },
+        { side: 'bottom', x: bx + bw / 2, y: by + bh },
+        { side: 'left', x: bx, y: by + bh / 2 },
+        { side: 'right', x: bx + bw, y: by + bh / 2 },
+      ];
+      
+      points.forEach(p => {
+        const d = Math.hypot(p.x - cx, p.y - cy);
+        if (d < best.dist) {
+          best = { id: b.id, side: p.side, dist: d };
+        }
+      });
+    });
+    return best.dist < 120 ? { id: best.id, side: best.side } : null;
+  }, [entity.id]);
+
+  const commitFlowConnection = useCallback(() => {
+    const { currentPath, isDrawing, clear } = useFlowState.getState();
+    if (!isDrawing || currentPath.length < 2) {
+      clear();
+      return;
+    }
+
+    const finalPts = [...currentPath];
+    const startSnap = findClosestBlockHandle(finalPts[0][0], finalPts[0][1]);
+    const endSnap = findClosestBlockHandle(finalPts[finalPts.length - 1][0], finalPts[finalPts.length - 1][1]);
+
+    const tool = activeTool === 'arrow' || activeTool === 'line' ? activeTool : 'arrow';
+
+    // Create dynamic entity based on context
+    addCanvasBlock({
+      id: generateId(),
+      type: (startSnap && endSnap) ? 'connection' : 'shape',
+      content: '',
+      canvasId: entity.id,
+      shapeKind: tool,
+      fromId: startSnap?.id,
+      fromSide: startSnap?.side as any,
+      toId: endSnap?.id,
+      toSide: endSnap?.side as any,
+      x: 0, y: 0,
+      width: 0, height: 0,
+      points: finalPts,
+      canvasStyleExt: {
+        stroke: '#d38f36',
+        strokeWidth: 2,
+        strokeStyle: 'solid',
+        fill: 'transparent',
+        fillOpacity: 0,
+      },
+    });
+    
+    clear();
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+  }, [activeTool, addCanvasBlock, entity.id, findClosestBlockHandle, history]);
+
 
   useEffect(() => {
     setShowStylePanel(selectedIds.size > 0);
@@ -139,18 +212,41 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Active Click-and-Flow dynamic path engine tracker
   useEffect(() => {
-    if (!pendingConnection) return;
-    const onMove = (e: PointerEvent) => {
-      const rect = canvasContainerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const cx = (e.clientX - rect.left - viewport.x) / viewport.scale;
-      const cy = (e.clientY - rect.top - viewport.y) / viewport.scale;
-      setPendingConnection(prev => prev ? { ...prev, x2: cx, y2: cy } : null);
+    const handleGlobalMove = (e: MouseEvent) => {
+      if (!useFlowState.getState().isDrawing) return;
+      const { x, y } = screenToCanvas(e.clientX, e.clientY);
+      useFlowState.getState().updateMouse({ x, y });
     };
-    document.addEventListener('pointermove', onMove);
-    return () => document.removeEventListener('pointermove', onMove);
-  }, [pendingConnection, viewport]);
+
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (!useFlowState.getState().isDrawing) return;
+      if (e.key === 'Enter') {
+        commitFlowConnection();
+      } else if (e.key === 'Escape') {
+        useFlowState.getState().clear();
+      }
+    };
+
+    const handleGlobalContextMenu = (e: MouseEvent) => {
+      if (useFlowState.getState().isDrawing) {
+        e.preventDefault();
+        e.stopPropagation();
+        commitFlowConnection();
+      }
+    };
+
+    document.addEventListener('mousemove', handleGlobalMove);
+    document.addEventListener('keydown', handleGlobalKey);
+    document.addEventListener('contextmenu', handleGlobalContextMenu, true);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMove);
+      document.removeEventListener('keydown', handleGlobalKey);
+      document.removeEventListener('contextmenu', handleGlobalContextMenu, true);
+    };
+  }, [viewport, commitFlowConnection]);
 
   const screenToCanvas = useCallback((clientX: number, clientY: number) => {
     const rect = canvasContainerRef.current?.getBoundingClientRect();
@@ -305,9 +401,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       const onMove = (ev: PointerEvent) => {
         const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
         multiSelect.updateSelection(cx, cy);
+        // LIVE SYNC: Realtime visual feedback during drag selection
+        setSelectedIds(new Set(multiSelect.getLatestSelectedIds()));
       };
       const onUp = () => {
-        setSelectedIds(new Set(multiSelect.selectedIds));
+        setSelectedIds(new Set(multiSelect.getLatestSelectedIds()));
         multiSelect.endSelection();
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
@@ -317,47 +415,67 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       return;
     }
 
-    const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'arrow', 'line', 'freedraw'];
+    // CLICK AND FLOW SYSTEM: Sequential Multi-segment Spline Drawing
+    if ((activeTool === 'arrow' || activeTool === 'line') && e.button === 0) {
+      const { x, y } = screenToCanvas(e.clientX, e.clientY);
+      const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
+      
+      if (!isDrawing) {
+        setDrawing(true);
+        addPoint([x, y]);
+      } else {
+        // Handle auto snap completion logic if user clicks nearby an existing anchor handle
+        const snap = findClosestBlockHandle(x, y);
+        if (snap) {
+          addPoint([x, y]);
+          commitFlowConnection();
+          return;
+        }
+        addPoint([x, y]);
+      }
+      return;
+    }
+
+    const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'freedraw'];
     if (SHAPE_TOOLS.includes(activeTool) && e.button === 0) {
       const { x, y } = screenToCanvas(e.clientX, e.clientY);
       const kind = activeTool;
-      setDrawingShape({ kind, startX: x, startY: y, x, y, w: 0, h: 0, points: [[x, y]] });
+      let currentShape = { kind, startX: x, startY: y, x, y, w: 0, h: 0, points: [[x, y]] as [number, number][] };
+      setDrawingShape(currentShape);
 
       const onMove = (ev: PointerEvent) => {
         const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
-        setDrawingShape(prev => {
-          if (!prev) return null;
-          if (kind === 'freedraw' || kind === 'line' || kind === 'arrow') {
-            return { ...prev, points: [...prev.points, [cx, cy] as [number, number]], w: cx - prev.startX, h: cy - prev.startY };
-          }
-          const nx = Math.min(prev.startX, cx), ny = Math.min(prev.startY, cy);
-          return { ...prev, x: nx, y: ny, w: Math.abs(cx - prev.startX), h: Math.abs(cy - prev.startY) };
-        });
+        if (kind === 'freedraw' || kind === 'line' || kind === 'arrow') {
+          currentShape = { ...currentShape, points: [...currentShape.points, [cx, cy]], w: cx - currentShape.startX, h: cy - currentShape.startY };
+        } else {
+          const nx = Math.min(currentShape.startX, cx), ny = Math.min(currentShape.startY, cy);
+          currentShape = { ...currentShape, x: nx, y: ny, w: Math.abs(cx - currentShape.startX), h: Math.abs(cy - currentShape.startY) };
+        }
+        setDrawingShape(currentShape);
       };
 
       const onUp = (ev: PointerEvent) => {
-        setDrawingShape(prev => {
-          if (!prev) return null;
-          const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
-          const isPoint = Math.abs(cx - prev.startX) < 3 && Math.abs(cy - prev.startY) < 3;
-          if (!isPoint) {
-            const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
-            addCanvasBlock({
-              id: generateId(), type: 'shape', content: '', canvasId: entity.id,
-              shapeKind: kind as any,
-              x: isLineish ? 0 : prev.x, y: isLineish ? 0 : prev.y,
-              width: isLineish ? 0 : Math.max(prev.w, 20),
-              height: isLineish ? 0 : Math.max(prev.h, 20),
-              points: isLineish ? prev.points : undefined,
-              canvasStyleExt: {
-                stroke: '#d38f36', strokeWidth: 1.5, strokeStyle: 'solid',
-                fill: isLineish ? 'transparent' : '#d38f36', fillOpacity: isLineish ? 0 : 0.1,
-              },
-            });
-            history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
-          }
-          return null;
-        });
+        const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
+        const isPoint = Math.abs(cx - currentShape.startX) < 3 && Math.abs(cy - currentShape.startY) < 3;
+        
+        if (!isPoint) {
+          const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
+          addCanvasBlock({
+            id: generateId(), type: 'shape', content: '', canvasId: entity.id,
+            shapeKind: kind as any,
+            x: isLineish ? 0 : currentShape.x, y: isLineish ? 0 : currentShape.y,
+            width: isLineish ? 0 : Math.max(currentShape.w, 20),
+            height: isLineish ? 0 : Math.max(currentShape.h, 20),
+            points: isLineish ? currentShape.points : undefined,
+            canvasStyleExt: {
+              stroke: '#d38f36', strokeWidth: 2, strokeStyle: 'solid',
+              fill: isLineish ? 'transparent' : '#d38f36', fillOpacity: isLineish ? 0 : 0.1,
+            },
+          });
+          history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+        }
+        
+        setDrawingShape(null);
         setActiveTool('select');
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
@@ -440,7 +558,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           style={{
             cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : undefined,
             background: '#141413',
-            backgroundImage: 'radial-gradient(circle, rgba(233,233,226,0.055) 1px, transparent 1px)',
+            backgroundImage: `linear-gradient(to right, var(--bone-3) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-3) 1px, transparent 1px)`,
             backgroundSize: `${20 * viewport.scale}px ${20 * viewport.scale}px`,
             backgroundPosition: `${viewport.x}px ${viewport.y}px`,
           }}
@@ -473,13 +591,18 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
                   selectedIds={selectedIds}
+                  viewport={viewport}
+                  updateCanvasBlocks={updateCanvasBlocks}
                   onSelect={selectBlock}
+                  onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                 />
+
+                <FlowPreview />
 
                 {drawingShape && (
                   <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none z-[4998]">
@@ -519,8 +642,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     <rect
                       x={multiSelect.selectionRect.x} y={multiSelect.selectionRect.y}
                       width={multiSelect.selectionRect.width} height={multiSelect.selectionRect.height}
-                      fill="rgba(211,143,54,0.05)" stroke="rgba(211,143,54,0.4)"
-                      strokeWidth="1" strokeDasharray="4 3"
+                      fill="rgba(42,120,214,0.08)" stroke="var(--brand-blue)"
+                      strokeWidth="2"
                     />
                   </svg>
                 )}
@@ -551,24 +674,20 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     viewport={viewport}
                     snapWithObjects={snapWithObjects}
                     isSelected={selectedIds.has(b.id)}
+                    selectedIds={selectedIds}
                     onSelect={selectBlock}
                     onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                     onConnectStart={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
-                      if (!pendingConnection) {
-                        setPendingConnection({ fromId: b.id, fromSide: side, x, y, x2: x, y2: y });
-                      } else if (pendingConnection.fromId !== b.id) {
-                        addCanvasBlock({
-                          id: generateId(), type: 'connection', content: '',
-                          canvasId: entity.id,
-                          fromId: pendingConnection.fromId,
-                          fromSide: pendingConnection.fromSide as any,
-                          toId: b.id, toSide: side as any,
-                          x: 0, y: 0,
-                        });
-                        setPendingConnection(null);
-                        setActiveTool('select');
-                        history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
+                      
+                      const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
+                      // Immediate initialization directly tied into the clicked coordinate
+                      if (!isDrawing) {
+                        setDrawing(true);
+                        addPoint([x, y]);
+                      } else {
+                        addPoint([x, y]);
+                        commitFlowConnection();
                       }
                     }}
                   />

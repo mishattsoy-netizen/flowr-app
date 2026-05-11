@@ -288,7 +288,7 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
         <div className="relative flex items-center p-0.5 bg-background rounded-[8px] border border-border/50 no-drag min-w-[280px]">
           {/* Sliding Background Pill */}
           <div 
-            className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--bone-10)] shadow-sm transition-all duration-300 ease-out"
+            className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--bone-10)] transition-all duration-300 ease-out"
             style={{ 
               left: `calc(${VIEW_TABS.findIndex(t => t.type === viewType) * 25}% + ${VIEW_TABS.findIndex(t => t.type === viewType) === 0 ? '3px' : '1px'})`,
               width: 'calc(25% - 4px)'

@@ -9,6 +9,7 @@ export interface SessionState {
   context_limit: number
   compaction_threshold: number
   last_summarized_at: string
+  status_messages?: Record<string, { label: string; emoji: string }>
 }
 
 const CHARS_PER_TOKEN = 4
@@ -19,8 +20,12 @@ export function estimateTokens(text: string): number {
 }
 
 export async function getSessionState(chatId: string): Promise<SessionState | null> {
-  const [config, sessionResult] = await Promise.all([
+  const { getCompactionConfig } = await import('./compaction')
+  const { getPipelineSettings } = await import('../router-config')
+
+  const [config, settings, sessionResult] = await Promise.all([
     getCompactionConfig(),
+    getPipelineSettings(),
     supabase
       .from('bot_session_states')
       .select('*')
@@ -33,18 +38,19 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     return null
   }
 
-  if (!sessionResult.data) {
-    return {
-      chat_id: chatId,
-      distilled_summary: null,
-      token_usage_total: 0,
-      context_limit: config.context_limit,
-      compaction_threshold: config.compaction_threshold,
-      last_summarized_at: new Date(0).toISOString()
-    }
+  const baseState = sessionResult.data || {
+    chat_id: chatId,
+    distilled_summary: null,
+    token_usage_total: 0,
+    last_summarized_at: new Date(0).toISOString()
   }
 
-  return { ...sessionResult.data, context_limit: config.context_limit, compaction_threshold: config.compaction_threshold }
+  return {
+    ...baseState,
+    context_limit: config.context_limit,
+    compaction_threshold: config.compaction_threshold,
+    status_messages: settings.statusMessages
+  }
 }
 
 export async function updateSessionState(chatId: string, updates: Partial<SessionState>): Promise<void> {

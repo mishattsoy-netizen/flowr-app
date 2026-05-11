@@ -20,7 +20,7 @@ export async function runGoogle(
   imageBuffer?: Buffer,
   context?: { chatId?: number; userId?: string; aiApiKey?: string; platform?: string; useTools?: boolean; temperature?: number },
   history: any[] = []
-): Promise<string | null> {
+): Promise<string | { content: string; citations?: string[] } | null> {
   let keys = context?.aiApiKey ? [context.aiApiKey] : []
 
   if (keys.length === 0) {
@@ -112,13 +112,31 @@ export async function runGoogle(
       const finalAnswer = response.text()
       if (finalAnswer) {
         if (context) (context as any).usedKeyIndex = (context as any).usedKeyIndex || i + 1
+
+        // Extract citations from grounding metadata if present (Fix 7.10)
+        const candidate = response.candidates?.[0]
+        if (candidate?.groundingMetadata?.groundingChunks) {
+          const citations = candidate.groundingMetadata.groundingChunks
+            .map((chunk: any) => chunk.web?.url || chunk.retrievalMetadata?.source?.uri)
+            .filter(Boolean)
+
+          if (citations.length > 0) {
+            const uniqueCitations = Array.from(new Set(citations)) as string[]
+            if (context) (context as any).citations = uniqueCitations
+            return {
+              content: finalAnswer,
+              citations: uniqueCitations
+            }
+          }
+        }
+
         return finalAnswer
       }
     } catch (error: any) {
       const errorMsg = error.message || 'Unknown error'
       if (errorMsg.includes('429') || errorMsg.includes('quota')) {
-        logger.warn(`Gemini key rate limited. Trying next key...`)
-        continue
+        logger.warn(`Gemini key rate limited. Bubbling error for key rotation...`)
+        throw error // Force bubble error (Fix 7.9)
       }
 
       if (errorMsg.includes('404') || errorMsg.includes('not found')) {

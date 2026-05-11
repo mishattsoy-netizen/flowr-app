@@ -11,6 +11,7 @@ export interface PipelineStep {
   chain: string
   goal: string
   status: 'pending' | 'running' | 'done' | 'failed'
+  label?: string
   output?: string
 }
 
@@ -46,7 +47,7 @@ async function runSingleChain(
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
     try {
-      let response: string | Buffer | null = null
+      let response: string | Buffer | { content: string; citations?: string[] } | null = null
       const provider = modelConfig.provider.toLowerCase()
 
       if (provider === 'google') {
@@ -80,10 +81,10 @@ async function runSingleChain(
         }
       } else if (provider === 'cloudflare') {
         const { runCloudflare } = await import('./providers/cloudflare')
-        response = await runCloudflare(modelConfig.id, prompt, routeContext?.aiApiKey)
+        response = await runCloudflare(modelConfig.id, prompt, routeContext?.aiApiKey, systemPrompt, [], chainType)
       } else if (provider === 'openrouter') {
         const { runOpenRouter } = await import('./providers/openrouter')
-        response = await runOpenRouter(modelConfig.id, prompt, systemPrompt, [], routeContext?.aiApiKey)
+        response = await runOpenRouter(modelConfig.id, prompt, systemPrompt, [], routeContext?.aiApiKey, modelConfig.openrouter_provider || undefined)
       } else if (
         provider === 'ollama' ||
         provider === 'local' ||
@@ -93,7 +94,15 @@ async function runSingleChain(
         response = await runOllama(modelConfig.id, prompt, systemPrompt, [], temperature ?? 0.7)
       }
 
-      if (response !== null) return response
+      if (response !== null) {
+        if (typeof response === 'object' && !Buffer.isBuffer(response) && 'content' in response) {
+          if (response.citations && context) {
+            context.citations = [...(context.citations || []), ...response.citations]
+          }
+          return response.content
+        }
+        return response
+      }
     } catch (e: any) {
       logger.warn(`Pipeline chain ${chainType} model ${modelConfig.id} failed: ${e.message}`)
     }
@@ -120,8 +129,11 @@ export async function executePipeline(
   for (let i = 0; i < steps.length; i++) {
     const chainType = steps[i]
     const goal = plan.stepGoals[i] || `Process ${chainType} for this request`
+    const { statusMessages } = await getPipelineSettings()
+    const customStatus = statusMessages[chainType]
+    const label = customStatus ? `${customStatus.emoji} ${customStatus.label}`.trim() : 'Working'
 
-    const step: PipelineStep = { chain: chainType, goal, status: 'running' }
+    const step: PipelineStep = { chain: chainType, goal, status: 'running', label }
     onStatus(step)
 
     const accumulatedSoFar = formatAccumulatedContext(completedSteps)

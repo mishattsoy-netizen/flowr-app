@@ -13,14 +13,16 @@ interface CanvasBlockProps {
   viewport: { x: number; y: number; scale: number };
   onConnectStart?: (side: string, x: number, y: number) => void;
   isSelected?: boolean;
+  selectedIds?: Set<string>;
   onSelect?: (id: string, addToSelection: boolean) => void;
   onCommit?: () => void;
   snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number };
 }
 
-export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, onSelect, onCommit, snapWithObjects }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects }: CanvasBlockProps) {
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
+  const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
   const moveCanvasSection = useStore(s => s.moveCanvasSection);
 
@@ -37,6 +39,10 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block.x || 0, y: block.y || 0 });
   const finalSizeRef = useRef({ w: block.width || 280, h: block.height || 150 });
+
+  useEffect(() => {
+    if (!isSelected) setIsEditing(false);
+  }, [isSelected]);
 
   // Sync from store when not interacting
   useEffect(() => {
@@ -77,8 +83,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     const isEdge = (e.target as HTMLElement).classList.contains('canvas-block-edge');
     const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
     
-    // Always select on pointer down if not clicking an input
-    if (!isInput) {
+    const isAlreadySelected = selectedIds?.has(block.id) ?? false;
+    if (!isInput && !isAlreadySelected) {
       onSelect?.(block.id, e.shiftKey);
     }
 
@@ -90,23 +96,62 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     setIsDragging(true);
     setShowMenu(false);
 
-    const startX = e.clientX / viewport.scale - position.x;
-    const startY = e.clientY / viewport.scale - position.y;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    
+    const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
+    
+    // Capture rigid snapshot of entire selection
+    const groupSnapshot = new Map<string, { x: number; y: number; points?: [number, number][] }>();
+    blocks.forEach(b => {
+      if (groupIds.includes(b.id)) {
+        groupSnapshot.set(b.id, {
+          x: b.x ?? 0,
+          y: b.y ?? 0,
+          points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined
+        });
+      }
+    });
+
+    const primaryStart = groupSnapshot.get(block.id) || { x: block.x ?? 0, y: block.y ?? 0 };
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      const newX = moveEvent.clientX / viewport.scale - startX;
-      const newY = moveEvent.clientY / viewport.scale - startY;
-      const snapped = snapWithObjects
-        ? snapWithObjects(newX, newY, block.width ?? 100, block.height ?? 40, block.id)
-        : { x: newX, y: newY };
-      setPosition({ x: snapped.x, y: snapped.y });
+      const deltaX = (moveEvent.clientX - startClientX) / viewport.scale;
+      const deltaY = (moveEvent.clientY - startClientY) / viewport.scale;
 
-      // Live update store for connection tracking and live shape moving
-      updateCanvasBlock(block.id, { x: snapped.x, y: snapped.y });
+      const unSnappedX = primaryStart.x + deltaX;
+      const unSnappedY = primaryStart.y + deltaY;
+      
+      const snappedPos = snapWithObjects
+        ? snapWithObjects(unSnappedX, unSnappedY, block.width ?? 100, block.height ?? 40, block.id)
+        : { x: unSnappedX, y: unSnappedY };
+
+      const finalDX = snappedPos.x - primaryStart.x;
+      const finalDY = snappedPos.y - primaryStart.y;
+
+      // Push local render state instantly for primary block for immediate feedback
+      setPosition({ x: snappedPos.x, y: snappedPos.y });
+
+      const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
+      groupSnapshot.forEach((snap, id) => {
+        if (snap.points) {
+          batchUpdates.push({
+            id, 
+            updates: { points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) }
+          });
+        } else {
+          batchUpdates.push({
+            id,
+            updates: { x: snap.x + finalDX, y: snap.y + finalDY }
+          });
+        }
+      });
+      
+      updateCanvasBlocks(batchUpdates);
 
       const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
       const sectionEl = over?.closest('[data-block-type="section"]');
-      if (sectionEl && sectionEl.id !== block.id) {
+      if (sectionEl && sectionEl.id !== block.id && !groupIds.includes(sectionEl.id)) {
         setIsOverSection(sectionEl.id);
       } else {
         setIsOverSection(null);
@@ -114,21 +159,29 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     };
 
     const handlePointerUp = (upEvent: PointerEvent) => {
-      const finalX = upEvent.clientX / viewport.scale - startX;
-      const finalY = upEvent.clientY / viewport.scale - startY;
-
       setIsDragging(false);
+      const movedDist = Math.hypot(upEvent.clientX - startClientX, upEvent.clientY - startClientY);
 
-      if (block.type === 'section') {
-        const dx = finalX - (block.x || 0);
-        const dy = finalY - (block.y || 0);
-        moveCanvasSection(block.id, dx, dy);
-      } else {
-        updateCanvasBlock(block.id, {
-          x: finalX,
-          y: finalY,
-          parentId: isOverSection || undefined
-        });
+      // If was selected and clicked without distinct drag movement, revert to only selecting this
+      if (movedDist < 4 && isAlreadySelected && !upEvent.shiftKey) {
+        onSelect?.(block.id, false);
+      }
+
+      // Commit final positions and section grouping containment
+      if (block.type === 'section' && movedDist >= 4) {
+         // Calculate actual cumulative offset done by primary for accurate group move triggers
+         const finalX = (upEvent.clientX - startClientX) / viewport.scale + primaryStart.x;
+         const finalY = (upEvent.clientY - startClientY) / viewport.scale + primaryStart.y;
+         const commitDX = finalX - (block.x || 0);
+         const commitDY = finalY - (block.y || 0);
+         // Standard section behavior carries all its children
+         moveCanvasSection(block.id, commitDX, commitDY);
+      }
+
+      if (isOverSection) {
+        updateCanvasBlocks(groupIds.filter(id => id !== isOverSection).map(id => ({
+          id, updates: { parentId: isOverSection }
+        })));
       }
 
       onCommit?.();
@@ -228,14 +281,14 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       className={clsx(
         "absolute group",
         !isDragging && !isResizing && "",
-        isDragging && "z-[3000] opacity-90 border border-[var(--bone-100)] rounded-2xl",
-        isResizing && "z-[3000] border border-[var(--bone-100)] rounded-2xl",
+        isDragging && "z-[3000] opacity-90 border border-brand-blue rounded-2xl",
+        isResizing && "z-[3000] border border-brand-blue rounded-2xl",
         !isDragging && !isResizing && (block.type === 'section' ? "z-0" : "z-10"),
-        isSelected && !isDragging && !isResizing && "border border-[var(--bone-100)] rounded-2xl",
-        !isSelected && "hover:border hover:border-[var(--bone-100)]/20 rounded-2xl",
+        isSelected && !isDragging && !isResizing && "border border-brand-blue rounded-2xl",
+        !isSelected && "hover:border hover:border-brand-blue/30 rounded-2xl",
         block.type === 'section' && "border-2 border-dashed border-[var(--bone-100)]/40 bg-[var(--bone-10)]/5 p-4 min-w-[300px] min-h-[200px]",
         (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
-        showMenu && "border border-[var(--bone-100)] ring-2 ring-accent/20 rounded-2xl"
+        showMenu && "border border-brand-blue ring-2 ring-accent/20 rounded-2xl"
       )}
       style={{
         left: position.x,
@@ -294,7 +347,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         <div className={clsx(
           "w-full h-full min-w-[120px]",
           block.type === 'text' && "bg-background border border-border rounded-xl p-2",
-          (block.type === 'image' || block.type === 'video') && "overflow-hidden rounded-xl"
+          (block.type === 'image' || block.type === 'video') && "overflow-hidden rounded-xl",
+          !isEditing && block.type === 'text' && "pointer-events-none select-none"
         )}>
           <BlockRenderer
             block={block}
@@ -321,7 +375,10 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Comment</span>
           </div>
           <textarea
-            className="w-full bg-transparent text-sm leading-relaxed outline-none resize-none min-h-[80px] text-foreground/80 placeholder:text-muted-foreground/30"
+            className={clsx(
+              "w-full bg-transparent text-sm leading-relaxed outline-none resize-none min-h-[80px] text-foreground/80 placeholder:text-muted-foreground/30",
+              !isEditing && "pointer-events-none select-none"
+            )}
             value={block.content}
             onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
             placeholder="Discuss or tag @someone..."

@@ -22,6 +22,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCardUI } from './TaskCard';
+import { Plus } from 'lucide-react';
 
 type ColumnItems = Record<string, AppTask[]>;
 
@@ -164,6 +165,14 @@ export function TrackerPage() {
             Manage your progress across all workspaces.
           </p>
         </div>
+        
+        <button
+          onClick={() => useStore.getState().openModal({ kind: 'newTask' })}
+          className="px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-medium text-sm rounded-[12px] flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/10 shrink-0"
+        >
+          <Plus className="w-4 h-4" strokeWidth={2} />
+          New Task
+        </button>
       </div>
 
       <DndContext

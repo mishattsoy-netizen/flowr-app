@@ -15,6 +15,8 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
   return ids;
 }
 
+import { inlineMarkdownToHtml } from '@/lib/utils/markdownToBlocks';
+
 export function markdownToBlocks(markdown: string): EditorBlock[] {
   if (!markdown) return [{ id: generateId(), type: 'text', style: 'body', content: '', align: 'left' }];
 
@@ -41,7 +43,7 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
 
     if (line.startsWith('|') && line.endsWith('|')) {
       if (/^\|[\s|:-]+\|$/.test(line)) continue;
-      const cells = line.slice(1, -1).split('|').map(c => c.trim());
+      const cells = line.slice(1, -1).split('|').map(c => inlineMarkdownToHtml(c.trim()));
       tableRows.push(cells);
       continue;
     } else {
@@ -53,21 +55,21 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
     if (/^#{1}\s*/.test(line) && line.startsWith('# ')) {
       const text = line.slice(2).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'text', style: 'title', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'text', style: 'title', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
     if (line.startsWith('## ')) {
       const text = line.slice(3).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'text', style: 'heading', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'text', style: 'heading', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
     if (line.startsWith('### ')) {
       const text = line.slice(4).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'text', style: 'subheading', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'text', style: 'subheading', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
@@ -79,40 +81,41 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
     if (/^> /.test(line)) {
       const text = line.slice(2).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'quote', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'quote', content: inlineMarkdownToHtml(text), align: 'left' });
+      continue;
+    }
+
+    const checklistMatch = line.match(/^[-*+]?\s*\[([ xX])\]\s+(.*)/);
+    if (checklistMatch) {
+      const checked = checklistMatch[1].toLowerCase() === 'x';
+      const text = checklistMatch[2].trim();
+      if (!text) continue;
+      blocks.push({ id: generateId(), type: 'checklist', content: inlineMarkdownToHtml(text), checked, align: 'left' });
       continue;
     }
 
     if (/^[-*+] /.test(line)) {
       const text = line.slice(2).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'bulletList', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'bulletList', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
     if (/^- /.test(line)) {
       const text = line.slice(2).trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'dashedList', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'dashedList', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
     if (/^\d+\. /.test(line)) {
       const text = line.replace(/^\d+\.\s*/, '').trim();
       if (!text) continue;
-      blocks.push({ id: generateId(), type: 'numberedList', content: text, align: 'left' });
+      blocks.push({ id: generateId(), type: 'numberedList', content: inlineMarkdownToHtml(text), align: 'left' });
       continue;
     }
 
-    if (/^\[[ x]\] /i.test(line)) {
-      const checked = /^\[x\] /i.test(line);
-      const text = line.slice(4).trim();
-      if (!text) continue;
-      blocks.push({ id: generateId(), type: 'checklist', content: text, checked, align: 'left' });
-      continue;
-    }
-
-    blocks.push({ id: generateId(), type: 'text', style: 'body', content: line, align: 'left' });
+    blocks.push({ id: generateId(), type: 'text', style: 'body', content: inlineMarkdownToHtml(line), align: 'left' });
   }
 
   flushTable();
@@ -121,6 +124,7 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
     ? blocks
     : [{ id: generateId(), type: 'text', style: 'body', content: '', align: 'left' }];
 }
+
 
 export function validateNoteContent(content: string): { valid: boolean; reason?: string } {
   if (!content || !content.trim()) {

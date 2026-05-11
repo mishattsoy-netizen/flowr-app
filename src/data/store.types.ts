@@ -60,7 +60,8 @@ export type BlockType =
   | 'shape'
   | 'section'
   | 'comment'
-  | 'connection';
+  | 'connection'
+  | 'link';
 
 export type EmbedDisplayMode = 'list-item' | 'widget-sm' | 'widget-md' | 'widget-lg';
 export type DatabaseViewType = 'table' | 'board' | 'gallery' | 'list';
@@ -139,6 +140,7 @@ export interface EditorBlock {
   toSide?: 'top' | 'right' | 'bottom' | 'left';
   isFolded?: boolean;
   foldingEnabled?: boolean;
+  linkUrl?: string;
 }
 
 /** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
@@ -170,6 +172,13 @@ export interface Entity {
   workspaceId?: string | null;
 
   sortOrder?: number;
+  cloudSyncEnabled?: boolean;
+}
+
+export interface SubTask {
+  id: string;
+  text: string;
+  completed: boolean;
 }
 
 export interface AppTask {
@@ -180,7 +189,10 @@ export interface AppTask {
   entityId?: string | null;
   workspaceId?: string | null;
   note?: string;
+  description?: string;
   color?: string;
+  priority?: 'low' | 'medium' | 'high' | null;
+  subtasks?: SubTask[];
   difficulty?: number;
   status?: 'todo' | 'in-progress' | 'done';
   createdAt?: number;
@@ -209,7 +221,8 @@ export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 
 export interface PipelineStep {
   chain: string
   goal: string
-  status: 'running' | 'done' | 'failed'
+  status: 'pending' | 'running' | 'done' | 'failed'
+  label?: string
   output?: string
 }
 
@@ -245,6 +258,7 @@ export interface AISessionContext {
   context_limit: number;
   compaction_threshold: number;
   active_mode?: BotMode;
+  status_messages?: Record<string, { label: string; emoji: string }>;
 }
 
 export interface AICursor {
@@ -279,9 +293,11 @@ export type FlowIntentCategory = 'tool_call' | 'web_search' | 'complex' | 'mediu
 export interface FlowRouterModel {
   id: string;
   label: string;
-  provider: 'openrouter' | 'gemini' | 'google' | 'groq' | 'local' | 'vault' | 'cloudflare' | 'huggingface' | 'pollinations';
+  provider: 'openrouter' | 'gemini' | 'google' | 'groq' | 'local' | 'vault' | 'cloudflare' | 'huggingface' | 'pollinations' | 'siliconflow';
   enabled: boolean;
   dailyLimit: number | null;
+  openrouter_provider?: string;
+  isPaid?: boolean;
 }
 
 export interface FlowRouterCategory {
@@ -395,6 +411,7 @@ export interface AppState {
   activeReplyMessage: AIMessage | null;
   thinkingEnabled: boolean;
   advisorEnabled: boolean;
+  showPaidModels: boolean;
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;
@@ -435,6 +452,7 @@ export interface AppState {
   setActiveIntentTag: (tag: string | null) => void;
   setReplyMessage: (msg: AIMessage | null) => void;
   setAIClassificationModelId: (id: string) => void;
+  setShowPaidModels: (show: boolean) => void;
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
   sendAIMessage: (content: string, attachments?: AIAttachment[]) => Promise<void>;
@@ -446,7 +464,7 @@ export interface AppState {
   setNavigationState: (id: string | null, history: string[], index: number) => void;
   goBack: () => void;
   goForward: () => void;
-  addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => void;
+  addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => string;
   deleteEntity: (id: string) => void;
   moveEntity: (id: string, newParentId: string | null, newWorkspaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
@@ -469,6 +487,7 @@ export interface AppState {
   addEmptyTag: (id: string) => void;
   addCanvasBlock: (block: EditorBlock) => void;
   updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => void;
+  updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   deleteCanvasBlock: (id: string) => void;
   moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => void;
   toggleFavorite: (id: string) => void;
@@ -509,6 +528,7 @@ export interface AppState {
   updateGuide: (id: string, updates: Partial<Guide>) => void;
   deleteGuide: (id: string) => void;
   setCloudSyncEnabled: (enabled: boolean) => void;
+  toggleEntityCloudSync: (entityId: string) => void;
   setLastSaved: (time: number | null) => void;
   setKnowledgeData: (data: Partial<AppState>) => void;
   openModal: (modal: ModalType) => void;

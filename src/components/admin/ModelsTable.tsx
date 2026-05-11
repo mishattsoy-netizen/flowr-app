@@ -19,6 +19,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   local: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
   ollama: 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
   'ollama(my pc)': 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
+  siliconflow: 'text-indigo-400 border-indigo-400/20 bg-indigo-400/10',
 }
 
 const MODALITY_COLORS: Record<string, string> = {
@@ -160,6 +161,7 @@ function EditableRow({
           <option value="openrouter">openrouter</option>
           <option value="ollama">ollama</option>
           <option value="local">local</option>
+          <option value="siliconflow">siliconflow</option>
         </select>
       </td>
       <td className="px-4 py-3">
@@ -271,6 +273,7 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
           <option value="openrouter">openrouter</option>
           <option value="ollama">ollama</option>
           <option value="local">local</option>
+          <option value="siliconflow">siliconflow</option>
         </select>
       </td>
       <td className="px-4 py-3">

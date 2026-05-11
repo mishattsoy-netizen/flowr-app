@@ -8,12 +8,16 @@ export interface SelectionRect {
 export function useCanvasMultiSelect(blocks: EditorBlock[]) {
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedIdsRef = useRef<Set<string>>(new Set());
   const startRef = useRef<{ x: number; y: number } | null>(null);
+
+  const getLatestSelectedIds = useCallback(() => selectedIdsRef.current, []);
 
   const startSelection = useCallback((canvasX: number, canvasY: number) => {
     startRef.current = { x: canvasX, y: canvasY };
     setSelectionRect({ x: canvasX, y: canvasY, width: 0, height: 0 });
     setSelectedIds(new Set());
+    selectedIdsRef.current = new Set();
   }, []);
 
   const updateSelection = useCallback((canvasX: number, canvasY: number) => {
@@ -30,7 +34,25 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
     const intersecting = new Set<string>();
     for (const b of blocks) {
       if (b.type === 'connection') continue;
-      const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 100, bh = b.height ?? 40;
+      
+      let bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 100, bh = b.height ?? 40;
+
+      // Account for precise bounding bounds of dynamic point lines/shapes
+      if (b.points && Array.isArray(b.points) && b.points.length > 0) {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const p of b.points) {
+          minX = Math.min(minX, p[0]);
+          maxX = Math.max(maxX, p[0]);
+          minY = Math.min(minY, p[1]);
+          maxY = Math.max(maxY, p[1]);
+        }
+        // Normalize into bounds check space
+        bx = minX;
+        by = minY;
+        bw = Math.max(maxX - minX, 1);
+        bh = Math.max(maxY - minY, 1);
+      }
+
       if (
         bx < rect.x + rect.width &&
         bx + bw > rect.x &&
@@ -41,18 +63,20 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
       }
     }
     setSelectedIds(intersecting);
+    selectedIdsRef.current = intersecting;
   }, [blocks]);
 
   const endSelection = useCallback(() => {
     startRef.current = null;
     setSelectionRect(null);
-    // selectedIds remains — caller reads it to set the final selection
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
+    const empty = new Set<string>();
+    setSelectedIds(empty);
+    selectedIdsRef.current = empty;
     setSelectionRect(null);
   }, []);
 
-  return { selectionRect, selectedIds, startSelection, updateSelection, endSelection, clearSelection };
+  return { selectionRect, selectedIds, getLatestSelectedIds, startSelection, updateSelection, endSelection, clearSelection };
 }

@@ -39,7 +39,7 @@ export function ResizeHandle({ position, onResizeStart, isSelected }: ResizeHand
     <div
       className={clsx(
         "absolute z-[200] ",
-        "w-2 h-2 bg-background border-2 border-accent rounded-sm ",
+        "w-2.5 h-2.5 bg-background border-2 border-brand-blue rounded-full ",
         isSelected ? "opacity-100 scale-100" : "opacity-0 scale-50",
         POSITION_CLASSES[position],
       )}

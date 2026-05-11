@@ -1,10 +1,19 @@
 import { logger } from '../logger'
 import { getRouterChain, IntentCategory } from '../router-config'
 import { getProviderKeys } from '../vault'
+import { runGoogle } from './providers/google'
+import { runGroq } from './providers/groq'
+import { runOpenRouter } from './providers/openrouter'
 
 export interface OrchestratorPlan {
   steps: IntentCategory[]
   stepGoals: string[]
+}
+
+const PROVIDER_EXECUTORS: Record<string, Function> = {
+  google: runGoogle,
+  groq: runGroq,
+  openrouter: runOpenRouter,
 }
 
 const VALID_CHAIN_CATEGORIES: IntentCategory[] = [
@@ -68,32 +77,27 @@ export async function planChainSequence(
 
   const orchestratorPrompt = buildOrchestratorPrompt(prompt, maxSteps)
   const systemPrompt = system_prompt || DEFAULT_ORCHESTRATOR_SYSTEM_PROMPT
-  const recentHistory = history.slice(-6)
+  const recentHistory = history.slice(-20)
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
     try {
-      let response: string | null = null
+      let response: any = null
       const provider = modelConfig.provider.toLowerCase()
 
-      // Import and call providers dynamically to avoid circular deps
+      // Call providers statically (Fix 7.1)
       if (provider === 'google') {
-        const { runGoogle } = await import('./providers/google')
-        // runGoogle fetches its own Gemini keys internally
         response = await runGoogle(modelConfig.id, orchestratorPrompt, systemPrompt, undefined, {} as any, recentHistory)
       } else if (provider === 'groq') {
-        const { runGroq } = await import('./providers/groq')
-        // runGroq fetches its own Groq keys internally when aiApiKey is undefined
         response = await runGroq(modelConfig.id, orchestratorPrompt, systemPrompt, undefined, {} as any, recentHistory)
       } else if (provider === 'openrouter') {
-        const { runOpenRouter } = await import('./providers/openrouter')
         const keys = await getProviderKeys('OPENROUTER')
-        // runOpenRouter(modelId, prompt, systemPrompt?, history[], apiKey?)
-        response = await runOpenRouter(modelConfig.id, orchestratorPrompt, systemPrompt, recentHistory, keys[0] || '')
+        response = await runOpenRouter(modelConfig.id, orchestratorPrompt, systemPrompt, recentHistory, keys[0] || '', modelConfig.openrouter_provider || undefined)
       }
 
       if (response) {
-        const plan = parseOrchestratorOutput(response, maxSteps)
+        const content = typeof response === 'object' ? response.content : response
+        const plan = parseOrchestratorOutput(content, maxSteps)
         if (plan) {
           logger.info(`Orchestrator planned: ${plan.steps.join(' → ')}`)
           return plan

@@ -2,8 +2,9 @@
 
 import React, { useState, useTransition } from 'react'
 import { RefreshCw, CheckCircle2, Plus, RotateCcw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatCostPerMillion, formatCompactNumber } from '@/lib/utils'
 import { fetchProviderModels, addModel, updateModel, type DiscoveredModel } from './actions'
+import { useStore } from '@/data/store'
 
 const PROVIDERS = [
   { value: 'google',      label: 'Google' },
@@ -12,6 +13,7 @@ const PROVIDERS = [
   { value: 'huggingface', label: 'HuggingFace' },
   { value: 'openrouter',  label: 'OpenRouter' },
   { value: 'cloudflare',  label: 'Cloudflare' },
+  { value: 'siliconflow', label: 'SiliconFlow' },
 ]
 
 const PROVIDER_KEY_PREFIX: Record<string, string> = {
@@ -21,6 +23,7 @@ const PROVIDER_KEY_PREFIX: Record<string, string> = {
   huggingface:  'HUGGINGFACE',
   openrouter:   'OPENROUTER',
   cloudflare:   'CLOUDFLARE',
+  siliconflow:  'SILICONFLOW',
 }
 
 const MODALITY_COLORS: Record<string, string> = {
@@ -30,12 +33,6 @@ const MODALITY_COLORS: Record<string, string> = {
   video: 'text-rose-400 border-rose-400/20 bg-rose-400/10',
 }
 
-function formatNum(n: number | null, fallback = '—'): string {
-  if (n === null) return fallback
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(0)}K`
-  return String(n)
-}
 
 type SortField = 'id' | 'displayName' | 'contextWindow' | 'maxOutputTokens' | 'rpd' | 'rpm' | 'input' | 'output' | 'inRegistry'
 
@@ -53,6 +50,7 @@ const HEADERS: { label: string; field: SortField | null }[] = [
   { label: 'RPM',          field: 'rpm' },
   { label: 'Input',        field: 'input' },
   { label: 'Output',       field: 'output' },
+  { label: 'Cost',         field: null },
   { label: 'Saved',        field: 'inRegistry' },
   { label: '',             field: null },
 ]
@@ -154,7 +152,7 @@ function ResultsTable({
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-[2fr_1.5fr_80px_80px_70px_70px_100px_100px_60px_80px] gap-2 px-4 py-2 border-b border-white/5 bg-[var(--bone-6)] select-none">
+      <div className="grid grid-cols-[2fr_1.5fr_80px_80px_70px_70px_100px_100px_100px_60px_80px] gap-2 px-4 py-2 border-b border-white/5 bg-[var(--bone-6)] select-none">
         {HEADERS.map((h, i) => {
           if (h.field) {
             const configIndex = sortConfigs.findIndex(c => c.field === h.field)
@@ -196,7 +194,7 @@ function ResultsTable({
         {sortedModels.map(m => (
           <div
             key={m.id}
-            className="grid grid-cols-[2fr_1.5fr_80px_80px_70px_70px_100px_100px_60px_80px] gap-2 px-4 py-2.5 hover:bg-white/[0.02] border-b border-white/[0.03] last:border-b-0 transition-colors duration-150"
+            className="grid grid-cols-[2fr_1.5fr_80px_80px_70px_70px_100px_100px_100px_60px_80px] gap-2 px-4 py-2.5 hover:bg-white/[0.02] border-b border-white/[0.03] last:border-b-0 transition-colors duration-150"
           >
             <span className="text-[11px] font-mono text-bone-60 opacity-70 truncate self-center" title={m.id}>
               {m.id}
@@ -205,16 +203,16 @@ function ResultsTable({
               {m.displayName}
             </span>
             <span className="text-[10px] font-mono text-bone-60 opacity-40 self-center">
-              {formatNum(m.contextWindow, '—')}
+              {m.contextWindow ? formatCompactNumber(m.contextWindow) : '—'}
             </span>
             <span className="text-[10px] font-mono text-bone-60 opacity-40 self-center">
-              {formatNum(m.maxOutputTokens, '—')}
+              {m.maxOutputTokens ? formatCompactNumber(m.maxOutputTokens) : '—'}
             </span>
             <span className="text-[10px] font-mono text-bone-60 opacity-40 self-center">
-              {m.rpd === null ? '—' : m.rpd}
+              {formatCompactNumber(m.rpd)}
             </span>
             <span className="text-[10px] font-mono text-bone-60 opacity-40 self-center">
-              {m.rpm === null ? '—' : m.rpm}
+              {formatCompactNumber(m.rpm)}
             </span>
             {/* Input modalities */}
             <div className="flex flex-wrap gap-1 self-center">
@@ -231,6 +229,18 @@ function ResultsTable({
                   {mod}
                 </span>
               ))}
+            </div>
+            {/* Cost */}
+            <div className="flex flex-wrap gap-1 self-center">
+              {m.isPaid ? (
+                <span className="px-1.5 py-0.5 rounded-medium text-[8px] font-bold uppercase tracking-wider border text-amber-400 border-amber-400/20 bg-amber-400/10" title={`Prompt: ${m.promptCost} / Comp: ${m.completionCost} (per 1M tokens)`}>
+                  ${formatCostPerMillion(m.promptCost)} / ${formatCostPerMillion(m.completionCost)} per 1M
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded-medium text-[8px] font-bold uppercase tracking-wider border text-green-400 border-green-400/20 bg-green-400/10">
+                  Free
+                </span>
+              )}
             </div>
             {/* In registry */}
             <div className="self-center flex items-center justify-center">
@@ -279,6 +289,8 @@ export default function DiscoverClient({
   const [error, setError] = useState<string | null>(null)
   const [isFetching, startFetch] = useTransition()
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set())
+  const showPaid = useStore(s => s.showPaidModels)
+  const setShowPaid = useStore(s => s.setShowPaidModels)
 
   // Keys for selected provider
   const prefix = PROVIDER_KEY_PREFIX[provider] ?? provider.toUpperCase()
@@ -309,6 +321,19 @@ export default function DiscoverClient({
   }
 
   async function handleAdd(model: DiscoveredModel) {
+    // Paid model confirmation guard
+    if (model.isPaid && !model.inRegistry) {
+      const confirmed = window.confirm(
+        `⚠️ "${model.id}" is a PAID model.\n\n` +
+        `Prompt cost: $${formatCostPerMillion(model.promptCost)} per 1M tokens\n` +
+        `Completion cost: $${formatCostPerMillion(model.completionCost)} per 1M tokens\n\n` +
+        `Adding it to the registry will allow routing, ` +
+        `potentially incurring charges on your OpenRouter account.\n\n` +
+        `Are you sure you want to add this paid model?`
+      )
+      if (!confirmed) return
+    }
+
     setAddingIds(prev => new Set(prev).add(model.id))
     try {
       if (model.inRegistry) {
@@ -317,6 +342,9 @@ export default function DiscoverClient({
           output_modalities: model.modalities.output,
           max_rpd: model.rpd,
           provider: model.provider,
+          is_paid: model.isPaid ?? false,
+          prompt_cost: model.promptCost ?? null,
+          completion_cost: model.completionCost ?? null,
         })
       } else {
         await addModel({
@@ -325,6 +353,9 @@ export default function DiscoverClient({
           input_modalities: model.modalities.input,
           output_modalities: model.modalities.output,
           max_rpd: model.rpd,
+          is_paid: model.isPaid ?? false,
+          prompt_cost: model.promptCost ?? null,
+          completion_cost: model.completionCost ?? null,
         })
       }
       setModels(prev => prev.map(m => m.id === model.id ? { ...m, inRegistry: true } : m))
@@ -380,6 +411,18 @@ export default function DiscoverClient({
           {isFetching ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
           {isFetching ? 'Fetching…' : 'Fetch Models'}
         </button>
+
+        {provider === 'openrouter' && (
+          <label className="flex items-center gap-2 text-[11px] text-bone-60 cursor-pointer select-none ml-2">
+            <input
+              type="checkbox"
+              checked={showPaid}
+              onChange={e => setShowPaid(e.target.checked)}
+              className="accent-accent w-3.5 h-3.5 rounded bg-white/5 border-white/10 focus:ring-0"
+            />
+            Show paid models
+          </label>
+        )}
       </div>
 
       {/* Error */}
@@ -390,14 +433,20 @@ export default function DiscoverClient({
       )}
 
       {/* Results */}
-      {models.length > 0 && (
-        <ResultsTable
-          models={models}
-          addingIds={addingIds}
-          onAdd={handleAdd}
-          onAddAll={handleAddAll}
-        />
-      )}
+      {(() => {
+        const visibleModels = provider === 'openrouter' && !showPaid
+          ? models.filter(m => !m.isPaid)
+          : models
+          
+        return visibleModels.length > 0 && (
+          <ResultsTable
+            models={visibleModels}
+            addingIds={addingIds}
+            onAdd={handleAdd}
+            onAddAll={handleAddAll}
+          />
+        )
+      })()}
     </div>
   )
 }

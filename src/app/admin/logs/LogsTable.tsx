@@ -5,6 +5,8 @@ import { getMessageExchanges, Exchange } from './actions'
 import { cn } from '@/lib/utils'
 import { Bot, Globe, MessageSquare, Search, Wrench, Eye, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2, XCircle, ArrowRight, ThumbsUp, ThumbsDown, Clock } from 'lucide-react'
 import ClearLogsModal from '@/components/admin/ClearLogsModal'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const USAGE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   chat:   { label: 'Chat',   color: 'text-blue-400 bg-blue-400/10' },
@@ -29,6 +31,12 @@ function formatTime(iso: string) {
 
 function truncate(text: string | null, max = 100) {
   if (!text) return '—'
+  if (text.includes('data:image/')) {
+    const parts = text.split(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,/)
+    if (parts.length > 1) {
+      return (parts[0] || '') + '[Image Data]' + (parts[1]?.slice(0, 20) || '') + '…'
+    }
+  }
   return text.length > max ? text.slice(0, max) + '…' : text
 }
 
@@ -39,7 +47,9 @@ const KNOWN_CATEGORIES = new Set([
 
 function parseChain(chain: string | null): { classifier: string; category: string; routed: string } | null {
   if (!chain) return null
-  const parts = chain.split(' → ').map(p => p.split('|')[0])
+  const parts = chain.split(' → ')
+    .map(p => p.split('|')[0])
+    .filter(p => !p.toLowerCase().startsWith('advisor('))
   const catIdx = parts.findIndex(p => KNOWN_CATEGORIES.has(p))
   if (catIdx !== -1) {
     return {
@@ -365,7 +375,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                           const catIdx = rawParts.findIndex(p => KNOWN_CATEGORIES.has(p))
                           if (catIdx !== -1) {
                             const category = rawParts[catIdx]
-                            const classifyRawParts = rawParts.slice(0, catIdx)
+                            const classifyRawParts = rawParts.slice(0, catIdx).filter(p => !p.toLowerCase().startsWith('advisor('))
                             const routingRawParts = rawParts.slice(catIdx + 1)
 
                             classifyTrace = classifyRawParts.map(part => {
@@ -504,9 +514,73 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
                           <h5 className="text-[10px] font-bold text-bone-60 uppercase tracking-widest mb-1.5 opacity-50">
                             MODEL RESPONSE
                           </h5>
-                          <p className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text">
-                            {ex.model_response || '(response unavailable)'}
-                          </p>
+                          <div className="text-xs text-foreground/80 font-sans break-words leading-relaxed select-text prose prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 max-w-none">
+                            {ex.model_response ? (
+                              (() => {
+                                const trimmed = ex.model_response.trim();
+                                const isPureImage = /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)[\s\S]*?\s*\)$/.test(trimmed);
+                                
+                                if (isPureImage) {
+                                  const imgMatch = trimmed.match(/!\[(.*?)\]\s*\(\s*(data:image\/.*?;base64,[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)\s*\)/);
+                                    if (imgMatch) {
+                                      const cleanSrc = imgMatch[2].trim().replace(/\s/g, '');
+                                      return (
+                                        <div className="my-2 flex justify-center">
+                                          <div className="rounded-lg overflow-hidden border border-white/10 bg-black/20">
+                                            <img src={cleanSrc} alt={imgMatch[1] || ''} className="max-w-full max-h-[320px] w-auto h-auto object-contain" />
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                }
+
+                                return (
+                                  <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      p: ({ children }: any) => {
+                                        const childrenArray = React.Children.toArray(children);
+                                        const isPureText = childrenArray.every(c => typeof c === 'string');
+                                        const contentStr = isPureText ? childrenArray.join('') : '';
+                                        const imgMatch = isPureText ? contentStr.match(/!\[(.*?)\]\s*\(\s*(data:image\/.*?;base64,[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)\s*\)/) : null;
+
+                                        if (imgMatch) {
+                                          const cleanSrc = imgMatch[2].trim().replace(/\s/g, '');
+                                          const matchIndex = contentStr.indexOf(imgMatch[0]);
+                                          const textBefore = contentStr.substring(0, matchIndex);
+                                          const textAfter = contentStr.substring(matchIndex + imgMatch[0].length);
+                                          
+                                          return (
+                                            <div className="my-2">
+                                              {textBefore && <div className="mb-2">{textBefore}</div>}
+                                              <div className="flex justify-center">
+                                                <div className="rounded-lg overflow-hidden border border-white/10 bg-black/20">
+                                                  <img src={cleanSrc} alt={imgMatch[1] || ''} className="max-w-full max-h-[320px] w-auto h-auto object-contain" />
+                                                </div>
+                                              </div>
+                                              {textAfter && <div className="mt-2">{textAfter}</div>}
+                                            </div>
+                                          );
+                                        }
+                                        return <p className="my-1">{children}</p>;
+                                      },
+                                      img: ({ src, alt }: any) => {
+                                        if (!src) return null;
+                                        const cleanSrc = src.trim().replace(/\s/g, '');
+                                        return (
+                                          <div className="my-2 rounded-lg overflow-hidden border border-white/10 bg-black/20">
+                                            <img src={cleanSrc} alt={alt || ''} className="max-w-full h-auto" />
+                                          </div>
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {ex.model_response}
+                                  </ReactMarkdown>
+                                );
+                              })()
+                            ) : '(response unavailable)'}
+                          </div>
                         </div>
                       </div>
                       </div>

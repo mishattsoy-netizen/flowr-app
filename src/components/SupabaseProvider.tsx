@@ -11,16 +11,16 @@ import { isSupabaseEnabled, supabase } from '@/lib/supabase';
  * - Subscribes to realtime changes so edits from other devices appear instantly.
  */
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
-  const setEntities          = useStore(s => s.setEntities);
-  const setTasks             = useStore(s => s.setTasks);
-  const setWorkspaces        = useStore(s => s.setWorkspaces);
+  const setEntities = useStore(s => s.setEntities);
+  const setTasks = useStore(s => s.setTasks);
+  const setWorkspaces = useStore(s => s.setWorkspaces);
 
-  const setLifeData          = useStore(s => s.setLifeData);
-  const setKnowledgeData     = useStore(s => s.setKnowledgeData);
-  const getEntities          = () => useStore.getState().entities;
-  const getTasks             = () => useStore.getState().tasks;
-  const getWorkspaces        = () => useStore.getState().workspaces;
-  
+  const setLifeData = useStore(s => s.setLifeData);
+  const setKnowledgeData = useStore(s => s.setKnowledgeData);
+  const getEntities = () => useStore.getState().entities;
+  const getTasks = () => useStore.getState().tasks;
+  const getWorkspaces = () => useStore.getState().workspaces;
+
   const getLifeData = () => {
     const s = useStore.getState();
     return {
@@ -43,7 +43,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     };
   };
 
-  const loaded               = useRef(false);
+  const loaded = useRef(false);
 
   useEffect(() => {
     if (!isSupabaseEnabled || loaded.current) return;
@@ -77,9 +77,33 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         }
       }
 
-      if (data.entities.length > 0)   setEntities(data.entities);
-      if (data.tasks.length > 0)      setTasks(data.tasks);
-      if (data.workspaces.length > 0) setWorkspaces(data.workspaces);
+      // 3. Populate Store (Merging logic to prevent data loss Fix)
+      if (data.entities.length > 0) {
+        const localEntities = getEntities();
+        const merged = [...data.entities];
+        localEntities.forEach(le => {
+          if (!merged.find(me => me.id === le.id)) merged.push(le);
+        });
+        setEntities(merged);
+      }
+
+      if (data.tasks.length > 0) {
+        const localTasks = getTasks();
+        const merged = [...data.tasks];
+        localTasks.forEach(lt => {
+          if (!merged.find(mt => mt.id === lt.id)) merged.push(lt);
+        });
+        setTasks(merged);
+      }
+
+      if (data.workspaces.length > 0) {
+        const localWorkspaces = getWorkspaces();
+        const merged = [...data.workspaces];
+        localWorkspaces.forEach(lw => {
+          if (!merged.find(mw => mw.id === lw.id)) merged.push(lw);
+        });
+        setWorkspaces(merged);
+      }
 
 
     });

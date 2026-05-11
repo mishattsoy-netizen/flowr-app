@@ -9,7 +9,7 @@ import { getWebConversationMemory } from '@/lib/bot/memory'
 import { getCompiledPrompt } from '@/lib/bot/compilePrompt'
 import { streamOllama } from '@/lib/bot/providers/ollama'
 
-const DEFAULT_DAILY_LIMIT = 50
+const DEFAULT_DAILY_LIMIT = 1000
 
 async function checkAndIncrementQuota(authUserId: string): Promise<{ allowed: boolean }> {
   if (!supabaseAdmin) return { allowed: true } // Skip quota if admin is not configured
@@ -169,19 +169,36 @@ export async function POST(req: NextRequest) {
     )
 
     let content = result.content
-    if (Buffer.isBuffer(content)) {
-      const b64 = content.toString('base64')
-      content = `![Generated Image](data:image/png;base64,${b64})`
+    const isImage = result.type === 'photo' || (typeof content === 'string' && content.startsWith('!['))
+    
+    if (content && (Buffer.isBuffer(content) || (content as any) instanceof Uint8Array)) {
+      const buf = Buffer.from(content as any);
+      const b64 = buf.toString('base64');
+      
+      // Detect MIME type from header
+      let mime = 'image/png';
+      if (buf[0] === 0xFF && buf[1] === 0xD8) mime = 'image/jpeg';
+      else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) mime = 'image/gif';
+      else if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) mime = 'image/webp';
+      
+      content = `![Generated Image](data:${mime};base64,${b64})`
     } else if (result.type === 'photo' && typeof content === 'string' && content.startsWith('data:')) {
+      content = `![Generated Image](${content})`
+    } else if (result.type === 'photo' && typeof content === 'string' && (content.startsWith('http') || content.includes('.ai/'))) {
+      // Handle cases where image generators return a URL instead of binary
       content = `![Generated Image](${content})`
     }
 
-    // Log to message_logs — never store raw base64 image data
+    // Prepend text content if it exists (for pipelines that generate both text and image)
+    if (result.text_content && typeof content === 'string') {
+      content = `${result.text_content}\n\n${content}`
+    }
+
+    // Log to message_logs — we allow base64 images here so they persist in chat history.
+    // The previous '[image]' placeholder caused images to disappear on refresh.
     const logUserId = user?.id || 'anonymous'
     const requestId = crypto.randomUUID()
-    const loggedContent = (result.type === 'photo' || (typeof content === 'string' && content.startsWith('![')))
-      ? '[image]'
-      : (typeof content === 'string' ? content : '[image]')
+    const loggedContent = typeof content === 'string' ? content : '[image]'
     const modelChain = result.model_chain
     const usageType = result.usage_type || 'chat'
     

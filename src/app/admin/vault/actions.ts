@@ -4,33 +4,101 @@ import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { encrypt, decrypt } from '@/lib/encryption'
 import { revalidatePath } from 'next/cache'
 
-/**
- * Fetches all keys from the vault (names only).
- */
+// --- ACCOUNTS ---
+
+export async function getVaultData() {
+  const [accountsRes, keysRes] = await Promise.all([
+    supabase.from('vault_accounts').select('*').order('sort_order', { ascending: true }),
+    supabase.from('vault').select('id, key_id, account_id, key_index, description, updated_at').order('key_index', { ascending: true })
+  ])
+  return { accounts: accountsRes.data || [], keys: keysRes.data || [] }
+}
+
 export async function getVaultKeys() {
   const { data, error } = await supabase
     .from('vault')
-    .select('key_id, description, updated_at')
-    .order('key_id', { ascending: true })
-
+    .select('id, key_id, account_id, key_index, description, updated_at')
+    .order('key_index', { ascending: true })
+  
   if (error) throw error
-  return data
+  return data || []
 }
 
-/**
- * Updates a key in the vault with new encryption.
- */
-export async function updateVaultKey(keyId: string, plainValue: string) {
-  if (!plainValue) throw new Error('Value cannot be empty')
+export async function addVaultAccount(provider: string, name: string) {
+  const { data: existing } = await supabase
+    .from('vault_accounts')
+    .select('id')
+    .eq('provider', provider)
+  
+  const sort_order = existing ? existing.length : 0
 
-  const encrypted = encrypt(plainValue)
+  const { error } = await supabase
+    .from('vault_accounts')
+    .insert({ provider, name, sort_order, is_active: true })
+  
+  if (error) throw error
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
+export async function updateVaultAccount(accountId: string, name: string) {
+  const { error } = await supabase
+    .from('vault_accounts')
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq('id', accountId)
+  
+  if (error) throw error
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
+export async function toggleVaultAccount(accountId: string, isActive: boolean) {
+  const { error } = await supabase
+    .from('vault_accounts')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('id', accountId)
+  
+  if (error) throw error
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
+export async function deleteVaultAccount(accountId: string) {
+  const { error } = await supabase
+    .from('vault_accounts')
+    .delete()
+    .eq('id', accountId)
+  
+  if (error) throw error
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
+export async function reorderVaultAccounts(orderedIds: string[]) {
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from('vault_accounts')
+      .update({ sort_order: i })
+      .eq('id', orderedIds[i])
+    if (error) throw error
+  }
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
+// --- KEYS ---
+
+export async function updateVaultKey(keyId: string, plainValue?: string) {
+  const updates: any = { updated_at: new Date().toISOString() }
+
+  if (plainValue) {
+    const encrypted = encrypt(plainValue)
+    updates.encrypted_value = `${encrypted.iv}:${encrypted.encryptedData}`
+  }
 
   const { error } = await supabase
     .from('vault')
-    .update({
-      encrypted_value: `${encrypted.iv}:${encrypted.encryptedData}`,
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('key_id', keyId)
 
   if (error) throw error
@@ -38,11 +106,29 @@ export async function updateVaultKey(keyId: string, plainValue: string) {
   return { success: true }
 }
 
-/**
- * Adds a new key to the vault.
- */
-export async function addVaultKey(keyId: string, plainValue: string) {
-  if (!keyId || !plainValue) throw new Error('Key name and Value cannot be empty')
+export async function addVaultKey(accountId: string | null, provider: string, plainValue: string, customKeyId?: string) {
+  if (!plainValue) throw new Error('Value cannot be empty')
+
+  let finalAccountId = accountId
+
+  if (!finalAccountId) {
+    // Resolve to general provider for stand-alone keys if not specified
+    const { data: acct } = await supabase.from('vault_accounts').select('id').eq('provider', 'general').maybeSingle()
+    if (acct) finalAccountId = acct.id
+    else {
+       // Create fallback general
+       const { data: newA, error: e } = await supabase.from('vault_accounts').insert({ provider: 'general', name: 'Primary', is_active: true }).select('id').single()
+       if (!e) finalAccountId = newA.id
+    }
+  }
+
+  const { data: existing } = await supabase
+    .from('vault')
+    .select('id')
+    .eq('account_id', finalAccountId)
+
+  const key_index = existing ? existing.length : 0
+  const keyId = customKeyId || `${provider.toUpperCase()}_${Date.now()}`
 
   const encrypted = encrypt(plainValue)
 
@@ -51,6 +137,8 @@ export async function addVaultKey(keyId: string, plainValue: string) {
     .insert({
       key_id: keyId,
       encrypted_value: `${encrypted.iv}:${encrypted.encryptedData}`,
+      account_id: finalAccountId,
+      key_index,
       updated_at: new Date().toISOString()
     })
 
@@ -59,9 +147,6 @@ export async function addVaultKey(keyId: string, plainValue: string) {
   return { success: true }
 }
 
-/**
- * Deletes a key from the vault.
- */
 export async function deleteVaultKey(keyId: string) {
   const { error } = await supabase
     .from('vault')
@@ -73,9 +158,6 @@ export async function deleteVaultKey(keyId: string) {
   return { success: true }
 }
 
-/**
- * Decrypts and reveals a vault key value.
- */
 export async function revealVaultKey(keyId: string) {
   const { data, error } = await supabase
     .from('vault')
@@ -89,13 +171,11 @@ export async function revealVaultKey(keyId: string) {
   let iv: string = ''
   let encryptedData: string = ''
 
-  // Support both JSON format and colon-delimited format
   try {
     const parsed = JSON.parse(data.encrypted_value)
     iv = parsed.iv
     encryptedData = parsed.encryptedData
   } catch (e) {
-    // Fallback: Support colon-delimited format [iv]:[encryptedData]
     const parts = data.encrypted_value.split(':')
     if (parts.length < 2) throw new Error('Invalid encryption format in database')
     iv = parts[0]
@@ -107,30 +187,16 @@ export async function revealVaultKey(keyId: string) {
   return decrypt(encryptedData, iv)
 }
 
-/**
- * Renames all keys for a provider atomically to PROVIDER_0, PROVIDER_1, ...
- * matching the given ordered array of current key_ids.
- */
-export async function reorderProviderKeys(provider: string, orderedKeyIds: string[]) {
-  const prefix = provider.toUpperCase()
-
-  // Use temp names first to avoid unique constraint conflicts during rename
+export async function reorderProviderKeys(orderedKeyIds: string[]) {
   for (let i = 0; i < orderedKeyIds.length; i++) {
     const { error } = await supabase
       .from('vault')
-      .update({ key_id: `${prefix}_TEMP_${i}` })
+      .update({ key_index: i })
       .eq('key_id', orderedKeyIds[i])
-    if (error) throw error
-  }
-
-  for (let i = 0; i < orderedKeyIds.length; i++) {
-    const { error } = await supabase
-      .from('vault')
-      .update({ key_id: `${prefix}_${i}` })
-      .eq('key_id', `${prefix}_TEMP_${i}`)
     if (error) throw error
   }
 
   revalidatePath('/admin/vault')
   return { success: true }
 }
+

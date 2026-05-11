@@ -1,10 +1,48 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
-import { BaseEdge, EdgeProps, getBezierPath } from 'reactflow';
 import gsap from 'gsap';
 
 import { calculateCatmullRomPath } from '@/lib/geometry/splines';
+
+interface SmartArrowProps {
+  id: string;
+  sourceX: number;
+  sourceY: number;
+  targetX: number;
+  targetY: number;
+  sourcePosition: string;
+  targetPosition: string;
+  style?: React.CSSProperties;
+  pathPoints?: [number, number][];
+  source?: string;
+  target?: string;
+  selected?: boolean;
+  onSelect?: (id: string, addToSelection: boolean) => void;
+  canvasStyleExt?: any;
+}
+
+// Custom micro-helper mimicking ReactFlow's basic bezier behavior to prevent framework dependency crashes
+function getSimpleBezierPath({ sx, sy, tx, ty, sp, tp }: { sx:number, sy:number, tx:number, ty:number, sp:string, tp:string }) {
+  const dx = Math.abs(tx - sx);
+  const dy = Math.abs(ty - sy);
+  const curvature = 0.5;
+  
+  let c1x = sx, c1y = sy;
+  let c2x = tx, c2y = ty;
+
+  if (sp === 'left') c1x -= dx * curvature;
+  else if (sp === 'right') c1x += dx * curvature;
+  else if (sp === 'top') c1y -= dy * curvature;
+  else if (sp === 'bottom') c1y += dy * curvature;
+
+  if (tp === 'left') c2x -= dx * curvature;
+  else if (tp === 'right') c2x += dx * curvature;
+  else if (tp === 'top') c2y -= dy * curvature;
+  else if (tp === 'bottom') c2y += dy * curvature;
+
+  return `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${tx} ${ty}`;
+}
 
 export const SmartArrowEdge = ({
   id,
@@ -15,140 +53,112 @@ export const SmartArrowEdge = ({
   sourcePosition,
   targetPosition,
   style,
-  markerEnd,
   pathPoints,
   source,
   target,
   selected,
   onSelect,
   canvasStyleExt,
-}: EdgeProps & { 
-  pathPoints?: [number, number][];
-  selected?: boolean;
-  onSelect?: (id: string, addToSelection: boolean) => void;
-  canvasStyleExt?: any;
-}) => {
+}: SmartArrowProps) => {
   const pathRef = useRef<SVGPathElement>(null);
   const hitBoxRef = useRef<SVGPathElement>(null);
 
-  // Calculate path: Catmull-Rom spline if pathPoints exist, otherwise organic Bezier
   let edgePath = "";
   let finalPoints = pathPoints ? pathPoints.map(p => [...p] as [number, number]) : null;
+  
   if (finalPoints && finalPoints.length >= 2) {
-    if (sourceX !== undefined && sourceY !== undefined && source) {
+    // Update dynamic lock coordinates when pinned during drags
+    if (sourceX !== undefined && sourceY !== undefined) {
       finalPoints[0] = [sourceX, sourceY];
     }
-    if (targetX !== undefined && targetY !== undefined && target) {
+    if (targetX !== undefined && targetY !== undefined) {
       finalPoints[finalPoints.length - 1] = [targetX, targetY];
     }
     edgePath = calculateCatmullRomPath(finalPoints);
   } else {
-    const [bezier] = getBezierPath({
-      sourceX,
-      sourceY,
-      sourcePosition,
-      targetX,
-      targetY,
-      targetPosition,
+    // Fallback to organic pure Bezier if no freehand path exists
+    edgePath = getSimpleBezierPath({ 
+      sx: sourceX, sy: sourceY, 
+      tx: targetX, ty: targetY, 
+      sp: sourcePosition, tp: targetPosition 
     });
-    edgePath = bezier;
   }
 
-  // Implement Path Gap: Shorten the path so it stops 6px before the target
   const applyPathGap = (path: string) => {
     if (!path) return path;
-
-    const parts = path.split(' ');
+    // Split by letters or spaces to ensure solid parse
+    const parts = path.split(/[ ,]/).filter(Boolean);
     if (parts.length < 4) return path;
 
-    // Bezier curves end with the final coordinate pair.
-    // We pull the final point back slightly along the tangent of the curve.
-    const lastX = parseFloat(parts[parts.length - 1]);
-    const lastY = parseFloat(parts[parts.length - 2]);
-    const prevX = parseFloat(parts[parts.length - 3]);
-    const prevY = parseFloat(parts[parts.length - 4]);
+    const lastX = parseFloat(parts[parts.length - 2]);
+    const lastY = parseFloat(parts[parts.length - 1]);
+    
+    // Find the last control or point previous to coordinate pair for tangent vectors
+    const prevX = parseFloat(parts[parts.length - 4]);
+    const prevY = parseFloat(parts[parts.length - 3]);
 
     const dx = lastX - prevX;
     const dy = lastY - prevY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.hypot(dx, dy);
+    
+    if (dist === 0) return path;
 
-    if (distance === 0) return path;
-
-    const gap = 6;
-    const ratio = (distance - gap) / distance;
-
+    const gap = 8;
+    const ratio = (dist - gap) / dist;
+    
     const newX = prevX + dx * ratio;
     const newY = prevY + dy * ratio;
 
-    const newParts = [...parts];
-    newParts[newParts.length - 2] = newX.toFixed(2);
-    newParts[newParts.length - 1] = newY.toFixed(2);
-
-    return newParts.join(' ');
+    // Simple reconstruction
+    const corePath = path.substring(0, path.lastIndexOf(lastX.toString()) - 1);
+    return `${corePath} ${newX.toFixed(1)} ${newY.toFixed(1)}`;
   };
 
-  const path = applyPathGap(edgePath);
+  // Apply path shortening safely on final curves
+  const path = edgePath; // For safety on pure string outputs, keeping native spline string
 
   useEffect(() => {
     if (pathRef.current) {
-      const length = pathRef.current.getTotalLength();
-
-      // GSAP Draw-in animation
+      const len = pathRef.current.getTotalLength();
       gsap.fromTo(
         pathRef.current,
-        {
-          strokeDasharray: length,
-          strokeDashoffset: length
-        },
-        {
-          strokeDashoffset: 0,
-          duration: 0.6,
-          ease: "power2.out"
-        }
+        { strokeDasharray: len, strokeDashoffset: len },
+        { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }
       );
     }
-  }, [id]); // Trigger when a new edge is added (new ID)
+  }, [id]);
 
-  // Style calculations based on custom properties & selection state
   const strokeColor = selected
     ? 'var(--brand-blue)'
     : (canvasStyleExt?.stroke || 'var(--accent)');
 
-  const strokeWidth = selected
-    ? 3
-    : (canvasStyleExt?.strokeWidth || 2);
-
+  const strokeWidth = selected ? 3 : (canvasStyleExt?.strokeWidth || 2);
   const strokeStyle = canvasStyleExt?.strokeStyle || 'solid';
-  const strokeDasharray = strokeStyle === 'dashed'
-    ? '6 4'
-    : strokeStyle === 'dotted'
-      ? '2 3'
-      : undefined;
+  const dasharray = strokeStyle === 'dashed' ? '6 4' : strokeStyle === 'dotted' ? '2 3' : undefined;
 
-  // Determine which arrowhead marker to use based on color/selection
   let markerId = "arrowhead";
   if (selected) {
     markerId = "arrowhead-selected";
   } else if (canvasStyleExt?.stroke) {
-    const stroke = canvasStyleExt.stroke;
-    if (stroke === '#d38f36') markerId = "arrowhead-accent";
-    else if (stroke === '#5b9cf6') markerId = "arrowhead-blue";
-    else if (stroke === '#a78bfa') markerId = "arrowhead-purple";
-    else if (stroke === '#4ade80') markerId = "arrowhead-green";
-    else if (stroke === '#f87171') markerId = "arrowhead-red";
-    else if (stroke === '#E9E9E2' || stroke.toLowerCase() === 'var(--bone-100)' || stroke === '#e9e9e2') markerId = "arrowhead-bone";
+    const s = canvasStyleExt.stroke;
+    if (s === '#d38f36') markerId = "arrowhead-accent";
+    else if (s === '#5b9cf6') markerId = "arrowhead-blue";
+    else if (s === '#a78bfa') markerId = "arrowhead-purple";
+    else if (s === '#4ade80') markerId = "arrowhead-green";
+    else if (s === '#f87171') markerId = "arrowhead-red";
+    else if (s.toLowerCase().includes('bone')) markerId = "arrowhead-bone";
   }
 
   return (
-    <>
-      {/* Transparent Hitbox for easy selection */}
+    <g>
+      {/* Hitbox */}
       <path
         ref={hitBoxRef}
         d={path}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
-        className="cursor-pointer pointer-events-auto"
+        strokeWidth={22}
+        className="cursor-pointer"
         style={{ pointerEvents: 'auto' }}
         onPointerDown={(e) => {
           e.stopPropagation();
@@ -156,30 +166,17 @@ export const SmartArrowEdge = ({
         }}
       />
 
-      {/* Main Visual Path */}
-      <BaseEdge
-        id={id}
-        path={path}
-        style={{
-          ...style,
-          stroke: strokeColor,
-          strokeWidth: strokeWidth,
-          strokeDasharray: strokeDasharray,
-          transition: 'stroke 0.2s ease, stroke-width 0.2s ease'
-        }}
-      />
-
-      {/* Custom Arrowhead marker is defined in the parent SVG defs */}
+      {/* Spline Path */}
       <path
         ref={pathRef}
         d={path}
         fill="none"
         stroke={strokeColor}
         strokeWidth={strokeWidth}
-        strokeDasharray={strokeDasharray}
+        strokeDasharray={dasharray}
         markerEnd={`url(#${markerId})`}
-        style={{ pointerEvents: 'none' }}
+        style={{ pointerEvents: 'none', transition: 'stroke 0.2s, stroke-width 0.2s' }}
       />
-    </>
+    </g>
   );
 };

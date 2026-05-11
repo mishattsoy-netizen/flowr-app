@@ -43,7 +43,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
 
       <button
         onClick={togglePlay}
-        className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20"
+        className="w-8 h-8 rounded-full bg-white/20 text-bone-100 flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all"
       >
         {isPlaying ? <Pause strokeWidth={2} className="w-3.5 h-3.5 fill-current" /> : <Play strokeWidth={2} className="w-3.5 h-3.5 fill-current ml-0.5" />}
       </button>
@@ -57,7 +57,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
               key={i}
               className={clsx(
                 "w-0.5 rounded-full transition-all duration-300",
-                isActive ? "bg-accent" : "bg-white/10"
+                isActive ? "bg-bone-100" : "bg-white/10"
               )}
               style={{
                 height: `${Math.max(20, 30 + Math.sin(i * 0.8) * 40 + (isPlaying ? Math.random() * 20 : 0))}%`
@@ -67,7 +67,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
         })}
       </div>
 
-      <div className="text-[10px] font-mono font-bold text-accent/60 w-8 text-right tabular-nums">
+      <div className="text-[10px] font-mono font-bold text-bone-60 w-8 text-right tabular-nums">
         {formatTime(isPlaying ? currentTime : (duration || currentTime))}
       </div>
 

@@ -54,15 +54,14 @@ export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: {
   };
 
   return (
-    <div className="my-4 relative group rounded-[var(--radius-small)] bg-white/5 overflow-hidden min-h-[200px] flex flex-col justify-center">
+    <div className="my-4 max-w-[50%] relative group rounded-2xl bg-white/5 overflow-hidden min-h-[100px] flex flex-col justify-center">
       {loading && !error && (
-        <div className="flex flex-col items-center justify-center gap-3 py-14 w-full">
+        <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
           <div className="relative">
-            <StarIcon className="w-8 h-8 text-accent animate-pulse" />
-            <div className="absolute inset-0 w-8 h-8 rounded-[var(--radius-small)] bg-accent/20 blur-xl animate-pulse" />
+            <StarIcon className="w-8 h-8 text-bone-100 animate-pulse" />
+            <div className="absolute inset-0 w-8 h-8 rounded-[var(--radius-small)] bg-white/10 blur-xl animate-pulse" />
           </div>
-          <div className="text-[11px] text-accent font-bold uppercase tracking-widest">Generating Image...</div>
-          <div className="text-[10px] text-muted-foreground opacity-60">This may take up to a minute</div>
+          <div className="text-[11px] text-bone-100 font-bold uppercase tracking-widest">Generating...</div>
         </div>
       )}
 
@@ -71,16 +70,13 @@ export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: {
           <Skull strokeWidth={2} className="w-8 h-8 opacity-70 grayscale contrast-125 text-white/40" />
           <div className="space-y-1.5 px-6">
             <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-foreground/80">Generation Timeout</h3>
-            <p className="text-[10px] text-muted-foreground/60 max-w-[220px] leading-relaxed">
-              The service didn&apos;t respond. Try a shorter prompt or use the direct link.
-            </p>
           </div>
           <button
             onClick={handleRetry}
             className="mt-2 flex items-center gap-2.5 px-5 py-2.5 bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-[0.15em] rounded-full transition-colors group/retry"
           >
             <RefreshCw strokeWidth={2} className="w-3 h-3 group-hover/retry:animate-spin" />
-            Retry Generation
+            Retry
           </button>
         </div>
       )}
@@ -92,7 +88,7 @@ export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: {
           alt={alt}
           style={loading ? { position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' } : undefined}
           className={clsx(
-            "w-full h-auto cursor-pointer",
+            "max-w-full h-auto cursor-pointer",
             !loading && "block opacity-100 transition-opacity duration-700 hover:opacity-90"
           )}
           onClick={() => {

@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     const { data: settings } = await supabase
       .from('bot_settings')
       .select('category, content')
+      .eq('mode', 'default')
 
     const settingsSummary = (settings || [])
       .map((s: any) => `[${s.category}]: ${s.content}`)

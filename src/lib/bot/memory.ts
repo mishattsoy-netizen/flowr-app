@@ -20,10 +20,16 @@ export async function getConversationMemory(telegramId: number, limit: number = 
 
     if (error) throw error
 
-    const history = data.reverse().map((msg: any) => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.content || "" }]
-    }))
+    const history = data.reverse().map((msg: any) => {
+      let cleanContent = msg.content || "";
+      if (cleanContent.includes('data:image/')) {
+        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, '[Image Data]');
+      }
+      return {
+        role: msg.role === 'model' ? 'model' : 'user',
+        parts: [{ text: cleanContent }]
+      };
+    })
 
     return history as MemoryItem[]
   } catch (error) {
@@ -64,10 +70,17 @@ export async function getWebConversationMemory(authUserId: string, limit: number
       return [];
     }
 
-    const history = (data || []).reverse().map((msg: any) => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.content || "" }]
-    }))
+    const history = (data || []).reverse().map((msg: any) => {
+      let cleanContent = msg.content || "";
+      // Truncate massive base64 images in history to avoid context bloat and model hallucination
+      if (cleanContent.includes('data:image/')) {
+        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, '[Image Data]');
+      }
+      return {
+        role: msg.role === 'model' ? 'model' : 'user',
+        parts: [{ text: cleanContent }]
+      };
+    })
 
     return history as MemoryItem[]
   } catch (error) {

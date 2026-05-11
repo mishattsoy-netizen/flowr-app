@@ -74,7 +74,8 @@ export default function CloudflareVaultWidget({ initialKeys }: { initialKeys: { 
       if (f.exists) {
         await updateVaultKey(f.key_id, f.editValue)
       } else {
-        await addVaultKey(f.key_id, f.editValue)
+        // Important: pass null as accountId to auto-resolve 'general', and explicitly pass the customKeyId string.
+        await addVaultKey(null, 'general', f.editValue, f.key_id)
       }
       update(index, { isEditing: false, isSaving: false, exists: true, revealedValue: f.editValue, editValue: '' })
     } catch {

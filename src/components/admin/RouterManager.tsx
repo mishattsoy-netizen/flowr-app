@@ -26,6 +26,8 @@ import { saveChainPreset, loadChainPreset, listChainPresets } from '@/app/admin/
 import { cn } from '@/lib/utils'
 import ModelDropdown from './ModelDropdown'
 import ProviderSelector from './ProviderSelector'
+import OpenRouterRoutingProviderSelector from './OpenRouterRoutingProviderSelector'
+import RowOptionsDropdown from './RowOptionsDropdown'
 import { PROVIDER_DOTS, PROVIDER_COLORS, RegistryModel } from './model-utils'
 
 
@@ -34,6 +36,7 @@ interface ModelConfig {
   id: string
   provider: string
   is_enabled: boolean
+  openrouter_provider?: string
   _key?: string
 }
 
@@ -309,6 +312,11 @@ export default function RouterManager({
     const oldId = newModels[index].id
     newModels[index] = { ...newModels[index], [field]: value }
     
+    // Drop openrouter_provider mapping if target switches off openrouter
+    if (field === 'provider' && (value as string).toLowerCase() !== 'openrouter') {
+      delete newModels[index].openrouter_provider
+    }
+    
     if (field === 'provider') {
       const oldProviderModels = availableModels.filter(m => m.provider.toLowerCase() === oldProvider.toLowerCase())
       const wasKnownModel = oldProviderModels.some(m => m.id === oldId)
@@ -479,30 +487,39 @@ export default function RouterManager({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-         {models.map((model, index) => (
-           <div 
-             key={model._key || `${model.id}-${index}`} 
-             draggable
-             onDragStart={(e) => handleDragStart(e, index)}
-             onDragOver={(e) => handleDragOver(e, index)}
-             onDragEnd={handleDragEnd}
-             onDrop={handleDrop}
-             className={cn(
-               "group flex items-center gap-3 px-2 py-0.5 rounded-medium hover:bg-white/[0.02] transition-all duration-200 relative cursor-grab active:cursor-grabbing",
-               draggedIndex === index ? "opacity-20 scale-[0.98] bg-white/5" : "opacity-100"
-             )}
-           >
-             {/* Col 1: Model ID */}
-             <div className="w-[200px] shrink-0 flex items-center">
-               <ModelDropdown
-                 value={model.id}
-                 models={availableModels}
-                 onChange={(val) => updateLocalModel(index, 'id', val)}
-                 providerFilter={model.provider}
-               />
-             </div>
+         {models.map((model, index) => {
+           const matchingModel = availableModels.find(m => m.id === model.id)
+           const isPaid = matchingModel?.is_paid === true
+           
+           return (
+             <div 
+               key={model._key || `${model.id}-${index}`} 
+               draggable
+               onDragStart={(e) => handleDragStart(e, index)}
+               onDragOver={(e) => handleDragOver(e, index)}
+               onDragEnd={handleDragEnd}
+               onDrop={handleDrop}
+               className={cn(
+                 "group flex items-center gap-3 px-2 py-0.5 rounded-medium hover:bg-white/[0.02] transition-all duration-200 relative cursor-grab active:cursor-grabbing",
+                 draggedIndex === index ? "opacity-20 scale-[0.98] bg-white/5" : "opacity-100"
+               )}
+             >
+               {/* Col 1: Model ID */}
+               <div className="w-[200px] shrink-0 flex items-center gap-1.5">
+                 <ModelDropdown
+                   value={model.id}
+                   models={availableModels}
+                   onChange={(val) => updateLocalModel(index, 'id', val)}
+                   providerFilter={model.provider}
+                 />
+                 {isPaid && (
+                   <div className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[#d38f36]/10 border border-[#d38f36]/30 shrink-0" title="Paid Model">
+                     <span className="text-[9px] font-bold text-[#d38f36] select-none leading-none">$</span>
+                   </div>
+                 )}
+               </div>
              
-             <div className="flex items-center gap-2.5 ml-auto">
+             <div className="flex items-center gap-2 ml-auto">
                {/* Col 2: RPD */}
                <div className="flex items-center gap-1 shrink-0 text-bone-60 group-hover:text-bone-80 transition-colors duration-0 w-16 justify-end">
                  <span className="text-[9px] font-mono font-medium">
@@ -521,31 +538,26 @@ export default function RouterManager({
                  onChange={(val) => updateLocalModel(index, 'provider', val)}
                  isEnabled={model.is_enabled}
                />
+
+               {model.provider.toLowerCase() === 'openrouter' ? (
+                 <OpenRouterRoutingProviderSelector
+                   value={model.openrouter_provider || ''}
+                   onChange={(val) => updateLocalModel(index, 'openrouter_provider', val)}
+                   isEnabled={model.is_enabled}
+                 />
+               ) : (
+                 <div className="w-6 shrink-0" />
+               )}
    
-               {/* Col 4: Power */}
-               <div className="flex items-center gap-1.5 shrink-0">
-                 <button 
-                   onClick={() => toggle(index)}
-                   className={cn(
-                     "p-1 rounded-full transition-all duration-0",
-                     model.is_enabled 
-                       ? "bg-accent/10 text-accent" 
-                       : "bg-white/5 text-bone-60 opacity-20 hover:opacity-40"
-                   )}
-                 >
-                   <Power className="w-3 h-3" />
-                 </button>
-                 
-                 <button 
-                   onClick={() => deleteModel(index)}
-                   className="p-1 rounded-full bg-white/5 text-bone-60 opacity-0 group-hover:opacity-100 hover:text-rose-500 transition-all duration-0"
-                 >
-                   <Trash2 className="w-3 h-3" />
-                 </button>
-               </div>
+               <RowOptionsDropdown
+                 isEnabled={model.is_enabled}
+                 onToggle={() => toggle(index)}
+                 onDelete={() => deleteModel(index)}
+               />
              </div>
            </div>
-         ))}
+           )
+         })}
       </div>
  
       <div className="mt-auto px-3 py-1 flex justify-between items-center border-t border-white/[0.03]">

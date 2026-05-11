@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 import ModelDropdown from '@/components/admin/ModelDropdown'
 import { RegistryModel } from '@/components/admin/model-utils'
 import { Toggle } from '@/components/ui/Toggle'
+import PipelinePromptsPanel from '@/components/admin/PipelinePromptsPanel'
+import PipelineStatusPanel from '@/components/admin/PipelineStatusPanel'
+import OrchestratorPanel from '@/components/admin/OrchestratorPanel'
 
 const TABS: { key: SettingsCategory; label: string; description: string }[] = [
   { key: 'core_rules',       label: 'Core Rules',      description: 'Hard constraints — what the bot must always or never do' },
@@ -27,6 +30,9 @@ interface Props {
   initialOllamaEnabled: boolean
   initialBackendModel: string
   initialModels?: RegistryModel[]
+  initialStatusMessages: Record<string, { label: string; emoji: string }>
+  initialPipelinePrompts: { value: Record<string, string>; updated_at: string | null }
+  initialPipelineSettings: any
 }
 
 export default function SettingsClient({
@@ -39,6 +45,9 @@ export default function SettingsClient({
   initialOllamaEnabled,
   initialBackendModel,
   initialModels = [],
+  initialStatusMessages,
+  initialPipelinePrompts,
+  initialPipelineSettings,
 }: Props) {
   const [activeTab, setActiveTab] = useState<SettingsCategory>('core_rules')
   const [drafts, setDrafts] = useState<Record<string, string>>(
@@ -254,6 +263,16 @@ export default function SettingsClient({
           {compiledContent || '(not yet compiled — click Sync Brain)'}
         </pre>
       )}
+
+      <div className="h-4" />
+      <div className="border-t border-white/5 pt-6">
+        <h2 className="text-lg font-bold text-bone-100 uppercase tracking-widest mb-4 opacity-60">Pipeline & Chain Configuration</h2>
+        <div className="flex flex-col gap-6">
+          <OrchestratorPanel settings={initialPipelineSettings} />
+          <PipelinePromptsPanel initialPrompts={initialPipelinePrompts} />
+          <PipelineStatusPanel initialMessages={initialStatusMessages} />
+        </div>
+      </div>
     </div>
   )
 }

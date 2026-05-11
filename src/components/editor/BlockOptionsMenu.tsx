@@ -211,10 +211,12 @@ export function BlockOptionsMenu({
           <span className="flex items-center gap-3"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
           <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
         </button>
-        <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
-          <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
-          <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
-        </button>
+        {!['database', 'table', 'image', 'video', 'embed'].includes(block.type) && !(block.type === 'text' && block.style === 'mono') && (
+          <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
+            <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
+            <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
+          </button>
+        )}
         {['title', 'heading', 'subheading'].includes(block.style || '') && (
           <>
             <button 

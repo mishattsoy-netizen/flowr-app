@@ -20,7 +20,19 @@ export async function runHuggingFace(modelId: string, prompt: string, aiApiKey?:
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ inputs: prompt })
+      body: JSON.stringify({ 
+        inputs: prompt,
+        parameters: {
+          width: 1024,
+          height: 1024,
+          guidance_scale: 7.5,
+          num_inference_steps: 40
+        },
+        options: {
+          use_cache: false,
+          wait_for_model: true
+        }
+      })
     })
 
     if (!response.ok) {

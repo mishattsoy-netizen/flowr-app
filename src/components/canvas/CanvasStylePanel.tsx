@@ -48,7 +48,7 @@ function PanelSection({ title, children }: { title: string; children: React.Reac
 function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 min-h-[28px] mb-1 last:mb-0">
-      <span className="w-[52px] text-[11px] text-[rgba(233,233,226,0.3)] flex-shrink-0">{label}</span>
+      <span className="w-[44px] text-[11px] text-[rgba(233,233,226,0.3)] flex-shrink-0">{label}</span>
       <div className="flex-1 flex items-center gap-1">{children}</div>
     </div>
   );
@@ -57,7 +57,7 @@ function PropRow({ label, children }: { label: string; children: React.ReactNode
 function PillInput({ value, onChange }: { value: string | number; onChange: (v: string) => void }) {
   return (
     <input
-      className="flex-1 h-7 min-w-0 bg-[#232321] rounded-[6px] text-center text-[11px] text-[rgba(233,233,226,0.6)] border-none outline-none focus:bg-[rgba(233,233,226,0.1)] focus:text-[rgba(233,233,226,0.9)] transition-colors"
+      className="flex-1 w-0 h-7 min-w-0 bg-[#232321] rounded-[6px] text-center text-[11px] text-[rgba(233,233,226,0.6)] border-none outline-none focus:bg-[rgba(233,233,226,0.1)] focus:text-[rgba(233,233,226,0.9)] transition-colors"
       value={value}
       onChange={e => onChange(e.target.value)}
     />
@@ -101,7 +101,7 @@ export function CanvasStylePanel({
   }
 
   return (
-    <div className="w-[220px] bg-[#1c1c1a] border-l border-[rgba(233,233,226,0.1)] flex flex-col flex-shrink-0 overflow-y-auto">
+    <div className="w-[250px] bg-[#1c1c1a] border-l border-[rgba(233,233,226,0.1)] flex flex-col flex-shrink-0 overflow-y-auto">
 
       {/* Alignment bar */}
       <div className="px-2.5 py-2 border-b border-[rgba(233,233,226,0.1)] flex items-center gap-[2px]">
@@ -143,7 +143,7 @@ export function CanvasStylePanel({
       {/* Fill */}
       <PanelSection title="Fill">
         <PropRow label="Color">
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex gap-[3px] flex-wrap">
             {FILL_PRESETS.map(p => (
               <button
                 key={p.value}
@@ -174,7 +174,7 @@ export function CanvasStylePanel({
       {/* Border */}
       <PanelSection title="Border">
         <PropRow label="Color">
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex gap-[3px] flex-wrap">
             {STROKE_PRESETS.map(p => (
               <button
                 key={p.value}
