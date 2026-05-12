@@ -90,8 +90,35 @@ export const FLOWR_TOOLS = [
       type: "object",
       properties: {
         title: { type: "string", description: "Title of the note." },
-        content: { type: "string", description: "Content of the note (optional)." },
-        parentId: { type: "string", description: "ID of the parent folder (optional)." }
+        content: { type: "string", description: "Content of the note as plain markdown string (optional). Use blocks instead for structured content." },
+        parentId: { type: "string", description: "ID of the parent folder (optional)." },
+        blocks: {
+          type: "array",
+          description: "Structured block content for the note. Use this instead of content for rich formatting (lists, headings, checklists, etc.).",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
+              content: { type: "string", description: "Text content of the block." },
+              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
+              checked: { type: "boolean", description: "Whether a checklist item is checked." },
+              children: {
+                type: "array",
+                description: "Nested child blocks.",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    content: { type: "string" },
+                    style: { type: "string" },
+                    checked: { type: "boolean" }
+                  }
+                }
+              }
+            },
+            required: ["type"]
+          }
+        }
       },
       required: ["title"]
     }
@@ -104,9 +131,74 @@ export const FLOWR_TOOLS = [
       properties: {
         id: { type: "string", description: "The ID of the note to update." },
         title: { type: "string", description: "New title for the note (optional)." },
-        content: { type: "string", description: "New text content for the note (optional)." }
+        content: { type: "string", description: "New text content for the note as plain markdown string (optional). Use blocks instead for structured content." },
+        blocks: {
+          type: "array",
+          description: "Structured block content to replace the note's content. Use this instead of content for rich formatting (lists, headings, checklists, etc.).",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
+              content: { type: "string", description: "Text content of the block." },
+              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
+              checked: { type: "boolean", description: "Whether a checklist item is checked." },
+              children: {
+                type: "array",
+                description: "Nested child blocks.",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    content: { type: "string" },
+                    style: { type: "string" },
+                    checked: { type: "boolean" }
+                  }
+                }
+              }
+            },
+            required: ["type"]
+          }
+        }
       },
       required: ["id"]
+    }
+  },
+  {
+    name: "append_note_blocks",
+    description: "Appends structured block content to the end of an existing note.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The ID of the note to append to." },
+        blocks: {
+          type: "array",
+          description: "Array of block objects to append to the end of the note.",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
+              content: { type: "string", description: "Text content of the block." },
+              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
+              checked: { type: "boolean", description: "Whether a checklist item is checked." },
+              children: {
+                type: "array",
+                description: "Nested child blocks.",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    content: { type: "string" },
+                    style: { type: "string" },
+                    checked: { type: "boolean" }
+                  }
+                }
+              }
+            },
+            required: ["type"]
+          }
+        }
+      },
+      required: ["id", "blocks"]
     }
   },
   {
