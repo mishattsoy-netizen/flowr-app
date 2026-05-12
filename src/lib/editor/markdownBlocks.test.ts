@@ -54,7 +54,7 @@ describe('looksLikeMarkdown', () => {
     expect(looksLikeMarkdown('')).toBe(false);
   });
 
-  it('returns false for a single-line bullet (only 1 match)', () => {
+  it('returns false when fewer than 2 markdown-pattern lines are found (single bullet)', () => {
     expect(looksLikeMarkdown('- only one item')).toBe(false);
   });
 });
@@ -83,7 +83,8 @@ describe('parseMarkdownToBlocks', () => {
   it('parses numbered list', () => {
     const blocks = parseMarkdownToBlocks('1. first\n2. second');
     expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toMatchObject({ type: 'numberedList' });
+    expect(blocks[0]).toMatchObject({ type: 'numberedList', content: 'first' });
+    expect(blocks[1]).toMatchObject({ type: 'numberedList', content: 'second' });
   });
 
   it('parses checklist with checked state', () => {
@@ -179,6 +180,11 @@ describe('blocksToMarkdown', () => {
   it('serializes headings', () => {
     const blocks = parseMarkdownToBlocks('# Title');
     expect(blocksToMarkdown(blocks)).toBe('# Title');
+  });
+
+  it('serializes a hand-constructed bulletList block', () => {
+    const block = { id: 'test-1', type: 'bulletList' as const, content: 'hello world' };
+    expect(blocksToMarkdown([block])).toBe('- hello world');
   });
 });
 
