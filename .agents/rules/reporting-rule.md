@@ -220,6 +220,8 @@ This first quoted request must always appear before every other section.
 
 Every report must include these sections in this order:
 
+### 0. Date and time of the request
+
 ### 1. User request
 Start with the original request message in quotation marks.
 

@@ -95,9 +95,13 @@ export default function ModelDropdown({
 
       {isOpen && rect && (
         <div 
-          className="fixed bg-panel border border-white/10 rounded-[16px] shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-100 overflow-hidden min-w-[240px]"
+          className={cn(
+            "fixed bg-panel border border-white/10 rounded-[16px] shadow-2xl z-[999] animate-in fade-in zoom-in-95 duration-100 overflow-hidden min-w-[240px]",
+            rect.bottom + 300 > window.innerHeight ? "origin-bottom" : "origin-top"
+          )}
           style={{
-            top: rect.bottom + 6,
+            top: rect.bottom + 300 > window.innerHeight ? 'auto' : rect.bottom + 6,
+            bottom: rect.bottom + 300 > window.innerHeight ? window.innerHeight - rect.top + 6 : 'auto',
             left: rect.left,
             width: rect.width
           }}

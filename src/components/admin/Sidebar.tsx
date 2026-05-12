@@ -4,10 +4,10 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Activity, Cpu, ShieldCheck, Users, Zap, Shield, Terminal,
+  Activity, Cpu, ShieldCheck, Users, Zap, Shield,
   Bot, MessageSquareText, BarChart3, ScrollText, ArrowLeft,
   Database, Brain,
-  RotateCcw, MessageCircle, LayoutDashboard, Map, Globe,
+  RotateCcw, MessageCircle, LayoutDashboard, Globe,
   Telescope
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -39,7 +39,6 @@ export default function Sidebar() {
           <NavLink href="/admin/models" icon={Database}>Model Registry</NavLink>
           <NavLink href="/admin/discover" icon={Telescope}>Discover</NavLink>
           <NavLink href="/admin/router" icon={Cpu}>Router Matrix</NavLink>
-          <NavLink href="/admin/roadmap" icon={Map}>Project Roadmap</NavLink>
         </PlatformSection>
 
         <PlatformSection title="Bot Intelligence">

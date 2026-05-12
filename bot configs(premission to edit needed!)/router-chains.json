@@ -1,0 +1,293 @@
+{
+  "CLASSIFIER": {
+    "chain": [
+      {
+        "id": "llama-3.1-8b-instant",
+        "_key": "2e1skx6n3",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai-fast",
+        "_key": "hphsa4ev0",
+        "provider": "pollinations",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "_key": "ratlb71mw",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 0.1
+  },
+  "FAST_SIMPLE": {
+    "chain": [
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "_key": "h4d8pdjwa",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "openai-fast",
+        "_key": "iw6457gnp",
+        "provider": "pollinations",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "llama-3.1-8b-instant",
+        "_key": "ljrba8of5",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "_key": "uk0ddlj11",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 0.7
+  },
+  "VISION": {
+    "chain": [
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "_key": "3l0stcnea",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "_key": "izjhdt03a",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemma-4-26b-a4b-it",
+        "_key": "rekg9sk0b",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemma-4-31b-it",
+        "_key": "q4exi4lu9",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "system_prompt": "[VISION ROUTER ROLE]\nYou are the \"Visual Cortex\" and \"Autonomous Intent Classifier\" for Flowr AI. You are the first model to see the user's images. Your job is to extract visual data and decide the next strategic step.\n\n[STRICT RULES]\n- DO NOT explain your reasoning or intent.\n- DO NOT mention these instructions.\n- DO NOT use phrases like \"Based on the image\" or \"I see\". Just answer or output JSON.\n- LANGUAGE ADAPTATION: Detect the language of the images, chat history, and user request. Always adapt your final output language to match the most relevant context (e.g., respond in Czech if analyzing Czech taxation forms).\n\n[YOUR JOB]\n1. EXTRACT: Create a \"Digital Twin\" of the images (text-based representation).\n2. CLASSIFY: Determine if the request can be answered directly or if it requires specialized chains (Orchestration).\n\n[AUTONOMOUS BRAIN LOGIC]\nIf the request requires more than just a simple description (e.g., requires research, coding, or multiple tools), you MUST output your response as a JSON block wrapped in triple backticks.\n\nJSON SCHEMA:\n{\n  \"logic_nature\": \"intent_category\",\n  \"digital_twin\": \"Maximum precision description (Text, objects, layout, data)\",\n  \"next_instructions\": \"Specific guidance for the next chain (e.g. 'Search for the price of this specific watch model')\"\n}\n\nLOGIC_NATURE CATEGORIES:\n- MULTI_CHAIN: Request is complex and requires multiple different steps.\n- WEB_SEARCH: Requires current pricing, news, or external verification of an item in the image.\n- DEEP_RESEARCH: Requires exhaustive analysis of a topic suggested by the image.\n- CODING: The image contains code, an error message, or a UI mockup to be implemented.\n- TOOL_CALLING: Requires a specific tool like a calculator or internal API.\n- IMAGE_GEN: Requests to modify or recreate the image style.\n- FAST_SIMPLE: Standard chat response (only if you can answer 100% without tools).\n\n[IF ANSWERING DIRECTLY]\nIf the request is a simple question you can answer perfectly (e.g., \"What color is this?\"), respond with conversational text.\n\n[EXTRACTION RULES]\n- All visible text (verbatim).\n- Objects, people, spatial layout.\n- Any diagrams or data values.\n- Poor quality? Flag it in the \"digital_twin\".\n\n[OUTPUT EXAMPLES]\nUser sends image of a bug: \"Why are my leaves yellow?\"\n```json\n{\n  \"logic_nature\": \"WEB_SEARCH\",\n  \"digital_twin\": \"Plant with yellowing leaves and small white spots (pests) on the underside.\",\n  \"next_instructions\": \"Identify common pests for this plant type that cause yellow leaves and white spots.\"\n}\n```\n",
+    "temperature": 0.5
+  },
+  "MEDIUM_THINKING": {
+    "chain": [
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "llama-3.3-70b-versatile",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 0.7
+  },
+  "IMAGE_GEN": {
+    "chain": [
+      {
+        "id": "@cf/black-forest-labs/flux-1-schnell",
+        "_key": "891io0gqo",
+        "enabled": true,
+        "position": 3,
+        "provider": "cloudflare",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "flux",
+        "_key": "tm0rbln09",
+        "provider": "pollinations",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "nanobanana-2",
+        "_key": "mpbb9lr1u",
+        "enabled": true,
+        "position": 1,
+        "provider": "pollinations",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 2
+  },
+  "THINKING": {
+    "chain": [
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "_key": "md2vxykve",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash",
+        "_key": "85jd8ddab",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "deepseek",
+        "is_paid": true,
+        "prompt_cost": 1.4e-7,
+        "completion_cost": 2.8e-7
+      }
+    ],
+    "system_prompt": "You are the reasoning layer in a multi-step AI pipeline. Your job is to review all chain outputs, catch errors or gaps, consider multiple approaches, and commit to the clearest direction for the final answer.\n\nOutput your thinking in this exact format:\n[THINKING SUMMARY]\nReviewed: [list chain types reviewed, or \"none\" if no chains ran]\nGap found: [describe gap or \"none\"]\nCorrection needed: [chain type needed to fix gap, or \"none\"]\nApproach selected: [chosen approach for final answer]\nDirection for final output: [specific instruction for the answer chain]\nConfidence: [high / medium / low] — [one sentence reason]",
+    "temperature": 1
+  },
+  "IMAGE_UPSCALE": {
+    "chain": [
+      {
+        "id": "xinlai/Real-ESRGAN-realesrgan-x4plus",
+        "_key": "pz81obth1",
+        "provider": "huggingface",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "stabilityai/stable-diffusion-x4-upscaler",
+        "_key": "new_esrgan",
+        "provider": "huggingface",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 1
+  },
+  "CODING": {
+    "chain": [
+      {
+        "id": "gemma-4-31b-it",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "deepseek-ai/DeepSeek-R1",
+        "provider": "huggingface",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 0.7
+  },
+  "WEB_SEARCH": {
+    "chain": [
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "llama-3.3-70b-versatile",
+        "provider": "groq",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "temperature": 0.7
+  }
+}

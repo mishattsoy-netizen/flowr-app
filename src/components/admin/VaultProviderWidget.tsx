@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import {
-  ArrowUp, ArrowDown, Eye, EyeOff, Pencil, Trash2, Plus, RotateCcw, X, Check, Power
+  ArrowUp, ArrowDown, Eye, EyeOff, Pencil, Trash2, Plus, RotateCcw, X, Check, Power, Copy
 } from 'lucide-react'
 import {
   addVaultAccount,
@@ -12,6 +12,7 @@ import {
   reorderVaultAccounts,
   addVaultKey,
   updateVaultKey,
+  toggleVaultKey,
   deleteVaultKey,
   revealVaultKey,
   reorderProviderKeys
@@ -32,6 +33,7 @@ interface VaultKey {
   account_id: string
   key_index: number
   description?: string | null
+  is_active: boolean
 }
 
 interface ProviderInfo {
@@ -46,9 +48,13 @@ const PROVIDER_INFO: Record<string, ProviderInfo> = {
   gemini:      { name: 'Gemini',      color: 'text-blue-400',   bg: 'bg-blue-400/10',   border: 'border-blue-400/20',   dot: 'bg-blue-400'   },
   groq:        { name: 'Groq',        color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20', dot: 'bg-orange-400' },
   openrouter:  { name: 'OpenRouter',  color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20', dot: 'bg-purple-400' },
+  ollama:      { name: 'Ollama',      color: 'text-teal-400',   bg: 'bg-teal-400/10',   border: 'border-teal-400/20',   dot: 'bg-teal-400'   },
   tavily:      { name: 'Tavily',      color: 'text-cyan-400',   bg: 'bg-cyan-400/10',   border: 'border-cyan-400/20',   dot: 'bg-cyan-400'   },
-  huggingface: { name: 'Hugging Face', color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', dot: 'bg-yellow-500' },
+  huggingface: { name: 'Hugging Face', color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/20', dot: 'bg-yellow-400' },
   pollinations: { name: 'Pollinations', color: 'text-pink-400',   bg: 'bg-pink-400/10',   border: 'border-pink-400/20',   dot: 'bg-pink-400'   },
+  siliconflow: { name: 'SiliconFlow', color: 'text-indigo-400', bg: 'bg-indigo-400/10', border: 'border-indigo-400/20', dot: 'bg-indigo-400' },
+  cloudflare:  { name: 'Cloudflare',  color: 'text-amber-400',  bg: 'bg-amber-400/10',  border: 'border-amber-400/20',  dot: 'bg-amber-400'  },
+  core:        { name: 'Core',        color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20', dot: 'bg-emerald-400' },
   general:     { name: 'General',     color: 'text-bone-60',    bg: 'bg-bone-60/10',    border: 'border-bone-60/20',    dot: 'bg-bone-60'    },
 }
 
@@ -81,6 +87,8 @@ export default function VaultProviderWidget({
 
   const [addingKeyToAccountId, setAddingKeyToAccountId] = useState<string | null>(null)
   const [newKeyValue, setNewKeyValue] = useState('')
+
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
 
   // --- ACCOUNT ACTIONS ---
   async function handleAddAccount() {
@@ -134,6 +142,11 @@ export default function VaultProviderWidget({
     setRevealed(prev => ({ ...prev, [keyId]: editingKeyValue }))
   }
 
+  async function handleToggleKey(keyId: string, current: boolean) {
+    await toggleVaultKey(keyId, !current)
+    setKeys(prev => prev.map(k => k.key_id === keyId ? { ...k, is_active: !current } : k))
+  }
+
   async function handleDeleteKey(keyId: string) {
     await deleteVaultKey(keyId)
     setKeys(prev => prev.filter(k => k.key_id !== keyId))
@@ -150,9 +163,24 @@ export default function VaultProviderWidget({
     try {
       const val = await revealVaultKey(keyId)
       setRevealed(prev => ({ ...prev, [keyId]: val }))
+      
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        setRevealed(prev => {
+          const newR = { ...prev }
+          delete newR[keyId]
+          return newR
+        })
+      }, 5000)
     } finally {
       setRevealing(prev => ({ ...prev, [keyId]: false }))
     }
+  }
+
+  function handleCopyKey(keyId: string, value: string) {
+    navigator.clipboard.writeText(value)
+    setCopiedKeyId(keyId)
+    setTimeout(() => setCopiedKeyId(null), 2000)
   }
 
   async function handleMoveKey(accountId: string, index: number, direction: 'up' | 'down') {
@@ -256,10 +284,14 @@ export default function VaultProviderWidget({
                       "group flex items-center gap-3 px-3 py-1.5 rounded-medium transition-all duration-150",
                       isEditing 
                         ? "bg-accent/5 border border-accent/20" 
-                        : "bg-white/[0.01] border border-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.05] shadow-sm"
+                        : "bg-white/[0.01] border border-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.05] shadow-sm",
+                      !k.is_active && "opacity-40 grayscale-[50%]"
                     )}>
                       {/* Clean Counter */}
-                      <span className="text-[10px] font-mono font-bold text-bone-60/30 shrink-0 w-4">{String(keyIdx + 1).padStart(2, '0')}</span>
+                      <div className="relative shrink-0 w-4">
+                        <span className="text-[10px] font-mono font-bold text-bone-60/30">{String(keyIdx + 1).padStart(2, '0')}</span>
+                        {!k.is_active && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-px bg-rose-500/50 rotate-45" />}
+                      </div>
                       
                       {/* Value Track */}
                       <div className="flex-1 min-w-0 flex items-center gap-3">
@@ -278,18 +310,26 @@ export default function VaultProviderWidget({
                         ) : isRevealing ? (
                           <div className="flex-1 text-[11px] font-mono text-bone-60/50 flex items-center gap-2"><RotateCcw className="w-2.5 h-2.5 animate-spin" />Loading...</div>
                         ) : revealedVal ? (
-                          <div className="flex-1 text-[12px] font-mono text-accent drop-shadow-[0_0_5px_rgba(var(--accent-rgb),0.3)] truncate font-bold">
-                            {revealedVal.slice(0, 6)}{'•'.repeat(12)}{revealedVal.slice(-4)}
+                          <div 
+                            onClick={() => k.is_active && handleCopyKey(k.id, revealedVal)}
+                            className={cn(
+                              "flex-1 text-[12px] font-mono truncate font-medium relative",
+                              !k.is_active ? "text-bone-60/30 cursor-not-allowed" : "cursor-copy transition-all",
+                              revealedVal && k.is_active && (copiedKeyId === k.id ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" : "text-accent drop-shadow-[0_0_5px_rgba(var(--accent-rgb),0.3)] hover:brightness-125")
+                            )}
+                            title={k.is_active ? "Click to copy" : "Key is disabled"}
+                          >
+                            {revealedVal || (k.is_active ? '•'.repeat(24) : 'DISABLED')}
+                            {revealedVal && copiedKeyId === k.id && (
+                              <span className="ml-2 inline-flex items-center">
+                                <Check className="w-3 h-3" />
+                              </span>
+                            )}
                           </div>
                         ) : (
-                          <div className="flex-1 text-[10px] font-mono text-bone-60/15 tracking-[0.1em]">{'•'.repeat(24)}</div>
-                        )}
-                        
-                        {/* Description - Clean horizontal fit */}
-                        {!isEditing && k.description && (
-                          <span className="text-[9px] text-bone-60/30 italic truncate max-w-[140px] hidden sm:inline-block" title={k.description}>
-                            ({k.description.replace('Migrated from ', '')})
-                          </span>
+                          <div className="flex-1 text-[10px] font-mono text-bone-60/15 tracking-[0.1em]">
+                            {k.is_active ? '•'.repeat(24) : 'OFFLINE'}
+                          </div>
                         )}
                       </div>
 
@@ -306,9 +346,15 @@ export default function VaultProviderWidget({
                             <div className="w-px h-2.5 bg-white/5" />
                             <button onClick={() => handleMoveKey(account.id, keyIdx, 'down')} disabled={keyIdx === accountKeys.length - 1} className="text-bone-60 hover:text-bone-100 disabled:opacity-20 p-1 transition-colors"><ArrowDown className="w-2.5 h-2.5" /></button>
                           </div>
-                          <button onClick={() => handleRevealKey(k.key_id)} className={cn("p-1.5 rounded-full transition-all", revealedVal ? "text-accent bg-accent/10" : "text-bone-60 hover:bg-white/5 hover:text-bone-100")}>
+                          <button onClick={() => handleToggleKey(k.key_id, k.is_active)} className={cn("p-1.5 rounded-full transition-colors", k.is_active ? "text-bone-60 hover:text-rose-400 hover:bg-rose-400/10" : "text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20")} title={k.is_active ? "Disable Key" : "Enable Key"}><Power className="w-3 h-3" /></button>
+                          <button onClick={() => k.is_active && handleRevealKey(k.key_id)} disabled={!k.is_active} className={cn("p-1.5 rounded-full transition-all", !k.is_active ? "opacity-20 cursor-not-allowed" : (revealedVal ? "text-accent bg-accent/10" : "text-bone-60 hover:bg-white/5 hover:text-bone-100"))}>
                             {revealedVal ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                           </button>
+                          {revealedVal && (
+                            <button onClick={() => handleCopyKey(k.id, revealedVal)} className="p-1.5 rounded-full text-accent hover:bg-accent/10 transition-colors animate-in zoom-in-50 duration-200">
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          )}
                           <button onClick={() => { setEditingKeyId(k.id); setEditingKeyValue('') }} className="p-1.5 rounded-full text-bone-60 hover:bg-sky-500/10 hover:text-sky-400 transition-colors"><Pencil className="w-3 h-3" /></button>
                           <button onClick={() => handleDeleteKey(k.key_id)} className="p-1.5 rounded-full text-bone-60 hover:bg-rose-500/10 hover:text-rose-500 transition-colors"><Trash2 className="w-3 h-3" /></button>
                         </div>

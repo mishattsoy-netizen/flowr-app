@@ -47,7 +47,8 @@ export default function RowOptionsDropdown({
         <div 
           className="fixed popup-glass-small z-[9999] min-w-[120px] p-1.5 flex flex-col gap-[3px] shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-100"
           style={{
-            top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,
+            top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 120 > window.innerHeight ? 'auto' : (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,
+            bottom: (ref.current?.getBoundingClientRect().bottom ?? 0) + 120 > window.innerHeight ? window.innerHeight - (ref.current?.getBoundingClientRect().top ?? 0) + 4 : 'auto',
             left: (ref.current?.getBoundingClientRect().left ?? 0) - 96, // align with right edge of button
           }}
           onMouseDown={(e) => e.stopPropagation()}

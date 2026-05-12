@@ -2,6 +2,7 @@ import { logger } from '../logger'
 import { getRouterChain, IntentCategory } from '../router-config'
 import { executePipeline, PipelineStep, StatusCallback } from './pipeline'
 import { OrchestratorPlan } from './orchestrator'
+import { TraceCollector } from './tracing'
 
 export interface ThinkResult {
   summary: string
@@ -55,9 +56,10 @@ async function runThinkModel(
   prompt: string,
   systemPrompt: string,
   history: any[],
-  context: any
+  context: any,
+  tracer?: TraceCollector
 ): Promise<string | null> {
-  const { chain } = await getRouterChain('THINKING' as any)
+  const { chain } = await getRouterChain('THINKING')
 
   if (chain.length === 0) {
     logger.warn('THINKING chain is empty — add models via Admin > Router > THINKING. Skipping think step.')
@@ -66,29 +68,30 @@ async function runThinkModel(
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
+    const t0 = Date.now()
+    const traceMeta = { chain: 'THINKING', model: modelConfig.id, provider: modelConfig.provider, input_system: systemPrompt, input_user: prompt, input_history_count: history.length }
     try {
       const provider = modelConfig.provider.toLowerCase()
+      let res: any = null
       if (provider === 'google') {
         const { runGoogle } = await import('./providers/google')
-        const res = await runGoogle(modelConfig.id, prompt, systemPrompt, undefined, context, history)
-        if (res) {
-          return typeof res === 'object' ? res.content : res
-        }
+        res = await runGoogle(modelConfig.id, prompt, systemPrompt, undefined, context, history)
       } else if (provider === 'groq') {
         const { runGroq } = await import('./providers/groq')
-        const res = await runGroq(modelConfig.id, prompt, systemPrompt, undefined, context, history)
-        if (res) {
-          return typeof res === 'object' ? (res as any).content : res
-        }
+        res = await runGroq(modelConfig.id, prompt, systemPrompt, undefined, context, history)
       } else if (provider === 'openrouter') {
         const { runOpenRouter } = await import('./providers/openrouter')
-        const res = await runOpenRouter(modelConfig.id, prompt, systemPrompt, history, '', modelConfig.openrouter_provider || undefined)
-        if (res) {
-          return typeof res === 'object' ? (res as any).content : res
-        }
+        res = await runOpenRouter(modelConfig.id, prompt, systemPrompt, history, '', modelConfig.openrouter_provider || undefined)
       }
+      if (res) {
+        const content = typeof res === 'object' ? (res as any).content : res
+        tracer?.recordSuccess({ ...traceMeta, output: content }, Date.now() - t0)
+        return content
+      }
+      tracer?.recordFailed({ ...traceMeta, error: 'empty response' }, Date.now() - t0)
     } catch (e: any) {
       logger.warn(`Think chain model ${modelConfig.id} failed: ${e.message}`)
+      tracer?.recordFailed({ ...traceMeta, error: e.message }, Date.now() - t0)
     }
   }
   return null
@@ -102,12 +105,13 @@ export async function runThinkChain(
   replyContext: any,
   context: any,
   onStatus: StatusCallback,
+  tracer?: TraceCollector,
 ): Promise<ThinkChainOutput> {
   const { statusMessages } = await import('../router-config').then(m => m.getPipelineSettings())
   const customStatus = statusMessages['THINKING']
   const label = customStatus ? `${customStatus.emoji} ${customStatus.label}`.trim() : 'Working'
 
-  const { system_prompt } = await getRouterChain('THINKING' as any)
+  const { system_prompt } = await getRouterChain('THINKING')
   const systemPrompt = system_prompt || DEFAULT_THINK_SYSTEM_PROMPT
 
   const buildThinkPrompt = (ctx: string): string => {
@@ -124,11 +128,16 @@ export async function runThinkChain(
     return parts.join('\n\n')
   }
 
-  const thinkStep: PipelineStep = { chain: 'THINKING', goal: 'Review all outputs and plan final answer', status: 'running', label }
+  const thinkStep: PipelineStep = { 
+    chain: 'THINKING', 
+    goal: 'Review all outputs and plan final answer', 
+    status: 'running', 
+    label 
+  }
   onStatus(thinkStep)
 
   const thinkPrompt = buildThinkPrompt(accumulatedContext)
-  const raw = await runThinkModel(thinkPrompt, systemPrompt, history.slice(-20), context)
+  const raw = await runThinkModel(thinkPrompt, systemPrompt, history.slice(-20), context, tracer)
 
   if (!raw) {
     thinkStep.status = 'failed'
@@ -155,18 +164,23 @@ export async function runThinkChain(
       stepGoals: [`Provide additional data to fill gap identified by think chain: ${result.direction}`],
     }
 
-    const correctionResult = await executePipeline(correctionPlan, originalPrompt, context, onStatus)
+    const correctionResult = await executePipeline(correctionPlan, originalPrompt, context, onStatus, tracer)
     const correctedContext = accumulatedContext
       ? accumulatedContext + '\n\n' + correctionResult.accumulatedContext
       : correctionResult.accumulatedContext
     allSteps.push(...correctionResult.steps)
 
     // Second think pass — no more corrections
-    const thinkStep2: PipelineStep = { chain: 'THINKING', goal: 'Final review after correction', status: 'running', label }
+    const thinkStep2: PipelineStep = { 
+      chain: 'THINKING', 
+      goal: 'Final review after correction', 
+      status: 'running', 
+      label 
+    }
     onStatus(thinkStep2)
 
     const thinkPrompt2 = buildThinkPrompt(correctedContext)
-    const raw2 = await runThinkModel(thinkPrompt2, systemPrompt, history.slice(-20), context)
+    const raw2 = await runThinkModel(thinkPrompt2, systemPrompt, history.slice(-20), context, tracer)
 
     if (raw2) {
       const result2 = parseThinkOutput(raw2)

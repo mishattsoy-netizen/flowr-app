@@ -102,22 +102,47 @@ export function BlockRenderer({
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashMenuOpen && (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
-    if (e.key === 'Enter' && e.shiftKey) {
+    if (e.key === 'Enter') {
+      const isList = ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(block.type);
+      
+      if (e.shiftKey) {
+        // Shift+Enter = Soft break (standard)
+        return; 
+      }
+
       e.preventDefault();
-      onInsertAfter(block.id, 'text');
-      return;
-    }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      // User wants Enter to be a soft break (new line in same block)
-      // Browsers handle this by default in contentEditable if we DON'T preventDefault
-      // However, for lists, we might still want Enter to add a new item
-      if (['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(block.type)) {
-        e.preventDefault();
-        onInsertAfter(block.id, block.type);
+
+      // If enter on an empty list item, convert it to a text block (standard Notion behavior)
+      if (isList && !block.content.trim()) {
+        onUpdate(block.id, { type: 'text' });
         return;
       }
-      // For standard text, let it be (soft break)
+
+      // Enter = New block (same type for lists, otherwise text)
+      onInsertAfter(block.id, isList ? block.type : 'text');
+      return;
     }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        onUnindent(block.id);
+      } else {
+        onIndent(block.id);
+      }
+      return;
+    }
+
+    if (e.key === 'Backspace' && !block.content) {
+      const isList = ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(block.type);
+      if (isList) {
+        e.preventDefault();
+        onUpdate(block.id, { type: 'text' });
+        return;
+      }
+    }
+
+
     if (e.key === ' ' && contentRef.current) {
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0) {
@@ -581,9 +606,9 @@ export function BlockRenderer({
 
   // ─── Default (Text, List, Checklist, Quote) ───────────
   const listMarker = () => {
-    if (block.type === 'bulletList') return <div className="w-[5px] h-[5px] rounded-full bg-[var(--bone-60)] flex-shrink-0" />;
+    if (block.type === 'bulletList') return <div className="w-[5.5px] h-[5.5px] rounded-full bg-[var(--bone-60)] flex-shrink-0" />;
     if (block.type === 'dashedList') return <div className="w-[8px] h-[1px] bg-[var(--bone-60)] flex-shrink-0" />;
-    if (block.type === 'numberedList') return <span className="text-[var(--bone-60)] text-[19px] font-display leading-none">{(listNumber ?? 1)}.</span>;
+    if (block.type === 'numberedList') return <span className="text-bone-60/40 text-[18px] font-medium leading-none" style={{ fontFamily: '"Crimson Text"' }}>{(listNumber ?? 1)}.</span>;
     if (block.type === 'checklist') return (
       <div onClick={() => onUpdate(block.id, { checked: !block.checked })} className={clsx("w-[16px] h-[16px] shrink-0 rounded-[4px] border-[1.5px] flex items-center justify-center transition-all cursor-pointer", block.checked ? "bg-white/20 border-white/40" : "border-white/20 hover:border-white/40")}>
         {block.checked && <Check className="w-[12px] h-[12px] text-bone-100" strokeWidth={3} />}
@@ -606,7 +631,7 @@ export function BlockRenderer({
         isInsideColumn && "rounded-[var(--radius-medium)] break-words min-h-[100px] column-container hover:bg-hover/10",
         isInsideColumn && !block.content && "empty"
       )}
-      style={{ ...style }}
+      style={{ ...style, fontFamily: '"Crimson Text"', letterSpacing: '-0.03em' }}
       onMouseDown={() => onFocus?.(block.id)}
     >
       <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
@@ -614,7 +639,7 @@ export function BlockRenderer({
         className={clsx(
           effectiveStyle === 'mono'
             ? "relative w-full rounded-3xl transition-colors duration-0"
-            : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] px-4 py-1",
+            : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] px-1 py-1",
           (!isSelected && effectiveStyle !== 'mono') && (isFocused ? "bg-white/[0.01]" : "group-hover:bg-white/[0.01]"),
           block.bgColor && "border px-[16px] py-[8px]",
           isDragging && "opacity-60"
@@ -623,7 +648,7 @@ export function BlockRenderer({
       >
         <div className="flex-1 flex items-start w-full min-h-[1.5em] h-full relative">
           {(isList || isChecklist) && (
-            <div className={clsx("mr-2.5 shrink-0 flex items-start justify-center", getLineHeightClass(effectiveStyle))} style={{ width: '24px', paddingTop: isChecklist ? '4px' : '1px' }}>
+            <div className={clsx("shrink-0 flex items-start justify-end pr-1", getLineHeightClass(effectiveStyle))} style={{ width: '20px', paddingTop: isChecklist ? '4.5px' : '11px' }}>
               {listMarker()}
             </div>
           )}
@@ -651,8 +676,8 @@ export function BlockRenderer({
             onBlur={() => setIsFocused(false)}
             data-placeholder={getPlaceholder(effectiveStyle, block.type, isFocused)}
             className={clsx(
-              "flex-1 outline-none min-h-[1.5em]",
-              !block.textColor && "text-foreground",
+              "flex-1 outline-none min-h-[1.5em] leading-[1.6]",
+              !block.textColor && "text-bone-100",
               getStyleClasses(effectiveStyle),
               isQuote && "italic text-muted-foreground",
               block.checked && "text-muted-foreground",
@@ -700,12 +725,12 @@ export function BlockRenderer({
 
 function getStyleClasses(style?: BlockStyle): string {
   switch (style) {
-    case 'title': return 'text-[30px] font-bold tracking-tight font-display leading-snug';
-    case 'heading': return 'text-[26px] font-bold font-display leading-snug';
-    case 'subheading': return 'text-[22px] font-semibold font-display text-muted-foreground leading-snug';
+    case 'title': return 'text-[30px] font-semibold tracking-[-0.03em] font-display leading-snug text-bone-100';
+    case 'heading': return 'text-[26px] font-semibold tracking-[-0.03em] font-display leading-snug text-bone-100';
+    case 'subheading': return 'text-[22px] font-semibold tracking-[-0.03em] font-display text-bone-100 leading-snug';
     case 'mono': return 'font-mono text-[15px] bg-white/[0.02] border border-white/10 rounded-3xl px-4 py-3 leading-[1.6] overflow-x-auto whitespace-pre text-[#E6EDF3] w-full';
     case 'body':
-    default: return 'text-[19px] font-display leading-[133%] tracking-[0.01em]';
+    default: return 'text-[18px] font-semibold font-display leading-[1.6] tracking-[-0.03em] text-bone-100';
   }
 }
 

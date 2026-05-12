@@ -1,4 +1,5 @@
 import { logger } from '../../logger'
+import { getHighestResolution } from '../image-utils'
 
 const POLLINATIONS_TIMEOUT_MS = 60000
 
@@ -14,8 +15,10 @@ export async function runPollinations(prompt: string, model?: string): Promise<B
     const seed = Math.floor(Math.random() * 1000000)
     let url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true`
     if (model) url += `&model=${encodeURIComponent(model)}`
+    
     // Appending resolution last to ensure it takes precedence
-    url += `&width=1024&height=1024`
+    const res = getHighestResolution(model || 'default', 'pollinations')
+    url += `&width=${res.width}&height=${res.height}`
 
     logger.info(`Generating image via Pollinations [${model || 'default'}]: ${url}`)
     const response = await withTimeout(fetch(url), POLLINATIONS_TIMEOUT_MS, `Pollinations image [${model}]`)

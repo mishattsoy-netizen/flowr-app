@@ -58,6 +58,18 @@ export async function saveClassifierKeywords(keywords: Record<string, string[]>)
   revalidatePath('/admin/bot/keywords')
 }
 
+export async function getClassifierKeywords(): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase
+    .from('bot_settings')
+    .select('content')
+    .eq('category', 'classifier_keywords')
+    .eq('mode', 'default')
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data?.content) return {}
+  try { return JSON.parse(data.content) } catch { return {} }
+}
+
 export async function saveClassifierConfig(prompt: string, keywords: Record<string, string[]>, mode: BotMode = 'default'): Promise<void> {
   await saveClassifierPrompt(prompt, mode)
   await saveClassifierKeywords(keywords)

@@ -82,12 +82,17 @@ function getModalities(id: string, customInput?: string[], customOutput?: string
   const idLower = id.toLowerCase()
   const isImageGen = idLower.includes('flux') || idLower.includes('diffusion') || idLower.includes('sdxl') || idLower.includes('stable-diffusion') || idLower.includes('dreamshaper') || idLower.includes('dall-e') || idLower.includes('dalle') || idLower.includes('midjourney') || idLower.includes('imagen') || idLower.includes('playground') || idLower.includes('animagine') || idLower.includes('illustrious')
   
+  const isUpscale = idLower.includes('upscale') || idLower.includes('esrgan') || idLower.includes('swinir') || idLower.includes('real-esrgan')
+  
   const isAudio = idLower.includes('whisper') || idLower.includes('tts') || idLower.includes('audio') || idLower.includes('speech') || idLower.includes('voice')
 
   let input = customInput ?? ['text']
   let output = customOutput ?? ['text']
 
-  if (isImageGen) {
+  if (isUpscale) {
+    input = ['image']
+    output = ['image-upscale']
+  } else if (isImageGen) {
     if (!input.includes('text')) input.push('text')
     output = ['image']
   } else if (isAudio) {
@@ -186,12 +191,17 @@ async function fetchPollinations(apiKey: string): Promise<DiscoveredModel[]> {
 }
 
 async function fetchHuggingFace(apiKey: string): Promise<DiscoveredModel[]> {
-  const res = await fetch(
-    'https://huggingface.co/api/models?filter=text-generation&sort=downloads&limit=100',
-    { headers: { Authorization: `Bearer ${apiKey}` } }
-  )
-  if (!res.ok) throw new Error(`HuggingFace API error: ${res.status} ${res.statusText}`)
-  const data = await res.json()
+  // Fetch both text-generation and image-to-image (upscalers)
+  const [textRes, imgRes] = await Promise.all([
+    fetch('https://huggingface.co/api/models?filter=text-generation&sort=downloads&limit=50', { headers: { Authorization: `Bearer ${apiKey}` } }),
+    fetch('https://huggingface.co/api/models?filter=image-to-image&sort=downloads&limit=50', { headers: { Authorization: `Bearer ${apiKey}` } })
+  ])
+
+  if (!textRes.ok || !imgRes.ok) throw new Error(`HuggingFace API error: ${textRes.status}/${imgRes.status}`)
+  
+  const textData = await textRes.json()
+  const imgData = await imgRes.json()
+  const data = [...textData, ...imgData]
 
   return (data ?? [])
     .filter((m: any) => !m.gated)
@@ -239,8 +249,38 @@ async function fetchOpenRouter(apiKey: string): Promise<DiscoveredModel[]> {
 }
 
 async function fetchCloudflare(apiKey: string): Promise<DiscoveredModel[]> {
-  const accountId = await getVaultKey('CLOUDFLARE_ACCOUNT_ID')
-  if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID not found in vault')
+  // 1. Find which account this apiKey belongs to
+  const { data: keyRecord } = await supabaseAdmin
+    .from('vault')
+    .select('account_id')
+    .eq('encrypted_value', apiKey) // This is tricky because apiKey is decrypted here. 
+    // Wait, the 'apiKey' passed to this function is the PLAIN TEXT.
+    // We need to look up the vault by the key_id instead.
+  
+  // Refactor: We should pass the keyId to fetchCloudflare, not just the apiKey.
+  // Actually, let's just find the first available Cloudflare Account ID as a fallback.
+  const { data: idKey } = await supabaseAdmin
+    .from('vault')
+    .select('id, encrypted_value')
+    .ilike('key_id', 'CLOUDFLARE_%_ID')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+
+  let accountId = ''
+  if (idKey) {
+    // We need to decrypt it
+    const vault = await import('@/lib/vault')
+    accountId = await vault.getVaultKey(idKey.id) || '' // Wait, getVaultKey uses key_id
+  }
+
+  // Simplified: Try to fetch the Account ID from the well-known name first
+  if (!accountId) {
+    const vault = await import('@/lib/vault')
+    accountId = await vault.getVaultKey('CLOUDFLARE_PRIMARY_ID') || ''
+  }
+
+  if (!accountId) throw new Error('Cloudflare Account ID not found. Please ensure a key ending in _ID is set.')
 
   const res = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search`,

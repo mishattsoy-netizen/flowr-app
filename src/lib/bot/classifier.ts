@@ -5,6 +5,7 @@ import { runGroq } from './providers/groq'
 import { supabaseAdmin } from '../supabase'
 import type { BotMode } from '@/data/store.types'
 import { isModelFailed, markModelFailed } from './chainRouter'
+import { TraceCollector } from './tracing'
 
 function trackModelUsage(modelId: string, provider: string) {
   supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
@@ -21,6 +22,7 @@ export interface ClassifyResult {
   category: IntentCategory | 'MULTI_CHAIN' | null
   classifierModel: string
   trace: ClassifyTrace[]
+  matchedKeyword?: string
   error?: string
 }
 
@@ -29,6 +31,21 @@ const VALID_CATEGORIES: (IntentCategory | 'MULTI_CHAIN')[] = [
   'IMAGE_GEN', 'WEB_SEARCH', 'AUDIO_VOICE', 'TOOL_CALLING',
   'CODING', 'DEEP_RESEARCH', 'MULTI_CHAIN', 'ADVISOR',
 ]
+
+const DEFAULT_CLASSIFIER_PROMPT = `Classify user intent into exactly ONE category:
+FAST_SIMPLE: Quick questions, greetings, casual chat.
+COMPLEX_THINKING: Hard logic, deep analysis, step-by-step reasoning.
+MEDIUM_THINKING: Moderate complexity, multi-part answers.
+IMAGE_GEN: Requests to create, draw, or generate images/art.
+WEB_SEARCH: Current events, live data, searching the internet.
+AUDIO_VOICE: Voice interaction or audio related.
+TOOL_CALLING: Intent that requires specialized tools.
+CODING: Programming, debugging, code snippets.
+DEEP_RESEARCH: Exhaustive topic research and synthesis.
+ADVISOR: Strategic advice, coaching, or planning.
+MULTI_CHAIN: Multiple intents combined.
+
+Respond ONLY with the category name.`
 
 const TAG_CATEGORY_MAP: Record<string, IntentCategory> = {
   '/search': 'WEB_SEARCH',
@@ -50,7 +67,8 @@ export async function classifyIntentWithModel(
   mode: BotMode = 'default',
   intentTag?: string | null,
   history: any[] = [],
-  replyContext?: { attentionBlock?: string } | null
+  replyContext?: { attentionBlock?: string } | null,
+  tracer?: TraceCollector
 ): Promise<ClassifyResult> {
   const lowerMsg = message.trim().toLowerCase()
 
@@ -59,59 +77,64 @@ export async function classifyIntentWithModel(
     return { category: TAG_CATEGORY_MAP[intentTag], classifierModel: 'Intent Tag', trace: [] }
   }
 
-  // Load mode-specific classifier config — no fallbacks, missing = error
-  let keywordsObj: Record<string, string[]> | null = null
+  // Retry logic for DB config load
   let activePrompt: string | null = null
   let keywordsEnabled = true
+  let keywordsObj: any = null
+  let retryCount = 0
+  const maxRetries = 2
+  
+  while (retryCount <= maxRetries) {
+    try {
+      const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
+        supabaseAdmin
+          .from('bot_settings')
+          .select('is_active')
+          .eq('category', 'classifier_keywords_enabled')
+          .eq('mode', 'default')
+          .maybeSingle(),
+        supabaseAdmin
+          .from('bot_settings')
+          .select('content')
+          .eq('category', 'classifier_prompt')
+          .eq('mode', mode)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('bot_settings')
+          .select('content')
+          .eq('category', 'classifier_keywords')
+          .eq('mode', 'default')
+          .maybeSingle(),
+      ])
 
-  try {
-    const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
-      supabaseAdmin
-        .from('bot_settings')
-        .select('is_active')
-        .eq('category', 'classifier_keywords_enabled')
-        .eq('mode', 'default')
-        .maybeSingle(),
-      supabaseAdmin
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_prompt')
-        .eq('mode', mode)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('bot_settings')
-        .select('content')
-        .eq('category', 'classifier_keywords')
-        .eq('mode', 'default')
-        .maybeSingle(),
-    ])
+      if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
 
-    if (keywordsEnabledResult.error) logger.warn(`Classifier: failed to load keywords_enabled flag: ${keywordsEnabledResult.error.message}`)
-    if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
-
-    if (promptResult.error) {
-      const errMsg = `Classifier: DB error loading prompt for mode "${mode}": ${promptResult.error.message}`
-      logger.error(errMsg)
-      return { category: null, classifierModel: 'Error', trace: [], error: errMsg }
-    }
-    activePrompt = promptResult.data?.content ?? null
-    if (!activePrompt) {
-      const errMsg = `Classifier prompt missing for mode "${mode}" — configure it in Admin > Bot > Classifier`
-      logger.error(errMsg)
-      return { category: null, classifierModel: 'Error', trace: [], error: errMsg }
-    }
-
-    if (keywordsResult.error) {
-      logger.warn(`Classifier: DB error loading keywords for mode "${mode}": ${keywordsResult.error.message} — skipping keyword step`)
-    } else if (keywordsResult.data?.content) {
-      try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch {
-        logger.warn(`Classifier keywords JSON parse failed for mode "${mode}" — skipping keyword step`)
+      if (!promptResult.error && promptResult.data?.content) {
+        activePrompt = promptResult.data.content
+      } else if (promptResult.error) {
+        throw new Error(promptResult.error.message)
       }
+
+      if (!keywordsResult.error && keywordsResult.data?.content) {
+        try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch { /* ignore */ }
+      }
+      
+      // If we got the prompt, we are good
+      if (activePrompt) break
+    } catch (err) {
+      if (retryCount === maxRetries) {
+        logger.warn(`Classifier DB load failed after ${maxRetries} retries, using local fallback prompt.`)
+        activePrompt = DEFAULT_CLASSIFIER_PROMPT
+        break
+      }
+      retryCount++
+      await new Promise(r => setTimeout(r, 500 * retryCount)) // Backoff
     }
-  } catch (err) {
-    const errMsg = `Classifier DB config load failed [${mode}]: ${(err as Error).message}`
-    logger.error(errMsg)
-    return { category: null, classifierModel: 'Error', trace: [], error: errMsg }
+  }
+
+  // Fallback if still missing
+  if (!activePrompt) {
+    activePrompt = DEFAULT_CLASSIFIER_PROMPT
   }
 
   // Keyword fast-path — only runs if keywords are configured and enabled
@@ -126,20 +149,21 @@ export async function classifyIntentWithModel(
         const words = kwLower.split(/\s+/).filter(Boolean)
         if (words.length === 0) continue
         
-        const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        const escapedWords = words.map((w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         // Match words in order with up to 5 words in between
         const pattern = `\\b${escapedWords.join('\\s+(?:\\w+\\s+){0,5}')}\\b`
         const regex = new RegExp(pattern, 'i')
         
         if (regex.test(lowerMsg)) {
-          return { category: cat, classifierModel: 'Keywords', trace: [] }
+          tracer?.recordSuccess({ chain: 'CLASSIFIER', model: 'Keywords', provider: 'keywords', key: 'KW', matched_keyword: kw.trim(), input_user: lowerMsg, input_history_count: 0, output: cat }, 0)
+          return { category: cat, classifierModel: 'Keywords', trace: [], matchedKeyword: kw.trim() }
         }
       }
     }
   }
 
-  // Last 3 turns (user+model pairs) for context
-  const recentHistory = history.slice(-20)
+  // Use provided history context (already limited by caller via historyLimit setting)
+  const recentHistory = history
 
   // Reply context prefix
   const replyPrefix = replyContext?.attentionBlock ? replyContext.attentionBlock + '\n\n' : ''
@@ -158,6 +182,18 @@ export async function classifyIntentWithModel(
   }
 
   const trace: ClassifyTrace[] = []
+  
+  // Image context hint: if the last model message was an image, the user is likely iterating
+  const lastModelMsg = [...history].reverse().find(h => h.role === 'model' || h.role === 'assistant')
+  const lastWasImage = lastModelMsg && (
+    lastModelMsg.content?.includes('![') || 
+    lastModelMsg.content?.includes('data:image') ||
+    lastModelMsg.content?.includes('[Image generated') ||
+    (lastModelMsg.parts && JSON.stringify(lastModelMsg.parts).includes('image'))
+  )
+
+  const contextHint = lastWasImage ? `\n[CONTEXT: The last response contained an image. Follow-up requests like "one more", "make it...", or "change..." should likely be IMAGE_GEN.]` : ''
+  const finalPrompt = `${replyPrefix}${activePrompt}${contextHint}\nUser: "${message}"`
 
   for (const modelConfig of activeChain) {
     if (!modelConfig.is_enabled) continue
@@ -170,24 +206,26 @@ export async function classifyIntentWithModel(
     let key = modelConfig.provider === 'google' ? 'GEMINI' : modelConfig.provider.toUpperCase()
     if (modelConfig.provider.toLowerCase().includes('ollama')) key = 'LOCAL'
 
+    const t0 = Date.now()
+    const traceMeta = { chain: 'CLASSIFIER', model: modelConfig.id, provider: modelConfig.provider, key: `${key} 1`, input_user: finalPrompt, input_history_count: recentHistory.length }
+
     try {
       let rawResponse: any = null
       const traceContext: any = { aiApiKey }
-      const prompt = `${replyPrefix}${activePrompt}\n"${message}"`
 
       const provider = modelConfig.provider.toLowerCase()
       if (provider === 'google') {
-        rawResponse = await runGoogle(modelConfig.id, prompt, undefined, undefined, traceContext, recentHistory)
+        rawResponse = await runGoogle(modelConfig.id, finalPrompt, undefined, undefined, traceContext, recentHistory)
       } else if (provider === 'groq') {
-        rawResponse = await runGroq(modelConfig.id, prompt, undefined, aiApiKey, traceContext, recentHistory)
+        rawResponse = await runGroq(modelConfig.id, finalPrompt, undefined, aiApiKey, traceContext, recentHistory)
       } else if (provider === 'openrouter') {
-        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, prompt, '', recentHistory, aiApiKey, modelConfig.openrouter_provider || undefined)
-        rawResponse = typeof orRes === 'string' ? orRes : null
+        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, finalPrompt, '', recentHistory, aiApiKey, modelConfig.openrouter_provider || undefined)
+        rawResponse = typeof orRes === 'string' ? orRes : (orRes as any)?.content || null
       } else if (provider === 'ollama' || provider === 'local') {
-        const olRes = await (await import('./providers/ollama')).runOllama(modelConfig.id, prompt, '', recentHistory)
+        const olRes = await (await import('./providers/ollama')).runOllama(modelConfig.id, finalPrompt, '', recentHistory)
         rawResponse = typeof olRes === 'string' ? olRes : null
       } else if (provider === 'pollinations') {
-        const polRes = await (await import('./providers/pollinations')).runPollinationsText(modelConfig.id, prompt, '', recentHistory)
+        const polRes = await (await import('./providers/pollinations')).runPollinationsText(modelConfig.id, finalPrompt, '', recentHistory)
         rawResponse = typeof polRes === 'string' ? polRes : null
       }
 
@@ -195,17 +233,15 @@ export async function classifyIntentWithModel(
         const content = typeof rawResponse === 'object' ? rawResponse.content : rawResponse
         const cleaned = content.trim().toUpperCase()
 
-        // Extract category strictly from the CATEGORY: line if present
         let categoryText = cleaned
         const catMatch = cleaned.match(/CATEGORY:\s*([A-Z_]+)/)
-        if (catMatch) {
-          categoryText = catMatch[1]
-        }
+        if (catMatch) categoryText = catMatch[1]
 
         for (const cat of VALID_CATEGORIES) {
           if (categoryText === cat || cleaned === cat) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
             trace.push({ model: modelConfig.id, key: displayKey, success: true })
+            tracer?.recordSuccess({ ...traceMeta, key: displayKey, output: cat }, Date.now() - t0)
             trackModelUsage(modelConfig.id, modelConfig.provider)
             return { category: cat, classifierModel: modelConfig.id, trace }
           }
@@ -216,6 +252,7 @@ export async function classifyIntentWithModel(
           if (regex.test(categoryText)) {
             const displayKey = traceContext.usedKeyIndex ? `${key} ${traceContext.usedKeyIndex}` : `${key} 1`
             trace.push({ model: modelConfig.id, key: displayKey, success: true })
+            tracer?.recordSuccess({ ...traceMeta, key: displayKey, output: cat }, Date.now() - t0)
             trackModelUsage(modelConfig.id, modelConfig.provider)
             return { category: cat, classifierModel: modelConfig.id, trace }
           }
@@ -223,9 +260,11 @@ export async function classifyIntentWithModel(
       }
 
       trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
+      tracer?.recordFailed({ ...traceMeta, error: 'no valid category in response' }, Date.now() - t0)
     } catch (error: any) {
       markModelFailed(modelConfig.id)
       trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
+      tracer?.recordFailed({ ...traceMeta, error: error.message }, Date.now() - t0)
       logger.warn(`Classification failure [${modelConfig.id}]: ${error.message}`)
     }
   }

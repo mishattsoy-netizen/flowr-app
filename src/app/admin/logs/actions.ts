@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase'
+import type { StepTrace } from '@/lib/bot/tracing'
 
 export interface LogEntry {
   id: number
@@ -14,6 +15,7 @@ export interface LogEntry {
   status: string | null
   model_chain: string | null
   created_at: string
+  context_messages: any
 }
 
 export interface Exchange {
@@ -32,6 +34,8 @@ export interface Exchange {
   request_id: string | null
   feedback: 'like' | 'dislike' | null
   duration_ms: number | null
+  image_description?: string | null
+  step_traces: StepTrace[] | null
 }
 
 // Detect whether auth_user_id column exists (migration may not have run yet)
@@ -69,9 +73,9 @@ export async function getMessageExchanges(options: {
   // Fetch model rows (these carry model_chain, status, usage_type)
   let modelQ = supabaseAdmin
     .from('message_logs')
-    .select('*', { count: 'exact' })
+    .select('*', { count: 'planned' })
     .eq('role', 'model')
-    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (authColExists) {
@@ -95,18 +99,20 @@ export async function getMessageExchanges(options: {
   const oldest = modelRows[modelRows.length - 1].created_at
   const newest = modelRows[0].created_at
 
-  // Fetch user rows: by request_id if available, plus time-window fallback for old rows
+  // Fetch user rows: primarily by request_id
   let userQ = supabaseAdmin
     .from('message_logs')
     .select('*')
     .eq('role', 'user')
-    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
 
   if (requestIds.length > 0) {
-    // Fetch by request_id OR by time window (covers both new and old rows)
-    userQ = userQ.or(`request_id.in.(${requestIds.join(',')}),and(created_at.gte.${oldest},created_at.lte.${newest})`)
+    // Only fetch by request_id. Time-window fallback is removed as it's too expensive on large tables.
+    userQ = userQ.in('request_id', requestIds)
   } else {
-    userQ = userQ.gte('created_at', oldest).lte('created_at', newest)
+    // Fallback for very old rows: only fetch within a tight 10-minute window of the oldest model row
+    const fallbackStart = new Date(new Date(oldest).getTime() - 600000).toISOString()
+    userQ = userQ.gte('created_at', fallbackStart).lte('created_at', newest)
   }
 
   const { data: userRows } = await userQ
@@ -156,26 +162,15 @@ export async function getMessageExchanges(options: {
       request_id: m.request_id ?? null,
       feedback: feedbackMap[m.id] ?? null,
       duration_ms: matched ? (new Date(m.created_at).getTime() - new Date(matched.created_at).getTime()) : null,
+      image_description: m.context_messages?.image_description ?? null,
+      step_traces: m.context_messages?.step_traces ?? null,
     }
   })
 
-  // Batch-resolve emails for app users via auth.users (admin only)
-  const appUserIds = [...new Set(exchanges.filter(e => e.auth_user_id).map(e => e.auth_user_id!))]
-  if (appUserIds.length > 0) {
-    try {
-      const emailMap: Record<string, string> = {}
-      await Promise.all(appUserIds.map(async (uid) => {
-        const { data } = await supabaseAdmin!.auth.admin.getUserById(uid)
-        if (data?.user?.email) emailMap[uid] = data.user.email
-      }))
-      for (const ex of exchanges) {
-        if (ex.auth_user_id && emailMap[ex.auth_user_id]) {
-          ex.user_email = emailMap[ex.auth_user_id]
-        }
-      }
-    } catch {
-      // auth.admin not available — skip email lookup
-    }
+  // Email resolution is disabled in the main fetch to prevent blocking latency.
+  // Emails can be fetched on-demand or via a more efficient batch process in the future.
+  for (const ex of exchanges) {
+    ex.user_email = null
   }
 
   return { exchanges, total: count || 0 }
@@ -221,8 +216,8 @@ export async function getMessageLogs(options: {
 
   let query = supabaseAdmin
     .from('message_logs')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .select('*', { count: 'planned' })
+    .order('id', { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (authColExists) {

@@ -567,7 +567,8 @@ export const useStore = create<AppState>()(
                 routing_trace: data.routing_trace,
                 citations: data.citations,
                 tokens_used: data.tokens_used,
-                pipelineSteps: data.pipeline_steps
+                pipelineSteps: data.pipeline_steps,
+                image_description: data.image_description
               }
               : m
             ),

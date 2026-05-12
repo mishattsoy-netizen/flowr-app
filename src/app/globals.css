@@ -56,6 +56,7 @@
   --bone-15: rgba(233, 233, 226, 0.15);
   --bone-30: rgba(233, 233, 226, 0.30);
   --bone-60: rgba(233, 233, 226, 0.60);
+  --bone-70: rgba(233, 233, 226, 0.70);
   --bone-100: #E9E9E2;
   --white-overlay: rgba(255, 255, 255, 0.03);
   --black-overlay: rgba(0, 0, 0, 0.06);
@@ -187,7 +188,7 @@ html[data-interface-size="big"] {
 
 @utility font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
 }
 
 @utility font-ui {
@@ -209,7 +210,7 @@ html[data-interface-size="big"] {
 @utility font-crimson {
   font-family: 'Crimson Text', serif;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
 }
 
 @utility text-fade {

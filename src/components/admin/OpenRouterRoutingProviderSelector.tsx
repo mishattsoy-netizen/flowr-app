@@ -48,10 +48,15 @@ export default function OpenRouterRoutingProviderSelector({
   })
 
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const isTrigger = ref.current?.contains(target)
+      const isMenu = menuRef.current?.contains(target)
+      
+      if (!isTrigger && !isMenu) {
         setIsOpen(false)
       }
     }
@@ -96,7 +101,7 @@ export default function OpenRouterRoutingProviderSelector({
     <div className={cn("relative shrink-0 flex items-center justify-center select-none", className)} ref={ref}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         title={value ? `OpenRouter Provider: ${value}` : "Select OpenRouter Target Provider"}
         className={cn(
           "flex items-center justify-center w-6 h-6 rounded-sm transition-all duration-0 hover:bg-white/5 focus:outline-none group",
@@ -109,6 +114,7 @@ export default function OpenRouterRoutingProviderSelector({
 
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
+          ref={menuRef}
           className="fixed popup-glass-small z-[9999] min-w-[160px] max-h-72 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 p-2 flex flex-col gap-1 shadow-2xl border border-white/10"
           style={{
             top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,

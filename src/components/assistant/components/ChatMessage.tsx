@@ -1,7 +1,8 @@
 "use client";
 
 import React, { memo, useState, useRef, useEffect, useMemo, createContext, useContext } from 'react';
-import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, ClipboardCopy, ChevronDown, Sparkles, CheckCircle2, Brain, Check } from 'lucide-react';
+import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, ClipboardCopy, ChevronDown, Sparkles, CheckCircle2, Brain, Check, ExternalLink } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
 import { useStore } from '@/data/store';
 import type { AIMessage, AIAttachment, EditorBlock } from '@/data/store';
 import ReactMarkdown from 'react-markdown';
@@ -13,9 +14,12 @@ import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
 import clsx from 'clsx';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { motion, AnimatePresence } from 'framer-motion';
 import { parseMarkdownToBlocks } from '@/lib/utils/markdownToBlocks';
 
 const InTableContext = createContext(false);
+const InListContext = createContext(false);
+const ListTypeContext = createContext<'ul' | 'ol' | null>(null);
 
 // Pre-compiled regexes
 const THINK_TAG_FULL = /<think>[\s\S]*?<\/think>/g;
@@ -43,25 +47,25 @@ const renderContentWithStyles = (content: any): any => {
   if (typeof content === 'string') {
     const parts = content.split(STYLE_REGEX);
     if (parts.length <= 1) return content;
-    
+
     const result = [];
     const stack: string[] = [];
-    
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (!part) continue;
-      
+
       if (ARROW_MAP[part]) {
         const activeColor = stack.find(s => s.startsWith('text-')) || 'text-[var(--bone-60)]';
         const isMono = stack.includes('font-mono');
         result.push(
-          <span 
-            key={i} 
+          <span
+            key={i}
             className={clsx(
-              "inline-flex items-center justify-center mx-0.5 font-bold scale-110 transform transition-all align-baseline", 
-              isMono ? "font-mono" : "font-sans", 
+              "inline-flex items-center justify-center mx-0.5 font-bold scale-110 transform transition-all align-baseline",
+              isMono ? "font-mono" : "font-sans",
               activeColor
-            )} 
+            )}
             title={part}
           >
             {ARROW_MAP[part]}
@@ -106,9 +110,9 @@ const renderContentWithStyles = (content: any): any => {
         if (stack.length > 0) {
           const isMono = stack.includes('font-mono');
           result.push(
-            <span 
-              key={i} 
-              className={clsx(stack)} 
+            <span
+              key={i}
+              className={clsx(stack)}
               style={isMono ? { fontFamily: 'DM Mono' } : undefined}
             >
               {part}
@@ -139,7 +143,7 @@ const looksLikeImageContent = (text: string) => {
 
 export const sanitizeContent = (content: string, isAILoading: boolean, isLastMessage: boolean) => {
   if (!content) return "";
-  
+
   // If it's already a clean image markdown from the backend, skip complex sanitization
   // that might mangle large data URIs
   if (looksLikeImageContent(content) && content.length > 5000) {
@@ -153,7 +157,7 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   // Match markdown images: ![alt](src)
   // We use a non-greedy [\s\S]*? for the src to handle multi-line or massive base64 strings
   // We also try to match things that look like data URIs even if they don't have the prefix yet (though the backend should add it)
-  text = text.replace(/!\[.*?\]\s*\(\s*(data:image\/[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)\s*\)/g, (match) => {
+  text = text.replace(/!\[.*?\]\s*\(\s*(data:image\/[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)(?:\s+"[\s\S]*?")?\s*\)/g, (match) => {
     images.push(match.trim());
     return `__IMG_PLACEHOLDER_${images.length - 1}__`;
   });
@@ -251,8 +255,8 @@ const ApplyNoteCard = ({ content }: { content: string }) => {
             onClick={handleApply}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-bold uppercase transition-all duration-300",
-              applied 
-                ? "bg-emerald-500 text-white scale-[1.02]" 
+              applied
+                ? "bg-emerald-500 text-white scale-[1.02]"
                 : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white active:scale-[0.98]"
             )}
           >
@@ -294,13 +298,13 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
         // Route Redirect Logic: Ensure an active canvas exists before injecting blocks!
         let targetCanvasId = activeEntityId;
         const activeEntity = entities.find(e => e.id === activeEntityId);
-        
+
         if (!activeEntity || activeEntity.type !== 'canvas') {
           // Create new auto-generated canvas first!
           const newCanvasId = addEntity({ type: 'canvas', title: 'Applied Flow Workspace' });
           if (newCanvasId) {
-             setActiveEntityId(newCanvasId);
-             targetCanvasId = newCanvasId;
+            setActiveEntityId(newCanvasId);
+            targetCanvasId = newCanvasId;
           }
         }
 
@@ -361,8 +365,8 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
             onClick={handleApply}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-bold uppercase transition-all duration-300",
-              applied 
-                ? "bg-bone-100 text-black scale-[1.02]" 
+              applied
+                ? "bg-bone-100 text-black scale-[1.02]"
                 : "bg-white/10 text-bone-100 border border-white/20 hover:bg-white/20 active:scale-[0.98]"
             )}
           >
@@ -384,6 +388,119 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [copying, setCopying] = useState(false);
+
+  const handleMouseEnter = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timerRef.current = setTimeout(() => setIsOpen(false), 100);
+  };
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(href).then(() => {
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    });
+  };
+
+  const isUrlOnly = typeof children === 'string' && (children.startsWith('http://') || children.startsWith('https://'));
+  const label = isUrlOnly ? new URL(href).hostname.replace('www.', '') : children;
+
+  let faviconUrl = '';
+  try {
+    if (href && href.startsWith('http')) {
+      const urlObj = new URL(href);
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
+    }
+  } catch { }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className="inline-flex items-center gap-1.5 px-2 py-1 mt-1 mr-1.5 bg-white/5 hover:bg-white/10 rounded-full text-[11px] font-bold font-sans text-[var(--bone-60)] hover:text-bone-100 no-underline transition-all duration-200 select-none border border-white/5"
+        >
+          {faviconUrl && (
+            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px]">
+              <img src={faviconUrl} alt="" className="w-3 h-3 object-contain select-none opacity-80" />
+            </span>
+          )}
+          <span className="max-w-[120px] truncate font-medium">{label}</span>
+        </a>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="z-[500] w-fit max-w-[320px] p-2 bg-[#1a1a19] border-white/10 shadow-2xl backdrop-blur-2xl rounded-xl border border-white/10"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2.5 px-1.5 py-1">
+            {faviconUrl && (
+              <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-white/5">
+                <img src={faviconUrl} alt="" className="w-3.5 h-3.5 object-contain" />
+              </span>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-[11px] font-bold text-bone-100 truncate max-w-[200px]">
+                {label}
+              </span>
+              <span className="text-[9px] font-medium text-bone-40 truncate max-w-[200px] font-sans">
+                {href}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 border-t border-white/5 pt-1.5 mt-0.5">
+            <Tooltip content={copying ? "Copied!" : "Copy Link"}>
+              <button
+                onClick={handleCopy}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-white/5 text-bone-40 hover:text-bone-100 transition-colors"
+              >
+                {copying ? (
+                  <Check className="w-3 h-3" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  {copying ? "COPIED" : "COPY"}
+                </span>
+              </button>
+            </Tooltip>
+            <div className="w-px h-3 bg-white/5" />
+            <Tooltip content="Open in New Tab">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-white/5 text-bone-40 hover:text-bone-100 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
+              </a>
+            </Tooltip>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -433,7 +550,7 @@ export const ChatMessage = memo(({
     if (looksLikeImageContent(raw) && raw.length > 5000) {
       return raw.trim();
     }
-    
+
     let content = sanitizeContent(raw, isAILoading, isLast)
     if (msg.citations && msg.citations.length > 0) {
       msg.citations.forEach((url, i) => {
@@ -447,6 +564,13 @@ export const ChatMessage = memo(({
 
   const thinkingEnabled = useStore(state => state.thinkingEnabled);
   const thinkContent = useMemo(() => {
+    // 1. Extract from pipeline steps (Orchestrator thinking)
+    if (msg.pipelineSteps && msg.pipelineSteps.length > 0) {
+      const thinkStep = msg.pipelineSteps.find(s => s.chain === 'THINKING' && s.output);
+      if (thinkStep) return thinkStep.output;
+    }
+
+    // 2. Extract from message content (Model-native thinking like R1)
     if (!msg.content) return '';
     const matchFull = msg.content.match(THINK_TAG_FULL);
     if (matchFull) return matchFull[0].replace(/<\/?think>/g, '').trim();
@@ -455,21 +579,28 @@ export const ChatMessage = memo(({
       if (matchPartial) return matchPartial[0].replace(/<think>/, '').trim();
     }
     return '';
-  }, [msg.content, isAILoading, isLast]);
+  }, [msg.content, msg.pipelineSteps, isAILoading, isLast]);
 
-  const hasThinking = thinkingEnabled && !!thinkContent;
-  const [showThinking, setShowThinking] = useState(false);
+  const hasThinking = !!thinkContent;
+  const [showThinking, setShowThinking] = useState(isLast && isAILoading);
+
+  // Auto-expand thinking when it starts appearing during live generation
+  useEffect(() => {
+    if (isAILoading && isLast && !!thinkContent && !showThinking) {
+      setShowThinking(true);
+    }
+  }, [!!thinkContent, isAILoading, isLast]);
 
   const isImageContent = looksLikeImageContent(targetContent);
   const isPureImage = useMemo(() => {
     if (!targetContent) return false;
     const trimmed = targetContent.trim();
-    return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)[\s\S]*?(\s*\)|$)/.test(trimmed);
+    return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
   }, [targetContent]);
   const isInitiallyFinished = isImageContent || !isLast || !isAILoading || targetContent.length > 5000;
   const [displayContent, setDisplayContent] = useState(isLast && isAILoading ? '' : targetContent);
   const [hasFinishedTyping, setHasFinishedTyping] = useState(!(isLast && isAILoading));
-  
+
   useEffect(() => {
     if (isLast && isAILoading) {
       if (displayContent !== '') setDisplayContent('');
@@ -631,27 +762,34 @@ export const ChatMessage = memo(({
         const childrenArray = React.Children.toArray(children);
         const isPureText = childrenArray.every(c => typeof c === 'string');
         const contentStr = isPureText ? childrenArray.join('') : '';
-        const hasPotentialImage = isPureText && /!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)/.test(contentStr);
+        const hasPotentialImage = contentStr.includes('![');
 
         if (isPureText && hasPotentialImage) {
-          const imgMatch = contentStr.match(/!\[(.*?)\]\s*\(\s*(data:image\/.*?;base64,[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)(?:\s*\)|$)/);
+          // Robust regex for image markdown with optional title
+          const imgMatch = contentStr.match(/!\[(.*?)\]\s*\(\s*([^)]+?)(?:\s+"([^"]+)")?\s*\)/);
           if (imgMatch) {
-            const cleanSrc = imgMatch[2].trim().replace(/\s/g, '');
+            const altText = imgMatch[1];
+            const rawSrc = imgMatch[2].trim();
+            const cleanSrc = rawSrc.replace(/\s/g, ''); // Data URLs shouldn't have spaces
+            const descriptionFromMarkdown = imgMatch[3];
+            const description = msg.image_description || descriptionFromMarkdown;
             const matchIndex = contentStr.indexOf(imgMatch[0]);
             const textBefore = contentStr.substring(0, matchIndex);
             const textAfter = contentStr.substring(matchIndex + imgMatch[0].length);
-            
+
             return (
-              <div className="mb-2 last:mb-0 break-words !max-w-full !w-full" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>
-                {textBefore && <span style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>{renderContentWithStyles(textBefore)}</span>}
-                <ChatImage 
-                  key={cleanSrc.substring(0, 32)} 
-                  src={cleanSrc} 
-                  alt={imgMatch[1] || ''} 
-                  onHeightChange={scrollToBottom} 
-                  onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)} 
+              <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '18px', letterSpacing: '-0.03em' }}>
+                {textBefore && <span style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '18px', letterSpacing: '-0.03em' }}>{renderContentWithStyles(textBefore)}</span>}
+                <ChatImage
+                  key={cleanSrc.substring(0, 32) + (description?.length || 0)}
+                  src={cleanSrc}
+                  alt="Generated Image"
+                  description={description}
+                  messageId={msg.id}
+                  onHeightChange={scrollToBottom}
+                  onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)}
                 />
-                {textAfter && <span style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>{renderContentWithStyles(textAfter)}</span>}
+                {textAfter && <span style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '18px', letterSpacing: '-0.03em' }}>{renderContentWithStyles(textAfter)}</span>}
                 {(atEnd && !isEmpty) && <span className="ai-cursor-inline">█</span>}
               </div>
             );
@@ -659,7 +797,7 @@ export const ChatMessage = memo(({
         }
 
         return (
-          <div className="mb-2 last:mb-0 break-words !max-w-full !w-full" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>
+          <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '18px', letterSpacing: '-0.03em' }}>
             {renderContentWithStyles(children)}
             {(atEnd && !isEmpty) && <span className="ai-cursor-inline">█</span>}
           </div>
@@ -667,19 +805,18 @@ export const ChatMessage = memo(({
       },
       h1: ({ node, children }: any) => {
         const atEnd = isAILoading && !hasFinishedTyping && isAtEnd(node);
-        return <h1 className="text-2xl font-bold mb-4 text-bone-100 mt-6 first:mt-0" style={{ fontFamily: '"Crimson Text"', fontSize: '28px' }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h1>;
+        return <h1 className="text-2xl font-semibold mb-4 text-bone-100 mt-6 first:mt-0" style={{ fontFamily: '"Crimson Text"', fontSize: '28px', letterSpacing: '-0.03em', fontWeight: 600 }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h1>;
       },
       h2: ({ node, children }: any) => {
         const atEnd = isAILoading && !hasFinishedTyping && isAtEnd(node);
-        return <h2 className="text-xl font-bold mb-3 text-bone-100 mt-5" style={{ fontFamily: '"Crimson Text"', fontSize: '24px' }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h2>;
+        return <h2 className="text-xl font-semibold mb-3 text-bone-100 mt-5" style={{ fontFamily: '"Crimson Text"', fontSize: '24px', letterSpacing: '-0.03em', fontWeight: 600 }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h2>;
       },
       h3: ({ node, children }: any) => {
         const atEnd = isAILoading && !hasFinishedTyping && isAtEnd(node);
-        return <h3 className="text-lg font-bold mb-2 text-bone-100 mt-4" style={{ fontFamily: '"Crimson Text"', fontSize: '20px' }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h3>;
+        return <h3 className="text-lg font-semibold mb-2 text-bone-100 mt-4" style={{ fontFamily: '"Crimson Text"', fontSize: '20px', letterSpacing: '-0.03em', fontWeight: 600 }}>{renderContentWithStyles(children)}{atEnd && <span className="ai-cursor-inline">█</span>}</h3>;
       },
 
       a: ({ href, children }: any) => {
-        const isUrlOnly = typeof children === 'string' && (children.startsWith('http://') || children.startsWith('https://'));
         const isCitation = typeof children === 'string' && /^\[\d+\]$/.test(children);
 
         if (isCitation) {
@@ -695,88 +832,75 @@ export const ChatMessage = memo(({
           );
         }
 
-        const label = isUrlOnly ? new URL(href).hostname.replace('www.', '') : children;
-        let faviconUrl = '';
-        try {
-          if (href && href.startsWith('http')) {
-            const urlObj = new URL(href);
-            faviconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
-          }
-        } catch { }
-
-        return (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 mt-1 mr-1.5 bg-white/5 hover:bg-white/10 rounded-full text-[11px] font-medium text-[var(--bone-30)] hover:text-bone-100 no-underline transition-all duration-200 select-none border border-white/5"
-          >
-            {faviconUrl && (
-              <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden bg-white/10 rounded-[4px]">
-                <img src={faviconUrl} alt="" className="w-3 h-3 object-contain select-none opacity-80" />
-              </span>
-            )}
-            <span className="max-w-[120px] truncate leading-none font-medium">{label}</span>
-          </a>
-        );
+        return <LinkWithPopup href={href}>{children}</LinkWithPopup>;
       },
       strong: ({ node, children }: any) => {
-        const start = node?.position?.start?.offset;
-        const isSemibold = start !== undefined && targetContent.substring(start, start + 2) === '__';
         const inTable = !!useContext(InTableContext);
-        return <strong className={clsx(isSemibold ? "font-semibold" : "font-bold")} style={!inTable ? { fontFamily: '"Crimson Text"', fontWeight: isSemibold ? 600 : 700 } : undefined}>{children}</strong>;
+        return <strong className="font-semibold" style={!inTable ? { fontFamily: '"Crimson Text"', fontWeight: 600, letterSpacing: '-0.03em' } : undefined}>{renderContentWithStyles(children)}</strong>;
       },
       em: ({ children }: any) => {
         const inTable = !!useContext(InTableContext);
-        return <em className="italic" style={!inTable ? { fontFamily: '"Crimson Text"' } : undefined}>{children}</em>;
+        return <em className="italic" style={!inTable ? { fontFamily: '"Crimson Text"', letterSpacing: '-0.03em' } : undefined}>{renderContentWithStyles(children)}</em>;
       },
       ul: ({ children, className: ulClassName }: any) => {
         const isTaskList = typeof ulClassName === 'string' && ulClassName.includes('contains-task-list');
-        return <ul className={clsx("list-none space-y-[0.3rem] mb-4 last:mb-0", isTaskList ? "pl-1" : "pl-4")}>{children}</ul>;
+        return (
+          <ListTypeContext.Provider value="ul">
+            <ul className={clsx("list-none space-y-[0.4rem] mb-4 last:mb-0", isTaskList ? "pl-0" : "pl-0")}>
+              {children}
+            </ul>
+          </ListTypeContext.Provider>
+        );
       },
-      ol: ({ children }: any) => <ol className="list-decimal space-y-[0.3rem] mb-4 last:mb-0 pl-5 marker:text-bone-60" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>{children}</ol>,
+      ol: ({ children }: any) => (
+        <ListTypeContext.Provider value="ol">
+          <ol className="[counter-reset:list-counter] list-none space-y-[0.4rem] mb-4 last:mb-0 pl-0">
+            {children}
+          </ol>
+        </ListTypeContext.Provider>
+      ),
       li: ({ children, checked, node, ...props }: any) => {
         const atEnd = isAILoading && !hasFinishedTyping && isAtEnd(node);
-        
+
         // Detect checklist: react-markdown sets checked to true/false for task list items
         const checkedFromProp = checked === true || checked === false;
-        
+
         // Fallback: scan children for an input[type=checkbox]
         const childArray = React.Children.toArray(children);
-        const checkboxChild: any = childArray.find((child: any) => 
-          child?.props?.type === 'checkbox' || 
+        const checkboxChild: any = childArray.find((child: any) =>
+          child?.props?.type === 'checkbox' ||
           child?.type === 'input' ||
           (typeof child === 'object' && child?.props?.className?.includes?.('task-list'))
         );
-        
+
         const isChecklist = checkedFromProp || !!checkboxChild;
         const isChecked = checked === true || checkboxChild?.props?.checked === true;
 
         // For checklist items, filter out the default checkbox input
         const filteredChildren = isChecklist
           ? childArray.filter((child: any) => {
-              if (child?.props?.type === 'checkbox') return false;
-              if (child?.type === 'input') return false;
-              return true;
-            })
+            if (child?.props?.type === 'checkbox') return false;
+            if (child?.type === 'input') return false;
+            return true;
+          })
           : children;
 
         const handleToggle = () => {
           if (!isChecklist) return;
           const offset = node?.position?.start?.offset;
           if (typeof offset !== 'number') return;
-          
+
           // Count how many checkboxes exist before this one in the rendered content
           const textBefore = targetContent.slice(0, offset);
           const checkboxRegex = /(?:[-*+]|\d+\.)\s+\[[\sXx]\]/gi;
           const previousCheckboxes = textBefore.match(checkboxRegex) || [];
           const targetIndex = previousCheckboxes.length;
-          
+
           console.log('[Checklist Toggle]', { offset, targetIndex, previousCheckboxes });
-          
+
           const fullContent = msg.content || '';
           let matchCount = 0;
-          
+
           const newContent = fullContent.replace(/(?:[-*+]|\d+\.)\s+\[([\sXx])\]/gi, (match, inner) => {
             if (matchCount === targetIndex) {
               matchCount++;
@@ -788,12 +912,12 @@ export const ChatMessage = memo(({
             matchCount++;
             return match;
           });
-          
+
           if (newContent !== fullContent) {
             console.log('[Checklist Toggle] Update successful', newContent);
             const store = useStore.getState();
             store.setAIHistory(
-              store.aiMessages.map(m => 
+              store.aiMessages.map(m =>
                 m.id === msg.id ? { ...m, content: newContent } : m
               )
             );
@@ -802,26 +926,38 @@ export const ChatMessage = memo(({
           }
         };
 
+        const listType = useContext(ListTypeContext);
+
         return (
-          <li className={clsx("flex items-start group/li list-none", isChecklist ? "gap-2.5" : "gap-2 pl-1")}>
-            {isChecklist ? (
-              <span className="shrink-0 mt-[3px] flex items-center justify-center" onClick={handleToggle}>
-                <span className={clsx(
-                  "w-[16px] h-[16px] rounded-[4px] border-[1.5px] flex items-center justify-center transition-all cursor-pointer",
-                  isChecked 
-                    ? "bg-white/20 border-white/40" 
-                    : "border-white/20 hover:border-white/40"
-                )}>
-                  {isChecked && (
-                    <Check className="w-[12px] h-[12px] text-bone-100" strokeWidth={3} />
-                  )}
+          <li className={clsx(
+            "flex items-start group/li gap-1.5", 
+            listType === 'ol' ? "[counter-increment:list-counter]" : "",
+            "list-none"
+          )}>
+            <div className="shrink-0 w-5 flex justify-end items-start select-none" aria-hidden="true">
+              {isChecklist ? (
+                <span className="mt-[7px] flex items-center justify-center" onClick={handleToggle}>
+                  <span className={clsx(
+                    "w-[16px] h-[16px] rounded-[4px] border-[1.5px] flex items-center justify-center transition-all cursor-pointer",
+                    isChecked
+                      ? "bg-white/20 border-white/40"
+                      : "border-white/20 hover:border-white/40"
+                  )}>
+                    {isChecked && (
+                      <Check className="w-[12px] h-[12px] text-bone-100" strokeWidth={3} />
+                    )}
+                  </span>
                 </span>
-              </span>
-            ) : (
-              <span className="text-bone-60/70 select-none shrink-0 w-[6px] h-[6px] rounded-full bg-bone-60/40 mt-[9px]" aria-hidden="true" />
-            )}
-            <div className="flex-1 min-w-0 leading-[1.6] font-medium tracking-[0] break-words !max-w-full !w-full text-bone-100/90" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '17px' }}>
-              {renderContentWithStyles(filteredChildren)}
+              ) : listType === 'ul' ? (
+                <span className="w-[5.5px] h-[5.5px] rounded-full bg-bone-60/40 mt-[11px] mr-1" />
+              ) : listType === 'ol' ? (
+                <span className="text-bone-60/40 font-medium font-serif text-[18px] tracking-tight mt-0 before:content-[counter(list-counter)_'.']" style={{ fontFamily: '"Crimson Text"' }} />
+              ) : null}
+            </div>
+            <div className="flex-1 min-w-0 leading-[1.6] font-medium tracking-[0] break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Crimson Text"', fontWeight: 500, fontSize: '18px', letterSpacing: '-0.03em' }}>
+              <InListContext.Provider value={true}>
+                {renderContentWithStyles(filteredChildren)}
+              </InListContext.Provider>
               {atEnd && <span className="ai-cursor-inline ml-1">█</span>}
             </div>
           </li>
@@ -840,7 +976,7 @@ export const ChatMessage = memo(({
       code: ({ node, inline, className, children, ...props }: any) => {
         const matchNote = /language-apply-note/.exec(className || '');
         const matchCanvas = /language-apply-canvas/.exec(className || '');
-        
+
         if (!inline && matchNote) {
           return <ApplyNoteCard content={String(children).replace(/\n$/, '')} />;
         }
@@ -863,11 +999,16 @@ export const ChatMessage = memo(({
         const language = matchLang ? matchLang[1] : 'Code';
         const isMono = language !== 'markdown' && language !== 'text';
 
+        const inList = !!useContext(InListContext);
+
         return (
-          <div className="my-3 w-full rounded-2xl overflow-hidden border border-white/10 bg-black/10 group/code">
+          <div className={clsx(
+            "my-3 w-full rounded-2xl overflow-hidden border border-white/10 bg-black/10 group/code",
+            inList && "ml-[-12px] !w-[calc(100%+12px)]"
+          )}>
             <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/5 select-none">
               <span className="text-[10.5px] font-bold text-bone-60 uppercase tracking-widest font-sans">{language}</span>
-              <button 
+              <button
                 onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
                 className="flex items-center gap-1.5 text-[10.5px] font-semibold text-bone-40 hover:text-bone-100 transition-colors duration-200"
               >
@@ -888,15 +1029,30 @@ export const ChatMessage = memo(({
         if (!src) return null;
         // Clean up data URIs that might have been mangled by markdown parsing or sanitization
         const cleanSrc = src.trim().replace(/\n/g, '').replace(/\r/g, '');
-        return <ChatImage src={cleanSrc} alt={alt || ''} onHeightChange={scrollToBottom} onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)} />;
+        return (
+          <ChatImage
+            src={cleanSrc}
+            alt={alt || ''}
+            description={msg.image_description}
+            messageId={msg.id}
+            onHeightChange={scrollToBottom}
+            onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)}
+          />
+        );
       },
-      table: ({ children }: any) => (
-        <InTableContext.Provider value={true}>
-          <div className="overflow-x-auto my-3 border border-white/10 rounded-2xl w-full bg-black/10">
-            <table className="w-full text-[13px] border-collapse font-sans">{children}</table>
-          </div>
-        </InTableContext.Provider>
-      ),
+      table: ({ children }: any) => {
+        const inList = !!useContext(InListContext);
+        return (
+          <InTableContext.Provider value={true}>
+            <div className={clsx(
+              "overflow-x-auto my-3 border border-white/10 rounded-2xl w-full bg-black/10",
+              inList && "ml-[-12px] !w-[calc(100%+12px)]"
+            )}>
+              <table className="w-full text-[13px] border-collapse font-sans">{children}</table>
+            </div>
+          </InTableContext.Provider>
+        );
+      },
       thead: ({ children }: any) => <thead className="border-b border-white/10 bg-white/[0.02]">{children}</thead>,
       tbody: ({ children }: any) => <tbody className="divide-y divide-white/[0.05]">{children}</tbody>,
       tr: ({ children }: any) => <tr className="hover:bg-white/[0.01] transition-colors">{children}</tr>,
@@ -1033,7 +1189,7 @@ export const ChatMessage = memo(({
                       style={{ background: 'var(--bone-6)', borderRadius: '17px 17px 4px 17px', fontFamily: 'DM Sans', fontWeight: 500, fontSize: '14.5px' }}
                     >
                       <div className="flex flex-col gap-3">
-                        <div className="whitespace-pre-wrap break-all font-medium" style={{ fontFamily: 'DM Sans', fontWeight: 500, fontSize: '14.5px' }}>{targetContent}</div>
+                        <div className="whitespace-pre-wrap break-words font-medium" style={{ fontFamily: 'DM Sans', fontWeight: 500, fontSize: '14.5px' }}>{targetContent}</div>
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-1">
                             {msg.attachments.map((att: AIAttachment, i: number) => (
@@ -1071,22 +1227,29 @@ export const ChatMessage = memo(({
                       <div className="mb-3">
                         <button
                           onClick={() => setShowThinking(!showThinking)}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] bg-[var(--bone-5)] hover:bg-[var(--bone-10)] text-[12px] font-medium text-[var(--bone-60)] hover:text-[var(--bone-90)] transition-all"
+                          className={clsx(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-[12px] transition-all border border-white/5",
+                            showThinking 
+                              ? "bg-white/10 text-bone-100 border-white/10" 
+                              : "bg-[var(--bone-5)] hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-90)]"
+                          )}
                         >
                           <Brain className={clsx("w-3.5 h-3.5", isAILoading && isLast ? "text-bone-100 animate-pulse" : "text-bone-60")} />
-                          <span>{isAILoading && isLast ? 'Thinking...' : 'Show thinking'}</span>
-                          <ChevronDown className={clsx("w-3.5 h-3.5 opacity-50 transition-transform", showThinking && "rotate-180")} />
+                          <span className="font-semibold tracking-tight">{isAILoading && isLast ? 'Thinking...' : 'Reasoning'}</span>
+                          <ChevronDown className={clsx("w-3.5 h-3.5 opacity-50 transition-transform duration-300", showThinking && "rotate-180")} />
                         </button>
                         {showThinking && (
-                          <div className="mt-2 pl-3 ml-2 border-l-2 border-white/20 pr-4 py-1">
-                            <div className="text-[14.5px] italic text-[var(--bone-60)] leading-relaxed prose prose-invert !max-w-none prose-p:my-1 text-sm font-sans">
-                              {thinkContent}
+                          <div className="mt-2 pl-4 ml-2 border-l border-white/10 pr-4 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <div className="text-[14px] text-[var(--bone-60)] leading-relaxed prose prose-invert !max-w-none prose-p:my-1 prose-sm opacity-90 font-sans">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {thinkContent}
+                              </ReactMarkdown>
                             </div>
                           </div>
                         )}
                       </div>
                     )}
-                    
+
                     <div className={clsx(
                       "transition-all duration-500 min-h-[20px] flex flex-col",
                       isAILoading && isLast && !displayContent && "opacity-0"
@@ -1098,11 +1261,11 @@ export const ChatMessage = memo(({
                             if (imgMatch) {
                               const cleanSrc = imgMatch[2].trim().replace(/\s/g, '');
                               return (
-                                <ChatImage 
-                                  src={cleanSrc} 
-                                  alt={imgMatch[1] || ''} 
-                                  onHeightChange={scrollToBottom} 
-                                  onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)} 
+                                <ChatImage
+                                  src={cleanSrc}
+                                  alt={imgMatch[1] || ''}
+                                  onHeightChange={scrollToBottom}
+                                  onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)}
                                 />
                               );
                             }
@@ -1119,8 +1282,8 @@ export const ChatMessage = memo(({
                           "prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg",
                           "w-full overflow-hidden relative [&_p]:my-0 break-words",
                           !hasFinishedTyping && msg.role === 'assistant' && "prose-streaming"
-                        )} style={{ fontFamily: '"Crimson Text"', fontSize: '17px', fontWeight: 500 }}>
-                          <ReactMarkdown 
+                        )} style={{ fontFamily: '"Crimson Text"', fontSize: '18px', fontWeight: 500, letterSpacing: '-0.03em', color: 'var(--bone-100)' }}>
+                          <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={markdownComponents as any}
                           >
@@ -1211,7 +1374,7 @@ export const ChatMessage = memo(({
                                   <CornerUpLeft strokeWidth={2} className="w-3.5 h-3.5" />
                                 </button>
                               </Tooltip>
-                              
+
                               {/* Copy to Note Split Button */}
                               <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
                               <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
@@ -1235,12 +1398,12 @@ export const ChatMessage = memo(({
                                     </button>
                                   </DropdownMenu.Trigger>
                                   <DropdownMenu.Portal>
-                                    <DropdownMenu.Content 
+                                    <DropdownMenu.Content
                                       className="z-50 min-w-[160px] bg-[#0e0e0e] border border-white/10 p-1 rounded-md animate-in fade-in-80 zoom-in-95 duration-100"
                                       align="end"
                                       sideOffset={5}
                                     >
-                                      <DropdownMenu.Item 
+                                      <DropdownMenu.Item
                                         onSelect={() => handleCopyToNote(true)}
                                         className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-medium text-bone-80 hover:text-bone-100 hover:bg-white/5 rounded cursor-pointer select-none outline-none"
                                       >

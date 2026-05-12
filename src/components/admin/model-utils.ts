@@ -13,37 +13,40 @@ export interface RegistryModel {
 import { Globe, Zap, Layers, Cpu, Command, Image, Brain, Sparkles } from 'lucide-react'
 
 export const PROVIDER_COLORS: Record<string, string> = {
-  google: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  groq: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  openrouter: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  ollama: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-  vault: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+  gemini:      'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  groq:        'text-orange-400 bg-orange-400/10 border-orange-400/20',
+  openrouter:  'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  ollama:      'text-teal-400 bg-teal-400/10 border-teal-400/20',
+  tavily:      'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+  core:        'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
   pollinations: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
   huggingface: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  cloudflare: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  cloudflare:  'text-amber-400 bg-amber-400/10 border-amber-400/20',
   siliconflow: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20',
 }
 
 export const PROVIDER_DOTS: Record<string, string> = {
-  google: 'bg-blue-400',
-  groq: 'bg-orange-400',
-  openrouter: 'bg-purple-400',
-  ollama: 'bg-cyan-400',
-  vault: 'bg-emerald-400',
+  gemini:      'bg-blue-400',
+  groq:        'bg-orange-400',
+  openrouter:  'bg-purple-400',
+  ollama:      'bg-teal-400',
+  tavily:      'bg-cyan-400',
+  core:        'bg-emerald-400',
   pollinations: 'bg-pink-400',
   huggingface: 'bg-yellow-400',
-  cloudflare: 'bg-amber-400',
+  cloudflare:  'bg-amber-400',
   siliconflow: 'bg-indigo-400',
 }
 
 export const PROVIDER_ICONS: Record<string, any> = {
-  google: Globe,
-  groq: Zap,
-  openrouter: Layers,
-  ollama: Cpu,
-  vault: Command,
+  gemini:      Globe,
+  groq:        Zap,
+  openrouter:  Layers,
+  ollama:      Cpu,
+  tavily:      Globe,
+  core:        Command,
   pollinations: Image,
   huggingface: Brain,
-  cloudflare: Zap,
+  cloudflare:  Zap,
   siliconflow: Sparkles,
 }

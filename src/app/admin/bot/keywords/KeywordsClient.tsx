@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Check, Tag } from 'lucide-react'
+import { useState, useTransition, useMemo } from 'react'
+import { Check, Tag, RefreshCw, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { saveClassifierKeywords } from '@/app/admin/bot/classifier/actions'
+import { saveClassifierKeywords, getClassifierKeywords } from '@/app/admin/bot/classifier/actions'
 
 const INTENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   FAST_SIMPLE:      { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/20' },
@@ -23,20 +23,39 @@ const CATEGORIES = [
   'WEB_SEARCH', 'TOOL_CALLING', 'AUDIO_VOICE', 'VISION', 'CODING', 'DEEP_RESEARCH',
 ]
 
+function toInputs(kw: Record<string, string[]>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const cat of CATEGORIES) result[cat] = (kw[cat] ?? []).join(', ')
+  return result
+}
+
 interface Props {
   initialKeywords: Record<string, string[]>
 }
 
 export default function KeywordsClient({ initialKeywords }: Props) {
-  const [inputs, setInputs] = useState<Record<string, string>>(() => {
-    const result: Record<string, string> = {}
-    for (const cat of CATEGORIES) {
-      result[cat] = (initialKeywords[cat] ?? []).join(', ')
-    }
-    return result
-  })
+  const [dbInputs, setDbInputs] = useState<Record<string, string>>(() => toInputs(initialKeywords))
+  const [inputs, setInputs] = useState<Record<string, string>>(() => toInputs(initialKeywords))
   const [saved, setSaved] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  const isOutOfSync = useMemo(
+    () => CATEGORIES.some(cat => (inputs[cat] ?? '') !== (dbInputs[cat] ?? '')),
+    [inputs, dbInputs]
+  )
+
+  async function handleSync() {
+    setIsSyncing(true)
+    try {
+      const kw = await getClassifierKeywords()
+      const fresh = toInputs(kw)
+      setDbInputs(fresh)
+      setInputs(fresh)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   function handleSave() {
     startTransition(async () => {
@@ -46,6 +65,7 @@ export default function KeywordsClient({ initialKeywords }: Props) {
         if (words.length > 0) keywords[cat] = words
       }
       await saveClassifierKeywords(keywords)
+      setDbInputs({ ...inputs })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     })
@@ -53,14 +73,32 @@ export default function KeywordsClient({ initialKeywords }: Props) {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500 max-w-4xl">
-      <div>
-        <h1 className="text-4xl font-display font-normal tracking-tight text-foreground mb-1 flex items-center gap-2.5">
-          <Tag className="w-8 h-8 text-accent" />
-          Intent Keywords
-        </h1>
-        <p className="text-muted-foreground text-sm font-medium">
-          Shared across all modes. Keywords bypass the AI classifier — matched messages are routed instantly with zero latency.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-display font-normal tracking-tight text-foreground mb-1 flex items-center gap-2.5">
+            <Tag className="w-8 h-8 text-accent" />
+            Intent Keywords
+          </h1>
+          <p className="text-muted-foreground text-sm font-medium">
+            Shared across all modes. Keywords bypass the AI classifier — matched messages are routed instantly with zero latency.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 pt-1">
+          {isOutOfSync && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded-md">
+              <AlertCircle className="w-3 h-3" /> Out of sync
+            </span>
+          )}
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Overwrite local inputs with current DB values"
+            className="flex items-center gap-1.5 px-3 h-8 bg-white/5 border border-white/10 text-bone-60 hover:text-foreground hover:bg-white/10 rounded-medium text-[11px] font-semibold disabled:opacity-50 transition-all"
+          >
+            <RefreshCw className={cn('w-3 h-3', isSyncing && 'animate-spin')} />
+            {isSyncing ? 'Syncing...' : 'Sync from DB'}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">

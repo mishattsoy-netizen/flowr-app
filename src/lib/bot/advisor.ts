@@ -34,7 +34,8 @@ export async function runAdvisor(
   mode: BotMode,
   thinkingEnabled: boolean,
   availableTools: string[],
-  context: any
+  context: any,
+  history: any[] = []
 ): Promise<AdvisorResult> {
   const { chain, system_prompt } = await getRouterChain('ADVISOR')
 
@@ -59,14 +60,14 @@ export async function runAdvisor(
 
       if (provider === 'google') {
         const { runGoogle } = await import('./providers/google')
-        response = await runGoogle(modelConfig.id, advisorPrompt, systemPrompt, undefined, context, [])
+        response = await runGoogle(modelConfig.id, advisorPrompt, systemPrompt, undefined, context, history)
       } else if (provider === 'groq') {
         const { runGroq } = await import('./providers/groq')
-        response = await runGroq(modelConfig.id, advisorPrompt, systemPrompt, undefined, context, [])
+        response = await runGroq(modelConfig.id, advisorPrompt, systemPrompt, undefined, context, history)
       } else if (provider === 'openrouter') {
         const { runOpenRouter } = await import('./providers/openrouter')
         const keys = await getProviderKeys('OPENROUTER')
-        response = await runOpenRouter(modelConfig.id, advisorPrompt, systemPrompt, [], keys[0] || '', modelConfig.openrouter_provider || undefined)
+        response = await runOpenRouter(modelConfig.id, advisorPrompt, systemPrompt, history, keys[0] || '', modelConfig.openrouter_provider || undefined)
       }
 
       if (response) {

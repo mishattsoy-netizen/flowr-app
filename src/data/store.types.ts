@@ -210,7 +210,7 @@ export type ModalType =
   | { kind: 'newTask'; taskId?: string }
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
-  | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file' }
+  | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
   | { kind: 'habitDetail'; id: string | null }
   | { kind: 'goalDetail'; id: string | null }
   | { kind: 'journalDetail'; id: string | null }
@@ -250,6 +250,7 @@ export interface AIMessage {
   routing_trace?: any[];
   tokens_used?: number;
   pipelineSteps?: PipelineStep[];
+  image_description?: string;
 }
 
 export interface AISessionContext {

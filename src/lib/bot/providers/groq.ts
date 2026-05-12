@@ -9,7 +9,8 @@ export async function runGroq(
   systemPrompt?: string,
   aiApiKey?: string,
   context?: any,
-  history: any[] = []
+  history: any[] = [],
+  imageBuffers?: Buffer | Buffer[]
 ): Promise<string | null> {
   let keys = aiApiKey ? [aiApiKey] : []
   
@@ -44,8 +45,26 @@ export async function runGroq(
       let messages: any[] = [
         ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
         ...historyMessages,
-        { role: 'user', content: prompt }
       ]
+
+      if (imageBuffers) {
+        const buffers = Array.isArray(imageBuffers) ? imageBuffers : [imageBuffers]
+        const contentParts: any[] = [{ type: 'text', text: prompt }]
+
+        for (const buf of buffers) {
+          contentParts.push({ 
+            type: 'image_url', 
+            image_url: { url: `data:image/jpeg;base64,${buf.toString('base64')}` } 
+          })
+        }
+
+        messages.push({
+          role: 'user',
+          content: contentParts
+        })
+      } else {
+        messages.push({ role: 'user', content: prompt })
+      }
 
       const MAX_TOOL_HOPS = 4
       let hops = 0

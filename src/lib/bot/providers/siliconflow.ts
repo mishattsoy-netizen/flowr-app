@@ -1,5 +1,6 @@
 import { logger } from '../../logger'
 import { getProviderKeys } from '../../vault'
+import { getHighestResolution } from '../image-utils'
 
 /**
  * SiliconFlow Image Generation
@@ -33,8 +34,8 @@ export async function runSiliconFlow(
         model: modelId,
         prompt: prompt,
         batch_size: 1,
-        // SiliconFlow standard sizes
-        image_size: "1024x1024"
+        // SiliconFlow standard sizes - using highest supported
+        image_size: `${getHighestResolution(modelId, 'siliconflow').width}x${getHighestResolution(modelId, 'siliconflow').height}`
       })
     })
 

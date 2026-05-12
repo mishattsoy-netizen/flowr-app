@@ -20,18 +20,29 @@ export async function logInteraction(
   status: 'success' | 'error' = 'success',
   modelChain?: string,
   requestId?: string,
-  contextMessages?: any
+  contextMessages?: any,
+  imageDescription?: string
 ) {
   try {
     let topicTag = null
 
     if (role === 'user' && content) {
-      const apiKey = await getVaultKey('GEMINI_PRIMARY')
-      if (apiKey) {
-        const genAI = new GoogleGenerativeAI(apiKey)
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-lite' })
-        const result = await model.generateContent(`${TOPIC_TAGGER_PROMPT}\n"${content}"`)
-        topicTag = result.response.text().trim()
+      try {
+        const { getRouterChain } = await import('../router-config')
+        const { chain } = await getRouterChain('FAST_SIMPLE')
+        const modelConfig = chain.find(m => m.is_enabled && m.provider === 'google')
+        
+        if (modelConfig) {
+          const apiKey = await getVaultKey('GEMINI_PRIMARY')
+          if (apiKey) {
+            const genAI = new GoogleGenerativeAI(apiKey)
+            const model = genAI.getGenerativeModel({ model: modelConfig.id })
+            const result = await model.generateContent(`${TOPIC_TAGGER_PROMPT}\n"${content}"`)
+            topicTag = result.response.text().trim()
+          }
+        }
+      } catch (err) {
+        logger.warn(`Topic tagging failed (skipping): ${err}`)
       }
     }
 
@@ -45,7 +56,7 @@ export async function logInteraction(
       status,
       model_chain: modelChain ?? null,
       request_id: requestId ?? null,
-      context_messages: contextMessages ?? null
+      context_messages: imageDescription ? { ...(contextMessages || {}), image_description: imageDescription } : (contextMessages ?? null)
     })
 
     if (error) throw error
@@ -67,7 +78,8 @@ export async function logWebInteraction(
   status: 'success' | 'error' = 'success',
   modelChain?: string,
   requestId?: string,
-  contextMessages?: any
+  contextMessages?: any,
+  imageDescription?: string
 ) {
   if (!supabaseAdmin) return
   try {
@@ -82,7 +94,8 @@ export async function logWebInteraction(
       usage_type: usageType,
       status,
       model_chain: modelChain ?? null,
-      request_id: requestId ?? null
+      request_id: requestId ?? null,
+      context_messages: imageDescription ? { ...(contextMessages || {}), image_description: imageDescription } : (contextMessages ?? null)
     })
 
     if (error?.message?.includes('auth_user_id')) {
@@ -116,7 +129,8 @@ export async function logModelWebMessage(
   status: 'success' | 'error' = 'success',
   modelChain?: string,
   requestId?: string,
-  contextMessages?: any
+  contextMessages?: any,
+  imageDescription?: string
 ): Promise<number | null> {
   if (!supabaseAdmin) {
     console.log('[Analytics] supabaseAdmin is missing or not initialized in logModelWebMessage!')
@@ -133,7 +147,8 @@ export async function logModelWebMessage(
       usage_type: usageType,
       status,
       model_chain: modelChain ?? null,
-      request_id: requestId ?? null
+      request_id: requestId ?? null,
+      context_messages: imageDescription ? { ...(contextMessages || {}), image_description: imageDescription } : (contextMessages ?? null)
     }).select('id')
 
     if (error?.message?.includes('auth_user_id')) {

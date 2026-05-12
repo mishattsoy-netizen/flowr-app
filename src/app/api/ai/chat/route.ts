@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     user = data.user
   }
 
-  const { prompt, buffer, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -75,17 +75,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { category: rawCategory, error: classifyError } = await classifyIntentWithModel(prompt, aiApiKey, classificationModelId, activeMode, intentTag ?? null)
+    const [settings, globalPromptForOllama] = await Promise.all([
+      import('@/lib/router-config').then(m => m.getPipelineSettings()),
+      getCompiledPrompt()
+    ])
+    const ollamaHistory = await getWebConversationMemory(userId, settings.historyLimit)
+
+    const { category: rawCategory, error: classifyError } = await classifyIntentWithModel(
+      prompt, 
+      aiApiKey, 
+      classificationModelId, 
+      activeMode, 
+      intentTag ?? null,
+      ollamaHistory
+    )
+
     if (!rawCategory) {
       return NextResponse.json({ error: classifyError ?? 'Classifier failed — check Admin > Router > CLASSIFIER', model: 'system' }, { status: 500 })
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let category = rawCategory as any
-    const [{ chain, system_prompt, temperature }, globalPromptForOllama, ollamaHistory] = await Promise.all([
-      getRouterChain(category),
-      getCompiledPrompt(),
-      getWebConversationMemory(userId),
-    ])
+    const { chain, system_prompt, temperature } = await getRouterChain(category)
     let activeModelConfig = chain.find(m => m.is_enabled)
     let isOllama = false
 
@@ -162,9 +172,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const inputBuffers = images && Array.isArray(images) 
+      ? images.map(img => Buffer.from(img, 'base64'))
+      : (buffer ? [Buffer.from(buffer, 'base64')] : undefined)
+
     const result = await runChain(
       prompt,
-      buffer ? Buffer.from(buffer, 'base64') : undefined,
+      inputBuffers,
       { userId, aiApiKey, activeEntityId, activeWorkspaceId, classificationModelId, temperature, mode: activeMode, intentTag: intentTag ?? null, replyContext, thinkingEnabled: thinkingEnabled === true, advisorEnabled: advisorEnabled === true }
     )
 
@@ -185,7 +199,6 @@ export async function POST(req: NextRequest) {
     } else if (result.type === 'photo' && typeof content === 'string' && content.startsWith('data:')) {
       content = `![Generated Image](${content})`
     } else if (result.type === 'photo' && typeof content === 'string' && (content.startsWith('http') || content.includes('.ai/'))) {
-      // Handle cases where image generators return a URL instead of binary
       content = `![Generated Image](${content})`
     }
 
@@ -204,11 +217,12 @@ export async function POST(req: NextRequest) {
     
     const contextMessages = {
       classify: result.classification_trace,
-      routing: result.routing_trace
+      routing: result.routing_trace,
+      step_traces: result.step_traces ?? undefined,
     }
 
-    logWebInteraction(logUserId, prompt, 'user', usageType as any, 'success', modelChain, requestId, contextMessages).catch(() => {})
-    const messageLogId = await logModelWebMessage(logUserId, loggedContent, usageType as any, result.status || 'success', modelChain, requestId, contextMessages).catch(() => null)
+    logWebInteraction(logUserId, prompt, 'user', usageType as any, 'success', modelChain, requestId, contextMessages, result.image_description).catch(() => {})
+    const messageLogId = await logModelWebMessage(logUserId, loggedContent, usageType as any, result.status || 'success', modelChain, requestId, contextMessages, result.image_description).catch(() => null)
     console.log('[Chat API POST] messageLogId returned from logModelWebMessage:', messageLogId)
 
     return NextResponse.json({
@@ -224,6 +238,7 @@ export async function POST(req: NextRequest) {
       tokens_used: result.tokens_used,
       pipeline_steps: result.pipeline_steps,
       advisor_questions: result.advisor_questions,
+      image_description: result.image_description,
     })
   } catch (error: any) {
     console.error('[AI API Error]', error);

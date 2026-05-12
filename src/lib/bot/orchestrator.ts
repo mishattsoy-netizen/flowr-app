@@ -4,17 +4,13 @@ import { getProviderKeys } from '../vault'
 import { runGoogle } from './providers/google'
 import { runGroq } from './providers/groq'
 import { runOpenRouter } from './providers/openrouter'
+import { TraceCollector } from './tracing'
 
 export interface OrchestratorPlan {
   steps: IntentCategory[]
   stepGoals: string[]
 }
 
-const PROVIDER_EXECUTORS: Record<string, Function> = {
-  google: runGoogle,
-  groq: runGroq,
-  openrouter: runOpenRouter,
-}
 
 const VALID_CHAIN_CATEGORIES: IntentCategory[] = [
   'FAST_SIMPLE', 'MEDIUM_THINKING', 'COMPLEX_THINKING',
@@ -44,8 +40,10 @@ function parseOrchestratorOutput(raw: string, maxSteps: number): OrchestratorPla
   }
 }
 
-function buildOrchestratorPrompt(userPrompt: string, maxSteps: number): string {
+function buildOrchestratorPrompt(userPrompt: string, maxSteps: number, visionNotes?: string): string {
+  const visualContext = visionNotes ? `\n[VISION CONTEXT - THE AI SAW THESE IMAGES]\n${visionNotes}\n` : ''
   return `The user sent this message: "${userPrompt}"
+${visualContext}
 
 Plan the optimal chain sequence to answer this request. Output ONLY valid JSON, nothing else.
 
@@ -64,28 +62,31 @@ Output format:
 export async function planChainSequence(
   prompt: string,
   history: any[],
-  replyContext: any,
-  sessionSummary: string | null,
-  maxSteps: number
+  _replyContext: any,
+  _sessionSummary: string | null,
+  maxSteps: number,
+  visionNotes?: string,
+  tracer?: TraceCollector
 ): Promise<OrchestratorPlan | null> {
-  const { chain, system_prompt } = await getRouterChain('ORCHESTRATOR' as any)
+  const { chain, system_prompt } = await getRouterChain('ORCHESTRATOR')
 
   if (chain.length === 0) {
     logger.error('ORCHESTRATOR chain is empty — add models via Admin > Router > ORCHESTRATOR')
     return null
   }
 
-  const orchestratorPrompt = buildOrchestratorPrompt(prompt, maxSteps)
+  const orchestratorPrompt = buildOrchestratorPrompt(prompt, maxSteps, visionNotes)
   const systemPrompt = system_prompt || DEFAULT_ORCHESTRATOR_SYSTEM_PROMPT
   const recentHistory = history.slice(-20)
 
   for (const modelConfig of chain) {
     if (!modelConfig.is_enabled) continue
+    const t0 = Date.now()
+    const traceMeta = { chain: 'ORCHESTRATOR', model: modelConfig.id, provider: modelConfig.provider, input_system: systemPrompt, input_user: orchestratorPrompt, input_history_count: recentHistory.length }
     try {
       let response: any = null
       const provider = modelConfig.provider.toLowerCase()
 
-      // Call providers statically (Fix 7.1)
       if (provider === 'google') {
         response = await runGoogle(modelConfig.id, orchestratorPrompt, systemPrompt, undefined, {} as any, recentHistory)
       } else if (provider === 'groq') {
@@ -100,11 +101,14 @@ export async function planChainSequence(
         const plan = parseOrchestratorOutput(content, maxSteps)
         if (plan) {
           logger.info(`Orchestrator planned: ${plan.steps.join(' → ')}`)
+          tracer?.recordSuccess({ ...traceMeta, output: content }, Date.now() - t0)
           return plan
         }
       }
+      tracer?.recordFailed({ ...traceMeta, error: 'no valid plan in response' }, Date.now() - t0)
     } catch (e: any) {
       logger.warn(`Orchestrator model ${modelConfig.id} failed: ${e.message}`)
+      tracer?.recordFailed({ ...traceMeta, error: e.message }, Date.now() - t0)
     }
   }
 

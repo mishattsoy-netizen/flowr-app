@@ -19,9 +19,17 @@ import {
   Layers,
   X,
   Save,
-  Edit2
+  Edit2,
+  MessageSquareCode
 } from 'lucide-react'
-import { updateRouterChain, getFallbackModes, setFallbackMode, getRouterTemperatures, setRouterTemperature } from '@/app/admin/router/actions'
+import { 
+  updateRouterChain, 
+  getFallbackModes, 
+  setFallbackMode, 
+  getRouterTemperatures, 
+  setRouterTemperature,
+  updateRouterSystemPrompt 
+} from '@/app/admin/router/actions'
 import { saveChainPreset, loadChainPreset, listChainPresets } from '@/app/admin/bot/registry/actions'
 import { cn } from '@/lib/utils'
 import ModelDropdown from './ModelDropdown'
@@ -190,6 +198,9 @@ export default function RouterManager({
   const [fallbackMode, setFallbackModeState] = useState<'model_first' | 'api_key_first'>('model_first')
   const [temperature, setTemperature] = useState<number>(0.7)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [isPromptOpen, setIsPromptOpen] = useState(false)
+  const [systemPrompt, setSystemPrompt] = useState(chain.system_prompt || '')
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false)
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -363,6 +374,18 @@ export default function RouterManager({
     }
   }
 
+  const handleSavePrompt = async () => {
+    setIsSavingPrompt(true)
+    try {
+      await updateRouterSystemPrompt(chain.id, systemPrompt)
+      setIsPromptOpen(false)
+    } catch (err: any) {
+      alert(`Failed to save system prompt: ${err.message}`)
+    } finally {
+      setIsSavingPrompt(false)
+    }
+  }
+
   return (
     <div className={cn(
       "bg-panel rounded-big px-3 pb-2 pt-3 h-full flex flex-col relative",
@@ -433,6 +456,35 @@ export default function RouterManager({
         </div>
       )}
 
+      {isPromptOpen && (
+        <div className="px-3 py-3 mb-3 bg-white/[0.02] border border-white/5 rounded-medium animate-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[10px] font-bold text-bone-60 uppercase tracking-widest">System Prompt Override</label>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsPromptOpen(false)}
+                className="text-[9px] font-bold text-bone-40 hover:text-bone-100 uppercase"
+              >
+                Dismiss
+              </button>
+              <button 
+                onClick={handleSavePrompt}
+                disabled={isSavingPrompt}
+                className="text-[9px] font-bold text-accent hover:brightness-110 uppercase"
+              >
+                {isSavingPrompt ? 'Saving...' : 'Save Prompt'}
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            className="w-full h-32 bg-background/50 border border-white/5 rounded-sm p-2 text-[11px] text-bone-100 font-mono focus:outline-none focus:ring-1 focus:ring-accent/30 resize-none custom-scrollbar"
+            placeholder="Enter instructions for this chain node..."
+          />
+        </div>
+      )}
+
       {title && (
         <div className="px-3 py-2 mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -446,6 +498,24 @@ export default function RouterManager({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            {category === 'IMAGE_UPSCALE' && (
+              <div className="mr-2 flex items-center gap-1 text-[8px] font-bold text-accent bg-accent/5 px-2 py-0.5 rounded-sm border border-accent/20 animate-pulse">
+                <span>Free Pick: xinlai/Real-ESRGAN-realesrgan-x4plus</span>
+              </div>
+            )}
+            {models.some(m => m.provider.toLowerCase() === 'cloudflare') && (
+              <div className="mr-2 group relative">
+                <div className="flex items-center gap-1 text-[8px] font-bold text-amber-500 bg-amber-500/5 px-2 py-0.5 rounded-sm border border-amber-500/20 cursor-help">
+                   <span>401?</span>
+                </div>
+                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-[#1A1A1A] border border-white/10 rounded-medium shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-[100]">
+                  <p className="text-[9px] leading-relaxed text-bone-60">
+                    <span className="text-amber-500 font-bold">Cloudflare 401?</span><br />
+                    Ensure your token has <span className="text-bone-100 font-bold">"Workers AI: Edit"</span> permission in the Cloudflare dashboard.
+                  </p>
+                </div>
+              </div>
+            )}
             <button
               onClick={handleToggleMode}
               className={cn(
@@ -471,6 +541,16 @@ export default function RouterManager({
                 className="w-10 bg-transparent border-none p-0 focus:ring-0 text-[9px] font-mono text-center font-bold text-accent select-none outline-none"
               />
             </div>
+            <button 
+              onClick={() => setIsPromptOpen(!isPromptOpen)}
+              className={cn(
+                "p-1 rounded-sm transition-all duration-0",
+                isPromptOpen ? "bg-accent/20 text-accent" : "hover:bg-white/5 text-muted-foreground/40 hover:text-foreground"
+              )}
+              title="System Prompt"
+            >
+              <MessageSquareCode className="w-3.5 h-3.5" />
+            </button>
             <button 
               onClick={() => setIsPresetOpen(true)}
               className="p-1 rounded-sm hover:bg-white/5 text-muted-foreground/40 hover:text-foreground transition-all"
@@ -522,13 +602,35 @@ export default function RouterManager({
              <div className="flex items-center gap-2 ml-auto">
                {/* Col 2: RPD */}
                <div className="flex items-center gap-1 shrink-0 text-bone-60 group-hover:text-bone-80 transition-colors duration-0 w-16 justify-end">
-                 <span className="text-[9px] font-mono font-medium">
-                   {(() => {
-                     const matchingModel = availableModels.find(m => m.id === model.id)
-                     return matchingModel && matchingModel.max_rpd !== null ? matchingModel.max_rpd.toLocaleString() : '∞'
-                   })()}
-                 </span>
-                 <span className="text-[8px] font-bold uppercase tracking-tighter opacity-60">RPD</span>
+                 <span className={cn(
+                    "text-[9px] font-mono font-medium",
+                    (() => {
+                      const matchingModel = availableModels.find(m => m.id === model.id)
+                      const isFree = matchingModel?.provider.toLowerCase() === 'pollinations' || matchingModel?.provider.toLowerCase() === 'ollama'
+                      return isFree ? "text-accent/60" : ""
+                    })()
+                  )}>
+                    {(() => {
+                      const matchingModel = availableModels.find(m => m.id === model.id)
+                      if (!matchingModel) return '∞'
+                      if (matchingModel.provider.toLowerCase() === 'pollinations' || matchingModel.provider.toLowerCase() === 'ollama') return 'FREE'
+                      
+                      const val = matchingModel.max_rpd
+                      if (val === null) return '∞'
+                      if (val >= 1000) {
+                        return (val / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K'
+                      }
+                      return val.toLocaleString()
+                    })()}
+                  </span>
+                  <span className="text-[8px] font-bold uppercase tracking-tighter opacity-60">
+                    {(() => {
+                       const matchingModel = availableModels.find(m => m.id === model.id)
+                       if (matchingModel?.provider.toLowerCase() === 'ollama') return 'LOCAL'
+                       if (matchingModel?.provider.toLowerCase() === 'pollinations') return 'API'
+                       return 'RPD'
+                    })()}
+                  </span>
                </div>
 
                {/* Col 3: Provider Selector (Dot only) */}

@@ -9,16 +9,15 @@ import { cn } from '@/lib/utils'
 const MODALITY_OPTIONS = ['text', 'image', 'audio', 'video']
 
 const PROVIDER_COLORS: Record<string, string> = {
-  google: 'text-blue-400 border-blue-400/20 bg-blue-400/10',
-  groq: 'text-orange-400 border-orange-400/20 bg-orange-400/10',
-  cloudflare: 'text-amber-400 border-amber-400/20 bg-amber-400/10',
-  huggingface: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10',
-  vault: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
+  gemini:      'text-blue-400 border-blue-400/20 bg-blue-400/10',
+  groq:        'text-orange-400 border-orange-400/20 bg-orange-400/10',
+  openrouter:  'text-purple-400 border-purple-400/20 bg-purple-400/10',
+  ollama:      'text-teal-400 border-teal-400/20 bg-teal-400/10',
+  tavily:      'text-cyan-400 border-cyan-400/20 bg-cyan-400/10',
+  core:        'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
   pollinations: 'text-pink-400 border-pink-400/20 bg-pink-400/10',
-  openrouter: 'text-purple-400 border-purple-400/20 bg-purple-400/10',
-  local: 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10',
-  ollama: 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
-  'ollama(my pc)': 'text-zinc-400 border-zinc-400/20 bg-zinc-400/10',
+  huggingface: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10',
+  cloudflare:  'text-amber-400 border-amber-400/20 bg-amber-400/10',
   siliconflow: 'text-indigo-400 border-indigo-400/20 bg-indigo-400/10',
 }
 
@@ -82,11 +81,16 @@ function RpdBar({ used, max }: { used: number; max: number | null }) {
   const pct = Math.min(100, (used / max) * 100)
   const color =
     pct >= 90 ? 'bg-rose-400' : pct >= 70 ? 'bg-amber-400' : 'bg-accent/60'
+  const formatVal = (v: number) => {
+    if (v >= 1000) return (v / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K'
+    return v.toLocaleString()
+  }
+
   return (
     <div className="flex flex-col gap-1 min-w-[100px]">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-mono text-bone-60 opacity-50">
-          {used} / {max.toLocaleString()}
+          {formatVal(used)} / {formatVal(max)}
         </span>
         <span className="text-[9px] font-bold text-bone-60 opacity-30 ml-2">
           {Math.round(pct)}%
@@ -108,6 +112,65 @@ interface ModelRow {
   is_favorite: boolean
   usage_today: number
   sort_order: number
+}
+
+function ProviderDropdown({
+  value,
+  onChange,
+  up = false,
+}: {
+  value: string
+  onChange: (val: string) => void
+  up?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const providers = Object.keys(PROVIDER_COLORS)
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-between w-32 px-2.5 py-1.5 rounded-medium border text-[11px] font-bold uppercase tracking-wider transition-all",
+          PROVIDER_COLORS[value.toLowerCase()] || "text-bone-60 border-white/10 bg-white/5"
+        )}
+      >
+        <span>{value}</span>
+        <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className={cn(
+            "absolute left-0 w-40 z-50 bg-background/80 backdrop-blur-xl border border-white/10 rounded-medium shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150",
+            up ? "bottom-full mb-1 origin-bottom" : "top-full mt-1 origin-top"
+          )}>
+            <div className="max-h-60 overflow-y-auto p-1 py-1.5">
+              {providers.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    onChange(p)
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 w-full px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-left rounded-small transition-all",
+                    value.toLowerCase() === p 
+                      ? PROVIDER_COLORS[p] 
+                      : "text-bone-60 hover:bg-white/5 hover:text-foreground"
+                  )}
+                >
+                  <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", PROVIDER_COLORS[p].split(' ')[0].replace('text-', 'bg-'))} />
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function EditableRow({
@@ -147,22 +210,10 @@ function EditableRow({
         />
       </td>
       <td className="px-4 py-3">
-        <select
+        <ProviderDropdown
           value={draft.provider}
-          onChange={(e) => setDraft((d) => ({ ...d, provider: e.target.value }))}
-          className="bg-white/5 text-foreground text-[12px] px-2 py-1 h-8 rounded-medium focus:outline-none w-28 select-none cursor-pointer hover:bg-white/10 transition-all font-sans tracking-wide"
-        >
-          <option value="google">google</option>
-          <option value="groq">groq</option>
-          <option value="cloudflare">cloudflare</option>
-          <option value="huggingface">huggingface</option>
-          <option value="vault">vault</option>
-          <option value="pollinations">pollinations</option>
-          <option value="openrouter">openrouter</option>
-          <option value="ollama">ollama</option>
-          <option value="local">local</option>
-          <option value="siliconflow">siliconflow</option>
-        </select>
+          onChange={(val) => setDraft((d) => ({ ...d, provider: val }))}
+        />
       </td>
       <td className="px-4 py-3">
         <ModalityBadges modalities={draft.input_modalities} editable onToggle={toggleInput} />
@@ -208,7 +259,7 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<ModelRow>({
     id: '',
-    provider: 'google',
+    provider: 'gemini',
     input_modalities: ['text'],
     output_modalities: ['text'],
     max_rpd: null,
@@ -259,22 +310,11 @@ function AddRow({ onAdd }: { onAdd: (m: ModelRow) => void }) {
         />
       </td>
       <td className="px-4 py-3">
-        <select
+        <ProviderDropdown
           value={draft.provider}
-          onChange={(e) => setDraft((d) => ({ ...d, provider: e.target.value }))}
-          className="bg-white/5 text-foreground text-[12px] px-2 py-1 h-8 rounded-medium focus:outline-none w-28 select-none cursor-pointer hover:bg-white/10 transition-all font-sans tracking-wide"
-        >
-          <option value="google">google</option>
-          <option value="groq">groq</option>
-          <option value="cloudflare">cloudflare</option>
-          <option value="huggingface">huggingface</option>
-          <option value="vault">vault</option>
-          <option value="pollinations">pollinations</option>
-          <option value="openrouter">openrouter</option>
-          <option value="ollama">ollama</option>
-          <option value="local">local</option>
-          <option value="siliconflow">siliconflow</option>
-        </select>
+          onChange={(val) => setDraft((d) => ({ ...d, provider: val }))}
+          up={true}
+        />
       </td>
       <td className="px-4 py-3">
         <ModalityBadges modalities={draft.input_modalities} editable onToggle={toggleInput} />

@@ -4,7 +4,8 @@ import { logger } from '../../logger'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 
-const GOOGLE_TIMEOUT_MS = 30000
+const GOOGLE_TIMEOUT_MS = 60000
+const GOOGLE_TIMEOUT_MS_GEMMA4 = 120000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -17,7 +18,7 @@ export async function runGoogle(
   modelId: string,
   prompt: string,
   systemPrompt?: string,
-  imageBuffer?: Buffer,
+  imageBuffers?: Buffer | Buffer[],
   context?: { chatId?: number; userId?: string; aiApiKey?: string; platform?: string; useTools?: boolean; temperature?: number },
   history: any[] = []
 ): Promise<string | { content: string; citations?: string[] } | null> {
@@ -39,114 +40,105 @@ export async function runGoogle(
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
-    try {
-      const genAI = new GoogleGenerativeAI(key)
+    let forceLegacy = false
+    let attempts = 0
+    
+    while (attempts < 2) {
+      attempts++
+      try {
+        const genAI = new GoogleGenerativeAI(key)
 
-      const isGemma = modelId.toLowerCase().includes('gemma')
-      let finalPrompt = prompt
+        const isGemma4 = modelId.toLowerCase().includes('gemma-4')
+        const isLegacyGemma = modelId.toLowerCase().includes('gemma') && !isGemma4
+        
+        let finalPrompt = prompt
+        let useSystemInstruction = !isLegacyGemma && !forceLegacy
 
-      // Legacy Gemma models (1, 2, 3) don't support native systemInstruction role or tools on Gemini API.
-      // We prepend system instructions to the prompt text instead to bypass the 400 Bad Request.
-      if (isGemma && systemPrompt) {
-        finalPrompt = `System Instructions:\n${systemPrompt}\n\nUser Request: ${finalPrompt}`
-      }
-
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        systemInstruction: !isGemma ? systemPrompt : undefined,
-        ...(context?.useTools && !isGemma ? { tools: [{ functionDeclarations: FLOWR_TOOLS as any }] } : {}),
-        generationConfig: {
-          temperature: typeof context?.temperature === 'number' ? context.temperature : 0.7
+        // Fallback or Legacy: Prepend system instructions to the prompt text
+        if ((isLegacyGemma || forceLegacy) && systemPrompt) {
+          finalPrompt = `System Instructions:\n${systemPrompt}\n\nUser Request: ${finalPrompt}`
         }
-      }, { apiVersion: 'v1beta' })
 
-      const parts: any[] = [{ text: finalPrompt }]
-
-      if (imageBuffer) {
-        parts.push({
-          inlineData: {
-            data: imageBuffer.toString('base64'),
-            mimeType: 'image/jpeg'
+        const model = genAI.getGenerativeModel({
+          model: modelId,
+          systemInstruction: useSystemInstruction ? systemPrompt : undefined,
+          ...(context?.useTools && useSystemInstruction ? { tools: [{ functionDeclarations: FLOWR_TOOLS as any }] } : {}),
+          generationConfig: {
+            temperature: typeof context?.temperature === 'number' ? context.temperature : 0.7
           }
+        }, { 
+          apiVersion: forceLegacy ? 'v1' : 'v1beta' 
         })
-      }
 
-      // Gemini requires history to start with 'user' and alternate user/model
-      // Drop any leading model messages and enforce alternation
-      const safeHistory: any[] = []
-      for (const msg of history) {
-        const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
-        if (msg.role === expectedRole) safeHistory.push(msg)
-        // skip out-of-order messages silently
-      }
-      // Must end on model turn (history is pairs: user then model)
-      if (safeHistory.length % 2 !== 0) safeHistory.pop()
+        const parts: any[] = [{ text: finalPrompt }]
 
-      let chat = model.startChat({ history: safeHistory })
-
-      let result = await withTimeout(chat.sendMessage(parts), GOOGLE_TIMEOUT_MS)
-      let response = result.response
-
-      const MAX_TOOL_HOPS = 4
-      let hops = 0
-
-      while (response.functionCalls() && hops < MAX_TOOL_HOPS) {
-        hops++
-        const toolCalls = response.functionCalls() || []
-        const toolResults = []
-
-        for (const call of toolCalls) {
-          const handler = toolHandlers[call.name]
-          if (handler) {
-            const output = await (handler as any)(call.args, context)
-            toolResults.push({
-              functionResponse: { name: call.name, response: output }
+        if (imageBuffers) {
+          const buffers = Array.isArray(imageBuffers) ? imageBuffers : [imageBuffers]
+          for (const buf of buffers) {
+            parts.push({
+              inlineData: {
+                data: buf.toString('base64'),
+                mimeType: 'image/jpeg'
+              }
             })
           }
         }
 
-        result = await chat.sendMessage(toolResults)
-        response = result.response
-      }
+        const safeHistory: any[] = []
+        for (const msg of history) {
+          const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
+          if (msg.role === expectedRole) safeHistory.push(msg)
+        }
+        if (safeHistory.length % 2 !== 0) safeHistory.pop()
 
-      const finalAnswer = response.text()
-      if (finalAnswer) {
-        if (context) (context as any).usedKeyIndex = (context as any).usedKeyIndex || i + 1
+        let chat = model.startChat({ history: safeHistory })
+        const activeTimeout = (isGemma4 && imageBuffers) ? GOOGLE_TIMEOUT_MS_GEMMA4 : GOOGLE_TIMEOUT_MS
+        let result = await withTimeout(chat.sendMessage(parts), activeTimeout)
+        let response = result.response
 
-        // Extract citations from grounding metadata if present (Fix 7.10)
-        const candidate = response.candidates?.[0]
-        if (candidate?.groundingMetadata?.groundingChunks) {
-          const citations = candidate.groundingMetadata.groundingChunks
-            .map((chunk: any) => chunk.web?.url || chunk.retrievalMetadata?.source?.uri)
-            .filter(Boolean)
+        const MAX_TOOL_HOPS = 4
+        let hops = 0
 
-          if (citations.length > 0) {
-            const uniqueCitations = Array.from(new Set(citations)) as string[]
-            if (context) (context as any).citations = uniqueCitations
-            return {
-              content: finalAnswer,
-              citations: uniqueCitations
+        while (response.functionCalls() && hops < MAX_TOOL_HOPS) {
+          hops++
+          const toolCalls = response.functionCalls() || []
+          const toolResults = []
+          for (const call of toolCalls) {
+            const handler = toolHandlers[call.name]
+            if (handler) {
+              const output = await (handler as any)(call.args, context)
+              toolResults.push({ functionResponse: { name: call.name, response: output } })
             }
           }
+          result = await chat.sendMessage(toolResults)
+          response = result.response
         }
 
-        return finalAnswer
-      }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Unknown error'
-      if (errorMsg.includes('429') || errorMsg.includes('quota')) {
-        logger.warn(`Gemini key rate limited. Bubbling error for key rotation...`)
-        throw error // Force bubble error (Fix 7.9)
-      }
+        const finalAnswer = response.text()
+        if (finalAnswer) {
+          if (context) (context as any).usedKeyIndex = (context as any).usedKeyIndex || i + 1
+          return finalAnswer
+        }
+      } catch (error: any) {
+        const errorMsg = error.message || 'Unknown error'
+        
+        // Gemma 4 specific fallback: Retry with legacy prepending if 500/400 error occurs
+        if (modelId.toLowerCase().includes('gemma-4') && !forceLegacy && (errorMsg.includes('500') || errorMsg.includes('400'))) {
+          logger.warn(`Gemma 4 failed with native instructions. Retrying with legacy prepend...`)
+          forceLegacy = true
+          continue
+        }
 
-      if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-        logger.error(`Model ID "${modelId}" not found. Check your Router config.`)
-      } else if (errorMsg.includes('401') || errorMsg.includes('API key')) {
-        logger.error(`Authentication failed for Gemini key.`)
-      } else {
+        if (errorMsg.includes('429') || errorMsg.includes('quota')) {
+          throw error 
+        }
+
         logger.error(`Google model ${modelId} execution failed:`, errorMsg)
+        if (error.response) {
+          logger.error(`Full error response:`, JSON.stringify(error.response, null, 2))
+        }
+        break // Fail this model and try next key or next model in chain
       }
-      throw error
     }
   }
 

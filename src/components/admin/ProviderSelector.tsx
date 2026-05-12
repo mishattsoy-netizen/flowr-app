@@ -1,6 +1,6 @@
 'use client'
-
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { PROVIDER_COLORS, PROVIDER_DOTS } from './model-utils'
 
@@ -21,10 +21,15 @@ export default function ProviderSelector({
 }: ProviderSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const isTrigger = ref.current?.contains(target)
+      const isMenu = menuRef.current?.contains(target)
+      
+      if (!isTrigger && !isMenu) {
         setIsOpen(false)
       }
     }
@@ -38,7 +43,7 @@ export default function ProviderSelector({
     <div className={cn("relative shrink-0 flex items-center justify-center select-none", className)} ref={ref}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
         title={value}
         className={cn(
           "flex items-center justify-center w-6 h-6 rounded-sm transition-all duration-0 hover:bg-white/5 focus:outline-none",
@@ -51,8 +56,19 @@ export default function ProviderSelector({
         )} />
       </button>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-panel border border-white/10 rounded-medium shadow-2xl z-50 min-w-[120px] max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-200 py-1 flex flex-col gap-0.5">
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          ref={menuRef}
+          className={cn(
+            "fixed bg-panel border border-white/10 rounded-medium shadow-2xl z-[9999] min-w-[120px] max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 py-1 flex flex-col gap-0.5",
+            (ref.current?.getBoundingClientRect().bottom ?? 0) + 200 > window.innerHeight ? "origin-bottom" : "origin-top"
+          )}
+          style={{
+            top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 200 > window.innerHeight ? 'auto' : (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,
+            bottom: (ref.current?.getBoundingClientRect().bottom ?? 0) + 200 > window.innerHeight ? window.innerHeight - (ref.current?.getBoundingClientRect().top ?? 0) + 4 : 'auto',
+            left: (ref.current?.getBoundingClientRect().left ?? 0),
+          }}
+        >
           {providers.map((p) => {
             const pDot = PROVIDER_DOTS[p.toLowerCase()] || 'bg-bone-60'
             const pColor = PROVIDER_COLORS[p.toLowerCase()] || 'text-bone-60'
@@ -76,7 +92,8 @@ export default function ProviderSelector({
               </button>
             )
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

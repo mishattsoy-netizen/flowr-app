@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache'
 export async function getVaultData() {
   const [accountsRes, keysRes] = await Promise.all([
     supabase.from('vault_accounts').select('*').order('sort_order', { ascending: true }),
-    supabase.from('vault').select('id, key_id, account_id, key_index, description, updated_at').order('key_index', { ascending: true })
+    supabase.from('vault').select('id, key_id, account_id, key_index, description, is_active, updated_at').order('key_index', { ascending: true })
   ])
   return { accounts: accountsRes.data || [], keys: keysRes.data || [] }
 }
@@ -17,7 +17,7 @@ export async function getVaultData() {
 export async function getVaultKeys() {
   const { data, error } = await supabase
     .from('vault')
-    .select('id, key_id, account_id, key_index, description, updated_at')
+    .select('id, key_id, account_id, key_index, description, is_active, updated_at')
     .order('key_index', { ascending: true })
   
   if (error) throw error
@@ -106,6 +106,17 @@ export async function updateVaultKey(keyId: string, plainValue?: string) {
   return { success: true }
 }
 
+export async function toggleVaultKey(keyId: string, isActive: boolean) {
+  const { error } = await supabase
+    .from('vault')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('key_id', keyId)
+
+  if (error) throw error
+  revalidatePath('/admin/vault')
+  return { success: true }
+}
+
 export async function addVaultKey(accountId: string | null, provider: string, plainValue: string, customKeyId?: string) {
   if (!plainValue) throw new Error('Value cannot be empty')
 
@@ -124,11 +135,20 @@ export async function addVaultKey(accountId: string | null, provider: string, pl
 
   const { data: existing } = await supabase
     .from('vault')
-    .select('id')
+    .select('key_id')
     .eq('account_id', finalAccountId)
 
+  const { data: account } = await supabase
+    .from('vault_accounts')
+    .select('name')
+    .eq('id', finalAccountId)
+    .single()
+
   const key_index = existing ? existing.length : 0
-  const keyId = customKeyId || `${provider.toUpperCase()}_${Date.now()}`
+  
+  // Generate a professional ID: PROVIDER_ACCOUNT_INDEX (e.g., GEMINI_MISHA_5)
+  const accountName = account?.name?.split('@')[0].split(' ')[0].toUpperCase() || 'PRIMARY'
+  const keyId = customKeyId || `${provider.toUpperCase()}_${accountName}_${key_index}`
 
   const encrypted = encrypt(plainValue)
 
@@ -139,6 +159,8 @@ export async function addVaultKey(accountId: string | null, provider: string, pl
       encrypted_value: `${encrypted.iv}:${encrypted.encryptedData}`,
       account_id: finalAccountId,
       key_index,
+      description: `Provisioned for ${account?.name || provider} at ${new Date().toLocaleTimeString()}`,
+      is_active: true,
       updated_at: new Date().toISOString()
     })
 

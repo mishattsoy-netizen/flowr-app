@@ -1,4 +1,4 @@
-import { logger } from '../../logger'
+import { logger } from '../../logger' // Heartbeat update to force recompile
 import { getProviderKeys } from '../../vault'
 
 export async function runOpenRouter(
@@ -7,8 +7,10 @@ export async function runOpenRouter(
   systemPrompt?: string,
   history: any[] = [],
   aiApiKey?: string,
-  openrouterProvider?: string
-): Promise<string | null> {
+  openrouterProvider?: string,
+  imageBuffers?: Buffer | Buffer[]
+): Promise<{ content: string; provider?: string } | null> {
+  logger.info(`[OpenRouter Audit] Entering runOpenRouter: model=${modelId}, provider=${openrouterProvider}, hasImages=${!!imageBuffers}`)
   let keys = aiApiKey ? [aiApiKey] : []
 
   if (keys.length === 0) {
@@ -30,15 +32,32 @@ export async function runOpenRouter(
     const key = keys[i]
     try {
       if (openrouterProvider) {
-        logger.info(`OpenRouter: Forcing provider routing to: ${openrouterProvider}`)
+        logger.info(`OpenRouter: Forcing provider routing to: ${openrouterProvider} (Key preview: ${key.substring(0, 10)}...)`)
       }
 
-      const messages: { role: string; content: string }[] = []
+      const messages: { role: string; content: any }[] = []
       if (systemPrompt) {
         messages.push({ role: 'system', content: systemPrompt })
       }
       messages.push(...historyMessages)
-      messages.push({ role: 'user', content: prompt })
+      if (imageBuffers) {
+        const buffers = Array.isArray(imageBuffers) ? imageBuffers : [imageBuffers]
+        const contentParts: any[] = [{ type: 'text', text: prompt }]
+
+        for (const buf of buffers) {
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${buf.toString('base64')}` }
+          })
+        }
+
+        messages.push({
+          role: 'user',
+          content: contentParts
+        } as any)
+      } else {
+        messages.push({ role: 'user', content: prompt })
+      }
 
       // Build request body with optional provider routing
       const requestBody: any = {
@@ -46,14 +65,23 @@ export async function runOpenRouter(
         messages,
         max_tokens: 5000,
       }
+
       if (openrouterProvider) {
-        requestBody.provider = { order: [openrouterProvider], allow_fallbacks: true }
-        console.log(`[DEBUG openrouter.ts] SENDING provider routing:`, JSON.stringify(requestBody.provider), `| model:`, modelId);
-      } else {
-        console.log(`[DEBUG openrouter.ts] NO provider routing set | model:`, modelId);
+        const forcedSlug = (openrouterProvider || '').trim()
+        logger.info(`OpenRouter: Dynamic routing requested for provider: "${forcedSlug}" (Key preview: ${key.substring(0, 10)}...)`)
+
+        // Force specific provider as selected in the UI
+        requestBody.provider = {
+          order: [forcedSlug],
+          allow_fallbacks: true
+        }
       }
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      console.log(`[DEBUG openrouter.ts] FULL PAYLOAD:`, JSON.stringify(requestBody, null, 2));
+
+      logger.info(`OpenRouter: Preparing request for model ${modelId} with provider type: ${typeof openrouterProvider}, value: "${openrouterProvider}"`)
+
+      const response = await fetch(`https://openrouter.ai/api/v1/chat/completions?cb=${Date.now()}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${key}`,
@@ -63,6 +91,12 @@ export async function runOpenRouter(
         },
         body: JSON.stringify(requestBody),
       })
+
+      // Capture actual provider from headers if available
+      const actualProvider = response.headers.get('x-openrouter-provider') || undefined
+      if (actualProvider) {
+        logger.info(`OpenRouter: Response received from provider: ${actualProvider}`)
+      }
 
       const status = response.status
       if (status !== 200) {
@@ -77,13 +111,13 @@ export async function runOpenRouter(
         const isKeyExhausted = status === 401 || status === 402 || status === 403
         const prefix = isKeyExhausted ? 'KEY_EXHAUSTED:' : ''
         const errorMsg = `${prefix}OpenRouter API ${status}: ${response.statusText} — ${errBody.slice(0, 200)}`
-        
+
         if (isKeyExhausted) {
           logger.warn(`OpenRouter key index ${i + 1} exhausted (${status}). Trying next if available...`)
           if (i === keys.length - 1) throw new Error(errorMsg)
           continue // Try next key
         }
-        
+
         throw new Error(errorMsg)
       }
 
@@ -95,16 +129,17 @@ export async function runOpenRouter(
         throw new Error('OpenRouter returned empty content')
       }
 
+      let finalContent = content
       if (citations && Array.isArray(citations) && citations.length > 0) {
         const citationText = citations.map((c: any, i: number) => `[${i + 1}] ${typeof c === 'string' ? c : c.url ?? JSON.stringify(c)}`).join('\n')
-        return `${content}\n\n${citationText}`
+        finalContent = `${content}\n\n${citationText}`
       }
 
-      return content
+      return { content: finalContent, provider: actualProvider }
     } catch (error: any) {
       const isExhausted = error.message.includes('KEY_EXHAUSTED:')
       logger.error(`OpenRouter failure [${modelId}] key ${i + 1}:`, error.message)
-      
+
       if (isExhausted && i < keys.length - 1) {
         continue
       }

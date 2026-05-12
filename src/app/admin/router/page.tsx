@@ -2,7 +2,7 @@ import { getRouterChains } from './actions'
 import { getModels } from '@/app/admin/models/actions'
 import RouterManager from '@/components/admin/RouterManager'
 import AddCategoryButton from '@/components/admin/AddCategoryButton'
-import { Cpu, Command, Share2, Zap, Wand2, Image, Mic, Brain, Camera, Code, Microscope, Network, Sparkles } from 'lucide-react'
+import { Cpu, Command, Share2, Zap, Wand2, Image, Mic, Brain, Camera, Code, Microscope, Network, Sparkles, Maximize2 } from 'lucide-react'
 
 const CATEGORY_ICONS: Record<string, any> = {
   TOOL_CALLING: Command,
@@ -18,7 +18,8 @@ const CATEGORY_ICONS: Record<string, any> = {
   DEEP_RESEARCH: Microscope,
   ORCHESTRATOR: Network,
   THINKING: Sparkles,
-  ADVISOR: Brain
+  ADVISOR: Brain,
+  IMAGE_UPSCALE: Maximize2
 }
 
 export async function RouterPageContent({ platform }: { platform: 'app' | 'telegram' }) {
@@ -66,6 +67,9 @@ export async function RouterPageContent({ platform }: { platform: 'app' | 'teleg
         )}
         {!routers.some((r: any) => r.category === 'ADVISOR') && (
           <AddCategoryButton platform={platform} category="ADVISOR" />
+        )}
+        {!routers.some((r: any) => r.category === 'IMAGE_UPSCALE') && (
+          <AddCategoryButton platform={platform} category="IMAGE_UPSCALE" />
         )}
       </div>
     </div>

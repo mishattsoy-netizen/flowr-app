@@ -6,7 +6,7 @@ import { useStore } from '@/data/store';
 import { StarIcon } from './StarIcon';
 import clsx from 'clsx';
 
-export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: { src: string; alt: string; onHeightChange?: () => void; onAddToWorkspace?: () => void }) => {
+export const ChatImage = memo(({ src, alt, description, messageId, onHeightChange, onAddToWorkspace }: { src: string; alt: string; description?: string; messageId?: string; onHeightChange?: () => void; onAddToWorkspace?: () => void }) => {
   const [error, setError] = useState(false);
   // data: URIs are locally available — no network load needed, skip spinner
   const [loading, setLoading] = useState(!src.startsWith('data:'));
@@ -96,7 +96,9 @@ export const ChatImage = memo(({ src, alt, onHeightChange, onAddToWorkspace }: {
               useStore.getState().openModal({
                 kind: 'mediaViewer',
                 url: imgSrc,
-                mediaType: 'image'
+                mediaType: 'image',
+                description: (description && description !== 'Generated Image') ? description : (alt && alt !== 'Generated Image' ? alt : undefined),
+                messageId
               });
             }
           }}

@@ -13,7 +13,7 @@ export async function getConversationMemory(telegramId: number, limit: number = 
   try {
     const { data, error } = await supabaseAdmin
       .from('message_logs')
-      .select('role, content')
+      .select('role, content, context_messages')
       .eq('telegram_id', telegramId)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -23,7 +23,8 @@ export async function getConversationMemory(telegramId: number, limit: number = 
     const history = data.reverse().map((msg: any) => {
       let cleanContent = msg.content || "";
       if (cleanContent.includes('data:image/')) {
-        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, '[Image Data]');
+        const description = msg.context_messages?.image_description;
+        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, description ? `[Image: ${description}]` : '[Image: (visual content generated)]');
       }
       return {
         role: msg.role === 'model' ? 'model' : 'user',
@@ -54,7 +55,7 @@ export async function getWebConversationMemory(authUserId: string, limit: number
 
     let query = supabaseAdmin
       .from('message_logs')
-      .select('role, content')
+      .select('role, content, context_messages')
       .or(`auth_user_id.eq.${authUserId},topic_tag.eq.app:${authUserId.slice(0, 8)}`);
 
     if (quota?.memory_cleared_at) {
@@ -74,7 +75,8 @@ export async function getWebConversationMemory(authUserId: string, limit: number
       let cleanContent = msg.content || "";
       // Truncate massive base64 images in history to avoid context bloat and model hallucination
       if (cleanContent.includes('data:image/')) {
-        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, '[Image Data]');
+        const description = msg.context_messages?.image_description;
+        cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, description ? `[Image: ${description}]` : '[Image: (visual content generated)]');
       }
       return {
         role: msg.role === 'model' ? 'model' : 'user',

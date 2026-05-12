@@ -4,6 +4,7 @@ import { Network, Settings2, Info } from 'lucide-react'
 import { Toggle } from '@/components/ui/Toggle'
 import { savePipelineSetting } from '@/app/admin/router/actions'
 import OrchestratorTestTool from './OrchestratorTestTool'
+import clsx from 'clsx'
 
 interface Props {
   settings: {
@@ -11,6 +12,7 @@ interface Props {
     max_pipeline_steps?: number
     image_gen_auto_last?: boolean
     history_limit?: number
+    history_enabled_categories?: string[]
   }
 }
 
@@ -18,6 +20,11 @@ export default function OrchestratorPanel({ settings }: Props) {
   const [orchestratorOn, setOrchestratorOn] = useState(settings.orchestrator_enabled !== false)
   const [maxSteps, setMaxSteps] = useState(settings.max_pipeline_steps ?? 7)
   const [historyLimit, setHistoryLimit] = useState(settings.history_limit ?? 10)
+  const [historyEnabledCats, setHistoryEnabledCats] = useState<string[]>(settings.history_enabled_categories || [
+    'FAST_SIMPLE', 'COMPLEX_THINKING', 'MEDIUM_THINKING', 'CODING',
+    'TOOL_CALLING', 'WEB_SEARCH', 'DEEP_RESEARCH', 'ADVISOR',
+    'IMAGE_GEN', 'IMAGE_UPSCALE', 'VISION', 'AUDIO_VOICE', 'CLASSIFIER'
+  ])
   const [autoLast, setAutoLast] = useState(settings.image_gen_auto_last !== false)
   const [, startTransition] = useTransition()
 
@@ -76,6 +83,41 @@ export default function OrchestratorPanel({ settings }: Props) {
                 className="w-24 accent-accent" 
               />
               <span className="text-xs font-mono text-accent w-5">{historyLimit}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-white/5 pt-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-bone-40 font-bold uppercase tracking-widest">History Context visibility</span>
+              <Info className="w-2.5 h-2.5 text-bone-20 cursor-help" />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'FAST_SIMPLE', 'COMPLEX_THINKING', 'MEDIUM_THINKING', 'CODING',
+                'TOOL_CALLING', 'WEB_SEARCH', 'DEEP_RESEARCH', 'ADVISOR',
+                'IMAGE_GEN', 'IMAGE_UPSCALE', 'VISION', 'AUDIO_VOICE', 'CLASSIFIER'
+              ].map(cat => {
+                const isEnabled = historyEnabledCats.includes(cat)
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      const next = isEnabled 
+                        ? historyEnabledCats.filter(c => c !== cat)
+                        : [...historyEnabledCats, cat]
+                      handleUpdate('history_enabled_categories', next, setHistoryEnabledCats)
+                    }}
+                    className={clsx(
+                      "px-2 py-1 rounded-md text-[9px] font-bold transition-all border",
+                      isEnabled 
+                        ? "bg-accent/20 border-accent/30 text-accent" 
+                        : "bg-white/5 border-white/5 text-bone-40 hover:text-bone-60"
+                    )}
+                  >
+                    {cat.replace('_', ' ')}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

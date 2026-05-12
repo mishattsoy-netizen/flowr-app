@@ -9,7 +9,7 @@ import { SlashCommandMenu } from './SlashCommandMenu';
 import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
-import { GripVertical } from 'lucide-react';
+
 import {
   DndContext,
   closestCenter,
@@ -1125,7 +1125,10 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             data-dragging={isDragging}
           >
           <div className="flex flex-col items-center gap-4 mb-4">
-              <div className="flex flex-col w-full bg-sidebar border border-border rounded-3xl widget-shadow overflow-hidden transition-none">
+              <div 
+                onDoubleClick={(e) => e.stopPropagation()}
+                className="flex flex-col w-full bg-sidebar border border-border rounded-3xl widget-shadow overflow-hidden transition-none"
+              >
                 <div 
                   className="pr-9 py-6 group relative transition-none duration-0"
                   style={{ paddingLeft: '44px' }}
@@ -1150,14 +1153,14 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                           setEditingEntityId(null); 
                         }
                       }}
-                      className="text-5xl font-display bg-transparent border-none outline-none flex-1 text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block transition-transform duration-200 scale-[1.02] align-top"
+                      className="text-5xl font-display font-semibold bg-transparent border-none outline-none flex-1 text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block align-top"
                       style={{ height: '60px' }}
                     />
                   ) : (
                     <>
                       <h1
-                        onDoubleClick={() => { setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
-                        className="text-5xl font-display outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none line-clamp-2"
+                        onDoubleClick={(e) => { e.stopPropagation(); setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
+                        className="text-5xl font-display font-semibold outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none line-clamp-2"
                       >
                         {entity.title}
                       </h1>

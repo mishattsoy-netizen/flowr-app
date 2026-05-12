@@ -10,9 +10,11 @@ export async function getVaultKey(keyName: string): Promise<string | null> {
     .from('vault')
     .select('encrypted_value')
     .eq('key_id', keyName)
+    .eq('is_active', true)
     .maybeSingle()
 
   if (error || !data?.encrypted_value) {
+    if (error) console.error(`Vault error for ${keyName}:`, error.message)
     return null
   }
 
@@ -57,21 +59,35 @@ export async function getProviderKeys(provider: string): Promise<string[]> {
   }
 
   if (!accounts || accounts.length === 0) {
-    // Fallback if no accounts exist yet (or none are active)
-    const { data } = await supabaseAdmin
+    // Fallback: If no accounts exist, try to find keys matching the provider prefix
+    const { data, error: fallbackError } = await supabaseAdmin
       .from('vault')
-      .select('encrypted_value')
+      .select('encrypted_value, key_id, is_active')
       .ilike('key_id', `${provider.toUpperCase()}%`)
     
-    return decryptKeys(data || [])
+    if (fallbackError) {
+      console.error(`Fallback fetch failed for ${provider}:`, fallbackError.message)
+      return []
+    }
+
+    // Filter out metadata and INACTIVE keys
+    const filteredData = (data || []).filter((item: any) => 
+      item.is_active !== false &&
+      !item.key_id.includes('_ACCOUNT_ID') && 
+      !item.key_id.includes('_BASE_URL') &&
+      !item.key_id.includes('_ORG_ID')
+    )
+    
+    return decryptKeys(filteredData)
   }
 
-  // 2. Fetch keys for these accounts
+  // 2. Fetch active keys for these accounts
   const accountIds = accounts.map((a: any) => a.id)
   const { data: keys, error: keyError } = await supabaseAdmin
     .from('vault')
     .select('encrypted_value, account_id, key_index')
     .in('account_id', accountIds)
+    .eq('is_active', true)
 
   if (keyError || !keys) {
     console.error(`Failed to fetch keys for provider: ${provider}`, keyError)

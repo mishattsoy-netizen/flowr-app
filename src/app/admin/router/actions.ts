@@ -193,6 +193,57 @@ export async function resetInternalPrompt(chainType: string) {
   return { success: true }
 }
 
+export async function syncInternalPromptsFromFiles(): Promise<{ synced: string[]; skipped: string[]; errors: string[] }> {
+  const fs = await import('fs')
+  const path = await import('path')
+
+  const FILE_MAP: Record<string, string> = {
+    ORCHESTRATOR:  'pipeline-orchestrator.txt',
+    THINKING:      'pipeline-thinking.txt',
+    VISION:        'pipeline-vision.txt',
+    WEB_SEARCH:    'pipeline-web-search.txt',
+    DEEP_RESEARCH: 'pipeline-deep-research.txt',
+    CODING:        'pipeline-coding.txt',
+    TOOL_CALLING:  'pipeline-tool-calling.txt',
+    IMAGE_GEN:     'pipeline-image-gen.txt',
+  }
+
+  const { data } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'pipeline_internal_prompts')
+    .maybeSingle()
+  const current: Record<string, string> = (data?.value as Record<string, string>) ?? {}
+
+  const synced: string[] = []
+  const skipped: string[] = []
+  const errors: string[] = []
+
+  for (const [chainType, fileName] of Object.entries(FILE_MAP)) {
+    try {
+      const filePath = path.join(process.cwd(), 'bot prompts(premission to edit needed!)', fileName)
+      if (!fs.existsSync(filePath)) { skipped.push(chainType); continue }
+      const content = fs.readFileSync(filePath, 'utf8').trim()
+      if (!content) { skipped.push(chainType); continue }
+      current[chainType] = content
+      synced.push(chainType)
+    } catch (e: any) {
+      errors.push(`${chainType}: ${e.message}`)
+    }
+  }
+
+  if (synced.length > 0) {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key: 'pipeline_internal_prompts', value: current, updated_at: new Date().toISOString() })
+    if (error) throw new Error(error.message)
+    revalidatePath('/admin/app/router')
+    revalidatePath('/admin/telegram/router')
+  }
+
+  return { synced, skipped, errors }
+}
+
 export async function getInternalPromptsFull() {
   const { data } = await supabase
     .from('settings')
@@ -246,3 +297,25 @@ export async function savePipelineSetting(key: string, value: any) {
   revalidatePath('/admin/telegram/router')
   return { success: true }
 }
+
+export async function getLayeredPromptPreview(category: string, mode: 'default' | 'pro') {
+  const { getCompiledPrompt, getInternalPrompt } = await import('@/lib/bot/compilePrompt')
+  const [globalPrompt, systemPrompt] = await Promise.all([
+    getCompiledPrompt(mode),
+    getInternalPrompt(category, mode)
+  ])
+
+  return {
+    globalPrompt,
+    systemPrompt,
+    dynamicContext: {
+      date: new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    },
+    mockHistory: [
+      { role: 'user', content: 'What is the current weather in Tokyo?' },
+      { role: 'assistant', content: 'The current weather in Tokyo is 22°C with light rain.' }
+    ]
+  }
+}
+

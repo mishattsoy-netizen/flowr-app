@@ -1,0 +1,81 @@
+{
+  "orchestratorEnabled": true,
+  "maxPipelineSteps": 7,
+  "historyLimit": 10,
+  "imageGenAutoLast": true,
+  "thinkingToggleDefault": false,
+  "thinkingSummaryVisible": "collapsible",
+  "statusMessages": {
+    "CODING": {
+      "emoji": "",
+      "label": "Coding"
+    },
+    "VISION": {
+      "emoji": "",
+      "label": "Inspecting"
+    },
+    "ADVISOR": {
+      "emoji": "",
+      "label": "Asking question"
+    },
+    "THINKING": {
+      "emoji": "",
+      "label": "Thinking"
+    },
+    "IMAGE_GEN": {
+      "emoji": "",
+      "label": "Drawing"
+    },
+    "CLASSIFIER": {
+      "emoji": "",
+      "label": "Analyzing"
+    },
+    "WEB_SEARCH": {
+      "emoji": "",
+      "label": "Searching"
+    },
+    "AUDIO_VOICE": {
+      "emoji": "",
+      "label": ""
+    },
+    "FAST_SIMPLE": {
+      "emoji": "",
+      "label": "Writing"
+    },
+    "ORCHESTRATOR": {
+      "emoji": "",
+      "label": "Planning"
+    },
+    "TOOL_CALLING": {
+      "emoji": "",
+      "label": "Using tools"
+    },
+    "DEEP_RESEARCH": {
+      "emoji": "",
+      "label": "Researching"
+    },
+    "MEDIUM_THINKING": {
+      "emoji": "",
+      "label": "Writing"
+    },
+    "COMPLEX_THINKING": {
+      "emoji": "",
+      "label": "Writing"
+    }
+  },
+  "historyEnabledCategories": [
+    "COMPLEX_THINKING",
+    "MEDIUM_THINKING",
+    "CODING",
+    "TOOL_CALLING",
+    "WEB_SEARCH",
+    "DEEP_RESEARCH",
+    "ADVISOR",
+    "IMAGE_GEN",
+    "IMAGE_UPSCALE",
+    "VISION",
+    "AUDIO_VOICE",
+    "CLASSIFIER",
+    "FAST_SIMPLE"
+  ]
+}

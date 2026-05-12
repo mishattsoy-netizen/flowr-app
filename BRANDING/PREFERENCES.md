@@ -53,3 +53,4 @@
 - Uses `var(--bone-*)` CSS custom properties for all bone tokens
 - Popover components preferred over native `<select>` elements
 - `popup-glass-big` / `popup-glass-small` utilities for modal containers
+- **Image Generation:** Always use the highest possible resolution supported by the provider/model (e.g., 2048x2048 for Flux on SiliconFlow, 1024x1024 for others). Managed via `getHighestResolution` in `image-utils.ts`.
