@@ -161,12 +161,90 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
   return root;
 }
 
-export function blocksToMarkdown(_blocks: EditorBlock[]): string {
-  throw new Error('not implemented');
+function htmlToText(html: string): string {
+  return html
+    .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+    .replace(/<em>(.*?)<\/em>/g, '*$1*')
+    .replace(/<code>(.*?)<\/code>/g, '`$1`')
+    .replace(/<a href="([^"]+)">([^<]+)<\/a>/g, '[$2]($1)')
+    .replace(/<[^>]+>/g, '');
 }
 
-export function normalizeBlocks(_input: BlockInput[]): EditorBlock[] {
-  throw new Error('not implemented');
+function serializeBlocks(blocks: EditorBlock[], depth: number): string {
+  const indent = '  '.repeat(depth);
+  const lines: string[] = [];
+  for (const b of blocks) {
+    let line: string;
+    switch (b.type) {
+      case 'bulletList':
+        line = `${indent}- ${htmlToText(b.content)}`;
+        break;
+      case 'dashedList':
+        line = `${indent}- ${htmlToText(b.content)}`;
+        break;
+      case 'numberedList':
+        line = `${indent}1. ${htmlToText(b.content)}`;
+        break;
+      case 'checklist':
+        line = `${indent}[${b.checked ? 'x' : ' '}] ${htmlToText(b.content)}`;
+        break;
+      case 'quote':
+        line = `${indent}> ${htmlToText(b.content)}`;
+        break;
+      case 'divider':
+        line = `${indent}---`;
+        break;
+      case 'text':
+        if (b.style === 'title') line = `${indent}# ${htmlToText(b.content)}`;
+        else if (b.style === 'heading') line = `${indent}## ${htmlToText(b.content)}`;
+        else if (b.style === 'subheading') line = `${indent}### ${htmlToText(b.content)}`;
+        else if (b.style === 'mono') line = `${indent}\`\`\`\n${b.content}\n${indent}\`\`\``;
+        else line = `${indent}${htmlToText(b.content)}`;
+        break;
+      default:
+        line = `${indent}${htmlToText(b.content)}`;
+    }
+    lines.push(line);
+    if (b.children && b.children.length > 0) {
+      lines.push(serializeBlocks(b.children, depth + 1));
+    }
+  }
+  return lines.join('\n');
+}
+
+export function blocksToMarkdown(blocks: EditorBlock[]): string {
+  if (!blocks.length) return '';
+  return serializeBlocks(blocks, 0);
+}
+
+const VALID_TYPES = new Set<BlockType>([
+  'text', 'checklist', 'bulletList', 'dashedList', 'numberedList',
+  'quote', 'divider', 'columns', 'column', 'embed', 'database',
+  'table', 'image', 'video', 'shape', 'section', 'comment', 'connection', 'link',
+]);
+
+function normalizeBlocksInner(input: BlockInput[], depth: number): EditorBlock[] {
+  if (depth > 20) throw new Error('Block tree depth exceeds maximum of 20');
+  const result: EditorBlock[] = [];
+  for (const raw of input) {
+    if (!VALID_TYPES.has(raw.type)) continue;
+    const block: EditorBlock = {
+      id: generateId(),
+      type: raw.type,
+      content: raw.content ?? '',
+      style: raw.style,
+      checked: raw.checked,
+    };
+    if (raw.children && raw.children.length > 0) {
+      block.children = normalizeBlocksInner(raw.children, depth + 1);
+    }
+    result.push(block);
+  }
+  return result;
+}
+
+export function normalizeBlocks(input: BlockInput[]): EditorBlock[] {
+  return normalizeBlocksInner(input, 0);
 }
 
 export function formatCounter(n: number, style: 'arabic' | 'alpha' | 'roman'): string {
