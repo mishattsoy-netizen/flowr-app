@@ -48,14 +48,17 @@ type LineKind =
   | { kind: 'blank' };
 
 function classifyLine(raw: string): { indent: number; kind: LineKind } {
-  // Measure indent: tabs count as 1 level each, 2 spaces = 1 level
-  const indentMatch = raw.match(/^(\t| {2})+/);
-  const indent = indentMatch ? indentMatch[0].replace(/\t/g, '  ').length / 2 : 0;
-  const line = raw.replace(/^(\t| {2})*/, '').replace(/^\t/, '');
+  // Measure indent: normalize tabs to 2 spaces, count leading spaces, floor to 2-space levels
+  const normalized = raw.replace(/\t/g, '  ');
+  const spaceMatch = normalized.match(/^( *)/);
+  const leadingSpaces = spaceMatch ? spaceMatch[1].length : 0;
+  const indent = Math.floor(leadingSpaces / 2);
+  // Strip exactly the measured indentation plus any odd trailing space
+  const line = normalized.slice(leadingSpaces).trimStart();
 
   if (line === '') return { indent, kind: { kind: 'blank' } };
   if (line === '---') return { indent, kind: { kind: 'divider' } };
-  if (line.startsWith('```')) return { indent, kind: { kind: line === '```' ? 'fenceOpen' : (line.endsWith('```') && line.length > 3 ? 'fenceClose' : 'fenceOpen') } };
+  if (line.startsWith('```')) return { indent, kind: { kind: 'fenceOpen' } };
 
   const h = line.match(/^(#{1,3}) (.+)/);
   if (h) return { indent, kind: { kind: 'heading', level: h[1].length as 1|2|3, text: h[2] } };
@@ -63,7 +66,8 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
   const bullet = line.match(/^[-*] (.+)/);
   if (bullet) return { indent, kind: { kind: 'bullet', text: bullet[1] } };
 
-  const numbered = line.match(/^(?:\d+|[a-z]+|[ivxlcdm]+)\. (.+)/i);
+  // Only match numeric list markers (1., 2., 3.) - not alpha/roman which over-matches prose
+  const numbered = line.match(/^\d+\. (.+)/);
   if (numbered) return { indent, kind: { kind: 'numbered', text: numbered[1] } };
 
   const check = line.match(/^\[([ x])\] (.+)/);
