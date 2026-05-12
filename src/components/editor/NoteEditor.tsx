@@ -1056,15 +1056,15 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     setActiveBlockId(id);
   }, []);
 
-  const getListNumber = useCallback((blockId: string) => {
+  const getListCounter = useCallback((blockId: string, siblings: EditorBlock[]): number => {
     let count = 0;
-    for (const b of blocks) {
+    for (const b of siblings) {
       if (b.type === 'numberedList') count++;
+      else count = 0;
       if (b.id === blockId) return count;
-      if (b.type !== 'numberedList') count = 0;
     }
     return 1;
-  }, [blocks]);
+  }, []);
 
   const renderBlocksRecursive = (list: EditorBlock[], depth: number = 0): React.ReactNode[] => {
     return list.flatMap((block, idx) => {
@@ -1073,6 +1073,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           key={block.id}
           block={block}
           index={idx}
+          depth={depth}
           onUpdate={updateBlock}
           onDelete={deleteBlock}
           onIndent={indentBlock}
@@ -1083,7 +1084,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           onFocus={handleBlockFocus}
           isSelected={selectedBlockIds.has(block.id)}
           onDragStart={handleDragStart}
-          listNumber={block.type === 'numberedList' ? getListNumber(block.id) : undefined}
+          listNumber={block.type === 'numberedList' ? getListCounter(block.id, list) : undefined}
           slashMenuOpen={slashMenu?.blockId === block.id}
           menuOpen={activeOptionsMenu?.blockId === block.id}
         />
@@ -1153,14 +1154,14 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                           setEditingEntityId(null); 
                         }
                       }}
-                      className="text-5xl font-display font-semibold bg-transparent border-none outline-none flex-1 text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block align-top"
+                      className="text-5xl font-display font-medium bg-transparent border-none outline-none flex-1 text-foreground px-0 py-0 resize-none overflow-hidden leading-tight block align-top"
                       style={{ height: '60px' }}
                     />
                   ) : (
                     <>
                       <h1
                         onDoubleClick={(e) => { e.stopPropagation(); setTempTitle(entity.title); setEditingEntityId(entity.id, 'view'); }}
-                        className="text-5xl font-display font-semibold outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none line-clamp-2"
+                        className="text-5xl font-display font-medium outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none line-clamp-2"
                       >
                         {entity.title}
                       </h1>
