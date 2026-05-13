@@ -46,12 +46,18 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const loaded = useRef(false);
 
   useEffect(() => {
-    if (!isSupabaseEnabled || loaded.current) return;
+    if (!isSupabaseEnabled || loaded.current) {
+      if (!loaded.current) useStore.getState().setInitialSync(false);
+      return;
+    }
     loaded.current = true;
 
     // 1. Initial load
     loadFromSupabase().then(async (data) => {
-      if (!data) return;
+      if (!data) {
+        useStore.getState().setInitialSync(false);
+        return;
+      }
 
       // Ensure the personal workspace exists in the DB if it's missing.
       // This prevents foreign key violations when seeding or creating entities.
@@ -105,7 +111,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         setWorkspaces(merged);
       }
 
-
+      useStore.getState().setInitialSync(false);
     });
 
     // 2. Realtime subscription

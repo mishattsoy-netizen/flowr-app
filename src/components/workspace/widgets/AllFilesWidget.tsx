@@ -5,6 +5,9 @@ import { getEntityIcon } from '@/data/icons';
 import { Search, List, GitBranch } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
+import { stripHtml } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 
 type SortBy = 'modified' | 'name';
 type ViewMode = 'flat' | 'tree';
@@ -16,6 +19,9 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
   const [search, setSearch] = useState('');
   const sort: SortBy = data?.sort ?? 'modified';
   const view: ViewMode = data?.view ?? 'flat';
+
+  const isInitialSync = useStore(s => s.isInitialSync);
+  const showSkeleton = useDeferredLoading(isInitialSync, 300); // slightly longer delay for files
 
   const filtered = useMemo(() => {
     const notes = entities.filter(e => ['note', 'canvas', 'collection', 'folder'].includes(e.type));
@@ -34,7 +40,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
         <button onClick={() => setActiveEntityId(entity.id)} style={{ paddingLeft: `${8 + depth * 16}px` }}
           className="w-full flex items-center gap-2 pr-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--bone-6)] transition-all group/item text-left">
           <Icon strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-40)] group-hover/item:text-accent shrink-0 transition-colors" />
-          <span className="text-sm text-foreground truncate flex-1">{entity.title || 'Untitled'}</span>
+          <span className="text-sm text-foreground truncate flex-1">{stripHtml(entity.title || 'Untitled')}</span>
         </button>
         {children.map(c => renderItem(c, depth + 1))}
       </div>
@@ -48,7 +54,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
         {onUpdateData && (
           <div className="flex items-center gap-1">
             <select value={sort} onChange={e => onUpdateData({ ...data, sort: e.target.value as SortBy })}
-              className="text-[10px] bg-[var(--bone-6)] border-none rounded-[4px] px-1.5 py-0.5 text-[var(--bone-60)] outline-none">
+              className="text-[10px] bg-[var(--bone-6)] border-none rounded-[4px] px-1.5 py-0.5 text-[var(--bone-70)] outline-none">
               <option value="modified">Modified</option>
               <option value="name">Name</option>
             </select>
@@ -66,13 +72,24 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: { data?: { sor
           className="w-full pl-7 pr-3 py-1.5 bg-[var(--bone-5)] border border-[var(--bone-3)] rounded-[var(--radius-small)] text-sm text-foreground placeholder-muted-foreground outline-none focus:border-[var(--bone-20)]" />
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {(view === 'flat' ? filtered : rootItems).map(e => renderItem(e))}
-        {filtered.length === 0 && (
+        {showSkeleton ? (
+          <div className="space-y-1">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                <Skeleton className="w-3.5 h-3.5 rounded-sm shrink-0" />
+                <Skeleton className="h-4 w-3/4 rounded-md" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          (view === 'flat' ? filtered : rootItems).map(e => renderItem(e))
+        )}
+        {!showSkeleton && filtered.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
             <Search strokeWidth={2} className="w-12 h-12 text-accent opacity-20 mb-1 animate-in fade-in duration-300" />
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">No files found</p>
-              <p className="text-xs text-bone-60 opacity-40 mt-1 leading-snug text-balance">Files you add or sync will appear here.</p>
+              <p className="text-xs text-bone-70 opacity-40 mt-1 leading-snug text-balance">Files you add or sync will appear here.</p>
             </div>
             <button
               onClick={() => openModal({ kind: 'newItem' })}

@@ -9,6 +9,15 @@ import {
   upsertWorkspace
 } from '@/lib/sync';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
+import {
+  fetchConversations,
+  createConversation,
+  updateConversationTitle,
+  deleteConversation as deleteConversationFromDB,
+  fetchMessages,
+  insertMessage,
+} from '@/lib/chat';
+import type { ChatConversation } from '@/lib/chat';
 
 // Re-export all types so all consumers import paths remain valid
 export type {
@@ -98,6 +107,9 @@ export const useStore = create<AppState>()(
       activeWorkspaceId: 'ws-personal',
       lastSaved: null,
       cloudSyncEnabled: false,
+      isInitialSync: true,
+
+      setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
       setCloudSyncEnabled: (enabled) => {
         set({ cloudSyncEnabled: enabled });
@@ -221,6 +233,11 @@ export const useStore = create<AppState>()(
       aiApiKey: null,
       imageProvider: (typeof window !== 'undefined' && localStorage.getItem('flowr_image_provider') as 'pollinations' | 'puter') || 'pollinations',
       isAIAssistantOpen: false,
+      activeChatId: null,
+      isTempChat: true,
+      tempChatMessages: [],
+      chatHistoryOpen: true,
+      chatConversations: [],
       isAIAssistantExtended: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_extended') === 'true'),
       isAILoading: false,
       aiCursor: null,
@@ -239,6 +256,7 @@ export const useStore = create<AppState>()(
       activeMode: 'default' as BotMode,
       activeIntentTag: null,
       activeReplyMessage: null,
+      assistantInput: "",
       thinkingEnabled: false,
       advisorEnabled: false,
       showPaidModels: false,
@@ -339,7 +357,7 @@ export const useStore = create<AppState>()(
       },
 
       clearAIChat: async () => {
-        const { activeEntityId, fetchAISessionContext } = get();
+        const { activeEntityId, activeChatId, fetchAISessionContext } = get();
         set({ aiMessages: [], aiSessionContext: null, activeMode: 'default', activeIntentTag: null });
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -349,20 +367,115 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
+          const sid = activeChatId || activeEntityId || 'global';
           await fetch('/api/ai/memory/clear', { 
             method: 'POST', 
             headers,
-            body: JSON.stringify({ activeEntityId }) 
+            body: JSON.stringify({ activeEntityId: sid }) 
           });
           
-          await fetchAISessionContext(activeEntityId || 'global');
+          await fetchAISessionContext(sid);
         } catch (err) {
           console.error('Failed to clear server-side memory:', err);
         }
       },
 
+      setActiveChatId: (id) => set({ activeChatId: id }),
+      setIsTempChat: (temp) => set({ isTempChat: temp }),
+      setChatHistoryOpen: (open) => set({ chatHistoryOpen: open }),
+
+      startTempChat: () => set({
+        activeChatId: null,
+        isTempChat: true,
+        tempChatMessages: [],
+        aiMessages: [],
+        aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000, compaction_threshold: 0.8 },
+      }),
+
+      startNewChat: async () => {
+        try {
+          const conv = await createConversation('New Chat');
+          set({
+            activeChatId: conv.id,
+            isTempChat: false,
+            tempChatMessages: [],
+            aiMessages: [],
+            aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000, compaction_threshold: 0.8 },
+            chatConversations: [conv, ...get().chatConversations],
+          });
+        } catch (e) {
+          console.error('Failed to create conversation', e);
+        }
+      },
+
+      loadConversation: async (id: string) => {
+        try {
+          const msgs = await fetchMessages(id);
+          const aiMsgs = msgs.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            model: m.model,
+            timestamp: new Date(m.created_at).getTime(),
+            pipelineSteps: m.pipeline_steps,
+            image_description: m.image_description,
+            image_prompt: m.image_prompt,
+          }));
+          set({
+            activeChatId: id,
+            isTempChat: false,
+            tempChatMessages: [],
+            aiMessages: aiMsgs,
+            aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000, compaction_threshold: 0.8 },
+          });
+          // Fetch fresh context for the loaded chat
+          get().fetchAISessionContext(id);
+        } catch (e) {
+          console.error('Failed to load conversation', e);
+        }
+      },
+
+      deleteChatConversation: async (id: string) => {
+        try {
+          await deleteConversationFromDB(id);
+          const next = get().chatConversations.filter(c => c.id !== id);
+          set({ chatConversations: next });
+          if (get().activeChatId === id) {
+            set({ activeChatId: null, isTempChat: true, aiMessages: [], tempChatMessages: [], aiSessionContext: { distilled_summary: null, token_usage_total: 0, context_limit: 32000, compaction_threshold: 0.8 } });
+          }
+        } catch (e) {
+          console.error('Failed to delete conversation', e);
+        }
+      },
+
+      renameChatConversation: async (id: string, title: string) => {
+        try {
+          await updateConversationTitle(id, title);
+          set(s => ({
+            chatConversations: s.chatConversations.map(c =>
+              c.id === id ? { ...c, title, updated_at: new Date().toISOString() } : c
+            ),
+          }));
+        } catch (e) {
+          console.error('Failed to rename conversation', e);
+        }
+      },
+
+      loadChatConversations: async () => {
+        try {
+          const convs = await fetchConversations();
+          set({ chatConversations: convs });
+        } catch (e) {
+          console.error('Failed to load conversations', e);
+        }
+      },
+
+      openChatInPage: () => {
+        get().setActiveEntityId('chat');
+      },
+
       compactAIChat: async () => {
-        const { activeEntityId, fetchAISessionContext } = get();
+        const { activeEntityId, activeChatId, fetchAISessionContext } = get();
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
           if (isSupabaseEnabled) {
@@ -371,13 +484,14 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
+          const sid = activeChatId || activeEntityId || 'global';
           const res = await fetch('/api/ai/memory/compact', { 
             method: 'POST', 
             headers,
-            body: JSON.stringify({ activeEntityId }) 
+            body: JSON.stringify({ activeEntityId: sid }) 
           });
           if (res.ok) {
-            await fetchAISessionContext(activeEntityId || 'global');
+            await fetchAISessionContext(sid);
           }
         } catch (err) {
           console.error('Failed to compact session memory:', err);
@@ -408,6 +522,7 @@ export const useStore = create<AppState>()(
       setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
       setReplyMessage: (msg) => set({ activeReplyMessage: msg }),
       setShowPaidModels: (show) => set({ showPaidModels: show }),
+      setAssistantInput: (input) => set({ assistantInput: input }),
 
       sendAIMessage: async (content, attachments = []) => {
         const { aiMessages, activeReplyMessage } = get();
@@ -456,11 +571,19 @@ export const useStore = create<AppState>()(
           timestamp: Date.now(),
         };
 
+        const isTemp = get().isTempChat;
         set({
           aiMessages: [...aiMessages, userMessage, placeholderMessage],
+          ...(isTemp ? { tempChatMessages: [...aiMessages, userMessage, placeholderMessage] } : {}),
           activeReplyMessage: null,
           isAILoading: true,
         });
+
+        // Persist user message if in a named conversation
+        const activeChatId = get().activeChatId;
+        if (activeChatId && !get().isTempChat) {
+          insertMessage(activeChatId, 'user', content).catch(console.error);
+        }
 
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -479,6 +602,23 @@ export const useStore = create<AppState>()(
             imageBuffer = firstImage.url.split(',')[1];
           }
 
+          // Send current conversation as history so the bot has context.
+          // Strip embedded base64 images — they balloon prompts to 60k+ tokens and
+          // get rejected by classifier models. Replace with a short placeholder using
+          // the stored image_description when available.
+          const stripHeavyMedia = (text: string, imageDescription?: string) => {
+            if (!text) return ''
+            if (!text.includes('data:image/')) return text
+            const placeholder = imageDescription ? `[Image: ${imageDescription}]` : '[Image: (visual content generated)]'
+            return text.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, placeholder)
+          }
+          const historyMessages = aiMessages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: stripHeavyMedia(m.content || '', m.image_description) }],
+            }))
+
           const res = await fetch('/api/ai/chat', {
             method: 'POST',
             headers,
@@ -486,6 +626,7 @@ export const useStore = create<AppState>()(
               prompt: content,
               buffer: imageBuffer,
               activeEntityId: get().activeEntityId,
+              activeChatId: get().activeChatId,
               aiApiKey: get().aiApiKey,
               activeWorkspaceId: get().activeWorkspaceId,
               classificationModelId: get().aiClassificationModelId,
@@ -494,6 +635,8 @@ export const useStore = create<AppState>()(
               replyContext,
               thinkingEnabled: get().thinkingEnabled,
               advisorEnabled: get().advisorEnabled,
+              isTempChat: get().isTempChat,
+              clientHistory: historyMessages,
             }),
           });
 
@@ -514,14 +657,25 @@ export const useStore = create<AppState>()(
             const reader = res.body?.getReader();
             const decoder = new TextDecoder();
             let accumulatedContent = '';
+            let sseBuffer = '';
+            let lastModel = '';
+            let lastPipelineSteps = undefined;
+            let lastImageDescription = undefined;
+            let lastImagePrompt = undefined;
 
             if (reader) {
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                // Stream chunks may split mid-line — accumulate and only process complete lines.
+                // Large base64 images can span many TCP packets; without this, JSON.parse fails silently.
+                sseBuffer += decoder.decode(value, { stream: true });
+                const newlineIdx = sseBuffer.lastIndexOf('\n');
+                if (newlineIdx === -1) continue;
+                const complete = sseBuffer.slice(0, newlineIdx);
+                sseBuffer = sseBuffer.slice(newlineIdx + 1);
+                const lines = complete.split('\n');
                 for (const line of lines) {
                   if (line.startsWith('data: ')) {
                     const data = line.slice(6).trim();
@@ -533,12 +687,41 @@ export const useStore = create<AppState>()(
                         set((s) => ({
                           aiMessages: s.aiMessages.map((m) =>
                             m.id === placeholderMessage.id
-                              ? { 
-                                  ...m, 
-                                  content: accumulatedContent, 
+                              ? {
+                                  ...m,
+                                  content: accumulatedContent,
                                   model: parsed.model || m.model,
-                                  tokens_used: Math.ceil((content.length + accumulatedContent.length) / 4)
+                                  tokens_used: Math.ceil((content.length + accumulatedContent.length) / 4),
+                                  image_description: parsed.image_description ?? m.image_description,
+                                  image_prompt: (parsed as any).image_prompt ?? (m as any).image_prompt,
+                                  model_chain: parsed.model_chain ?? m.model_chain,
+                                  classification_trace: parsed.classification_trace ?? m.classification_trace,
+                                  routing_trace: parsed.routing_trace ?? m.routing_trace,
+                                  pipelineSteps: parsed.pipeline_steps ?? m.pipelineSteps,
+                                  logId: parsed.log_id ?? m.logId,
+                                  citations: parsed.citations ?? m.citations,
                                 }
+                              : m
+                          ),
+                          ...(get().isTempChat ? {
+                            tempChatMessages: s.aiMessages.map((m) =>
+                              m.id === placeholderMessage.id
+                                ? { ...m, content: accumulatedContent, model: parsed.model || m.model, image_description: parsed.image_description ?? m.image_description }
+                                : m
+                            )
+                          } : {}),
+                        }));
+
+                        // Capture metadata for persistence
+                        if (parsed.model) lastModel = parsed.model;
+                        if (parsed.pipeline_steps) lastPipelineSteps = parsed.pipeline_steps;
+                        if (parsed.image_description) lastImageDescription = parsed.image_description;
+                        if ((parsed as any).image_prompt) lastImagePrompt = (parsed as any).image_prompt;
+                      } else if (parsed.status) {
+                        set((s) => ({
+                          aiMessages: s.aiMessages.map((m) =>
+                            m.id === placeholderMessage.id
+                              ? { ...m, status: parsed.status }
                               : m
                           ),
                         }));
@@ -551,6 +734,17 @@ export const useStore = create<AppState>()(
               }
             }
             set({ isAILoading: false });
+            // Persist assistant reply
+            const chatId = get().activeChatId;
+            if (chatId && !get().isTempChat && accumulatedContent) {
+              insertMessage(chatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt).catch(console.error);
+              // Auto-set title from first message if still default
+              const conv = get().chatConversations.find(c => c.id === chatId);
+              if (conv && conv.title === 'New Chat' && content) {
+                const title = content.slice(0, 60);
+                get().renameChatConversation(chatId, title);
+              }
+            }
             return;
           }
 
@@ -574,6 +768,18 @@ export const useStore = create<AppState>()(
             ),
             isAILoading: false,
           }));
+
+          // Persist non-streaming assistant reply
+          const cid = get().activeChatId;
+          if (cid && !get().isTempChat && data.content) {
+            insertMessage(cid, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt).catch(console.error);
+            // Auto-set title from first message if still default
+            const conv = get().chatConversations.find(c => c.id === cid);
+            if (conv && conv.title === 'New Chat' && content) {
+              const title = content.slice(0, 60);
+              get().renameChatConversation(cid, title);
+            }
+          }
         } catch {
           set(s => ({
             aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
@@ -601,22 +807,19 @@ export const useStore = create<AppState>()(
 
         let nextTabs = [...state.openTabIds];
         if (id) {
-          if (tabIndex !== -1) {
-            // Check if the new ID is already open in ANOTHER tab to avoid duplicates
-            const existingIndex = nextTabs.indexOf(id);
-            if (existingIndex !== -1 && existingIndex !== tabIndex) {
-              // If it exists elsewhere, we could either jump to it or replace it.
-              // User said "dont open new tabs", and "change the tab path".
-              // Let's just jump to it if it exists, or replace current if it doesn't.
-              set({ activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
-            } else {
-              nextTabs[tabIndex] = id;
-              set({ openTabIds: nextTabs, recentEntityIds: nextRecent });
-            }
+          const existingIndex = nextTabs.indexOf(id);
+          
+          if (existingIndex !== -1) {
+            // If it already exists, just jump to it
+            set({ activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
+          } else if (tabIndex !== -1) {
+            // Replace current tab with the new ID
+            nextTabs[tabIndex] = id;
+            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
           } else {
-            // No active tab found? (Shouldn't happen with the new flow)
-            if (!nextTabs.includes(id)) nextTabs.push(id);
-            set({ openTabIds: nextTabs, recentEntityIds: nextRecent });
+            // Push new tab only if no active tab is found (should be rare)
+            nextTabs.push(id);
+            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
           }
         } else {
           set({ recentEntityIds: nextRecent });
@@ -1204,6 +1407,8 @@ export const useStore = create<AppState>()(
         recentEntityIds: state.recentEntityIds,
         activeMode: state.activeMode,
         activeIntentTag: state.activeIntentTag,
+        activeChatId: state.activeChatId,
+        chatHistoryOpen: state.chatHistoryOpen,
       }),
     }
   )
