@@ -1,16 +1,22 @@
 "use client";
+// Force rebuild to ensure 'input' is fully replaced by 'assistantInput'
+
 
 import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles } from 'lucide-react';
+import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
+import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
 import { AIAvatar } from './components/AIAvatar';
 import { ChatAudioPlayer } from './components/ChatAudioPlayer';
 import { ChatMessage } from './components/ChatMessage';
+import { ChatSkeleton } from './components/ChatSkeleton';
+import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import clsx from 'clsx';
 
@@ -35,8 +41,8 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
           strokeDasharray={strokeDasharray}
           strokeDashoffset={strokeDashoffset}
           className={clsx(
-            "transition-all duration-500",
-            (usage / limit) > threshold ? "text-white/60" : "text-bone-100"
+            "",
+            (usage / limit) > threshold ? "text-white/60" : "text-[var(--brand-blue)]"
           )}
           strokeLinecap="round"
         />
@@ -45,7 +51,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
   );
 };
 
-const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) => {
+const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { isFloating?: boolean; chatPageMode?: boolean }) => {
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const toggleAIAssistant = useStore(state => state.toggleAIAssistant);
@@ -74,9 +80,21 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const setThinkingEnabled = useStore(state => state.setThinkingEnabled)
   const advisorEnabled = useStore(state => state.advisorEnabled)
   const setAdvisorEnabled = useStore(state => state.setAdvisorEnabled)
+  const startNewChat = useStore(state => state.startNewChat);
+  const startTempChat = useStore(state => state.startTempChat);
+  const openChatInPage = useStore(state => state.openChatInPage);
+  const isTempChat = useStore(state => state.isTempChat);
+  const chatConversations = useStore(state => state.chatConversations);
+  const loadChatConversations = useStore(state => state.loadChatConversations);
+  const loadConversation = useStore(state => state.loadConversation);
+  const deleteChatConversation = useStore(state => state.deleteChatConversation);
+  const activeChatId = useStore(state => state.activeChatId);
   const [showModeMenu, setShowModeMenu] = useState(false)
+  const modeMenuBtnRef = useRef<HTMLButtonElement>(null)
+  const [modeMenuPos, setModeMenuPos] = useState<{ bottom: number; right: number } | null>(null)
 
-  const [input, setInput] = useState("");
+  const assistantInput = useStore(state => state.assistantInput);
+  const setAssistantInput = useStore(state => state.setAssistantInput);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, setIsHoveringToggle] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -105,6 +123,17 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [isCompacting, setIsCompacting] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyConfirmDeleteId, setHistoryConfirmDeleteId] = useState<string | null>(null);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const [plusMenuPos, setPlusMenuPos] = useState<{ bottom: number; left: number } | null>(null);
+  const contextMeterRef = useRef<HTMLDivElement>(null);
+  const [showContextTooltip, setShowContextTooltip] = useState(false);
+  const [contextTooltipPos, setContextTooltipPos] = useState<{ bottom: number; right: number } | null>(null);
+  const [contextEnabled, setContextEnabled] = useState(false);
+
+  const showSkeleton = useDeferredLoading(isAILoading, 200);
 
   const MODE_OPTIONS: { key: BotMode; label: string; description: string }[] = [
     { key: 'default', label: 'Default', description: 'Fast, universal' },
@@ -112,17 +141,29 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   ]
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
-  const sessionId = activeEntityId || 'global';
+  const sessionId = activeChatId || activeEntityId || 'global';
+
+  // Local token estimate: ~4 chars per token, strip base64 images from accounting.
+  // Server-side token_usage_total only updates on compaction, so it stays at 0 until then.
+  const localTokenEstimate = (() => {
+    let chars = 0
+    for (const m of aiMessages) {
+      const text = (m.content || '').replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, '[Image]')
+      chars += text.length
+    }
+    return Math.ceil(chars / 4)
+  })();
+  const displayedTokens = Math.max(aiSessionContext?.token_usage_total ?? 0, localTokenEstimate);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (isAIAssistantOpen) {
+    if (isAIAssistantOpen && !isTempChat) {
       fetchAISessionContext(sessionId);
     }
-  }, [isAIAssistantOpen, sessionId, fetchAISessionContext]);
+  }, [isAIAssistantOpen, sessionId, isTempChat, fetchAISessionContext]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -206,7 +247,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
   }, [isAIAssistantOpen, actualExtended, scrollToBottom]);
 
   const handleSend = async (overrideContent?: string, overrideAttachments?: AIAttachment[]) => {
-    const finalContent = overrideContent !== undefined ? overrideContent : input.trim();
+    const finalContent = overrideContent !== undefined ? overrideContent : assistantInput.trim();
     const finalAttachments = overrideAttachments !== undefined ? overrideAttachments : [...attachments];
 
     if ((!finalContent && finalAttachments.length === 0) || isAILoading || isSubmitting) return;
@@ -216,15 +257,17 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
       const isSad = ['bad', 'error', 'stop', 'stupid', 'hate'].some(w => finalContent.toLowerCase().includes(w));
       window.dispatchEvent(new CustomEvent('ai-chat-sent', { detail: { isSad } }));
 
-      if (overrideContent === undefined) setInput('');
+      if (overrideContent === undefined) setAssistantInput('');
       if (overrideAttachments === undefined) setAttachments([]);
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
       await sendAIMessage(finalContent, finalAttachments);
       // Clear intent tag after message is dispatched
       setActiveIntentTag(null);
-      // Re-fetch context after message to get updated token usage
-      setTimeout(() => fetchAISessionContext(sessionId), 1000);
+      // Re-fetch context after message to get updated token usage (skip for temp chats — they have no server state)
+      if (!isTempChat) {
+        setTimeout(() => fetchAISessionContext(sessionId), 1000);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -343,21 +386,21 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
     { id: 'split', label: 'Create Split Page', icon: <Layers strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Create a new mixed split page', prefix: '/split ' },
     { id: 'task', label: 'Add Task', icon: <CheckSquare strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
     { id: 'mention', label: 'Mention', icon: <AtSign strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Mention page or workspace', prefix: '@' },
-    { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setInput(''); } },
+    { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
   ];
 
-  const filteredCommands = input.startsWith('/')
-    ? commands.filter(c => c.label.toLowerCase().includes(input.slice(1).toLowerCase()) || c.id.includes(input.slice(1).toLowerCase()))
+  const filteredCommands = assistantInput.startsWith('/')
+    ? commands.filter(c => c.label.toLowerCase().includes(assistantInput.slice(1).toLowerCase()) || c.id.includes(assistantInput.slice(1).toLowerCase()))
     : [];
 
   useEffect(() => {
-    if (input.startsWith('/')) {
+    if (assistantInput.startsWith('/')) {
       setShowCommandMenu(true);
       setActiveCommandIndex(0);
     } else {
       setShowCommandMenu(false);
     }
-  }, [input]);
+  }, [assistantInput]);
 
   const handleCommandSelect = (cmd: typeof commands[0]) => {
     if (cmd.prefix) {
@@ -366,7 +409,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
       if (CHAIN_TAGS.includes(tag)) {
         setActiveIntentTag(tag);
       }
-      setInput(cmd.prefix);
+      setAssistantInput(cmd.prefix);
       textareaRef.current?.focus();
     } else if (cmd.action) {
       cmd.action();
@@ -386,7 +429,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
   return (
     <>
-      {!isAIAssistantOpen && (
+      {!isAIAssistantOpen && !chatPageMode && (
         <div className="fixed bottom-8 right-8 z-[90]">
           <button
             onClick={toggleAIAssistant}
@@ -407,20 +450,20 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             onContextMenu={(e) => { e.preventDefault(); setShowMicSettings(false); }}
           />
           <div
-            className="fixed z-[1001] bg-[var(--color-panel)] backdrop-blur-2xl rounded-[16px] p-4 w-72 border border-white/10 animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+            className="fixed z-[1001] bg-[var(--color-panel)] backdrop-blur-2xl rounded-[16px] p-4 w-72 border border-[var(--bone-12)] "
             style={{
               left: Math.min(micSettingsPos.x, window.innerWidth - 300),
               top: Math.min(micSettingsPos.y - 220, window.innerHeight - 280)
             }}
           >
             <div className="flex items-center justify-between mb-3 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-bone-60">Mic Settings</span>
-              <Settings2 strokeWidth={2} className="w-3 h-3 text-bone-60" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-bone-70">Mic Settings</span>
+              <Settings2 strokeWidth={2} className="w-3 h-3 text-bone-70" />
             </div>
 
             <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-hide mb-3">
               {microphones.length === 0 ? (
-                <div className="text-[11px] text-bone-60 py-4 text-center tracking-wide">No microphones found</div>
+                <div className="text-[11px] text-bone-70 py-4 text-center tracking-wide">No microphones found</div>
               ) : (
                 <div className="space-y-0.5">
                   {microphones.map(mic => (
@@ -444,7 +487,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
             <div className="pt-3 border-t border-[var(--bone-6)] space-y-2">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-bold uppercase text-bone-60">Input Test</span>
+                <span className="text-[9px] font-bold uppercase text-bone-70">Input Test</span>
                 <div className="flex gap-0.5">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                     <div
@@ -469,16 +512,20 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
         onDrop={handleDrop}
         onPaste={handlePaste}
         className={clsx(
-          "flex flex-col overflow-hidden bg-sidebar",
-          actualExtended
-            ? "relative w-full h-full"
-            : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] bg-sidebar rounded-[var(--radius-big)] border border-[var(--bone-12)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
+          "flex flex-col",
+          !chatPageMode && "overflow-hidden",
+          chatPageMode ? "bg-transparent" : "bg-sidebar",
+          chatPageMode
+            ? "relative w-full h-auto"
+            : actualExtended
+              ? "relative w-full h-full"
+              : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] rounded-[var(--radius-big)] border border-[var(--bone-12)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
         )}
-        style={{ display: isAIAssistantOpen ? 'flex' : 'none' }}
+        style={{ display: (isAIAssistantOpen || chatPageMode) ? 'flex' : 'none' }}
       >
         {isDragging && (
-          <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-3xl flex items-center justify-center gap-4">
+          <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none ">
+            <div className="bg-white/10 backdrop-blur-xl border border-[var(--bone-12)] p-4 rounded-3xl flex items-center justify-center gap-4">
               <div className="w-10 h-10 rounded-2xl bg-white/20 text-bone-100 flex items-center justify-center">
                 <ImageIcon strokeWidth={2} className="w-5 h-5" />
               </div>
@@ -487,81 +534,117 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
           </div>
         )}
 
-        <div className="py-3 border-b border-[var(--bone-6)] flex items-center justify-between shrink-0 px-6">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-[28px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Crimson Text", serif' }}>
-                Agent
-              </h1>
-              <div className={clsx("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={toggleAIAssistantExtended}
-              className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
-            >
-              {isAIAssistantExtended ? <PanelLeft strokeWidth={2} className="w-5 h-5" /> : <PanelRight strokeWidth={2} className="w-5 h-5 rotate-180" />}
-            </button>
-            <button
-              onClick={() => openModal({ kind: 'settings', tab: 'security' })}
-              className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
-            >
-              <Key strokeWidth={2} className="w-5 h-5" />
-            </button>
-            <button
-              onClick={clearAIChat}
-              className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
-            >
-              <Trash2 strokeWidth={2} className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setAIAssistantOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
-            >
-              <X strokeWidth={2} className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-
-        <div
-          ref={messagesContainerRef}
-          className={clsx(
-            "flex-1 px-6 py-4 space-y-2 flex flex-col",
-            aiMessages.length === 0 && "pb-0",
-            isScrollable ? "overflow-y-auto overflow-x-hidden scrollbar-thin" : "overflow-y-hidden overflow-x-hidden"
-          )}
-          style={{ overflowAnchor: 'auto' }}
-        >
-          {aiMessages.length === 0 && !isAILoading && (
-            <div className="flex-1 flex flex-col justify-end text-center pb-5 min-h-0">
-              <div className="flex items-center justify-center gap-6">
-              <StarIcon className="w-8 h-8" style={{ color: 'var(--bone-100)', fill: 'var(--bone-100)' }} />
-                <p className="text-[26px] font-medium text-bone-60 leading-tight tracking-tight font-[family-name:var(--font-display)]">
-                  How can I help you today?
-                </p>
+        {!chatPageMode && (
+          <div className="py-3 border-b border-[var(--bone-6)] flex items-center justify-between shrink-0 px-6">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
+                  Chat
+                </h1>
+                <div className={clsx("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
               </div>
             </div>
-          )}
-          {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').map((msg, idx, filtered) => (
-            <div key={msg.id || `msg-${idx}`} id={`msg-row-${msg.id}`} className="w-full">
-              <ChatMessage
-                msg={msg}
-                isAILoading={idx === filtered.length - 1 ? isAILoading : false}
-                isLast={idx === filtered.length - 1}
-                scrollToBottom={scrollToBottom}
-                handleAddImageToWorkspace={handleAddImageToWorkspace}
-                onRegenerate={() => {
-                  const lastUserMsg = [...filtered.slice(0, idx + 1)].reverse().find(m => m.role === 'user');
-                  if (lastUserMsg) handleSend(lastUserMsg.content, lastUserMsg.attachments);
-                }}
-                onReply={setReplyMessage}
-              />
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={startNewChat}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+                title="New chat"
+              >
+                <Plus strokeWidth={2} className="w-5 h-5" />
+              </button>
+              <button
+                onClick={openChatInPage}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+                title="Open in Chat"
+              >
+                <ExternalLink strokeWidth={2} className="w-4 h-4" />
+              </button>
+              <button
+                onClick={startTempChat}
+                className={clsx(
+                  "w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] hover:bg-[var(--bone-6)]",
+                  isTempChat ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Temporary chat"
+              >
+                <Clock strokeWidth={2} className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => { loadChatConversations(); setShowHistoryModal(true); }}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+                title="Session history"
+              >
+                <History strokeWidth={2} className="w-4 h-4" />
+              </button>
+              <button
+                onClick={toggleAIAssistantExtended}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+              >
+                {isAIAssistantExtended ? <PanelLeft strokeWidth={2} className="w-5 h-5" /> : <PanelRight strokeWidth={2} className="w-5 h-5 rotate-180" />}
+              </button>
+              <button
+                onClick={clearAIChat}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+              >
+                <Trash2 strokeWidth={2} className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setAIAssistantOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)]"
+              >
+                <X strokeWidth={2} className="w-6 h-6" />
+              </button>
             </div>
-          ))}
-          <div ref={messagesEndRef} className={clsx("shrink-0", aiMessages.length > 0 ? "h-6" : "h-0")} />
-        </div>
+          </div>
+        )}
+
+        {!chatPageMode && (
+          <div
+            ref={messagesContainerRef}
+            className={clsx(
+              "flex-1 px-6 py-4 space-y-2 flex flex-col",
+              aiMessages.length === 0 && "pb-0",
+              isScrollable ? "overflow-y-auto overflow-x-hidden scrollbar-thin" : "overflow-y-hidden overflow-x-hidden"
+            )}
+            style={{ overflowAnchor: 'auto' }}
+          >
+            {aiMessages.length === 0 && !isAILoading && (
+              <div className="flex-1 flex flex-col justify-end text-center pb-5 min-h-0">
+                <div className="flex items-center justify-center gap-6">
+                <StarIcon className="w-8 h-8" style={{ color: 'var(--bone-100)', fill: 'var(--bone-100)' }} />
+                  <p className="text-[26px] font-medium text-[var(--bone-100)] leading-tight tracking-tight font-[family-name:var(--font-display)]">
+                    How can I help you today?
+                  </p>
+                </div>
+              </div>
+            )}
+            {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').map((msg, idx, filtered) => (
+              <div key={msg.id || `msg-${idx}`} id={`msg-row-${msg.id}`} className="w-full">
+                <ChatMessage
+                  msg={msg}
+                  isAILoading={idx === filtered.length - 1 ? isAILoading : false}
+                  isLast={idx === filtered.length - 1}
+                  scrollToBottom={scrollToBottom}
+                  handleAddImageToWorkspace={handleAddImageToWorkspace}
+                  onRegenerate={() => {
+                    const lastUserMsg = [...filtered.slice(0, idx + 1)].reverse().find(m => m.role === 'user');
+                    if (lastUserMsg) handleSend(lastUserMsg.content, lastUserMsg.attachments);
+                  }}
+                  onReply={setReplyMessage}
+                />
+              </div>
+            ))}
+
+            {showSkeleton && (
+              <div className="w-full pb-2">
+                <ChatSkeleton />
+              </div>
+            )}
+
+            <div ref={messagesEndRef} className={clsx("shrink-0", (aiMessages.length > 0 || showSkeleton) ? "h-6" : "h-0")} />
+          </div>
+        )}
 
         <div className={clsx("relative h-0 overflow-visible z-[100]", !isScrollable && "hidden")}>
           <div className="absolute bottom-6 right-6 flex flex-col gap-1.5 pointer-events-none">
@@ -575,14 +658,14 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                   lastUserMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
               }}
-              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
               title="Jump to your last message"
             >
               <ChevronUp strokeWidth={2} className="w-3.5 h-3.5 group-hover/nav:-translate-y-0.5" />
             </button>
             <button
               onClick={() => scrollToBottom('smooth')}
-              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-60 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
+              className="w-7 h-7 rounded-[8px] bg-[var(--bone-6)] backdrop-blur-xl text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-15)] flex items-center justify-center pointer-events-auto hover:scale-110 active:scale-95 group/nav"
               title="Scroll to bottom"
             >
               <ChevronUp strokeWidth={2} className="w-3.5 h-3.5 rotate-180 group-hover/nav:translate-y-0.5" />
@@ -591,31 +674,42 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
         </div>
 
 
-        <div className="px-6 pb-6 pt-3 shrink-0 bg-sidebar border-t border-[var(--bone-6)] relative">
+        <div className={clsx(
+          "shrink-0 relative",
+          chatPageMode ? "px-0 pb-0 pt-3 border-none" : "px-6 pb-6 pt-3 bg-sidebar border-t border-[var(--bone-6)]"
+        )}>
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
 
           {/* Unified Message Bar Container */}
-          <div className="bg-[var(--bone-6)] border border-white/5 rounded-[16px] p-3 flex flex-col relative focus-within:border-white/10 transition-colors">
+          <div
+            className={clsx(
+              "border flex flex-col relative ",
+              chatPageMode
+                ? "backdrop-blur-xl border-[var(--bone-12)] rounded-[20px] p-4 shadow-2xl"
+                : "bg-[var(--bone-6)] border-[var(--bone-12)] rounded-[16px] p-3"
+            )}
+            style={chatPageMode ? { backgroundColor: 'color-mix(in srgb, var(--color-panel) 70%, transparent)' } : undefined}
+          >
             {activeIntentTag && (
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-white/20 w-fit mb-2 animate-in fade-in slide-in-from-bottom-1">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-[var(--bone-12)] w-fit mb-2 ">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-bone-100" />
                   <span className="text-[10px] font-bold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
                 </div>
                 <button 
                   onClick={() => useStore.getState().setActiveIntentTag(null)}
-                  className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 transition-colors"
+                  className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 "
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
             )}
             {attachments.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-white/5">
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-[var(--bone-12)]">
                 {attachments.map((att, i) => (
                   <div key={`pending-att-${i}`} className="relative group shrink-0">
                     <div className={clsx(
-                      "rounded-[10px] overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center",
+                      "rounded-[10px] overflow-hidden border border-[var(--bone-12)] bg-white/5 flex items-center justify-center",
                       att.type === 'audio' ? "w-auto h-auto" : "w-11 h-11"
                     )}>
                       {att.type === 'image' ? (
@@ -628,13 +722,13 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                           onRemove={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
                         />
                       ) : (
-                        <Paperclip strokeWidth={2} className="w-4 h-4 text-bone-60" />
+                        <Paperclip strokeWidth={2} className="w-4 h-4 text-bone-70" />
                       )}
                     </div>
                     {att.type !== 'audio' && (
                       <button
                         onClick={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
-                        className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10 transition-all hover:scale-110"
+                        className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10  hover:scale-110"
                       >
                         <X strokeWidth={2} className="w-2.5 h-2.5" />
                       </button>
@@ -654,13 +748,13 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     targetRow.classList.add('pulse-highlight');
                   }
                 }}
-                className="flex items-center justify-between bg-white/5 rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-white/30 gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-white/10 transition-colors"
+                className="flex items-center justify-between bg-white/5 rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-white/30 gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-white/10 "
               >
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-bone-60">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-bone-70">
                     Replying to {activeReplyMessage.role === 'user' ? 'You' : 'AI'}
                   </span>
-                  <span className="text-[11px] text-[var(--bone-60)] truncate font-medium">
+                  <span className="text-[11px] text-[var(--bone-70)] truncate font-medium">
                     {activeReplyMessage.content?.replace(new RegExp('<think>[\\\\s\\\\S]*?</think>', 'g'), '') || 'Attachment'}
                   </span>
                 </div>
@@ -669,7 +763,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                     e.stopPropagation();
                     setReplyMessage(null);
                   }}
-                  className="p-1 rounded-md hover:bg-white/10 text-[var(--bone-40)] hover:text-white transition-colors shrink-0"
+                  className="p-1 rounded-md hover:bg-white/10 text-[var(--bone-40)] hover:text-white  shrink-0"
                 >
                   <X strokeWidth={2} className="w-3 h-3" />
                 </button>
@@ -677,8 +771,8 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
             )}
             <textarea
               ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={assistantInput}
+              onChange={(e) => setAssistantInput(e.target.value)}
               onKeyDown={(e) => {
                 if (showCommandMenu && filteredCommands.length > 0) {
                   if (e.key === 'ArrowDown') {
@@ -710,17 +804,37 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
               }}
               placeholder="Ask Flowr AI"
               rows={1}
-              className="w-full bg-transparent text-foreground text-[14px] placeholder:text-bone-60 focus:outline-none resize-none leading-relaxed px-1 custom-scrollbar tracking-wide"
-              style={{ height: 'auto', maxHeight: '120px', overflowY: 'auto' }}
+              className="w-full bg-transparent text-foreground text-[14px] placeholder:text-bone-70 focus:outline-none resize-none leading-relaxed px-1 custom-scrollbar tracking-wide"
+              style={{ height: 'auto', maxHeight: '120px', overflowY: 'auto', fontSize: chatPageMode ? '15px' : undefined }}
             />
 
             {/* Action Bar */}
-            <div className="flex items-center justify-between mt-1">
+            <div className={clsx("flex items-center justify-between", chatPageMode ? "mt-3" : "mt-1")}>
               {/* Left Actions */}
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 relative">
+                {chatPageMode && showPlusMenu && plusMenuPos && (
+                  <ChatPlusMenu
+                    onClose={() => setShowPlusMenu(false)}
+                    onMediaClick={() => fileInputRef.current?.click()}
+                    onContextToggle={() => setContextEnabled(v => !v)}
+                    contextEnabled={contextEnabled}
+                    position={plusMenuPos}
+                  />
+                )}
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 rounded-[8px] text-bone-60 hover:text-foreground hover:bg-white/5 transition-all"
+                  ref={plusMenuBtnRef}
+                  onClick={() => {
+                    if (chatPageMode) {
+                      if (plusMenuBtnRef.current) {
+                        const r = plusMenuBtnRef.current.getBoundingClientRect();
+                        setPlusMenuPos({ bottom: window.innerHeight - r.top + 8, left: r.left });
+                      }
+                      setShowPlusMenu(v => !v);
+                    } else {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  className="p-1.5 rounded-[8px] text-bone-70 hover:text-foreground hover:bg-white/5 "
                   title="Add media"
                 >
                   <Plus strokeWidth={2} className="w-4 h-4" />
@@ -728,16 +842,16 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
                 <button
                   onClick={() => {
-                    if (!input.startsWith('/')) {
-                      setInput('/');
+                    if (!assistantInput.startsWith('/')) {
+                      setAssistantInput('/');
                       textareaRef.current?.focus();
                     } else {
                       setShowCommandMenu(!showCommandMenu);
                     }
                   }}
                   className={clsx(
-                    "flex items-center gap-1.5 px-2 py-1 rounded-[8px] transition-all",
-                    showCommandMenu ? "bg-white/10 text-foreground" : "text-bone-60 hover:text-foreground hover:bg-white/5"
+                    "flex items-center gap-1.5 px-2 py-1 rounded-[8px] ",
+                    showCommandMenu ? "bg-white/10 text-foreground" : "text-bone-70 hover:text-foreground hover:bg-white/5"
                   )}
                   title="Commands and tools"
                 >
@@ -751,62 +865,69 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 {/* Mode selector */}
                 <div className="relative">
                   <button
-                    onClick={() => setShowModeMenu(v => !v)}
+                    ref={modeMenuBtnRef}
+                    onClick={() => {
+                      if (modeMenuBtnRef.current) {
+                        const r = modeMenuBtnRef.current.getBoundingClientRect()
+                        setModeMenuPos({ bottom: window.innerHeight - r.top + 8, right: window.innerWidth - r.right })
+                      }
+                      setShowModeMenu(v => !v)
+                    }}
                     className={clsx(
-                      "flex items-center gap-1.5 px-2 py-1 rounded-[8px] border transition-all duration-200",
+                      "flex items-center gap-1.5 px-2 py-1 rounded-[8px] border ",
                       showModeMenu
-                        ? "bg-white/10 border-white/20 text-bone-100"
-                        : "border-white/10 text-bone-60 hover:text-bone-100 hover:border-white/20"
+                        ? "bg-white/10 border-[var(--bone-12)] text-bone-100"
+                        : "border-[var(--bone-12)] text-bone-70 hover:text-bone-100 hover:border-white/20"
                     )}
                   >
                     <span className="hidden sm:inline text-[11px] font-bold uppercase tracking-widest pt-0.5">{MODE_OPTIONS.find(m => m.key === activeMode)?.label}</span>
                     <ChevronUp strokeWidth={2} className={clsx("w-3 h-3 transition-transform duration-300", showModeMenu ? "rotate-180 opacity-100" : "opacity-40")} />
                   </button>
 
-                  {showModeMenu && (
+                  {showModeMenu && modeMenuPos && createPortal(
                     <>
                       <div
                         className="fixed inset-0 z-[140]"
                         onClick={() => setShowModeMenu(false)}
                       />
-                      <div className="absolute bottom-full mb-2 right-0 z-[150] bg-[var(--color-panel)] border border-white/10 rounded-[16px] overflow-hidden min-w-[160px] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
-                        <div className="p-1.5 space-y-0.5">
+                      <div
+                        className="fixed z-[150] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden min-w-[200px] backdrop-blur-3xl shadow-2xl p-1.5 flex flex-col gap-0.5"
+                        style={{ bottom: modeMenuPos.bottom, right: modeMenuPos.right }}
+                      >
+                        <div className="flex flex-col gap-0.5">
                           {MODE_OPTIONS.map(opt => (
                             <button
                               key={opt.key}
                               onClick={() => { setActiveMode(opt.key); setShowModeMenu(false) }}
                               className={clsx(
-                                'w-full flex items-center px-4 py-2.5 rounded-[10px] text-xs transition-all duration-200 text-left group',
-                                activeMode === opt.key
-                                  ? 'bg-white/10 text-bone-100 font-bold'
-                                  : 'text-bone-80 hover:bg-white/5 hover:text-bone-100'
+                                'w-full flex items-center px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] text-left group transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                                activeMode === opt.key && 'bg-white/10 text-bone-100'
                               )}
                             >
                               <div className="flex flex-col">
                                 <p className="font-bold tracking-tight">{opt.label}</p>
-                                <p className="text-bone-60 text-[9px] uppercase tracking-wider font-bold opacity-60">{opt.description}</p>
+                                <p className="text-[10px] uppercase tracking-wider font-medium opacity-30 leading-none mt-0.5">{opt.description}</p>
                               </div>
                             </button>
                           ))}
                         </div>
-                        <div className="border-t border-white/5 mt-1 pt-1 px-2 pb-1 space-y-0.5">
+                        <div className="popup-divider" />
+                        <div className="flex flex-col gap-0.5">
                           <button
                             onClick={() => setThinkingEnabled(!thinkingEnabled)}
                             className={clsx(
-                              'w-full flex items-center gap-3 px-2 py-2 rounded-[10px] text-xs transition-all duration-200',
-                              thinkingEnabled
-                                ? 'bg-white/10 text-bone-100 font-bold'
-                                : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
+                              'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                              thinkingEnabled && 'text-bone-100'
                             )}
                           >
-                            <Brain className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                            <Brain className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
                             <div className="flex flex-col items-start">
-                              <span className="text-[11px] font-bold">Thinking</span>
-                              <span className="text-[10px] opacity-60">{thinkingEnabled ? 'On — reasons before answering' : 'Off'}</span>
+                              <span className="font-bold">Thinking</span>
+                              <span className="text-[10px] opacity-30 leading-none mt-0.5 font-medium">{thinkingEnabled ? 'On' : 'Off'}</span>
                             </div>
                             <div className={clsx(
-                              'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
-                              thinkingEnabled ? 'bg-white/30 justify-end' : 'bg-white/10 justify-start'
+                              'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
+                              thinkingEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
                             )}>
                               <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
                             </div>
@@ -814,27 +935,26 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                           <button
                             onClick={() => setAdvisorEnabled(!advisorEnabled)}
                             className={clsx(
-                              'w-full flex items-center gap-3 px-2 py-2 rounded-[10px] text-xs transition-all duration-200',
-                              advisorEnabled
-                                ? 'bg-white/10 text-bone-100 font-bold'
-                                : 'text-bone-60 hover:bg-white/5 hover:text-bone-100'
+                              'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                              advisorEnabled && 'text-bone-100'
                             )}
                           >
-                            <Sparkles className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                            <Sparkles className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
                             <div className="flex flex-col items-start">
-                              <span className="text-[11px] font-bold">Advisor</span>
-                              <span className="text-[10px] opacity-60">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
+                              <span className="font-bold">Advisor</span>
+                              <span className="text-[10px] opacity-30 leading-none mt-0.5 font-medium">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
                             </div>
                             <div className={clsx(
-                              'ml-auto w-7 h-4 rounded-full transition-all duration-200 flex items-center',
-                              advisorEnabled ? 'bg-white/30 justify-end' : 'bg-white/10 justify-start'
+                              'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
+                              advisorEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
                             )}>
                               <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
                             </div>
                           </button>
                         </div>
                       </div>
-                    </>
+                    </>,
+                    document.body
                   )}
                 </div>
 
@@ -842,19 +962,30 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
 
 
-                <div className="relative group flex items-center gap-2 px-1">
+                <div
+                  ref={contextMeterRef}
+                  className="relative flex items-center gap-2 px-1"
+                  onMouseEnter={() => {
+                    if (contextMeterRef.current) {
+                      const r = contextMeterRef.current.getBoundingClientRect();
+                      setContextTooltipPos({ bottom: window.innerHeight - r.top + 8, right: window.innerWidth - r.right });
+                    }
+                    setShowContextTooltip(true);
+                  }}
+                  onMouseLeave={() => setShowContextTooltip(false)}
+                >
                   <div className="flex items-center gap-2 z-10 cursor-help">
                     {aiSessionContext && (
                       <div className="relative w-4 h-4 flex items-center justify-center">
                         <ContextMeter
-                          usage={aiSessionContext.token_usage_total}
+                          usage={displayedTokens}
                           limit={aiSessionContext.context_limit}
                           threshold={aiSessionContext.compaction_threshold}
                           size={16}
                         />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="text-[7px] font-bold text-bone-100">
-                            {Math.round((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100)}
+                            {Math.round((displayedTokens / aiSessionContext.context_limit) * 100)}
                           </span>
                         </div>
                       </div>
@@ -862,42 +993,47 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                   </div>
 
                   {/* Detailed Context Tooltip */}
-                  {aiSessionContext && (
-                    <div className="absolute bottom-full right-0 mb-4 bg-[var(--color-panel)] p-4 rounded-[16px] opacity-0 group-hover:opacity-100 transition-all duration-200 scale-95 group-hover:scale-100 pointer-events-none border border-white/10 z-[130] backdrop-blur-3xl animate-in fade-in zoom-in-95 slide-in-from-bottom-2 min-w-[280px]">
+                  {aiSessionContext && showContextTooltip && contextTooltipPos && createPortal(
+                    <div
+                      className="fixed bg-[var(--color-panel)] p-4 rounded-[16px] border border-[var(--bone-12)] backdrop-blur-3xl min-w-[280px]"
+                      style={{ bottom: contextTooltipPos.bottom, right: contextTooltipPos.right, zIndex: 150 }}
+                      onMouseEnter={() => setShowContextTooltip(true)}
+                      onMouseLeave={() => setShowContextTooltip(false)}
+                    >
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center text-[11px] font-bold text-bone-80">
                           <span className="tracking-tight">Memory Usage ({sessionId})</span>
-                          <span className="text-bone-100">{Math.round((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100)}%</span>
+                          <span className="text-bone-100">{Math.round((displayedTokens / aiSessionContext.context_limit) * 100)}%</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
                             className={clsx(
-                              "h-full transition-all duration-1000",
-                              (aiSessionContext.token_usage_total / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-white/40" : "bg-white/20"
+                              "h-full duration-1000",
+                              (displayedTokens / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-white/40" : "bg-[var(--brand-blue)]"
                             )}
-                            style={{ width: `${Math.min((aiSessionContext.token_usage_total / aiSessionContext.context_limit) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((displayedTokens / aiSessionContext.context_limit) * 100, 100)}%` }}
                           />
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
                           {activeIntentTag && (
-                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-white/20 w-fit animate-in fade-in slide-in-from-bottom-1">
+                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-[var(--bone-12)] w-fit ">
                               <div className="flex items-center gap-1.5">
                                 <Sparkles className="w-3 h-3 text-bone-100" />
                                 <span className="text-[10px] font-bold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
                               </div>
                               <button 
                                 onClick={() => useStore.getState().setActiveIntentTag(null)}
-                                className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 transition-colors"
+                                className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 "
                               >
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
                           )}
-                          <p className="text-[10px] text-bone-60 font-medium">
-                            {aiSessionContext.token_usage_total.toLocaleString()} / {aiSessionContext.context_limit.toLocaleString()} tokens
+                          <p className="text-[10px] text-bone-70 font-medium">
+                            {displayedTokens.toLocaleString()} / {aiSessionContext.context_limit.toLocaleString()} tokens
                           </p>
                           <p className="text-[9px] text-bone-30 opacity-60 leading-relaxed italic">
-                            {(aiSessionContext.token_usage_total / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold
+                            {(displayedTokens / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold
                               ? "Memory full. Preparing to distill..."
                               : "Session history is currently clear and fast."}
                           </p>
@@ -910,10 +1046,10 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                             await compactAIChat();
                             setIsCompacting(false);
                           }}
-                          disabled={isCompacting || aiSessionContext.token_usage_total < 500}
+                          disabled={isCompacting || displayedTokens < 500}
                           className={clsx(
-                            "w-full py-1.5 rounded-[8px] text-[10px] font-bold tracking-tight transition-all pointer-events-auto flex items-center justify-center gap-2",
-                            aiSessionContext.token_usage_total < 500
+                            "w-full py-1.5 rounded-[8px] text-[10px] font-bold tracking-tight  pointer-events-auto flex items-center justify-center gap-2",
+                            displayedTokens < 500
                               ? "bg-white/5 text-bone-20 cursor-not-allowed opacity-50"
                               : "bg-white/10 text-bone-100 hover:bg-white/20 active:scale-[0.98]"
                           )}
@@ -931,29 +1067,30 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                           )}
                         </button>
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
 
                 {isAILoading ? (
                   <button
                     onClick={stopAIGeneration}
-                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-red-400/10 text-red-500 hover:bg-red-400/20 transition-all active:scale-90"
+                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-red-400/10 text-red-500 hover:bg-red-400/20  active:scale-90"
                     title="Stop generation"
                   >
                     <Square strokeWidth={2} className="w-2.5 h-2.5 fill-current" />
                   </button>
-                ) : (!input.trim() && attachments.length === 0) ? (
+                ) : (!assistantInput.trim() && attachments.length === 0) ? (
                   <button
                     onMouseDown={(e) => { if (e.button === 0) startRecording(); }}
                     onMouseUp={() => stopRecording()}
                     onMouseLeave={() => { if (isRecording) stopRecording(); }}
                     onContextMenu={handleMicContextMenu}
                     className={clsx(
-                      "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0 transition-all group/mic",
+                      "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0  group/mic",
                       isRecording
                         ? "bg-red-500 text-white scale-110"
-                        : clsx("text-bone-60 hover:text-foreground hover:bg-white/5", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
+                        : clsx("text-bone-70 hover:text-foreground hover:bg-white/5", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
                     )}
                     title="Hold to record (Max 60s) — Right-click for settings"
                   >
@@ -965,7 +1102,7 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
                 ) : (
                   <button
                     onClick={() => handleSend()}
-                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20 transition-all active:scale-90"
+                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20  active:scale-90"
                   >
                     <Send strokeWidth={2} className="w-3.5 h-3.5" />
                   </button>
@@ -975,40 +1112,40 @@ const AIAssistantComponent = ({ isFloating = false }: { isFloating?: boolean }) 
 
             {/* Command Menu Portal (Local to container) */}
             {showCommandMenu && filteredCommands.length > 0 && (
-              <div className="absolute bottom-full left-0 right-0 mb-4 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[16px] border border-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-[140] p-2">
+              <div className="absolute bottom-full left-0 right-0 mb-4 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1.5 flex flex-col gap-0.5">
                 <div className="px-3 pt-1 pb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--bone-30)]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--bone-30)] opacity-80">
                     Actions & Commands
                   </span>
                 </div>
-                <div className="max-h-80 overflow-y-auto scrollbar-none flex flex-col gap-[3px]">
+                <div className="max-h-80 overflow-y-auto scrollbar-none flex flex-col gap-0.5">
                   {filteredCommands.map((cmd, i) => (
                     <button
                       key={cmd.id}
                       onClick={() => handleCommandSelect(cmd)}
                       onMouseEnter={() => setActiveCommandIndex(i)}
                       className={clsx(
-                        "w-full flex items-center gap-2 px-2 py-1.5 rounded-[12px] text-left group",
+                        "w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-left group transition-none",
                         i === activeCommandIndex
-                          ? "bg-white/10 text-foreground"
-                          : "text-bone-60 hover:bg-white/5 hover:text-foreground"
+                          ? "bg-white/[0.08] text-[var(--bone-100)]"
+                          : "text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-[var(--bone-100)]"
                       )}
                     >
                       <div className={clsx(
-                        "w-6 h-6 flex items-center justify-center shrink-0",
-                        i === activeCommandIndex ? "text-bone-100" : "text-bone-60"
+                        "w-4 h-4 flex items-center justify-center shrink-0 opacity-60 group-hover:opacity-100",
+                        i === activeCommandIndex ? "text-bone-100 opacity-100" : "text-bone-70"
                       )}>
                         {cmd.icon}
                       </div>
                       <div className="flex-1 min-w-0 flex items-center gap-2">
-                        <p className="text-[13px] font-medium tracking-wide shrink-0">{cmd.label}</p>
+                        <p className="text-[13.5px] font-semibold tracking-tight shrink-0">{cmd.label}</p>
                         {cmd.description && (
-                          <p className="text-[11px] text-bone-60 opacity-80 truncate">{cmd.description}</p>
+                          <p className="text-[11px] text-bone-70 opacity-40 truncate">{cmd.description}</p>
                         )}
                       </div>
                       {(cmd.prefix || i === activeCommandIndex) && (
                         <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                          <span className="px-1.5 py-0.5 rounded-[4px] bg-white/5 text-[10px] font-mono text-bone-60">
+                          <span className="px-1.5 py-0.5 rounded-[4px] bg-white/5 text-[10px] font-mono text-bone-70">
                             {cmd.prefix ? cmd.prefix.trim() : 'ENTER'}
                           </span>
                         </div>
