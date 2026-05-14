@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { widgetRegistry } from './registry';
 import type { BentoLayoutItem } from './types';
@@ -51,7 +51,7 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
     <div
       ref={ref}
       data-border-flash={borderFlash ? 'true' : undefined}
-      className={clsx(
+      className={cn(
         'h-full relative group/bento-widget transition-all duration-300 rounded-[var(--radius-big)] border border-[var(--bone-12)]',
         editMode ? 'overflow-visible' : 'overflow-hidden',
         editMode && 'cursor-grab active:cursor-grabbing select-none',

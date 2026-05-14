@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, ReactNode, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface TooltipProps {
   children: ReactNode;
@@ -79,7 +79,7 @@ export function Tooltip({ children, content, delay = 2000, className, disabled }
   const tooltipBody = isVisible && mounted && createPortal(
     <div
       ref={tooltipRef}
-      className={clsx(
+      className={cn(
         "fixed pointer-events-none z-[9999] px-3 py-2 bg-panel/95 border border-border/50 rounded-2xl text-[11px] font-medium text-foreground backdrop-blur-xl",
         className
       )}

@@ -3,7 +3,7 @@
 import { Entity, useStore } from '@/data/store';
 import { useMemo, useState, useRef } from 'react';
 import { Plus, CheckCircle2, Circle } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { stripHtml } from '@/lib/utils';
 import type { WidgetPropsWithEntity } from './types';
 
@@ -66,7 +66,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
             <div className="flex items-center gap-0.5 bg-[var(--bone-6)] rounded-[4px] p-0.5">
               {(['list', 'by-status'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => onUpdateData({ ...data, view: v })}
-                  className={clsx("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] transition-colors",
+                  className={cn("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] transition-colors",
                     view === v ? "bg-[var(--bone-15)] text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]"
                   )}>{v === 'list' ? 'List' : 'Status'}</button>
               ))}

@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { Plus, Clock, ChevronLeft, ChevronRight, Trash2, Pencil } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { ChatConversation } from '@/lib/chat';
 
 function groupByDate(convs: ChatConversation[]): Record<string, ChatConversation[]> {
@@ -74,7 +74,7 @@ export function ChatHistoryPanel() {
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "h-full flex flex-col bg-sidebar shrink-0 overflow-hidden transition-all duration-300 relative",
         chatHistoryOpen ? "w-[260px] border-r border-[var(--bone-12)]" : "w-0 border-r-0"
       )}
@@ -106,7 +106,7 @@ export function ChatHistoryPanel() {
             </button>
             <button
               onClick={startTempChat}
-              className={clsx(
+              className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                 isTempChat ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
               )}
@@ -125,7 +125,7 @@ export function ChatHistoryPanel() {
                 {convs.map(conv => (
                   <div
                     key={conv.id}
-                    className={clsx(
+                    className={cn(
                       "group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors",
                       activeChatId === conv.id ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
                     )}

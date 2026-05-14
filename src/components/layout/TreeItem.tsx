@@ -3,7 +3,7 @@
 import { Entity, EntityType, useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { ChevronRight, ChevronDown, FileText, Frame, Folder, Layers, Plus, MoreHorizontal } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import React, { useState, useCallback, useRef } from 'react';
 import { IconPicker } from './IconPicker';
 import { Tooltip } from './Tooltip';
@@ -162,7 +162,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     const size = "w-3.5 h-3.5";
     const cls = `${size} shrink-0 `;
     
-    const iconColorClass = clsx(
+    const iconColorClass = cn(
       "",
       isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]"
     );
@@ -172,12 +172,12 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       
       const mainIcon = (
         <div 
-          className={clsx(
+          className={cn(
             "flex items-center justify-center ",
             isCollapsible && "group-hover:opacity-0"
           )}
         >
-          <FolderIcon strokeWidth={2} className={clsx(cls, iconColorClass)} />
+          <FolderIcon strokeWidth={2} className={cn(cls, iconColorClass)} />
         </div>
       );
 
@@ -207,9 +207,9 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     );
 
     switch (type) {
-      case 'note': return <FileText strokeWidth={2} className={clsx(cls, iconColorClass)} />;
-      case 'canvas': return <Frame strokeWidth={2} className={clsx(cls, iconColorClass)} />;
-      case 'mixed': return <Layers strokeWidth={2} className={clsx(cls, iconColorClass)} />;
+      case 'note': return <FileText strokeWidth={2} className={cn(cls, iconColorClass)} />;
+      case 'canvas': return <Frame strokeWidth={2} className={cn(cls, iconColorClass)} />;
+      case 'mixed': return <Layers strokeWidth={2} className={cn(cls, iconColorClass)} />;
     }
   };
 
@@ -222,7 +222,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     <div
       ref={setNodeRef}
       style={style}
-      className={clsx(
+      className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
         isWorkspace && isExpanded && "group/workspace",
         "relative"
@@ -233,7 +233,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         {...attributes}
         {...listeners}
         data-selected={isActive || undefined}
-        className={clsx(
+        className={cn(
           "sidebar-item-row group relative flex w-full cursor-pointer select-none ",
           isEditing ? "items-start pt-[5px]" : "items-center h-7",
           "px-3 rounded-[var(--radius-small)]",
@@ -275,7 +275,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             className="ml-[6px] flex-1 min-w-0 bg-transparent outline-none text-[var(--foreground)] border-none p-0 text-[13px] leading-snug resize-none overflow-hidden break-words whitespace-pre-wrap w-full"
           />
         ) : (
-          <span className={clsx(
+          <span className={cn(
             "ml-[6px] flex-1 text-left text-fade line-clamp-2 leading-snug",
             isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]"
           )}>
@@ -283,7 +283,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           </span>
         )}
 
-        <div className={clsx(
+        <div className={cn(
           "flex items-center gap-1 shrink-0",
           contextMenu?.entityId === entity.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}>
@@ -297,7 +297,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           )}
           <button
              onClick={handleOptionsClick}
-             className={clsx(
+             className={cn(
                "btn-sidebar-utility",
                contextMenu?.entityId === entity.id && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
              )}
@@ -321,13 +321,13 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
       {children.length > 0 && !isPinned && !disableNesting && (
         <div 
-          className={clsx(
+          className={cn(
             "grid transition-all duration-100 ease-out",
             isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
           )}
         >
           <div className="overflow-hidden">
-            <div className={clsx("relative flex flex-col gap-[3px]", isExpanded && "mt-[3px]")}>
+            <div className={cn("relative flex flex-col gap-[3px]", isExpanded && "mt-[3px]")}>
               <div 
                 className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-12)]" 
                 style={{ left: `${depth * 18 + 17}px` }}

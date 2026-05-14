@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore, EditorBlock, CanvasStyleExt } from '@/data/store';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface Props {
   selectedIds: Set<string>;
@@ -149,7 +149,7 @@ export function CanvasStylePanel({
                 key={p.value}
                 title={p.label}
                 onClick={() => updateStyle({ fill: p.value, fillOpacity: p.opacity })}
-                className={clsx(
+                className={cn(
                   "w-5 h-5 rounded-full transition-transform hover:scale-110",
                   style.fill === p.value && "ring-2 ring-offset-1 ring-offset-[#1c1c1a] ring-[rgba(233,233,226,0.6)]"
                 )}
@@ -180,7 +180,7 @@ export function CanvasStylePanel({
                 key={p.value}
                 title={p.label}
                 onClick={() => updateStyle({ stroke: p.value })}
-                className={clsx(
+                className={cn(
                   "w-5 h-5 rounded-full transition-transform hover:scale-110",
                   style.stroke === p.value && "ring-2 ring-offset-1 ring-offset-[#1c1c1a] ring-[rgba(233,233,226,0.6)]"
                 )}
@@ -196,7 +196,7 @@ export function CanvasStylePanel({
               <button
                 key={ss}
                 onClick={() => updateStyle({ strokeStyle: ss })}
-                className={clsx(
+                className={cn(
                   "px-1.5 h-5 rounded-[4px] text-[10px] transition-colors",
                   (style.strokeStyle ?? 'solid') === ss
                     ? "bg-[rgba(233,233,226,0.15)] text-[rgba(233,233,226,0.9)]"
@@ -221,7 +221,7 @@ export function CanvasStylePanel({
               <button
                 key={String(v)}
                 onClick={() => updateStyle({ opacity: v ? 1 : 0 })}
-                className={clsx(
+                className={cn(
                   "px-2.5 h-5 rounded-[4px] text-[11px] transition-colors",
                   ((style.opacity ?? 1) > 0) === v
                     ? "bg-[rgba(233,233,226,0.15)] text-[rgba(233,233,226,0.9)]"
@@ -236,12 +236,12 @@ export function CanvasStylePanel({
         <PropRow label="Locked">
           <button
             onClick={() => updateStyle({ locked: !(style.locked ?? false) })}
-            className={clsx(
+            className={cn(
               "w-7 h-4 rounded-full transition-colors relative",
               style.locked ? "bg-[#d38f36]" : "bg-[rgba(233,233,226,0.1)]"
             )}
           >
-            <div className={clsx(
+            <div className={cn(
               "absolute top-[2px] w-3 h-3 bg-[rgba(233,233,226,0.9)] rounded-full transition-transform",
               style.locked ? "left-[calc(100%-14px)]" : "left-[2px]"
             )} />

@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { EditorBlock } from '@/data/store.types';
 import { useMemo, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Square, Circle, Diamond, MoveUpRight, Minus, Type, Image, MessageSquarePlus, Frame, Eye, EyeOff, Lock, Pencil } from 'lucide-react';
 
 interface Props {
@@ -71,7 +71,7 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
 
     return (
       <div
-        className={clsx(
+        className={cn(
           "group h-[28px] flex items-center gap-[5px] px-2 cursor-pointer transition-colors duration-75",
           isSelected ? "bg-[rgba(233,233,226,0.06)]" : "hover:bg-[rgba(233,233,226,0.03)]"
         )}
@@ -88,10 +88,10 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
         ) : (
           <div className="w-[10px] flex-shrink-0" />
         )}
-        <div className={clsx("w-[14px] flex-shrink-0 flex items-center justify-center", isSelected ? "text-[#d38f36]" : "text-[rgba(233,233,226,0.3)]")}>
+        <div className={cn("w-[14px] flex-shrink-0 flex items-center justify-center", isSelected ? "text-[#d38f36]" : "text-[rgba(233,233,226,0.3)]")}>
           {blockIcon(block)}
         </div>
-        <div className={clsx("flex-1 text-[11px] truncate", isSelected ? "text-[rgba(233,233,226,0.9)]" : "text-[rgba(233,233,226,0.6)]", isHidden && "opacity-40")}>
+        <div className={cn("flex-1 text-[11px] truncate", isSelected ? "text-[rgba(233,233,226,0.9)]" : "text-[rgba(233,233,226,0.6)]", isHidden && "opacity-40")}>
           {blockLabel(block)}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -112,7 +112,7 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={clsx(
+            className={cn(
               "text-[11px] px-[7px] py-[3px] rounded-[5px] capitalize tracking-[0.03em] transition-colors",
               tab === t ? "bg-[rgba(233,233,226,0.1)] text-[rgba(233,233,226,0.9)]" : "text-[rgba(233,233,226,0.3)] hover:text-[rgba(233,233,226,0.6)]"
             )}

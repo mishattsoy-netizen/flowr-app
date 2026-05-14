@@ -18,7 +18,7 @@ import { ChatMessage } from './components/ChatMessage';
 import { ChatSkeleton } from './components/ChatSkeleton';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: number; limit: number, threshold?: number, size?: number }) => {
   const percentage = Math.round((usage / limit) * 100);
@@ -40,7 +40,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
           strokeWidth="2.5"
           strokeDasharray={strokeDasharray}
           strokeDashoffset={strokeDashoffset}
-          className={clsx(
+          className={cn(
             "",
             (usage / limit) > threshold ? "text-white/60" : "text-[var(--brand-blue)]"
           )}
@@ -470,7 +470,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     <button
                       key={mic.deviceId}
                       onClick={() => { setSelectedMicId(mic.deviceId); setShowMicSettings(false); }}
-                      className={clsx(
+                      className={cn(
                         "w-full px-3 py-2 rounded-xl text-left text-[11px] flex items-center justify-between group tracking-wide",
                         selectedMicId === mic.deviceId
                           ? "bg-white/10 text-bone-100 font-bold"
@@ -492,7 +492,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                   {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                     <div
                       key={i}
-                      className={clsx(
+                      className={cn(
                         "w-1 h-3 rounded-full",
                         (volume * 8) >= i ? "bg-bone-100" : "bg-white/5"
                       )}
@@ -511,7 +511,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onPaste={handlePaste}
-        className={clsx(
+        className={cn(
           "flex flex-col",
           !chatPageMode && "overflow-hidden",
           chatPageMode ? "bg-transparent" : "bg-sidebar",
@@ -541,7 +541,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
                   Chat
                 </h1>
-                <div className={clsx("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
+                <div className={cn("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
               </div>
             </div>
 
@@ -562,7 +562,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
               </button>
               <button
                 onClick={startTempChat}
-                className={clsx(
+                className={cn(
                   "w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] hover:bg-[var(--bone-6)]",
                   isTempChat ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
@@ -602,7 +602,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
         {!chatPageMode && (
           <div
             ref={messagesContainerRef}
-            className={clsx(
+            className={cn(
               "flex-1 px-6 py-4 space-y-2 flex flex-col",
               aiMessages.length === 0 && "pb-0",
               isScrollable ? "overflow-y-auto overflow-x-hidden scrollbar-thin" : "overflow-y-hidden overflow-x-hidden"
@@ -642,11 +642,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
               </div>
             )}
 
-            <div ref={messagesEndRef} className={clsx("shrink-0", (aiMessages.length > 0 || showSkeleton) ? "h-6" : "h-0")} />
+            <div ref={messagesEndRef} className={cn("shrink-0", (aiMessages.length > 0 || showSkeleton) ? "h-6" : "h-0")} />
           </div>
         )}
 
-        <div className={clsx("relative h-0 overflow-visible z-[100]", !isScrollable && "hidden")}>
+        <div className={cn("relative h-0 overflow-visible z-[100]", !isScrollable && "hidden")}>
           <div className="absolute bottom-6 right-6 flex flex-col gap-1.5 pointer-events-none">
             <button
               onClick={() => {
@@ -674,7 +674,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
         </div>
 
 
-        <div className={clsx(
+        <div className={cn(
           "shrink-0 relative",
           chatPageMode ? "px-0 pb-0 pt-3 border-none" : "px-6 pb-6 pt-3 bg-sidebar border-t border-[var(--bone-6)]"
         )}>
@@ -682,7 +682,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
           {/* Unified Message Bar Container */}
           <div
-            className={clsx(
+            className={cn(
               "border flex flex-col relative ",
               chatPageMode
                 ? "backdrop-blur-xl border-[var(--bone-12)] rounded-[20px] p-4 shadow-2xl"
@@ -708,7 +708,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-[var(--bone-12)]">
                 {attachments.map((att, i) => (
                   <div key={`pending-att-${i}`} className="relative group shrink-0">
-                    <div className={clsx(
+                    <div className={cn(
                       "rounded-[10px] overflow-hidden border border-[var(--bone-12)] bg-white/5 flex items-center justify-center",
                       att.type === 'audio' ? "w-auto h-auto" : "w-11 h-11"
                     )}>
@@ -809,7 +809,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             />
 
             {/* Action Bar */}
-            <div className={clsx("flex items-center justify-between", chatPageMode ? "mt-3" : "mt-1")}>
+            <div className={cn("flex items-center justify-between", chatPageMode ? "mt-3" : "mt-1")}>
               {/* Left Actions */}
               <div className="flex items-center gap-0.5 relative">
                 {chatPageMode && showPlusMenu && plusMenuPos && (
@@ -849,7 +849,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       setShowCommandMenu(!showCommandMenu);
                     }
                   }}
-                  className={clsx(
+                  className={cn(
                     "flex items-center gap-1.5 px-2 py-1 rounded-[8px] ",
                     showCommandMenu ? "bg-white/10 text-foreground" : "text-bone-70 hover:text-foreground hover:bg-white/5"
                   )}
@@ -873,7 +873,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       }
                       setShowModeMenu(v => !v)
                     }}
-                    className={clsx(
+                    className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded-[8px] border ",
                       showModeMenu
                         ? "bg-white/10 border-[var(--bone-12)] text-bone-100"
@@ -881,7 +881,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     )}
                   >
                     <span className="hidden sm:inline text-[11px] font-bold uppercase tracking-widest pt-0.5">{MODE_OPTIONS.find(m => m.key === activeMode)?.label}</span>
-                    <ChevronUp strokeWidth={2} className={clsx("w-3 h-3 transition-transform duration-300", showModeMenu ? "rotate-180 opacity-100" : "opacity-40")} />
+                    <ChevronUp strokeWidth={2} className={cn("w-3 h-3 transition-transform duration-300", showModeMenu ? "rotate-180 opacity-100" : "opacity-40")} />
                   </button>
 
                   {showModeMenu && modeMenuPos && createPortal(
@@ -899,7 +899,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                             <button
                               key={opt.key}
                               onClick={() => { setActiveMode(opt.key); setShowModeMenu(false) }}
-                              className={clsx(
+                              className={cn(
                                 'w-full flex items-center px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] text-left group transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
                                 activeMode === opt.key && 'bg-white/10 text-bone-100'
                               )}
@@ -915,7 +915,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                         <div className="flex flex-col gap-0.5">
                           <button
                             onClick={() => setThinkingEnabled(!thinkingEnabled)}
-                            className={clsx(
+                            className={cn(
                               'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
                               thinkingEnabled && 'text-bone-100'
                             )}
@@ -925,7 +925,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               <span className="font-bold">Thinking</span>
                               <span className="text-[10px] opacity-30 leading-none mt-0.5 font-medium">{thinkingEnabled ? 'On' : 'Off'}</span>
                             </div>
-                            <div className={clsx(
+                            <div className={cn(
                               'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
                               thinkingEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
                             )}>
@@ -934,7 +934,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           </button>
                           <button
                             onClick={() => setAdvisorEnabled(!advisorEnabled)}
-                            className={clsx(
+                            className={cn(
                               'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
                               advisorEnabled && 'text-bone-100'
                             )}
@@ -944,7 +944,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               <span className="font-bold">Advisor</span>
                               <span className="text-[10px] opacity-30 leading-none mt-0.5 font-medium">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
                             </div>
-                            <div className={clsx(
+                            <div className={cn(
                               'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
                               advisorEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
                             )}>
@@ -1007,7 +1007,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
-                            className={clsx(
+                            className={cn(
                               "h-full duration-1000",
                               (displayedTokens / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-white/40" : "bg-[var(--brand-blue)]"
                             )}
@@ -1054,7 +1054,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                                 setIsCompacting(false);
                               }}
                               disabled={!canCompact}
-                              className={clsx(
+                              className={cn(
                                 "w-full py-1.5 rounded-[8px] text-[10px] font-bold tracking-tight pointer-events-auto flex items-center justify-center gap-2",
                                 canCompact
                                   ? "bg-white/10 text-bone-100 hover:bg-white/20 active:scale-[0.98]"
@@ -1095,15 +1095,15 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     onMouseUp={() => stopRecording()}
                     onMouseLeave={() => { if (isRecording) stopRecording(); }}
                     onContextMenu={handleMicContextMenu}
-                    className={clsx(
+                    className={cn(
                       "w-7 h-7 rounded-[8px] flex items-center justify-center relative shrink-0  group/mic",
                       isRecording
                         ? "bg-red-500 text-white scale-110"
-                        : clsx("text-bone-70 hover:text-foreground hover:bg-white/5", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
+                        : cn("text-bone-70 hover:text-foreground hover:bg-white/5", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
                     )}
                     title="Hold to record (Max 60s) — Right-click for settings"
                   >
-                    <Mic strokeWidth={2} className={clsx("w-3.5 h-3.5", isRecording && "animate-pulse")} />
+                    <Mic strokeWidth={2} className={cn("w-3.5 h-3.5", isRecording && "animate-pulse")} />
                     {isRecording && (
                       <div className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-ping" />
                     )}
@@ -1133,14 +1133,14 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       key={cmd.id}
                       onClick={() => handleCommandSelect(cmd)}
                       onMouseEnter={() => setActiveCommandIndex(i)}
-                      className={clsx(
+                      className={cn(
                         "w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-left group transition-none",
                         i === activeCommandIndex
                           ? "bg-white/[0.08] text-[var(--bone-100)]"
                           : "text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-[var(--bone-100)]"
                       )}
                     >
-                      <div className={clsx(
+                      <div className={cn(
                         "w-4 h-4 flex items-center justify-center shrink-0 opacity-60 group-hover:opacity-100",
                         i === activeCommandIndex ? "text-bone-100 opacity-100" : "text-bone-70"
                       )}>

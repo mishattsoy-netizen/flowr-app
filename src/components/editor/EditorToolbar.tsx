@@ -9,7 +9,7 @@ import {
   Heading1, Heading2, FileText, Code,
   Maximize2, Minimize2
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { BlockStyle, BlockType } from '@/data/store';
 import { Tooltip } from '../layout/Tooltip';
 import { useStore } from '@/data/store';
@@ -318,7 +318,7 @@ export function EditorToolbar({
         bottom: !toolbarPosition ? '40px' : 'auto',
         transform: !toolbarPosition ? 'translateX(-50%)' : 'none',
       } : {}}
-      className={clsx(
+      className={cn(
         "z-[2000] flex items-center gap-0.5 bg-sidebar/90 border border-border/70 backdrop-blur-md select-none",
         isFloating ? "fixed cursor-grab rounded-[var(--radius-medium)] px-2 py-1.5" : "relative mb-8 mx-auto w-full rounded-[var(--radius-medium)] px-4 py-2",
         !isFloating && "w-full rounded-[var(--radius-medium)] px-4 py-2",
@@ -371,7 +371,7 @@ export function EditorToolbar({
           <button
             onClick={() => !(activeBlockType && ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(activeBlockType)) && setShowStyleDropdown(!showStyleDropdown)}
             disabled={!!(activeBlockType && ['bulletList', 'dashedList', 'numberedList', 'checklist'].includes(activeBlockType))}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)] !w-auto px-2.5 gap-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed", showStyleDropdown && "toolbar-btn-active")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)] !w-auto px-2.5 gap-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed", showStyleDropdown && "toolbar-btn-active")}
           >
             <Type strokeWidth={2} className="w-3.5 h-3.5" />
             <div
@@ -394,7 +394,7 @@ export function EditorToolbar({
               <button
                 key={s.value}
                 onClick={() => { onChangeBlockStyle(s.value); setShowStyleDropdown(false); }}
-                className={clsx(
+                className={cn(
                   "popup-item",
                   activeBlockStyle === s.value && "bg-hover text-foreground"
                 )}
@@ -414,7 +414,7 @@ export function EditorToolbar({
       <Tooltip content="Bold">
         <button
           onMouseDown={(e) => { e.preventDefault(); execCmd('bold'); }}
-          className={clsx("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('bold') && "toolbar-btn-active")}
+          className={cn("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('bold') && "toolbar-btn-active")}
         >
           <Bold strokeWidth={2} className="w-3.5 h-3.5" />
         </button>
@@ -422,7 +422,7 @@ export function EditorToolbar({
       <Tooltip content="Italic">
         <button
           onMouseDown={(e) => { e.preventDefault(); execCmd('italic'); }}
-          className={clsx("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('italic') && "toolbar-btn-active")}
+          className={cn("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('italic') && "toolbar-btn-active")}
         >
           <Italic strokeWidth={2} className="w-3.5 h-3.5" />
         </button>
@@ -430,7 +430,7 @@ export function EditorToolbar({
       <Tooltip content="Underline">
         <button
           onMouseDown={(e) => { e.preventDefault(); execCmd('underline'); }}
-          className={clsx("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('underline') && "toolbar-btn-active")}
+          className={cn("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('underline') && "toolbar-btn-active")}
         >
           <Underline strokeWidth={2} className="w-3.5 h-3.5" />
         </button>
@@ -438,7 +438,7 @@ export function EditorToolbar({
       <Tooltip content="Strikethrough">
         <button
           onMouseDown={(e) => { e.preventDefault(); execCmd('strikethrough'); }}
-          className={clsx("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('strikethrough') && "toolbar-btn-active")}
+          className={cn("toolbar-btn rounded-[var(--radius-medium)]", activeFmt.has('strikethrough') && "toolbar-btn-active")}
         >
           <Strikethrough strokeWidth={2} className="w-3.5 h-3.5" />
         </button>
@@ -451,7 +451,7 @@ export function EditorToolbar({
         <Tooltip content="Link (Ctrl+K)">
           <button
             onClick={handleLinkBtnClick}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)]", showLinkPopover && "toolbar-btn-active")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)]", showLinkPopover && "toolbar-btn-active")}
           >
             <Link strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -493,7 +493,7 @@ export function EditorToolbar({
         <Tooltip content="Highlight">
           <button
             onClick={() => setShowHighlightPicker(!showHighlightPicker)}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)]", showHighlightPicker && "toolbar-btn-active")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)]", showHighlightPicker && "toolbar-btn-active")}
           >
             <Highlighter strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -561,7 +561,7 @@ export function EditorToolbar({
           <button
             onClick={() => onChangeAlign('left')}
             data-active={activeAlign === 'left'}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'left' && "!bg-transparent text-accent")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'left' && "!bg-transparent text-accent")}
           >
             <AlignLeft strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -570,7 +570,7 @@ export function EditorToolbar({
           <button
             onClick={() => onChangeAlign('center')}
             data-active={activeAlign === 'center'}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'center' && "!bg-transparent text-accent")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'center' && "!bg-transparent text-accent")}
           >
             <AlignCenter strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -579,7 +579,7 @@ export function EditorToolbar({
           <button
             onClick={() => onChangeAlign('right')}
             data-active={activeAlign === 'right'}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'right' && "!bg-transparent text-accent")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'right' && "!bg-transparent text-accent")}
           >
             <AlignRight strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -588,7 +588,7 @@ export function EditorToolbar({
           <button
             onClick={() => onChangeAlign('justify')}
             data-active={activeAlign === 'justify'}
-            className={clsx("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'justify' && "!bg-transparent text-accent")}
+            className={cn("toolbar-btn rounded-[var(--radius-medium)] relative z-10", activeAlign === 'justify' && "!bg-transparent text-accent")}
           >
             <AlignJustify strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
@@ -600,7 +600,7 @@ export function EditorToolbar({
       <Tooltip content={isFullWidth ? "Collapse Layout" : "Expand Layout"}>
         <button
           onClick={toggleFullWidth}
-          className={clsx("toolbar-btn rounded-[var(--radius-medium)]", isFullWidth && "text-accent")}
+          className={cn("toolbar-btn rounded-[var(--radius-medium)]", isFullWidth && "text-accent")}
         >
           {isFullWidth ? <Minimize2 strokeWidth={2} className="w-3.5 h-3.5" /> : <Maximize2 strokeWidth={2} className="w-3.5 h-3.5" />}
         </button>

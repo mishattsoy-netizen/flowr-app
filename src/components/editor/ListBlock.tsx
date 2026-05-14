@@ -2,7 +2,7 @@
 
 import React, { useRef, useCallback, useEffect } from 'react';
 import { Check } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { EditorBlock, BlockType, generateId } from '@/data/store';
 import { formatCounter } from '@/lib/editor/markdownBlocks';
 
@@ -151,7 +151,7 @@ function RowEl({
         ref={elRef}
         contentEditable
         suppressContentEditableWarning
-        className={clsx(
+        className={cn(
           "flex-1 outline-none min-h-[1.5em] leading-[1.6] text-[16px] font-normal font-display tracking-[-0.02em]",
           row.checked ? "text-[var(--bone-30)]" : "text-bone-100",
         )}

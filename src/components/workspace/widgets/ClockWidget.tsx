@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { WidgetProps } from './types';
 
 type ClockStyle = 'simple' | 'datetime' | 'analog';
@@ -69,7 +69,7 @@ export function ClockWidget({ data, onUpdateData, isEditing }: ClockWidgetProps)
               <button
                 key={s.key}
                 onClick={() => onUpdateData({ ...data, style: s.key })}
-                className={clsx(
+                className={cn(
                   'px-2.5 py-0.5 text-[10px] font-semibold rounded-[4px] transition-colors',
                   style === s.key
                     ? 'bg-[var(--bone-15)] text-[var(--bone-100)]'

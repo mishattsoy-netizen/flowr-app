@@ -4,7 +4,7 @@ import { Entity, useStore, EntityType } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
 import { LayoutGrid, Search, Folder, MoreHorizontal, FileText, Frame, Layers, X, ChevronDown, Pencil, Plus } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { IconPicker } from '@/components/layout/IconPicker';
 import { Tooltip } from '@/components/layout/Tooltip';
 
@@ -252,7 +252,7 @@ export function FolderView({ entity }: FolderViewProps) {
                         setItemTempTitle(folder.title);
                         setEditingEntityId(folder.id, 'view');
                       }}
-                      className={clsx(
+                      className={cn(
                         "group relative flex items-center gap-3 px-4 py-3 rounded-[var(--radius-medium)] border ",
                         (editingEntity?.id === folder.id && editingEntity.source === 'view') 
                           ? "border-accent bg-accent/5" 
@@ -284,7 +284,7 @@ export function FolderView({ entity }: FolderViewProps) {
                         <Tooltip content="Options">
                           <button
                             onClick={(e) => handleOptionsClick(e, folder.id)}
-                            className={clsx(
+                            className={cn(
                               "absolute right-3 w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
                               contextMenu?.entityId === folder.id 
                                 ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]" 
@@ -315,7 +315,7 @@ export function FolderView({ entity }: FolderViewProps) {
                         setItemTempTitle(file.title);
                         setEditingEntityId(file.id, 'view');
                       }}
-                      className={clsx(
+                      className={cn(
                         "group flex items-center justify-between px-4 py-2 rounded-[var(--radius-medium)] ",
                         (editingEntity?.id === file.id && editingEntity.source === 'view') 
                           ? "bg-accent/5 text-[var(--bone-100)]" 
@@ -348,7 +348,7 @@ export function FolderView({ entity }: FolderViewProps) {
 
                         <button
                           onClick={(e) => handleOptionsClick(e, file.id)}
-                          className={clsx(
+                          className={cn(
                             "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
                             contextMenu?.entityId === file.id
                               ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]"

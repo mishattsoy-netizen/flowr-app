@@ -4,7 +4,7 @@ import { AppTask, useStore } from '@/data/store';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Calendar } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import React from 'react';
 
 interface TaskCardUIProps {
@@ -47,7 +47,7 @@ export function TaskCardUI({
           onClick();
         }
       }}
-      className={clsx(
+      className={cn(
         "group relative bg-[var(--bone-2)] border border-[var(--bone-6)] p-3 rounded-[12px] cursor-pointer active:cursor-grabbing shrink-0",
         "touch-none select-none",
         !isDragging && "hover:bg-[var(--bone-6)] transition-colors duration-150",
@@ -68,7 +68,7 @@ export function TaskCardUI({
       </div>
 
       {/* Title */}
-      <h3 className={clsx(
+      <h3 className={cn(
         "text-sm font-medium leading-snug break-words",
         task.completed ? "text-[var(--bone-40)] line-through" : "text-[var(--bone-100)]"
       )}>
@@ -87,13 +87,13 @@ export function TaskCardUI({
         <div className="flex flex-col gap-1.5 mt-1">
           {task.subtasks.slice(0, 3).map(sub => (
             <div key={sub.id} className="flex items-center gap-2 text-[10px] text-[var(--bone-70)]">
-              <div className={clsx(
+              <div className={cn(
                 "w-2.5 h-2.5 rounded-full border flex items-center justify-center flex-shrink-0",
                 sub.completed ? "bg-[var(--accent)] border-[var(--accent)]" : "border-[var(--bone-30)]"
               )}>
                 {sub.completed && <div className="w-1 h-1 rounded-full bg-white" />}
               </div>
-              <span className={clsx(sub.completed && "line-through text-[var(--bone-40)]")}>{sub.text}</span>
+              <span className={cn(sub.completed && "line-through text-[var(--bone-40)]")}>{sub.text}</span>
             </div>
           ))}
           {task.subtasks.length > 3 && (
@@ -106,8 +106,8 @@ export function TaskCardUI({
       <div className="flex items-center justify-between mt-auto pt-1">
         {task.dueDate ? (
           <div className="flex items-center gap-1.5">
-            <Calendar className={clsx("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
-            <span className={clsx(
+            <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
+            <span className={cn(
               "text-[10px] font-ui",
               isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-40)]"
             )}>
@@ -117,7 +117,7 @@ export function TaskCardUI({
         ) : <div />}
 
         {task.priority && (
-          <div className={clsx(
+          <div className={cn(
             "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider",
             task.priority === 'high' ? "bg-red-500/10 text-red-400 border border-red-500/20" :
             task.priority === 'medium' ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :

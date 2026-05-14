@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { X, Plus, Pencil } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Entity, EditorBlock, BlockType, BlockStyle, generateId, useStore } from '@/data/store';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
@@ -233,7 +233,7 @@ function TagItem({
     <div className="relative flex items-center group">
       <div
         onClick={() => onEdit(index)}
-        className={clsx(
+        className={cn(
           "px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer flex items-center gap-1 transition-all border",
           isEditing
             ? "ring-1 ring-accent bg-background text-foreground border-accent"
@@ -282,7 +282,7 @@ function TagItem({
                 onUpdate(tag, s);
                 onEdit(-1);
               }}
-              className={clsx(
+              className={cn(
                 "popup-item border-none w-full text-left px-3 py-1.5 text-xs ",
                 selectedIndex === idx ? "bg-accent text-accent-foreground" : "hover:bg-hover"
               )}
@@ -1152,7 +1152,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         className="flex-1 overflow-y-auto custom-scrollbar note-editor-bg"
       >
         <div 
-            className={clsx(
+            className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
               isFullWidth ? "w-full px-8" : "max-w-[850px] px-4",
               isDragging && "dragging-active-content"

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/data/store';
 
 // Stub for knowledge search logic (previously in deleted mode directory)

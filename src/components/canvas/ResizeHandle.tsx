@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -37,7 +37,7 @@ export function ResizeHandle({ position, onResizeStart, isSelected }: ResizeHand
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "absolute z-[200] ",
         "w-2.5 h-2.5 bg-background border-2 border-brand-blue rounded-full ",
         isSelected ? "opacity-100 scale-100" : "opacity-0 scale-50",

@@ -6,7 +6,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, List,
   Heading1, Heading2, Heading3
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface CanvasTextToolbarProps {
   blockRect: { x: number; y: number; width: number };
@@ -78,7 +78,7 @@ export function CanvasTextToolbar({ blockRect, viewport, onClose }: CanvasTextTo
           key={tool.action}
           onClick={() => exec(tool.action)}
           title={tool.label}
-          className={clsx(
+          className={cn(
             "flex items-center justify-center w-7 h-7 rounded-[var(--radius-small)] ",
             "text-muted-foreground hover:text-foreground hover:bg-[var(--black-overlay)]"
           )}

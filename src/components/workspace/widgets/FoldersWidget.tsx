@@ -4,7 +4,7 @@ import { Entity, useStore } from '@/data/store';
 import { Folder, MoreHorizontal } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Tooltip } from '@/components/layout/Tooltip';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { WidgetPropsWithEntity } from './types';
 
 export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWithEntity) {
@@ -43,7 +43,7 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
                     setTempTitle(folder.title);
                     setEditingEntityId(folder.id, 'sidebar');
                   }}
-                  className={clsx(
+                  className={cn(
                     "group/item flex items-center gap-2.5 px-3 py-1.5 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-200",
                     activeEntityId === folder.id ? "bg-[var(--bone-6)] text-[var(--bone-100)]" : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
                   )}
@@ -85,7 +85,7 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                           openContextMenu(folder.id, rect.right + 4, rect.top, 'sidebar');
                         }}
-                        className={clsx(
+                        className={cn(
                           "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
                           contextMenu?.entityId === folder.id
                             ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--bone-15)]"

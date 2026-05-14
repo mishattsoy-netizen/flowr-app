@@ -6,7 +6,7 @@ import {
   MoveUpRight, Minus, Pencil, Type, Image, MessageSquarePlus,
   Frame, Layers, Download, Share2, Undo2, Redo2
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export type CanvasTool =
   | 'select' | 'move'
@@ -65,7 +65,7 @@ function ToolGroup({ tools, activeTool, setActiveTool }: {
           key={t.id}
           title={`${t.label} (${t.shortcut})`}
           onClick={() => setActiveTool(t.id)}
-          className={clsx(
+          className={cn(
             "w-7 h-[26px] rounded-[5px] flex items-center justify-center transition-all duration-100",
             activeTool === t.id
               ? "bg-[rgba(233,233,226,0.15)] text-[var(--bone-100)]"
@@ -90,7 +90,7 @@ function TbBtn({ onClick, active, title, children }: {
     <button
       title={title}
       onClick={onClick}
-      className={clsx(
+      className={cn(
         "w-7 h-7 rounded-[6px] flex items-center justify-center transition-all duration-100",
         active
           ? "text-[var(--bone-100)]"

@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core';
 import { TaskCard } from './TaskCard';
 import { useMemo } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface KanbanColumnProps {
   id: string;
@@ -23,7 +23,7 @@ export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "flex flex-col w-[300px] shrink-0 h-full rounded-[var(--radius-big)] p-4 border transition-colors duration-150",
         isOver
           ? "bg-[var(--color-panel)] border-[var(--bone-15)]"

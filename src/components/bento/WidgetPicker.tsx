@@ -1,6 +1,6 @@
 'use client';
 
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { widgetRegistry, WidgetRegistryEntry } from './registry';
 import { useMemo } from 'react';
 import type { BentoLayoutItem } from './types';
@@ -35,7 +35,7 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId, l
 
   return (
     <div
-      className={clsx(
+      className={cn(
         'h-full bg-sidebar transition-[width] duration-300 overflow-hidden shrink-0',
         open ? 'w-[280px] border-l border-border' : 'w-0'
       )}
@@ -73,7 +73,7 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId, l
                         }}
                         onDragEnd={onDragEnd}
                         onClick={() => !isAdded && onAdd(type)}
-                        className={clsx(
+                        className={cn(
                            "group w-full text-left p-3 rounded-[8px] border border-border/40 bg-[var(--bone-2)] transition-all select-none",
                           isAdded 
                             ? "opacity-50 cursor-not-allowed bg-muted/30 grayscale-[0.5]" 
@@ -81,7 +81,7 @@ export function WidgetPicker({ open, onAdd, onDragStart, onDragEnd, contextId, l
                         )}
                       >
                         <div className="flex justify-between items-start mb-1">
-                          <p className={clsx(
+                          <p className={cn(
                             "text-sm font-semibold",
                             isAdded ? "text-muted-foreground" : "text-foreground group-hover:text-accent"
                           )}>

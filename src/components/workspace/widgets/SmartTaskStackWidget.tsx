@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X } from 'lucide-react';
 import { stripHtml } from '@/lib/utils';
 import type { WidgetProps } from './types';
@@ -138,7 +138,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
               <div key={tab.id} className="relative z-10 w-20 flex items-center justify-center group/tab">
                 <button
                   onClick={() => handleTabSwitch(tab.id)}
-                  className={clsx(
+                  className={cn(
                     "w-full flex items-center justify-center py-1 px-1 transition-colors duration-200",
                     activeId === tab.id ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
                   )}
@@ -177,7 +177,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
                         onClick={e => { e.stopPropagation(); showTab(tab.id); }}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--bone-6)] transition-colors"
                       >
-                        <tab.icon strokeWidth={2} className={clsx("w-3 h-3", tab.color)} />
+                        <tab.icon strokeWidth={2} className={cn("w-3 h-3", tab.color)} />
                         {tab.label}
                       </button>
                     ))}
@@ -194,7 +194,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing }: SmartTas
         <div className="flex items-center gap-1.5 shrink-0">
           {displayTasks.length > 0 && (
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--bone-6)] border border-[var(--bone-3)]">
-              <div className={clsx("w-1 h-1 rounded-full animate-pulse", activeTabDef.color.replace('text-', 'bg-'))} />
+              <div className={cn("w-1 h-1 rounded-full animate-pulse", activeTabDef.color.replace('text-', 'bg-'))} />
               <span className="text-[10px] text-[var(--bone-40)] font-semibold uppercase tracking-wider">
                 {displayTasks.length}
               </span>

@@ -2,7 +2,7 @@
 
 import { memo, useState, useRef } from 'react';
 import { Play, Pause, Trash2 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }: { url: string; name?: string; isPending?: boolean; onRemove?: () => void }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -29,7 +29,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
   };
 
   return (
-    <div className={clsx(
+    <div className={cn(
       "flex items-center gap-3 px-3 py-2 bg-[var(--bone-6)] rounded-[var(--radius-small)] min-w-[220px] max-w-full",
       isPending && "bg-transparent! border-none! py-0!"
     )}>
@@ -55,7 +55,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
           return (
             <div
               key={i}
-              className={clsx(
+              className={cn(
                 "w-0.5 rounded-full transition-all duration-300",
                 isActive ? "bg-bone-100" : "bg-white/10"
               )}

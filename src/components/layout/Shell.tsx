@@ -19,7 +19,7 @@ import { AIAssistant } from '../assistant/AIAssistant';
 import { CommandPalette } from './CommandPalette';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { SmoothScroll } from './SmoothScroll';
 
 export function Shell({ children, initialEntityId }: { children: React.ReactNode, initialEntityId?: string }) {
@@ -213,7 +213,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
   return (
     <div
-      className={clsx(
+      className={cn(
         shellClass,
         "shell-container",
         !allowTransitions && "preload",
@@ -228,7 +228,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       <SmoothScroll />
       {/* 1. Left Sidebar Section */}
       <div
-        className={clsx(
+        className={cn(
           "h-full min-h-0 shrink-0 flex flex-row relative",
           !currentSidebarCollapsed && "border-r border-[var(--bone-15)]",
           currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
@@ -256,12 +256,12 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               document.body.style.cursor = 'col-resize';
               document.body.style.userSelect = 'none';
             }}
-            className={clsx(
+            className={cn(
               "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors duration-200 group",
               isResizingLeft ? "bg-[var(--bone-15)]" : ""
             )}
           >
-            <div className={clsx(
+            <div className={cn(
               "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
               isResizingLeft ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
             )} />
@@ -288,7 +288,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               document.body.style.cursor = 'col-resize';
               document.body.style.userSelect = 'none';
             }}
-            className={clsx(
+            className={cn(
               "w-2 h-full cursor-col-resize absolute left-0 z-50 transition-colors duration-200 group",
               isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
             )}
@@ -297,7 +297,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               pointerEvents: 'auto'
             }}
           >
-            <div className={clsx(
+            <div className={cn(
               "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
               isResizingRight ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
             )} />
@@ -306,7 +306,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
         {/* Right AI Sidebar Wrapper */}
         <div
-          className={clsx(
+          className={cn(
             "h-full bg-sidebar shrink-0 overflow-hidden relative z-40 transition-colors duration-200",
             (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-12)]"
           )}

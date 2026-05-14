@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { useState, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { ICON_MAP, type IconName } from '../../data/icons';
 
@@ -107,7 +107,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
   return (
     <div
       ref={ref}
-      className={clsx(
+      className={cn(
         "fixed z-[400] popup-glass-big p-4 w-[320px] max-h-[400px] flex flex-col ",
         !ready && "invisible"
       )}
@@ -149,7 +149,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
                   <Tooltip key={iconName} content={iconName}>
                     <button
                       onClick={() => handleSelect(iconName)}
-                      className={clsx(
+                      className={cn(
                         "w-10 h-10 rounded-[var(--radius-small)]  flex items-center justify-center",
                         currentIcon === iconName
                           ? "bg-[var(--bone-15)] text-[var(--bone-100)] ring-1 ring-inset ring-[var(--bone-30)]"
@@ -179,7 +179,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
                       <Tooltip key={iconName} content={iconName}>
                         <button
                           onClick={() => handleSelect(iconName)}
-                          className={clsx(
+                          className={cn(
                             "w-8 h-8 rounded-[var(--radius-small)]  flex items-center justify-center",
                             currentIcon === iconName
                               ? "bg-[var(--bone-15)] text-[var(--bone-100)] ring-1 ring-inset ring-[var(--bone-30)]"

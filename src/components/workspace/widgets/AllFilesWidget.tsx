@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { Search, List, GitBranch } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { stripHtml } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
@@ -64,7 +64,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
               <option value="name">Name</option>
             </select>
             <button onClick={() => onUpdateData({ ...data, view: view === 'flat' ? 'tree' : 'flat' })}
-              className={clsx("w-6 h-6 flex items-center justify-center rounded-[4px] transition-colors",
+              className={cn("w-6 h-6 flex items-center justify-center rounded-[4px] transition-colors",
                 view === 'tree' ? "bg-[var(--bone-15)] text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]")}>
               {view === 'tree' ? <GitBranch strokeWidth={2} className="w-3.5 h-3.5" /> : <List strokeWidth={2} className="w-3.5 h-3.5" />}
             </button>

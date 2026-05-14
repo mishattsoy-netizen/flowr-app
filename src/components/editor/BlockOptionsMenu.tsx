@@ -9,7 +9,7 @@ import {
   FileInput, Table, Kanban, GalleryHorizontalEnd, ListFilter,
   ChevronRight, ChevronLeft, Search, Plus, ImageIcon, Video, ClipboardPaste
 , Check} from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/data/store';
 import { Toggle } from '@/components/ui/Toggle';
 import type { EditorBlock, BlockType, DatabaseViewType } from '@/data/store';
@@ -207,12 +207,12 @@ export function BlockOptionsMenu({
         className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] p-1.5 gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
-        <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
+        <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
           <span className="flex items-center gap-3"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
           <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
         </button>
         {!['database', 'table', 'image', 'video', 'embed'].includes(block.type) && !(block.type === 'text' && block.style === 'mono') && (
-          <button className={clsx(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
+          <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
             <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
             <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
           </button>
@@ -220,7 +220,7 @@ export function BlockOptionsMenu({
         {['title', 'heading', 'subheading'].includes(block.style || '') && (
           <>
             <button 
-              className={clsx(btnCls, "justify-between")}
+              className={cn(btnCls, "justify-between")}
               onClick={() => {
                 const newEnabled = !block.foldingEnabled;
                 onUpdate(block.id, { 
@@ -281,7 +281,7 @@ export function BlockOptionsMenu({
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button
-          className={clsx(btnCls, "mr-1.5")}
+          className={cn(btnCls, "mr-1.5")}
           onClick={() => setSubMenu(null)}
         >
           <ChevronLeft strokeWidth={2} className="w-3.5 h-3.5" /> Turn into
@@ -312,7 +312,7 @@ export function BlockOptionsMenu({
                   return (
                     <button
                       key={item.id}
-                      className={clsx(
+                      className={cn(
                         "popup-item border-none",
                         isSelected && "bg-hover text-foreground"
                       )}
@@ -365,7 +365,7 @@ export function BlockOptionsMenu({
                 onClick={() => {
                   onUpdate(block.id, { textColor: c.hex ?? undefined });
                 }}
-                className={clsx(
+                className={cn(
                   "w-5 h-5 rounded-[var(--radius-small)] ",
                   isActive ? "border-foreground" : "border-transparent"
                 )}
@@ -403,7 +403,7 @@ export function BlockOptionsMenu({
                 onClick={() => {
                   onUpdate(block.id, { bgColor: c.hex ?? undefined });
                 }}
-                className={clsx(
+                className={cn(
                   "w-5 h-5 rounded-[var(--radius-small)] ",
                   isActive ? "border-foreground" : "border-transparent"
                 )}

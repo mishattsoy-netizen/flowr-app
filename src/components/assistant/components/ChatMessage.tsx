@@ -12,7 +12,7 @@ import { AIAvatar } from './AIAvatar';
 import { StatusTyping } from './StatusTyping';
 import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseMarkdownToBlocks } from '@/lib/editor/markdownBlocks';
@@ -62,7 +62,7 @@ const renderContentWithStyles = (content: any): any => {
         result.push(
           <span
             key={i}
-            className={clsx(
+            className={cn(
               "inline-flex items-center justify-center mx-0.5 font-bold scale-110 transform transition-all align-baseline",
               isMono ? "font-mono" : "font-sans",
               activeColor
@@ -113,7 +113,7 @@ const renderContentWithStyles = (content: any): any => {
           result.push(
             <span
               key={i}
-              className={clsx(stack)}
+              className={cn(stack)}
               style={isMono ? { fontFamily: 'DM Mono' } : undefined}
             >
               {part}
@@ -254,7 +254,7 @@ const ApplyNoteCard = ({ content }: { content: string }) => {
           </div>
           <button
             onClick={handleApply}
-            className={clsx(
+            className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-bold uppercase transition-all duration-300",
               applied
                 ? "bg-emerald-500 text-white scale-[1.02]"
@@ -364,7 +364,7 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
           </div>
           <button
             onClick={handleApply}
-            className={clsx(
+            className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-bold uppercase transition-all duration-300",
               applied
                 ? "bg-bone-100 text-black scale-[1.02]"
@@ -847,7 +847,7 @@ export const ChatMessage = memo(({
         const isTaskList = typeof ulClassName === 'string' && ulClassName.includes('contains-task-list');
         return (
           <ListTypeContext.Provider value="ul">
-            <ul className={clsx("list-none space-y-[0.4rem] mb-4 last:mb-0", isTaskList ? "pl-0" : "pl-0")}>
+            <ul className={cn("list-none space-y-[0.4rem] mb-4 last:mb-0", isTaskList ? "pl-0" : "pl-0")}>
               {children}
             </ul>
           </ListTypeContext.Provider>
@@ -930,7 +930,7 @@ export const ChatMessage = memo(({
         const listType = useContext(ListTypeContext);
 
         return (
-          <li className={clsx(
+          <li className={cn(
             "flex items-start group/li gap-1.5",
             listType === 'ol' ? "[counter-increment:list-counter]" : "",
             "list-none"
@@ -938,7 +938,7 @@ export const ChatMessage = memo(({
             <div className="shrink-0 w-5 flex justify-end items-start select-none" aria-hidden="true">
               {isChecklist ? (
                 <span className="mt-[7px] flex items-center justify-center" onClick={handleToggle}>
-                  <span className={clsx(
+                  <span className={cn(
                     "w-[16px] h-[16px] rounded-[4px] border-[1.5px] flex items-center justify-center transition-all cursor-pointer",
                     isChecked
                       ? "bg-white/20 border-white/40"
@@ -990,7 +990,7 @@ export const ChatMessage = memo(({
 
         if (inline || inTable) {
           return (
-            <code className={clsx("bg-[var(--bone-6)] rounded px-1.5 py-0.5 text-[12px] font-mono tracking-[0] font-medium", inTable && "inline-flex px-1 py-0 leading-tight")} style={{ fontFamily: 'DM Mono' }} {...props}>
+            <code className={cn("bg-[var(--bone-6)] rounded px-1.5 py-0.5 text-[12px] font-mono tracking-[0] font-medium", inTable && "inline-flex px-1 py-0 leading-tight")} style={{ fontFamily: 'DM Mono' }} {...props}>
               {children}{atEnd && <span className="ai-cursor-inline">█</span>}
             </code>
           );
@@ -1004,13 +1004,13 @@ export const ChatMessage = memo(({
         const isSingleRow = !contentStr.includes('\n');
 
         return (
-          <div className={clsx(
+          <div className={cn(
             "my-3 w-full rounded-3xl overflow-hidden border border-[var(--bone-12)] bg-[var(--color-dark)] group/code relative",
             inList && "ml-[-12px] !w-[calc(100%+12px)]"
           )}>
             <button
               onClick={() => navigator.clipboard.writeText(contentStr)}
-              className={clsx(
+              className={cn(
                 "absolute right-3 px-2 py-1.5 rounded-md bg-white/[0.05] text-white/40 hover:bg-white/[0.1] hover:text-white border border-[var(--bone-12)] transition-all opacity-0 group-hover/code:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5",
                 isSingleRow ? "top-1/2 -translate-y-1/2" : "top-2.5"
               )}
@@ -1020,7 +1020,7 @@ export const ChatMessage = memo(({
 
             <pre className="px-4 py-3 overflow-x-auto m-0 bg-transparent">
 
-              <code className={clsx("text-[14px] leading-relaxed font-mono text-[var(--bone-100)]", isMono ? "font-mono" : "font-sans")} style={isMono ? { fontFamily: 'DM Mono' } : undefined} {...props}>
+              <code className={cn("text-[14px] leading-relaxed font-mono text-[var(--bone-100)]", isMono ? "font-mono" : "font-sans")} style={isMono ? { fontFamily: 'DM Mono' } : undefined} {...props}>
                 {children}{atEnd && <span className="ai-cursor-inline">█</span>}
               </code>
             </pre>
@@ -1049,7 +1049,7 @@ export const ChatMessage = memo(({
         const inList = !!useContext(InListContext);
         return (
           <InTableContext.Provider value={true}>
-            <div className={clsx(
+            <div className={cn(
               "overflow-x-auto my-3 border border-[var(--bone-12)] rounded-2xl w-full bg-[var(--color-dark)]",
               inList && "ml-[-12px] !w-[calc(100%+12px)]"
             )}>
@@ -1066,7 +1066,7 @@ export const ChatMessage = memo(({
       tbody: ({ children }: any) => <tbody className="divide-y divide-[var(--bone-6)]">{children}</tbody>,
       tr: ({ children }: any) => {
         const inHeader = React.useContext(InHeaderContext);
-        return <tr className={clsx("transition-colors", !inHeader && "hover:bg-[var(--bone-2)]")}>{children}</tr>;
+        return <tr className={cn("transition-colors", !inHeader && "hover:bg-[var(--bone-2)]")}>{children}</tr>;
       },
       th: ({ children }: any) => <th className="px-3 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-bone-100 font-sans">{children}</th>,
       td: ({ children }: any) => (
@@ -1139,15 +1139,15 @@ export const ChatMessage = memo(({
   }
 
   return (
-    <div className={clsx(
+    <div className={cn(
       "flex flex-col group",
       msg.role === 'user' ? "items-end mb-4" : "items-start mb-0"
     )}>
-      <div className={clsx(
+      <div className={cn(
         "flex gap-3 w-full items-start",
         msg.role === 'user' ? "flex-row-reverse" : "flex-row"
       )}>
-        <div className={clsx(
+        <div className={cn(
           "flex flex-col min-w-0",
           msg.role === 'user' ? "items-end max-w-[90%]" : "items-start max-w-full flex-1"
         )}>
@@ -1247,16 +1247,16 @@ export const ChatMessage = memo(({
                       <div className="mb-3">
                         <button
                           onClick={() => setShowThinking(!showThinking)}
-                          className={clsx(
+                          className={cn(
                             "flex items-center gap-2 px-3 py-1.5 rounded-[12px] transition-all border border-white/5",
                             showThinking
                               ? "bg-white/10 text-bone-100 border-white/10"
                               : "bg-[var(--bone-5)] hover:bg-[var(--bone-10)] text-[var(--bone-70)] hover:text-[var(--bone-90)]"
                           )}
                         >
-                          <Brain className={clsx("w-3.5 h-3.5", isAILoading && isLast ? "text-bone-100 animate-pulse" : "text-bone-70")} />
+                          <Brain className={cn("w-3.5 h-3.5", isAILoading && isLast ? "text-bone-100 animate-pulse" : "text-bone-70")} />
                           <span className="font-semibold tracking-tight">{isAILoading && isLast ? 'Thinking...' : 'Reasoning'}</span>
-                          <ChevronDown className={clsx("w-3.5 h-3.5 opacity-50 transition-transform duration-300", showThinking && "rotate-180")} />
+                          <ChevronDown className={cn("w-3.5 h-3.5 opacity-50 transition-transform duration-300", showThinking && "rotate-180")} />
                         </button>
                         {showThinking && (
                           <div className="mt-2 pl-4 ml-2 border-l border-white/10 pr-4 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1270,7 +1270,7 @@ export const ChatMessage = memo(({
                       </div>
                     )}
 
-                    <div className={clsx(
+                    <div className={cn(
                       "transition-all duration-500 min-h-[20px] flex flex-col",
                       isAILoading && isLast && !displayContent && "opacity-0"
                     )}>
@@ -1300,7 +1300,7 @@ export const ChatMessage = memo(({
                           {isAILoading && isLast && <span className="ai-cursor-inline ml-1">█</span>}
                         </div>
                       ) : (
-                        <div className={clsx(
+                        <div className={cn(
                           "prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-[14px]",
                           "prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100",
                           "prose-a:text-emerald-400 prose-a:no-underline hover:prose-a:underline",
@@ -1320,7 +1320,7 @@ export const ChatMessage = memo(({
                     </div>
 
                     {(hasFinishedTyping || msg.model) && (
-                      <div className={clsx(
+                      <div className={cn(
                         "flex flex-col gap-3 mt-1 transition-all duration-200",
                         !isLast && "opacity-0 group-hover:opacity-100"
                       )}>
@@ -1369,7 +1369,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Good response">
                                 <button
                                   onClick={() => submitFeedback('like')}
-                                  className={clsx("p-0.5 rounded-md hover:bg-[var(--bone-6)] transition-colors", feedbackState === 'like' ? "text-green-400" : "text-[var(--bone-30)] hover:text-foreground")}
+                                  className={cn("p-0.5 rounded-md hover:bg-[var(--bone-6)] transition-colors", feedbackState === 'like' ? "text-green-400" : "text-[var(--bone-30)] hover:text-foreground")}
                                 >
                                   <ThumbsUp strokeWidth={2} className="w-3 h-3" />
                                 </button>
@@ -1377,7 +1377,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Bad response">
                                 <button
                                   onClick={() => submitFeedback('dislike')}
-                                  className={clsx("p-0.5 rounded-md hover:bg-[var(--bone-6)] transition-colors", feedbackState === 'dislike' ? "text-red-400" : "text-[var(--bone-30)] hover:text-foreground")}
+                                  className={cn("p-0.5 rounded-md hover:bg-[var(--bone-6)] transition-colors", feedbackState === 'dislike' ? "text-red-400" : "text-[var(--bone-30)] hover:text-foreground")}
                                 >
                                   <ThumbsDown strokeWidth={2} className="w-3 h-3" />
                                 </button>
@@ -1408,7 +1408,7 @@ export const ChatMessage = memo(({
                                   <button
                                     onClick={() => handleCopyToNote(false)}
                                     disabled={!isNoteActive}
-                                    className={clsx(
+                                    className={cn(
                                       "h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors border-r border-white/5",
                                       !isNoteActive && "opacity-30 cursor-not-allowed"
                                     )}
@@ -1469,7 +1469,7 @@ export const ChatMessage = memo(({
                           )}
 
                           {msg.model && (
-                            <div className={clsx(
+                            <div className={cn(
                               "flex items-center px-2 py-0.5 rounded-full bg-[var(--bone-6)] opacity-40 hover:opacity-100 transition-all duration-300",
                               hasFinishedTyping ? "ml-1" : "ml-0"
                             )}>

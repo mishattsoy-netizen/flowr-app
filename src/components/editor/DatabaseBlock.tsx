@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { Plus, Table, Kanban, GalleryHorizontalEnd, ListFilter, Trash2 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { EditorBlock, DatabaseColumn, DatabaseRow, DatabaseViewType } from '@/data/store';
 import { generateId } from '@/data/store';
 
@@ -240,7 +240,7 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
       {rows.map((row, idx) => (
         <div
           key={row.id}
-          className={clsx(
+          className={cn(
             "group/row flex items-center justify-between px-4 py-3 border border-border/50 hover:bg-hover ",
             idx === 0 && "rounded-t-[1.25rem]",
             idx === rows.length - 1 ? "rounded-b-[1.25rem]" : "border-b-0"
@@ -301,7 +301,7 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
               <button
                 key={tab.type}
                 onClick={() => setViewType(tab.type)}
-                className={clsx(
+                className={cn(
                   "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1 rounded-[6px] transition-colors duration-200",
                   isActive ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
                 )}

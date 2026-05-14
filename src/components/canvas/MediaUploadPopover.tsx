@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Link2, ClipboardPaste, X } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface MediaUploadPopoverProps {
   position: { x: number; y: number };
@@ -137,7 +137,7 @@ export function MediaUploadPopover({ position, onConfirm, onClose }: MediaUpload
           <button
             onClick={handleUrlSubmit}
             disabled={!urlValue.trim()}
-            className={clsx(
+            className={cn(
               "w-full py-1.5 rounded-[var(--radius-small)] text-xs font-bold",
               urlValue.trim()
                 ? "bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20"

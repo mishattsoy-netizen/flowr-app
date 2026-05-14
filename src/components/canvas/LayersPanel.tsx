@@ -14,7 +14,7 @@ import {
   GripVertical
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface LayersPanelProps {
   canvasId: string;
@@ -90,7 +90,7 @@ export function LayersPanel({ canvasId, selectedBlockId, onSelect }: LayersPanel
         onDragStart={() => handleDragStart(block.id)}
         onDragOver={(e) => handleDragOver(e, block.id)}
         onDragEnd={handleDragEnd}
-        className={clsx(
+        className={cn(
           "group flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer",
           isSelected ? "bg-accent/10 border border-accent/20" : "hover:bg-hover",
           depth > 0 && "ml-4 border-l border-border/50",

@@ -9,7 +9,7 @@ import {
   CornerDownLeft, ArrowUp, ArrowDown, X, Plus, ListTodo, Command,
   Hash, Clock
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface CommandDef {
   id: string;
@@ -327,7 +327,7 @@ export function CommandPalette() {
 
   return (
     <div 
-      className={clsx(
+      className={cn(
         "fixed inset-0 z-[300] flex items-start justify-center pt-[15vh]",
         isClosing && "pointer-events-none"
       )} 
@@ -403,14 +403,14 @@ export function CommandPalette() {
               data-index={idx}
               onClick={item.action}
               onMouseEnter={() => setActiveIndex(idx)}
-              className={clsx(
+              className={cn(
                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-8)] text-left group",
                 activeIndex === idx
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)]"
                   : "text-[var(--bone-70)] hover:bg-[var(--bone-15)] hover:text-[var(--bone-100)]"
               )}
             >
-              <div className={clsx(
+              <div className={cn(
                 "w-6 h-6 flex items-center justify-center shrink-0",
                 activeIndex === idx ? "text-[var(--bone-100)]" : "text-[var(--bone-70)]"
               )}>

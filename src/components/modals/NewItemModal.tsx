@@ -2,7 +2,7 @@
 
 import { useStore, generateId, EntityType } from '@/data/store';
 import { FileText, Frame, Layers, Folder, X, Plus } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { PathPicker } from '../layout/PathPicker';
 
@@ -90,7 +90,7 @@ export function NewItemModal() {
                 key={t.type}
                 disabled={disabled}
                 onClick={() => setSelectedType(t.type)}
-                className={clsx(
+                className={cn(
                   "flex flex-col items-center justify-center py-2 px-1 rounded-[var(--radius-medium)] border group",
                   disabled ? "opacity-30 cursor-not-allowed bg-transparent border-transparent text-muted-foreground" :
                     selectedType === t.type
@@ -98,7 +98,7 @@ export function NewItemModal() {
                       : "border-[var(--bone-6)] bg-transparent text-muted-foreground hover:bg-accent/20 hover:border-accent/60 hover:text-foreground"
                 )}
               >
-                <div className={clsx(selectedType === t.type ? "text-accent" : "text-muted-foreground group-hover:text-accent")}>
+                <div className={cn(selectedType === t.type ? "text-accent" : "text-muted-foreground group-hover:text-accent")}>
                   {t.icon}
                 </div>
                 <span className="text-[11px]">{t.label}</span>

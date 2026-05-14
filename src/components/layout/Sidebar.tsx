@@ -7,7 +7,7 @@ import { getEntityIcon } from '@/data/icons';
 
 import { Search, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, Layers, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageSquare, Calendar, Clock, Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { Toggle } from '../ui/Toggle';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { TreeItem } from './TreeItem';
@@ -359,7 +359,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     }
   }, [entities, favoriteIds, favoriteEntities, activeWorkspaceId, toggleFavorite, reorderEntities, setSectionSortMode]);
 
-  const navItemClass = (isActive: boolean) => clsx(
+  const navItemClass = (isActive: boolean) => cn(
     "sidebar-item-row flex items-center w-full cursor-pointer select-none text-sm group",
     "px-3 py-[3px] rounded-[var(--radius-small)] ",
     isActive
@@ -370,7 +370,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const getSmallIcon = (type: EntityType, entity?: Entity, noMargin: boolean = false) => {
     const isDashboard = activeEntityId === 'dashboard';
     const isActive = activeEntityId === entity?.id && !isDashboard;
-    const cls = clsx("w-4 h-4 shrink-0 ", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]");
+    const cls = cn("w-4 h-4 shrink-0 ", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]");
 
     const renderIcon = () => {
       if ((type === 'collection' || type === 'folder' || type === 'workspace') && entity?.icon) {
@@ -400,14 +400,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       onMouseLeave={() => {
         if (!isSidebarPinned && !effectiveCollapsed) toggleSidebar();
       }}
-      className={clsx(
+      className={cn(
         "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
         activeDragId && "is-dragging"
       )}
     >
       <div
         onClick={toggleSidebar}
-        className={clsx(
+        className={cn(
           "flex items-center px-3 py-3 border-b border-[var(--bone-6)] group cursor-pointer ",
           effectiveCollapsed ? "justify-center" : "justify-between"
         )}
@@ -436,7 +436,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           )}
           {!effectiveCollapsed && (
             <div className="p-1 text-[var(--bone-70)] group-hover:text-[var(--bone-100)] shrink-0">
-              <ChevronLeft strokeWidth={2} className={clsx("w-5 h-5", effectiveCollapsed && "rotate-180")} />
+              <ChevronLeft strokeWidth={2} className={cn("w-5 h-5", effectiveCollapsed && "rotate-180")} />
             </div>
           )}
         </div>
@@ -478,7 +478,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             <Tooltip content="Dashboard">
               <button
                 onClick={() => setActiveEntityId('dashboard')}
-                className={clsx(
+                className={cn(
                   "sidebar-item-row p-2 rounded-[var(--radius-8)] w-10 h-10 flex items-center justify-center border ",
                   ((storeHydrated ? activeEntityId : inferredEntityId) === 'dashboard')
                     ? "bg-[var(--bone-6)] text-[var(--bone-100)] border-transparent"
@@ -491,7 +491,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             <Tooltip content="Tracker">
               <button
                 onClick={() => setActiveEntityId('tracker')}
-                className={clsx(
+                className={cn(
                   "sidebar-item-row p-2 rounded-[var(--radius-8)] w-10 h-10 flex items-center justify-center border ",
                   ((storeHydrated ? activeEntityId : inferredEntityId) === 'tracker')
                     ? "bg-[var(--bone-6)] text-[var(--bone-100)] border-transparent"
@@ -504,7 +504,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             <Tooltip content="Chat">
               <button
                 onClick={() => setActiveEntityId('chat')}
-                className={clsx(
+                className={cn(
                   "sidebar-item-row p-2 rounded-[var(--radius-8)] w-10 h-10 flex items-center justify-center border ",
                   ((storeHydrated ? activeEntityId : inferredEntityId) === 'chat')
                     ? "bg-[var(--bone-6)] text-[var(--bone-100)] border-transparent"
@@ -524,7 +524,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 e.preventDefault();
                 openContextMenu('dashboard', e.clientX, e.clientY, 'sidebar');
               }}
-              className={clsx(
+              className={cn(
                 "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[10px] pr-1.5 h-7 group border border-transparent ",
                 ((storeHydrated ? activeEntityId : inferredEntityId) === 'dashboard')
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-normal tracking-wide"
@@ -542,7 +542,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 e.preventDefault();
                 openContextMenu('tracker', e.clientX, e.clientY, 'sidebar');
               }}
-              className={clsx(
+              className={cn(
                 "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[10px] pr-1.5 h-7 group border border-transparent ",
                 ((storeHydrated ? activeEntityId : inferredEntityId) === 'tracker')
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-normal tracking-wide"
@@ -560,7 +560,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 e.preventDefault();
                 openContextMenu('chat', e.clientX, e.clientY, 'sidebar');
               }}
-              className={clsx(
+              className={cn(
                 "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[10px] pr-1.5 h-7 group border border-transparent ",
                 ((storeHydrated ? activeEntityId : inferredEntityId) === 'chat')
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-normal tracking-wide"
@@ -608,7 +608,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     </button>
                     <button
                       onClick={startTempChat}
-                      className={clsx(
+                      className={cn(
                         "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[10px] pr-1.5 h-7 group border border-transparent ",
                         isTempChat ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-normal" : "text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
                       )}
@@ -645,7 +645,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                           {convs.map(conv => (
                             <div
                               key={conv.id}
-                              className={clsx(
+                              className={cn(
                                 "sidebar-item-row group flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[10px] pr-1.5 h-7 border border-transparent ",
                                 activeChatId === conv.id ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-normal tracking-wide" : "text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
                               )}
@@ -674,7 +674,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                   setChatMenuPos({ x: rect.right + 4, y: rect.top });
                                   setChatMenuOpenId(chatMenuOpenId === conv.id ? null : conv.id);
                                 }}
-                                className={clsx(
+                                className={cn(
                                   "btn-sidebar-utility opacity-0 group-hover:opacity-100",
                                   chatMenuOpenId === conv.id && "!opacity-100 !bg-[var(--bone-15)] !text-[var(--bone-100)]"
                                 )}
@@ -721,7 +721,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         <div key="favorites" className="flex flex-col">
                           <div
                             onClick={() => setIsFavoritesCollapsed(!isFavoritesCollapsed)}
-                            className={clsx(
+                            className={cn(
                               "ml-0 mr-[2px] pl-[10px] pr-1.5 py-0 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] h-7",
                               contextMenu?.entityId === 'pinned'
                                 ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
@@ -739,18 +739,18 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   openContextMenu('pinned', rect.right, rect.top, 'sidebar-section');
                                 }}
-                                className={clsx(
+                                className={cn(
                                   "btn-sidebar-utility",
                                   contextMenu?.entityId === 'pinned' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                 )}
                               >
                                 <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
                               </button>
-                              <ChevronDown strokeWidth={2} className={clsx("w-3.5 h-3.5", isFavoritesCollapsed ? "-rotate-90" : "rotate-0")} />
+                              <ChevronDown strokeWidth={2} className={cn("w-3.5 h-3.5", isFavoritesCollapsed ? "-rotate-90" : "rotate-0")} />
                             </div>
                           </div>
                           <div
-                            className={clsx(
+                            className={cn(
                               "grid transition-all duration-100 ease-out",
                               !isFavoritesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                             )}
@@ -788,7 +788,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         <div key="unsorted" className="flex flex-col">
                           <div
                             onClick={() => setIsUnsortedCollapsed(!isUnsortedCollapsed)}
-                            className={clsx(
+                            className={cn(
                               "ml-0 mr-[2px] pl-[10px] pr-1.5 h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
                               contextMenu?.entityId === 'unsorted'
                                 ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
@@ -806,18 +806,18 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   openContextMenu('unsorted', rect.right, rect.top, 'sidebar-section');
                                 }}
-                                className={clsx(
+                                className={cn(
                                   "btn-sidebar-utility",
                                   contextMenu?.entityId === 'unsorted' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                 )}
                               >
                                 <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
                               </button>
-                              <ChevronDown strokeWidth={2} className={clsx("w-3.5 h-3.5", isUnsortedCollapsed ? "-rotate-90" : "rotate-0")} />
+                              <ChevronDown strokeWidth={2} className={cn("w-3.5 h-3.5", isUnsortedCollapsed ? "-rotate-90" : "rotate-0")} />
                             </div>
                           </div>
                           <div
-                            className={clsx(
+                            className={cn(
                               "grid transition-all duration-100 ease-out",
                               !isUnsortedCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                             )}
@@ -844,7 +844,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       return (
                         <div key="workspaces" className="flex flex-col">
                           <div
-                            className={clsx(
+                            className={cn(
                               "ml-0 mr-[2px] pl-[10px] pr-1.5 h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
                               contextMenu?.entityId === 'workspaces'
                                 ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
@@ -863,7 +863,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   openContextMenu('workspaces', rect.right, rect.top, 'sidebar-section');
                                 }}
-                                className={clsx(
+                                className={cn(
                                   "btn-sidebar-utility",
                                   contextMenu?.entityId === 'workspaces' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100"
                                 )}
@@ -879,11 +879,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                               >
                                 <Plus strokeWidth={2} className="w-3.5 h-3.5" />
                               </button>
-                              <ChevronDown strokeWidth={2} className={clsx("w-3.5 h-3.5", isWorkspacesCollapsed ? "-rotate-90" : "rotate-0")} />
+                              <ChevronDown strokeWidth={2} className={cn("w-3.5 h-3.5", isWorkspacesCollapsed ? "-rotate-90" : "rotate-0")} />
                             </div>
                           </div>
                           <div
-                            className={clsx(
+                            className={cn(
                               "grid transition-all duration-100 ease-out",
                               !isWorkspacesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                             )}
@@ -916,7 +916,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       </div>
     </div>
 
-      <div className={clsx("p-3 border-t border-[var(--bone-6)] flex items-center mt-auto", effectiveCollapsed ? "flex-col gap-5 py-4" : "justify-between")}>
+      <div className={cn("p-3 border-t border-[var(--bone-6)] flex items-center mt-auto", effectiveCollapsed ? "flex-col gap-5 py-4" : "justify-between")}>
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--bone-15)] to-[var(--bone-6)] border border-[var(--bone-10)] flex items-center justify-center shrink-0 overflow-hidden">
             <span className="text-[10px] font-bold text-[var(--bone-70)] tracking-wide">M</span>
@@ -930,14 +930,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </div>
           )}
         </div>
-        <div className={clsx("flex items-center gap-1 shrink-0", effectiveCollapsed && "flex-col gap-2")}>
+        <div className={cn("flex items-center gap-1 shrink-0", effectiveCollapsed && "flex-col gap-2")}>
           <Tooltip content="Spaces">
             <button
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 openContextMenu(null, rect.left, rect.top, 'spaces');
               }}
-              className={clsx("btn-sidebar-utility", contextMenu?.source === 'spaces' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")}
+              className={cn("btn-sidebar-utility", contextMenu?.source === 'spaces' && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")}
             >
               <ChevronsUpDown strokeWidth={2} className="w-4 h-4" />
             </button>

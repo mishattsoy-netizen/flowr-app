@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export const StatusTyping = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -29,7 +29,7 @@ export const StatusTyping = ({ text, className, style }: { text: string; classNa
   }, [text]);
 
   return (
-    <span className={clsx("inline-flex items-center", className)} style={style}>
+    <span className={cn("inline-flex items-center", className)} style={style}>
       <span className="inline-block overflow-hidden whitespace-nowrap">
         {displayedText}
       </span>

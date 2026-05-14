@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { Clock, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { EntityType } from '@/data/store.types';
 import type { WidgetProps } from './types';
 import { stripHtml } from '@/lib/utils';
@@ -44,7 +44,7 @@ export function RecentWidget({ data, onUpdateData }: WidgetProps & { data?: { fi
           <div className="flex items-center gap-0.5 bg-[var(--bone-6)] rounded-[4px] p-0.5">
             {(['all', 'note', 'canvas'] as Filter[]).map(f => (
               <button key={f} onClick={() => onUpdateData({ ...data, filter: f })}
-                className={clsx("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] capitalize transition-colors",
+                className={cn("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] capitalize transition-colors",
                   filter === f ? "bg-[var(--bone-15)] text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]")}>
                 {f}
               </button>

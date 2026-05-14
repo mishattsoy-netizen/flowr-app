@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { ChevronDown, Plus, Check } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 
 export function WorkspaceSwitcher() {
@@ -27,14 +27,14 @@ export function WorkspaceSwitcher() {
     <div ref={ref} className="relative px-3 mb-1">
       <button
         onClick={() => setOpen(o => !o)}
-        className={clsx("flex items-center w-full px-3 py-2 rounded-[var(--radius-medium)] hover:bg-[var(--bone-6)] group", open && "!bg-[var(--bone-15)] !text-[var(--bone-100)]")}
+        className={cn("flex items-center w-full px-3 py-2 rounded-[var(--radius-medium)] hover:bg-[var(--bone-6)] group", open && "!bg-[var(--bone-15)] !text-[var(--bone-100)]")}
       >
         <span className="flex-1 text-left text-sm font-semibold text-foreground text-fade">
           {active?.name ?? 'Personal'}
         </span>
         <ChevronDown
           strokeWidth={2}
-          className={clsx('w-3.5 h-3.5 text-[var(--bone-70)]', open && 'rotate-180')}
+          className={cn('w-3.5 h-3.5 text-[var(--bone-70)]', open && 'rotate-180')}
         />
       </button>
 
@@ -44,7 +44,7 @@ export function WorkspaceSwitcher() {
             <button
               key={ws.id}
               onClick={() => { setActiveWorkspaceId(ws.id); setOpen(false); }}
-              className={clsx(
+              className={cn(
                 "flex items-center w-full px-3 py-2 text-sm text-left gap-2 ",
                 ws.id === activeWorkspaceId
                   ? "bg-[var(--bone-15)] text-foreground"

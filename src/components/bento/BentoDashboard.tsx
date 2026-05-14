@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Settings2, Check } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { useBentoLayout } from '@/hooks/useBentoLayout';
 import { BentoWidget } from './BentoWidget';
@@ -431,7 +431,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   return (
     <div className="flex-1 flex flex-row overflow-hidden h-full">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className={clsx("px-8 py-5 h-full flex flex-col min-h-0", isFullWidth ? "w-full" : "w-full max-w-[1200px] mx-auto")}>
+        <div className={cn("px-8 py-5 h-full flex flex-col min-h-0", isFullWidth ? "w-full" : "w-full max-w-[1200px] mx-auto")}>
           <header className="flex items-end justify-between mb-3 px-[6px]">
             <div className="flex-1">{title}</div>
 
@@ -483,7 +483,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
 
           <div
             ref={gridRef}
-            className={clsx('relative w-full', reallyLoading && 'bento-no-transitions')}
+            className={cn('relative w-full', reallyLoading && 'bento-no-transitions')}
             style={{ flex: 1, minHeight: 0 }}
           >
             {layout.map((item, idx) => {
@@ -500,7 +500,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                 <div key={item.i}>
                   {/* The actual widget */}
                   <div
-                    className={clsx(
+                    className={cn(
                       'absolute bento-widget-cell',
                       isDragged && 'opacity-0 pointer-events-none', // hide original while dragging
                       editMode && 'cursor-grab active:cursor-grabbing hover:z-10 overflow-visible',
@@ -598,20 +598,20 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                    setDividerDrag({ row: div.row, leftId: div.leftId, rightId: div.rightId, startX: e.clientX });
                  }}
                >
-                 <div className={clsx(
+                 <div className={cn(
                    "absolute inset-y-2 -left-4 -right-4 rounded-sm",
                    "transition-colors duration-150",
                    isDragging ? "bg-accent/10" : "group-hover:bg-[var(--bone-5)]"
                  )} />
                  {/* Visible line */}
-                 <div className={clsx(
+                 <div className={cn(
                    "absolute inset-y-0 left-1/2 -translate-x-1/2 w-px",
                    isDragging
                      ? "bg-accent"
                      : "bg-border/60 group-hover:bg-accent/70"
                  )} />
                  {/* Gripper pill */}
-                 <div className={clsx(
+                 <div className={cn(
                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
                    "flex flex-col gap-[3px] items-center justify-center",
                    "w-4 h-8 rounded-full",
@@ -652,20 +652,20 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                   setVerticalDividerDrag({ topId: div.topId, bottomId: div.bottomId, startY: e.clientY });
                 }}
               >
-                <div className={clsx(
+                <div className={cn(
                   "absolute inset-x-2 -top-4 -bottom-4 rounded-sm",
                   "transition-colors duration-150",
                   isDragging ? "bg-accent/10" : "group-hover:bg-[var(--bone-5)]"
                 )} />
                 {/* Visible line */}
-                <div className={clsx(
+                <div className={cn(
                   "absolute inset-x-0 top-1/2 -translate-y-1/2 h-px",
                   isDragging
                     ? "bg-accent"
                     : "bg-border/60 group-hover:bg-accent/70"
                 )} />
                 {/* Gripper pill */}
-                <div className={clsx(
+                <div className={cn(
                   "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
                   "flex flex-row gap-[3px] items-center justify-center",
                   "h-4 w-8 rounded-full",

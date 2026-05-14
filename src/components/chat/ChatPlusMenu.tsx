@@ -3,7 +3,7 @@
 import { Image as ImageIcon, Eye, Plug, Wand2 } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface ChatPlusMenuProps {
   onClose: () => void;
@@ -48,7 +48,7 @@ export function ChatPlusMenu({ onClose, onMediaClick, onContextToggle, contextEn
       {/* Context toggle */}
       <button
         onClick={(e) => { e.stopPropagation(); onContextToggle(); }}
-        className={clsx(
+        className={cn(
           "flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-[var(--bone-100)] w-full text-left",
           contextEnabled && "text-[var(--bone-100)]"
         )}
@@ -58,7 +58,7 @@ export function ChatPlusMenu({ onClose, onMediaClick, onContextToggle, contextEn
           <span className="font-bold">Context</span>
           <span className="text-[10px] opacity-30 leading-none mt-0.5">{contextEnabled ? 'On' : 'Off'}</span>
         </div>
-        <div className={clsx(
+        <div className={cn(
           'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
           contextEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
         )}>

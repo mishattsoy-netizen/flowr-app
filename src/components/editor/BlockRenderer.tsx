@@ -4,7 +4,7 @@ import {
   GripVertical, Plus, ChevronRight, ChevronDown, Copy, Link as LinkIcon, ExternalLink, Trash2
 } from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { EditorBlock, BlockStyle, BlockType, Entity, generateId } from '@/data/store';
 import { ListBlock } from './ListBlock';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -258,10 +258,10 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={style}
-        className={clsx("editor-block group flex flex-col items-start relative px-1 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block group flex flex-col items-start relative px-1 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "flex items-center w-full py-4 relative group rounded-[var(--radius-medium)] transition-colors duration-0",
           isSelected && "bg-white/[0.01]",
           isDragging && "opacity-60 bg-sidebar/80 rounded-[var(--radius-medium)]"
@@ -279,10 +279,10 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={clsx("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "relative w-full rounded-3xl transition-colors duration-0",
           isSelected && "bg-white/[0.01]",
           isDragging && "opacity-60"
@@ -301,10 +301,10 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={clsx("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "relative w-full rounded-3xl transition-colors duration-0 group/table",
           isSelected && "bg-white/[0.01]",
           isDragging && "opacity-60"
@@ -314,7 +314,7 @@ export function BlockRenderer({
               <table className="w-full border-collapse">
                 <tbody>
                   {tableData.map((row: string[], ri: number) => (
-                    <tr key={ri} className={clsx("group/row relative transition-colors", ri > 0 && "hover:bg-[var(--bone-2)]")}>
+                    <tr key={ri} className={cn("group/row relative transition-colors", ri > 0 && "hover:bg-[var(--bone-2)]")}>
                     <td className="w-8 border-b border-[var(--bone-6)] bg-[var(--bone-2)] relative group/rowhandle border-r border-[var(--bone-6)]">
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-opacity">
                           <button
@@ -334,7 +334,7 @@ export function BlockRenderer({
                           key={ci}
                           contentEditable
                           suppressContentEditableWarning
-                          className={clsx(
+                          className={cn(
                             "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-6)] last:border-r-0 outline-none transition-colors leading-snug",
                             ri === 0 ? "font-bold text-bone-100 bg-[var(--bone-2)] text-[10.5px] uppercase tracking-wider" : "text-bone-100 focus:bg-[var(--bone-2)]",
                             ci === 0 && ri !== 0 && "font-semibold text-bone-100", // Bold first column
@@ -427,7 +427,7 @@ export function BlockRenderer({
       <div
         ref={setNodeRef}
         data-block-id={block.id}
-        className={clsx(
+        className={cn(
           "editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
           alignVariant === 'center' && "items-center",
           alignVariant === 'right' && "items-end",
@@ -437,12 +437,12 @@ export function BlockRenderer({
         style={{ ...style }}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "relative w-full transition-colors duration-0",
           isSelected && "bg-white/[0.01] rounded-3xl",
           isDragging && "opacity-60"
         )}>
-          <div className={clsx("relative group/media border border-white/5 bg-white/5", widthClass, "rounded-3xl ")}>
+          <div className={cn("relative group/media border border-white/5 bg-white/5", widthClass, "rounded-3xl ")}>
             <MediaControls blockId={block.id} currentWidth={block.mediaWidth || 4} onWidthChange={(w) => onUpdate(block.id, { mediaWidth: w as any })} />
             <div className="overflow-hidden rounded-3xl">
               {isImage ? (
@@ -468,10 +468,10 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={clsx("editor-block group py-2 relative before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block group py-2 relative before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "relative w-full transition-colors duration-0 rounded-3xl",
           isSelected && "bg-white/[0.01]",
           isDragging && "opacity-60"
@@ -501,7 +501,7 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={clsx("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
         <div className="flex items-center gap-3 group/link ml-4 relative z-10">
@@ -552,7 +552,7 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={style}
-        className={clsx(
+        className={cn(
           "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group/column group-hover:bg-hover/10 group-focus-within:bg-hover/10 transition-colors duration-0",
           isSelected && "bg-white/[0.01]",
           isDragging && "z-50",
@@ -560,7 +560,7 @@ export function BlockRenderer({
         )}
       >
         <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} listeners={listeners} attributes={attributes} isSelected={isSelected} isFocused={false} />
-        <div className={clsx("flex flex-col gap-2 relative z-10", isDragging && "opacity-60")}>
+        <div className={cn("flex flex-col gap-2 relative z-10", isDragging && "opacity-60")}>
           {(block.children || []).map((subBlock: EditorBlock, sIdx: number) => (
             <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
           ))}
@@ -575,10 +575,10 @@ export function BlockRenderer({
         ref={setNodeRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={clsx("editor-block py-2 relative flex flex-col transition-colors duration-0 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
+        className={cn("editor-block py-2 relative flex flex-col transition-colors duration-0 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']", isDragging && "z-50")}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx("flex gap-4 w-full h-full relative z-10 group", isDragging && "opacity-60")}>
+        <div className={cn("flex gap-4 w-full h-full relative z-10 group", isDragging && "opacity-60")}>
           <div className="flex gap-4 w-full h-full">
             {(block.children || []).map((colBlock: EditorBlock, cIdx: number) => (
               <div key={colBlock.id} className="relative flex-1 basis-0 min-w-0 flex flex-col">
@@ -596,7 +596,7 @@ export function BlockRenderer({
       <div
         ref={setNodeRef}
         data-block-id={block.id}
-        className={clsx(
+        className={cn(
           "editor-block group flex flex-col relative overflow-visible transition-all duration-0 py-0.5",
           "before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
           isFocused && "focused",
@@ -606,7 +606,7 @@ export function BlockRenderer({
         style={{ ...style, fontFamily: '"Literata"', letterSpacing: '-0.01em' }}
       >
         <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
-        <div className={clsx(
+        <div className={cn(
           "flex-1 flex items-start w-full relative rounded-[var(--radius-medium)] px-1 py-1 transition-all duration-0",
           isSelected ? "bg-white/[0.01]" : "group-hover:bg-white/[0.01]"
         )}>
@@ -633,7 +633,7 @@ export function BlockRenderer({
     <div
       ref={setNodeRef}
       data-block-id={block.id}
-      className={clsx(
+      className={cn(
         "editor-block group flex flex-col relative overflow-visible transition-all duration-0",
         effectiveStyle === 'mono' ? "py-2" : "py-0.5",
         "before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
@@ -648,7 +648,7 @@ export function BlockRenderer({
     >
       <BlockControls {...controlsProps} listeners={listeners} attributes={attributes} />
       <div
-        className={clsx(
+        className={cn(
           effectiveStyle === 'mono'
             ? "relative w-full rounded-3xl transition-colors duration-0"
             : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] px-1 py-1",
@@ -661,7 +661,7 @@ export function BlockRenderer({
         <div className="flex-1 flex items-start w-full min-h-[1.5em] h-full relative">
           {block.foldingEnabled && (
             <div
-              className={clsx(
+              className={cn(
                 "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded transition-colors text-muted-foreground/40 hover:text-foreground",
                 getLineHeightClass(effectiveStyle)
               )}
@@ -682,7 +682,7 @@ export function BlockRenderer({
             onFocus={() => { setIsFocused(true); onFocus?.(block.id); }}
             onBlur={() => setIsFocused(false)}
             data-placeholder={getPlaceholder(effectiveStyle, block.type, isFocused)}
-            className={clsx(
+            className={cn(
               "flex-1 outline-none min-h-[1.5em] leading-[1.6]",
               !block.textColor && "text-bone-100",
               getStyleClasses(effectiveStyle),
@@ -840,7 +840,7 @@ function BlockControls({
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "absolute right-full pr-[8px] flex items-center justify-center gap-1",
         heightClass,
         (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 invisible group-hover:opacity-100 group-hover:visible has-[:active]:opacity-100 has-[:active]:visible"
@@ -864,7 +864,7 @@ function BlockControls({
           {...attributes}
           {...listeners}
           onClick={handleGripClick}
-          className={clsx(
+          className={cn(
             markerBtnClass,
             "cursor-grab active:cursor-grabbing",
             (menuOpen || isDragging) && "bg-[var(--bone-10)] text-[var(--bone-100)] opacity-100"
@@ -891,7 +891,7 @@ function MediaControls({ blockId, currentWidth, onWidthChange }: { blockId: stri
         <button
           key={size.value}
           onClick={(e) => { e.stopPropagation(); onWidthChange(size.value as any); }}
-          className={clsx(
+          className={cn(
             "px-2.5 py-1.5 text-[9px] font-bold rounded-lg  ",
             currentWidth === size.value
               ? "bg-accent/10 border border-accent/30 text-accent"

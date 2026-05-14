@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { X, ExternalLink, Download, FileText } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export function MediaViewerModal() {
   const { modal, closeModal } = useStore();
@@ -57,7 +57,7 @@ export function MediaViewerModal() {
         {description && (
           <button 
             onClick={(e) => { e.stopPropagation(); setShowDrawer(!showDrawer); }}
-            className={clsx(
+            className={cn(
               "w-10 h-10 rounded-full border flex items-center justify-center transition-all",
               showDrawer 
                 ? "bg-bone-100 border-bone-100 text-black" 
@@ -93,7 +93,7 @@ export function MediaViewerModal() {
 
       {/* Main Content Area */}
       <div 
-        className={clsx(
+        className={cn(
           "relative transition-all duration-500 ease-out flex items-center justify-center",
           showDrawer ? "pr-[400px] w-full h-full" : "w-full h-full"
         )}
@@ -104,7 +104,7 @@ export function MediaViewerModal() {
             <img
               src={url}
               alt="Preview"
-              className={clsx(
+              className={cn(
                   "rounded-xl shadow-2xl transition-all duration-300 select-none",
                   isZoomed ? "cursor-zoom-out max-w-none scale-150" : "cursor-zoom-in object-contain max-h-[80vh] w-auto border border-[var(--bone-12)]"
               )}
@@ -132,7 +132,7 @@ export function MediaViewerModal() {
 
       {/* Side Description Drawer */}
       <div 
-        className={clsx(
+        className={cn(
           "fixed top-0 right-0 bottom-0 w-[400px] bg-black/60 backdrop-blur-3xl border-l border-[var(--bone-12)] z-[1005] transition-transform duration-500 ease-out p-8 pt-24 overflow-y-auto custom-scrollbar",
           showDrawer ? "translate-x-0" : "translate-x-full"
         )}
@@ -166,7 +166,7 @@ export function MediaViewerModal() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-white/20 text-[8px] uppercase tracking-tighter mb-1">Narration</p>
-                  <p className={clsx(
+                  <p className={cn(
                     "text-[11px] font-bold",
                     description ? "text-emerald-400" : "text-amber-400 animate-pulse"
                   )}>

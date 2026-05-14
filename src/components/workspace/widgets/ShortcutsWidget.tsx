@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import { Plus, X, ExternalLink, FileText, Layout } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { getEntityIcon } from '@/data/icons';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import type { WidgetProps } from './types';
 
 interface Shortcut {
@@ -79,11 +79,11 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
             <div className="flex gap-1 p-0.5 bg-[var(--bone-10)] rounded-md">
               <button 
                 onClick={() => setType('url')}
-                className={clsx("flex-1 px-2 py-1 text-[10px] rounded", type === 'url' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
+                className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'url' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
               >URL</button>
               <button 
                 onClick={() => setType('entity')}
-                className={clsx("flex-1 px-2 py-1 text-[10px] rounded", type === 'entity' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
+                className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'entity' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
               >Entity</button>
             </div>
             

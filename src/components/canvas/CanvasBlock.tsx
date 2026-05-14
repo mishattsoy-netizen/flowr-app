@@ -1,7 +1,7 @@
 "use client";
 
 import { EditorBlock, useStore } from '@/data/store';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
@@ -278,7 +278,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     <div
       ref={containerRef}
       id={block.id}
-      className={clsx(
+      className={cn(
         "absolute group",
         !isDragging && !isResizing && "",
         isDragging && "z-[3000] opacity-90 border border-brand-blue rounded-2xl",
@@ -320,7 +320,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       {(activeTool === 'arrow' || activeTool === 'line') && connectionPoints.map(side => (
         <div
           key={side}
-          className={clsx(
+          className={cn(
             "absolute w-3 h-3 bg-accent rounded-full border-2 border-background z-[100] cursor-crosshair",
             side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
             side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
@@ -344,7 +344,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
       {/* CONTENT */}
       {isNoteBlock ? (
-        <div className={clsx(
+        <div className={cn(
           "w-full h-full min-w-[120px]",
           block.type === 'text' && "bg-background border border-border rounded-xl p-2",
           (block.type === 'image' || block.type === 'video') && "overflow-hidden rounded-xl",
@@ -375,7 +375,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Comment</span>
           </div>
           <textarea
-            className={clsx(
+            className={cn(
               "w-full bg-transparent text-sm leading-relaxed outline-none resize-none min-h-[80px] text-foreground/80 placeholder:text-muted-foreground/30",
               !isEditing && "pointer-events-none select-none"
             )}

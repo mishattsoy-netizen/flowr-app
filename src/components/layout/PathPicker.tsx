@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { Folder, MoreHorizontal } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
 interface PathPickerProps {
@@ -56,7 +56,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
                     onSelect(node.id);
                   }
                 }}
-                className={clsx(
+                className={cn(
                   "group flex items-center w-full px-3 py-1.5  cursor-pointer text-left outline-none",
                   "border-b border-[var(--bone-6)]",
                   (node.type === 'collection' || node.type === 'workspace') ? "text-[15px]" : "text-sm",
@@ -69,7 +69,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
                 {/* Indentation Spacer instead of Chevron */}
                 <div className="w-4 h-4 shrink-0 mr-1.5" />
 
-                <Folder strokeWidth={2} className={clsx("mr-2 shrink-0", (node.type === 'collection' || node.type === 'workspace') ? "w-4 h-4 text-accent" : "w-3.5 h-3.5", isSelected && "text-accent")} />
+                <Folder strokeWidth={2} className={cn("mr-2 shrink-0", (node.type === 'collection' || node.type === 'workspace') ? "w-4 h-4 text-accent" : "w-3.5 h-3.5", isSelected && "text-accent")} />
                 <span className="truncate flex-1">{node.title}</span>
                 <button
                   onClick={(e) => {
@@ -84,7 +84,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
               </div>
               {hasChildren && (
                 <div
-                  className={clsx(
+                  className={cn(
                     "grid",
                     isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
                   )}

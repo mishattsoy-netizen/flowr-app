@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { X, Settings2, Plus } from 'lucide-react';
 import { widgetRegistry } from '@/components/bento/registry';
 import type { WidgetProps } from './types';
@@ -89,7 +89,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
 
   return (
     <section 
-      className={clsx(
+      className={cn(
         "h-full w-full relative bg-sidebar rounded-[var(--radius-big)] widget-shadow flex flex-col p-5 pt-4 transition-all duration-200 generic-stack-container",
         isDragOver && "ring-2 ring-accent ring-inset bg-accent/5"
       )}
@@ -111,7 +111,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
               <button
                 key={id + idx}
                 onClick={() => handleTabSwitch(idx)}
-                className={clsx(
+                className={cn(
                   "relative z-10 flex-1 flex items-center justify-center py-1 rounded-[6px] group transition-colors duration-200",
                   activeTabIndex === idx ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
                 )}
@@ -156,11 +156,11 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
           </div>
         ) : (
           <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-[var(--bone-20)] transition-colors">
-            <div className={clsx(
+            <div className={cn(
               "w-12 h-12 rounded-full border-2 border-dashed border-[var(--bone-3)] flex items-center justify-center",
               isDragOver ? "scale-110 border-accent text-accent bg-accent/5" : "scale-100"
             )}>
-              <Plus className={clsx("w-6 h-6", isDragOver && "rotate-90")} />
+              <Plus className={cn("w-6 h-6", isDragOver && "rotate-90")} />
             </div>
             <p className="text-[11px] font-medium tracking-wide uppercase">Drop widgets here to stack</p>
             <p className="text-[10px] text-[var(--bone-70)] opacity-40 max-w-[140px] text-center leading-relaxed">Combine up to 3 widgets into a single view</p>

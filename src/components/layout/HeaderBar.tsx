@@ -30,7 +30,7 @@ import {
   Frame,
   Layers
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { Portal } from './Portal';
 import { Toggle } from '@/components/ui/Toggle';
@@ -247,7 +247,7 @@ export const HeaderBar = memo(function HeaderBar() {
             >
               <div
                 onClick={() => setActiveTab(tabId)}
-                className={clsx(
+                className={cn(
                   "flex items-center gap-1 h-6 rounded-[var(--radius-small)] cursor-pointer select-none min-w-0 max-w-[160px] flex-shrink",
                   openTabIds.length > 1 ? "pl-2.5 pr-1" : "px-2.5",
                   isActive 
@@ -256,13 +256,13 @@ export const HeaderBar = memo(function HeaderBar() {
                   "group"
                 )}
               >
-                {Icon && <Icon strokeWidth={2} className={clsx("w-3.5 h-3.5 shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />}
+                {Icon && <Icon strokeWidth={2} className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />}
                 <span className="text-[13px] font-normal truncate flex-1 min-w-0 overflow-hidden whitespace-nowrap">{stripHtml(title || '')}</span>
                 
                 {openTabIds.length > 1 && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); removeTab(tabId); }}
-                    className={clsx(
+                    className={cn(
                       "ml-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--bone-10)] rounded-[4px] p-0.5 shrink-0",
                       isActive && tabId === 'dashboard' && "opacity-100" // Always show for active dashboard if closable
                     )}
@@ -362,7 +362,7 @@ export const HeaderBar = memo(function HeaderBar() {
                 return (
                   <button 
                     onClick={() => toggleEntityCloudSync(activeEntity.id)}
-                    className={clsx(
+                    className={cn(
                       "flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-small)] bg-[var(--bone-6)]",
                       isSynced 
                         ? "text-accent" 
@@ -400,7 +400,7 @@ export const HeaderBar = memo(function HeaderBar() {
               >
                 <button
                   onClick={(e) => handleAction(action.id, e)}
-                  className={clsx(
+                  className={cn(
                     "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)]  group",
                     action.color,
                     action.id === 'layout' && isFullWidth && "bg-accent/10"

@@ -4,7 +4,7 @@ import { useStore, generateId, AppTask } from '@/data/store';
 import { SubTask } from '@/data/store.types';
 import { X, Plus, Calendar, Palette, Trash2, CheckSquare, Circle, AlertCircle, Folder } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { DatePickerTime } from '@/components/ui/date-time-picker';
 import {
   Popover,
@@ -237,7 +237,7 @@ export function NewTaskModal() {
             placeholder="Task Title..."
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className={clsx(
+            className={cn(
               "flex-1 bg-transparent text-2xl font-semibold tracking-tight text-[var(--bone-90)] placeholder-[var(--bone-20)] border-none outline-none",
               completed && "line-through text-[var(--bone-30)]"
             )}
@@ -288,7 +288,7 @@ export function NewTaskModal() {
                     <div className="w-4 h-4 rounded-full border-2 border-[var(--bone-30)] group-hover:border-[var(--bone-70)] transition-colors" />
                   )}
                 </button>
-                <span className={clsx(
+                <span className={cn(
                   "text-sm flex-1",
                   sub.completed ? "text-[var(--bone-40)] line-through" : "text-[var(--bone-90)]"
                 )}>
@@ -354,7 +354,7 @@ export function NewTaskModal() {
                     key={p}
                     type="button"
                     onClick={() => togglePriority(p)}
-                    className={clsx(
+                    className={cn(
                       "flex-1 py-3 rounded-[12px] text-[10px] font-bold uppercase border transition-all",
                       priority === p 
                         ? "bg-[var(--bone-10)] border-[var(--bone-25)] text-[var(--bone-100)] shadow-sm" 
@@ -388,7 +388,7 @@ export function NewTaskModal() {
                 <PopoverContent className="w-[240px] p-1.5 bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] backdrop-blur-3xl" align="start">
                   <button
                     onClick={() => setWorkspaceId(null)}
-                    className={clsx(
+                    className={cn(
                       "w-full px-3 py-2 text-left text-sm rounded-[8px] transition-colors",
                       !workspaceId ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                     )}
@@ -399,7 +399,7 @@ export function NewTaskModal() {
                     <button
                       key={w.id}
                       onClick={() => setWorkspaceId(w.id)}
-                      className={clsx(
+                      className={cn(
                         "w-full px-3 py-2 text-left text-sm rounded-[8px] transition-colors mt-0.5",
                         workspaceId === w.id ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                       )}
@@ -423,7 +423,7 @@ export function NewTaskModal() {
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    className={clsx(
+                    className={cn(
                       "w-6 h-6 rounded-full transition-all duration-300 flex items-center justify-center relative",
                       color === c ? "scale-110" : "opacity-30 hover:opacity-100"
                     )}

@@ -3,7 +3,7 @@
 import { useStore, SettingsTab } from '@/data/store';
 import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 
 
@@ -90,14 +90,14 @@ export function SettingsModal() {
                     }
                     setActiveTab(tab.id as SettingsTab);
                   }}
-                  className={clsx(
+                  className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-medium)] group text-[15px]",
                     isActive
                       ? "bg-white/10 text-foreground font-semibold"
                       : "text-bone-70 hover:text-foreground hover:bg-white/5"
                   )}
                 >
-                  <Icon strokeWidth={2} className={clsx("w-5 h-5", isActive ? "text-accent" : "text-bone-70 group-hover:text-foreground")} />
+                  <Icon strokeWidth={2} className={cn("w-5 h-5", isActive ? "text-accent" : "text-bone-70 group-hover:text-foreground")} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -137,7 +137,7 @@ export function SettingsModal() {
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => theme === 'light' && toggleTheme()}
-                        className={clsx(
+                        className={cn(
                           "group relative flex flex-col items-center gap-4 p-4 rounded-2xl border",
                           theme === 'dark' ? "border-accent bg-accent/5 ring-1 ring-accent/20" : "border-[var(--bone-6)] bg-white/5 hover:border-muted-foreground/30"
                         )}
@@ -151,14 +151,14 @@ export function SettingsModal() {
                           <div className="mt-auto h-2 w-1/4 bg-white/5 rounded-full" />
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={clsx("text-sm font-medium", theme === 'dark' ? "text-accent" : "text-foreground")}>Dark Stealth</span>
+                          <span className={cn("text-sm font-medium", theme === 'dark' ? "text-accent" : "text-foreground")}>Dark Stealth</span>
                           {theme === 'dark' && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
                         </div>
                       </button>
 
                       <button
                         onClick={() => theme === 'dark' && toggleTheme()}
-                        className={clsx(
+                        className={cn(
                           "group relative flex flex-col items-center gap-4 p-4 rounded-2xl border",
                           theme === 'light' ? "border-accent bg-accent/5 ring-1 ring-accent/20" : "border-[var(--bone-6)] bg-white/5 hover:border-muted-foreground/30"
                         )}
@@ -172,7 +172,7 @@ export function SettingsModal() {
                           <div className="mt-auto h-2 w-1/4 bg-black/5 rounded-full" />
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={clsx("text-sm font-medium", theme === 'light' ? "text-accent" : "text-foreground")}>Light Bloom</span>
+                          <span className={cn("text-sm font-medium", theme === 'light' ? "text-accent" : "text-foreground")}>Light Bloom</span>
                           {theme === 'light' && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
                         </div>
                       </button>
@@ -194,7 +194,7 @@ export function SettingsModal() {
                         <button
                           key={size}
                           onClick={() => setInterfaceSize(size as 'small' | 'regular' | 'big')}
-                          className={clsx(
+                          className={cn(
                             "relative flex-1 py-3 px-4 rounded-xl text-[13px] font-medium capitalize z-10",
                             interfaceSize === size
                               ? "text-accent"

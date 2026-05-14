@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 interface ToggleProps {
   checked: boolean;
@@ -19,8 +19,8 @@ export const Toggle: React.FC<ToggleProps> = ({
   size = 'md'
 }) => {
   return (
-    <div className={clsx("shrink-0 flex items-center", className)}>
-      <label className={clsx("toggle-switch", size === 'sm' && "toggle-sm")}>
+    <div className={cn("shrink-0 flex items-center", className)}>
+      <label className={cn("toggle-switch", size === 'sm' && "toggle-sm")}>
         <input 
           type="checkbox" 
           className="toggle-input" 

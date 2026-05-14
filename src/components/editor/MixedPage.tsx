@@ -3,7 +3,7 @@
 import { Entity, useStore } from '@/data/store';
 import { NoteEditor } from './NoteEditor';
 import { useState, useCallback, useEffect } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export function MixedPage({ entity }: { entity: Entity }) {
   const mixedLayoutSplit = useStore(state => state.mixedLayoutSplit);
@@ -43,7 +43,7 @@ export function MixedPage({ entity }: { entity: Entity }) {
   }, [isResizing, resize, stopResizing]);
 
   return (
-    <div className={clsx(
+    <div className={cn(
       "flex-1 flex overflow-hidden relative", 
       isResizing && "cursor-col-resize select-none"
     )}>
@@ -58,13 +58,13 @@ export function MixedPage({ entity }: { entity: Entity }) {
       {/* Resize Splitter Handle */}
       <div
         onMouseDown={startResizing}
-        className={clsx(
+        className={cn(
           "w-1.5 -mx-0.75 relative z-50 cursor-col-resize group shrink-0",
           isResizing ? "bg-accent/20" : "bg-transparent hover:bg-accent/10"
         )}
       >
         {/* Visual Line */}
-        <div className={clsx(
+        <div className={cn(
           "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ",
           isResizing ? "bg-accent" : "bg-border group-hover:bg-accent/50"
         )} />
