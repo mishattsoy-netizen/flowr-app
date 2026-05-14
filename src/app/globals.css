@@ -69,11 +69,9 @@
   --radius-big: 24px;
   --radius-regular: 12px;
   --radius-medium: 8px;
-  --radius-8: 8px;
   --radius-small: 6px;
   --color-brand-blue: #2A78D6;
   --brand-blue: #2A78D6;
-  --: 0;
   color-scheme: dark;
 }
 
@@ -141,7 +139,7 @@ html[data-interface-size="big"] {
   --color-danger: var(--color-danger);
 
   --radius-sm: var(--radius-small);
-  --radius-8: var(--radius-8);
+  --radius-8: var(--radius-medium);
   --radius-medium: var(--radius-medium);
   --radius-regular: var(--radius-regular);
   --radius-small: var(--radius-small);
@@ -593,15 +591,6 @@ html {
 .scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;
-}
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-.skeleton-pulse {
-  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
