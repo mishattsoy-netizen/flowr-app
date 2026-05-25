@@ -29,9 +29,12 @@ export default function BetaPage() {
   }
 
   async function fetchInvites() {
-    const res = await fetch('/api/admin/beta', { headers: getAuthHeaders() })
-    const data = await res.json()
-    setInvites(data.invites || [])
+    try {
+      const res = await fetch('/api/admin/beta', { headers: getAuthHeaders() })
+      if (!res.ok) return
+      const data = await res.json()
+      setInvites(data.invites || [])
+    } catch {}
   }
 
   useEffect(() => { fetchInvites() }, [session])
@@ -45,6 +48,7 @@ export default function BetaPage() {
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ label: label.trim() }),
     })
+    if (!res.ok) { setLoading(false); return }
     const data = await res.json()
     if (data.token) {
       const origin = window.location.origin
