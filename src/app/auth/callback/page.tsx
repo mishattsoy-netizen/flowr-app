@@ -22,6 +22,8 @@ export default function AuthCallbackPage() {
         if (result === 'rejected') {
           await signOut()
           router.replace('/login?error=not_invited')
+        } else if (result === 'approved') {
+          router.replace('/welcome')
         } else {
           const redirect = (() => { try { const url = sessionStorage.getItem('login-redirect'); sessionStorage.removeItem('login-redirect'); return url } catch { return null } })()
           router.replace(redirect || '/app')
