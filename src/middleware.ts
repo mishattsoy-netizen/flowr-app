@@ -10,6 +10,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Pass invite pages through — they handle their own validation
+  if (request.nextUrl.pathname.startsWith('/invite')) {
+    return NextResponse.next()
+  }
+
   const { supabase, supabaseResponse } = await createClient(request)
 
   const {
@@ -59,5 +64,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/login', '/', '/app'],
+  matcher: ['/admin/:path*', '/login', '/', '/app', '/invite/:path*'],
 }
