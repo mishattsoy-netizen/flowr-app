@@ -3,24 +3,37 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
+import { processInviteAfterAuth } from './actions'
 
 export default function AuthCallbackPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const router = useRouter()
-  const timedOut = useRef(false)
+  const processed = useRef(false)
 
   useEffect(() => {
-    if (!loading && user) {
-      const redirect = (() => { try { return sessionStorage.getItem('login-redirect') } catch { return null } })()
-      sessionStorage.removeItem('login-redirect')
-      router.replace(redirect || '/app')
+    if (!loading && user && !processed.current) {
+      processed.current = true
+      const email = user.email
+      if (!email) {
+        router.replace('/login?error=auth_failed')
+        return
+      }
+      processInviteAfterAuth(email).then(async (result) => {
+        if (result === 'rejected') {
+          await signOut()
+          router.replace('/login?error=not_invited')
+        } else {
+          const redirect = (() => { try { return sessionStorage.getItem('login-redirect') } catch { return null } })()
+          sessionStorage.removeItem('login-redirect')
+          router.replace(redirect || '/app')
+        }
+      })
     }
-  }, [user, loading, router])
+  }, [user, loading, router, signOut])
 
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user) {
-        timedOut.current = true
         router.replace('/login?error=auth_failed')
       }
     }, 15000)
