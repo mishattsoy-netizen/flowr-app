@@ -78,6 +78,17 @@ export default function WelcomePage() {
           from { opacity: 0; transform: scaleX(0); }
           to   { opacity: 1; transform: scaleX(1); }
         }
+        @keyframes bg-drift {
+          0%   { background-position: 50% 60%; }
+          33%  { background-position: 52% 55%; }
+          66%  { background-position: 48% 63%; }
+          100% { background-position: 50% 60%; }
+        }
+        .welcome-bg {
+          background: radial-gradient(ellipse 80% 60% at 50% 40%, #1e130a 0%, #111110 55%, #0a0a09 100%);
+          background-size: 200% 200%;
+          animation: bg-drift 8s ease-in-out infinite;
+        }
         .welcome-exiting {
           opacity: 0;
           transition: opacity 0.5s ease;
@@ -108,10 +119,9 @@ export default function WelcomePage() {
       `}</style>
 
       <div
-        className={exiting ? 'welcome-exiting' : ''}
+        className={`welcome-bg${exiting ? ' welcome-exiting' : ''}`}
         style={{
           position: 'fixed', inset: 0,
-          background: '#111110',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden',
           fontFamily: 'var(--font-sans)',
