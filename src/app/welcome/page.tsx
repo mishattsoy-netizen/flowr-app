@@ -34,7 +34,7 @@ export default function WelcomePage() {
   const [exiting, setExiting] = useState(false)
 
   useEffect(() => {
-    const preview = new URLSearchParams(location.search).get('preview') === '1'
+    const preview = new URLSearchParams(location.search).has('welcome-preview')
     if (!preview) {
       const seen = document.cookie.split(';').some(c => c.trim().startsWith('welcome_seen=1'))
       if (seen) {
