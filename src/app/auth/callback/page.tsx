@@ -23,10 +23,11 @@ export default function AuthCallbackPage() {
           await signOut()
           router.replace('/login?error=not_invited')
         } else {
-          const redirect = (() => { try { return sessionStorage.getItem('login-redirect') } catch { return null } })()
-          sessionStorage.removeItem('login-redirect')
+          const redirect = (() => { try { const url = sessionStorage.getItem('login-redirect'); sessionStorage.removeItem('login-redirect'); return url } catch { return null } })()
           router.replace(redirect || '/app')
         }
+      }).catch(() => {
+        router.replace('/login?error=auth_failed')
       })
     }
   }, [user, loading, router, signOut])
