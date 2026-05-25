@@ -40,6 +40,7 @@ export default function WelcomePage() {
   }, [router])
 
   function handleEnter() {
+    if (exiting) return
     setExiting(true)
     setTimeout(() => router.push('/app'), 400)
   }
@@ -65,6 +66,7 @@ export default function WelcomePage() {
           opacity: 0;
           transition: opacity 0.4s ease;
         }
+        .welcome-enter-btn:hover { opacity: 0.85; transition: opacity 0.15s; }
       `}</style>
 
       <div
@@ -145,6 +147,7 @@ export default function WelcomePage() {
           </p>
 
           <button
+            className="welcome-enter-btn"
             onClick={handleEnter}
             style={{
               marginTop: 8,
@@ -156,10 +159,7 @@ export default function WelcomePage() {
               fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
-              transition: 'opacity 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
             Enter →
           </button>
