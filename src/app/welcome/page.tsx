@@ -9,23 +9,20 @@ const FlowrLogo = () => (
   </svg>
 )
 
+// Particles placed at fixed screen positions (% from top-left), away from center content
 const CONFETTI = [
-  { color: '#d67a3c', x: -280, y: -180, size: 7,  rot: 30,  delay: 0 },
-  { color: '#a78bfa', x:  300, y: -140, size: 5,  rot: -20, delay: 0.04 },
-  { color: '#34d399', x: -220, y:  260, size: 8,  rot: 45,  delay: 0.08 },
-  { color: '#fb7185', x:  240, y:  220, size: 5,  rot: -35, delay: 0.06 },
-  { color: '#d67a3c', x:  180, y: -280, size: 6,  rot: 15,  delay: 0.12 },
-  { color: '#a78bfa', x: -300, y:  160, size: 7,  rot: -50, delay: 0.02 },
-  { color: '#34d399', x:  320, y: -100, size: 4,  rot: 70,  delay: 0.10 },
-  { color: '#fb7185', x: -160, y: -300, size: 6,  rot: -15, delay: 0.05 },
-  { color: '#d67a3c', x:  200, y:  300, size: 7,  rot: 55,  delay: 0.14 },
-  { color: '#a78bfa', x: -320, y: -160, size: 5,  rot: -40, delay: 0.01 },
-  { color: '#34d399', x:  140, y: -260, size: 8,  rot: 25,  delay: 0.11 },
-  { color: '#fb7185', x: -240, y:  280, size: 5,  rot: -60, delay: 0.07 },
-  { color: '#d67a3c', x:  260, y: -240, size: 4,  rot: 80,  delay: 0.16 },
-  { color: '#a78bfa', x: -180, y:  200, size: 6,  rot: -25, delay: 0.09 },
-  { color: '#34d399', x:  340, y:  160, size: 5,  rot: 35,  delay: 0.13 },
-  { color: '#fb7185', x: -260, y: -240, size: 7,  rot: -45, delay: 0.03 },
+  { color: '#d67a3c', top:  8, left:  6, size: 6, delay: 0 },
+  { color: '#a78bfa', top: 12, left: 88, size: 5, delay: 0.08 },
+  { color: '#34d399', top: 22, left: 92, size: 7, delay: 0.04 },
+  { color: '#fb7185', top:  5, left: 42, size: 4, delay: 0.12 },
+  { color: '#d67a3c', top:  5, left: 72, size: 5, delay: 0.06 },
+  { color: '#a78bfa', top: 18, left:  3, size: 7, delay: 0.02 },
+  { color: '#34d399', top: 75, left:  5, size: 5, delay: 0.10 },
+  { color: '#fb7185', top: 82, left: 92, size: 6, delay: 0.05 },
+  { color: '#d67a3c', top: 88, left: 18, size: 7, delay: 0.14 },
+  { color: '#a78bfa', top: 90, left: 78, size: 4, delay: 0.01 },
+  { color: '#34d399', top: 70, left: 94, size: 6, delay: 0.11 },
+  { color: '#fb7185', top: 78, left:  2, size: 5, delay: 0.07 },
 ]
 
 export default function WelcomePage() {
@@ -48,10 +45,11 @@ export default function WelcomePage() {
   return (
     <>
       <style>{`
-        @keyframes confetti-fly {
-          0%   { opacity: 0; transform: translate(calc(var(--tx) * 0.4), calc(var(--ty) * 0.4)) rotate(0deg) scale(1); }
+        @keyframes confetti-float {
+          0%   { opacity: 0; transform: translateY(8px) scale(0.8); }
           20%  { opacity: 1; }
-          100% { opacity: 0; transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(0.3); }
+          80%  { opacity: 1; }
+          100% { opacity: 0; transform: translateY(-18px) scale(0.6); }
         }
         @keyframes content-up {
           from { opacity: 0; transform: translateY(20px); }
@@ -92,24 +90,22 @@ export default function WelcomePage() {
           fontFamily: 'var(--font-sans)',
         }}
       >
-        {/* Confetti burst */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
-          {CONFETTI.map((p, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                width: p.size, height: p.size,
-                borderRadius: p.size > 6 ? 2 : '50%',
-                background: p.color,
-                ['--tx' as any]: `${p.x}px`,
-                ['--ty' as any]: `${p.y}px`,
-                ['--rot' as any]: `${p.rot}deg`,
-                animation: `confetti-fly 1.4s ${p.delay}s cubic-bezier(0.25,0.46,0.45,0.94) both`,
-              }}
-            />
-          ))}
-        </div>
+        {/* Confetti — fixed positions around screen edges */}
+        {CONFETTI.map((p, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              top: `${p.top}%`, left: `${p.left}%`,
+              width: p.size, height: p.size,
+              borderRadius: p.size > 6 ? 2 : '50%',
+              background: p.color,
+              pointerEvents: 'none',
+              zIndex: 0,
+              animation: `confetti-float 2s ${p.delay}s ease-in-out both`,
+            }}
+          />
+        ))}
 
         {/* Subtle vignette edges */}
         <div style={{
