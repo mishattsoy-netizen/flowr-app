@@ -18,10 +18,16 @@ function LoginPageInner() {
   }, [searchParams])
 
   useEffect(() => {
-    fetch('/api/admin/beta/check-invite').then(r => r.json()).then(d => {
-      setHasInvite(d.hasInvite === true)
-    }).catch(() => setHasInvite(false))
-  }, [])
+    // Show sign-in button unless the user was explicitly rejected after attempting sign-in.
+    // Already-approved users land here without a cookie — they should still see the button.
+    if (searchParams.get('error') === 'not_invited') {
+      setHasInvite(false)
+      return
+    }
+    fetch('/api/admin/beta/check-invite').then(() => {
+      setHasInvite(true)
+    }).catch(() => setHasInvite(true))
+  }, [searchParams])
 
   useEffect(() => {
     if (!loading && user) {
