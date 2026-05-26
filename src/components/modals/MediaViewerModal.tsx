@@ -1,8 +1,8 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { X, ExternalLink, Download, FileText } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { X, Copy, Check, Download, FileText } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function MediaViewerModal() {
@@ -11,6 +11,8 @@ export function MediaViewerModal() {
   const storeMessage = useStore(state => state.aiMessages.find(m => m.id === messageId));
   const [isZoomed, setIsZoomed] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Derive values safely
   const modalData = (modal && modal.kind === 'mediaViewer') ? (modal as any) : null;
@@ -26,17 +28,61 @@ export function MediaViewerModal() {
 
   const { url, mediaType } = modalData;
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `flowr-file-${Date.now()}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      const ext = (blob.type.split('/')[1] || 'png').split(';')[0];
+      a.download = `flowr-${mediaType}-${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `flowr-file-${Date.now()}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const handleOpenOriginal = () => {
     window.open(url, '_blank');
+  };
+
+  const handleCopyImage = async () => {
+    try {
+      const blobPromise = (async () => {
+        const img = imgRef.current;
+        if (!img) throw new Error('no img');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no ctx');
+        ctx.drawImage(img, 0, 0);
+        return new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+        });
+      })();
+      const item = new ClipboardItem({ 'image/png': blobPromise });
+      await navigator.clipboard.write([item]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch {
+        console.error('[MediaViewer] copy failed:', err);
+      }
+    }
   };
 
   return (
@@ -68,14 +114,16 @@ export function MediaViewerModal() {
             <FileText className="w-4.5 h-4.5" />
           </button>
         )}
-        <button 
-          onClick={(e) => { e.stopPropagation(); handleOpenOriginal(); }}
-          className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-          title="Open in new tab"
-        >
-          <ExternalLink className="w-4.5 h-4.5" />
-        </button>
-        <button 
+        {mediaType === 'image' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleCopyImage(); }}
+            className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
+            title={copied ? 'Copied' : 'Copy image'}
+          >
+            {copied ? <Check className="w-4.5 h-4.5 text-white" /> : <Copy className="w-4.5 h-4.5" />}
+          </button>
+        )}
+        <button
           onClick={(e) => { e.stopPropagation(); handleDownload(); }}
           className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
           title="Download"
@@ -102,8 +150,10 @@ export function MediaViewerModal() {
         <div className="max-w-[90%] max-h-[85%] flex items-center justify-center overflow-hidden">
           {mediaType === 'image' ? (
             <img
+              ref={imgRef}
               src={url}
               alt="Preview"
+              crossOrigin="anonymous"
               className={cn(
                   "rounded-xl shadow-2xl transition-all duration-300 select-none",
                   isZoomed ? "cursor-zoom-out max-w-none scale-150" : "cursor-zoom-in object-contain max-h-[80vh] w-auto border border-[var(--bone-12)]"

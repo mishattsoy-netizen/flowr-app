@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { ExternalLink, Plus, RefreshCw, Skull } from 'lucide-react';
+import { Copy, Download, Check, RefreshCw, Skull } from 'lucide-react';
 import { useStore } from '@/data/store';
 import { StarIcon } from './StarIcon';
 import { cn } from '@/lib/utils';
@@ -15,12 +15,63 @@ function isValidImageSrc(s: string | undefined | null): s is string {
 }
 
 export const ChatImage = memo(({ src, alt, description, messageId, onHeightChange, onAddToWorkspace }: { src: string; alt: string; description?: string; messageId?: string; onHeightChange?: () => void; onAddToWorkspace?: () => void }) => {
+  void onAddToWorkspace;
   const validSrc = isValidImageSrc(src);
   const [error, setError] = useState(!validSrc);
   // data: URIs are locally available — no network load needed, skip spinner
   const [loading, setLoading] = useState(validSrc && !src.startsWith('data:'));
   const [imgSrc, setImgSrc] = useState(src);
+  const [copied, setCopied] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  async function handleCopyImage() {
+    try {
+      // Use ClipboardItem with a Promise — Safari/Chrome require this for async blob loading
+      const blobPromise = (async () => {
+        // Draw the already-loaded image into a canvas to bypass CORS
+        const img = imgRef.current;
+        if (!img) throw new Error('no img');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no ctx');
+        ctx.drawImage(img, 0, 0);
+        return new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+        });
+      })();
+      const item = new ClipboardItem({ 'image/png': blobPromise });
+      await navigator.clipboard.write([item]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      // Canvas tainted (cross-origin without CORS headers) — fall back to copying the URL
+      try {
+        await navigator.clipboard.writeText(imgSrc);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch {
+        console.error('[ChatImage] copy failed:', err);
+      }
+    }
+  }
+
+  async function handleDownload() {
+    try {
+      const res = await fetch(imgSrc);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = (blob.type.split('/')[1] || 'png').split(';')[0];
+      a.download = `flowr-image-${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {}
+  }
 
   useEffect(() => {
     const ok = isValidImageSrc(src);
@@ -95,6 +146,7 @@ export const ChatImage = memo(({ src, alt, description, messageId, onHeightChang
           ref={imgRef}
           src={imgSrc}
           alt={alt}
+          crossOrigin="anonymous"
           style={loading ? { position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' } : undefined}
           className={cn(
             "max-w-full h-auto cursor-pointer",
@@ -116,29 +168,24 @@ export const ChatImage = memo(({ src, alt, description, messageId, onHeightChang
         />
       )}
 
-      {(!loading || error) && (
-        <div className={cn(
-          "absolute top-3 right-3 flex flex-col gap-2 transition-opacity duration-300",
-          error ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        )}>
-          <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
+      {!loading && !error && (
+        <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <button
+            onClick={handleCopyImage}
             className="w-10 h-10 bg-[var(--app-dark)] backdrop-blur-md rounded-full flex items-center justify-center text-muted-foreground hover:bg-[var(--bone-10)] hover:text-foreground transition-colors"
-            title="Open original image"
+            title={copied ? 'Copied' : 'Copy image'}
           >
-            <ExternalLink strokeWidth={2} className="w-4 h-4 ml-0.5" />
-          </a>
-          {onAddToWorkspace && !error && (
-            <button
-              onClick={(e) => { e.preventDefault(); onAddToWorkspace(); }}
-              className="w-10 h-10 bg-accent/90 backdrop-blur-md rounded-[var(--radius-small)] flex items-center justify-center text-white hover:bg-accent"
-              title="Add to Workspace"
-            >
-              <Plus strokeWidth={2} className="w-4 h-4" />
-            </button>
-          )}
+            {copied
+              ? <Check strokeWidth={2} className="w-4 h-4 text-foreground" />
+              : <Copy strokeWidth={2} className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleDownload}
+            className="w-10 h-10 bg-[var(--app-dark)] backdrop-blur-md rounded-full flex items-center justify-center text-muted-foreground hover:bg-[var(--bone-10)] hover:text-foreground transition-colors"
+            title="Download image"
+          >
+            <Download strokeWidth={2} className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
