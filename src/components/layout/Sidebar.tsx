@@ -493,8 +493,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 onClick={toggleSidebar}
                 className={cn(
                   "flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors border border-transparent",
-                  effectiveCollapsed 
-                    ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]" 
+                  effectiveCollapsed
+                    ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]"
                     : "w-[26px] h-[26px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)]"
                 )}
               >
@@ -576,9 +576,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 className="absolute top-[3px] bottom-[3px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
                 style={{
                   width: 'calc((100% - 6px) / 3)',
-                  left: `calc(3px + (${
-                    (activeEntityId === 'tracker' ? 1 : activeEntityId === 'chat' ? 2 : 0)
-                  } * (100% - 6px) / 3))`,
+                  left: `calc(3px + (${(activeEntityId === 'tracker' ? 1 : activeEntityId === 'chat' ? 2 : 0)
+                    } * (100% - 6px) / 3))`,
                   boxShadow: 'var(--slider-pill-shadow)'
                 }}
               />
@@ -587,8 +586,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 { id: 'tracker', label: 'Tasks', icon: ListTodo },
                 { id: 'chat', label: 'Chat', icon: MessageSquare }
               ].map(tab => {
-                const isActive = (tab.id === 'dashboard') 
-                  ? (activeEntityId !== 'tracker' && activeEntityId !== 'chat') 
+                const isActive = (tab.id === 'dashboard')
+                  ? (activeEntityId !== 'tracker' && activeEntityId !== 'chat')
                   : (activeEntityId === tab.id);
                 return (
                   <button
@@ -599,8 +598,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     }}
                     className={cn(
                       "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide",
-                      isActive 
-                        ? "text-[var(--bone-100)]" 
+                      isActive
+                        ? "text-[var(--bone-100)]"
                         : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
                     )}
                   >
@@ -697,12 +696,12 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                             >
                               <div className="flex items-center gap-1 group/header-label">
                                 <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">{label}</span>
-                                <ChevronDown 
-                                  strokeWidth={2} 
+                                <ChevronDown
+                                  strokeWidth={2}
                                   className={cn(
-                                    "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75", 
+                                    "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
                                     isCollapsed ? "-rotate-90" : "rotate-0"
-                                  )} 
+                                  )}
                                 />
                               </div>
                             </div>
@@ -865,234 +864,234 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         clearSelectedSidebarIds();
                       }
                     }}>
-                    <DndContext
-                    sensors={sensors}
-                    collisionDetection={pointerFirstCollision}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                  >
-                    {sectionOrder.map((sectionId) => {
-                      if (sectionId === 'favorites') {
-                        if (displayFavorites.length === 0) return null;
-                        return (
-                          <div key="favorites" className="flex flex-col gap-[1px]">
-                            <div
-                              onClick={() => setIsFavoritesCollapsed(!isFavoritesCollapsed)}
-                              className={cn(
-                                "pl-[8px] pr-[3px] py-0 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] h-7",
-                                contextMenu?.entityId === 'pinned'
-                                  ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
-                                  : "text-[var(--bone-30)]"
-                              )}
-                            >
-                              <div className="flex items-center gap-1 group/header-label">
-                                <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Pinned</span>
-                                <ChevronDown
-                                  strokeWidth={2}
-                                  className={cn(
-                                    "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
-                                    isFavoritesCollapsed ? "-rotate-90" : "rotate-0"
-                                  )}
-                                />
-                              </div>
-                              <div className="flex items-center gap-0.5">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    openContextMenu('pinned', rect.right, rect.top, 'sidebar-section');
-                                  }}
-                                  className={cn(
-                                    "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
-                                    contextMenu?.entityId === 'pinned' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
-                                  )}
-                                >
-                                  <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            <div
-                              className={cn(
-                                "grid transition-all duration-100 ease-out",
-                                !isFavoritesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                              )}
-                            >
-                              <div className="overflow-hidden">
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={pointerFirstCollision}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragEnd={handleDragEnd}
+                      >
+                        {sectionOrder.map((sectionId) => {
+                          if (sectionId === 'favorites') {
+                            if (displayFavorites.length === 0) return null;
+                            return (
+                              <div key="favorites" className="flex flex-col gap-[1px]">
                                 <div
-                                  ref={pinnedScrollRef}
-                                  className=""
+                                  onClick={() => setIsFavoritesCollapsed(!isFavoritesCollapsed)}
+                                  className={cn(
+                                    "pl-[8px] pr-[3px] py-0 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] h-7",
+                                    contextMenu?.entityId === 'pinned'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-30)]"
+                                  )}
                                 >
-                                  <DroppableZone id="pinned-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
-                                    <SortableContext items={displayFavorites.map(e => `pinned-${e.id}`)} strategy={verticalListSortingStrategy}>
-                                      {displayFavorites.map(entity => (
-                                        <TreeItem
-                                          key={`pinned-${entity.id}`}
-                                          entity={entity}
-                                          depth={0}
-                                          idOverride={`pinned-${entity.id}`}
-                                          disableNesting={true}
-                                          isMultiSelected={selectedSidebarIds.includes(entity.id)}
-                                          onShiftClick={handleShiftClick}
-                                        />
-                                      ))}
-                                    </SortableContext>
-                                  </DroppableZone>
+                                  <div className="flex items-center gap-1 group/header-label">
+                                    <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Pinned</span>
+                                    <ChevronDown
+                                      strokeWidth={2}
+                                      className={cn(
+                                        "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
+                                        isFavoritesCollapsed ? "-rotate-90" : "rotate-0"
+                                      )}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        openContextMenu('pinned', rect.right, rect.top, 'sidebar-section');
+                                      }}
+                                      className={cn(
+                                        "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
+                                        contextMenu?.entityId === 'pinned' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                                      )}
+                                    >
+                                      <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div
+                                  className={cn(
+                                    "grid transition-all duration-100 ease-out",
+                                    !isFavoritesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                                  )}
+                                >
+                                  <div className="overflow-hidden">
+                                    <div
+                                      ref={pinnedScrollRef}
+                                      className=""
+                                    >
+                                      <DroppableZone id="pinned-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
+                                        <SortableContext items={displayFavorites.map(e => `pinned-${e.id}`)} strategy={verticalListSortingStrategy}>
+                                          {displayFavorites.map(entity => (
+                                            <TreeItem
+                                              key={`pinned-${entity.id}`}
+                                              entity={entity}
+                                              depth={0}
+                                              idOverride={`pinned-${entity.id}`}
+                                              disableNesting={true}
+                                              isMultiSelected={selectedSidebarIds.includes(entity.id)}
+                                              onShiftClick={handleShiftClick}
+                                            />
+                                          ))}
+                                        </SortableContext>
+                                      </DroppableZone>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (sectionId === 'unsorted') {
-                        if (displayUnsorted.length === 0) return null;
-                        return (
-                          <div key="unsorted" className="flex flex-col gap-[1px]">
-                            <div
-                              onClick={() => setIsUnsortedCollapsed(!isUnsortedCollapsed)}
-                              className={cn(
-                                "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
-                                contextMenu?.entityId === 'unsorted'
-                                  ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
-                                  : "text-[var(--bone-30)]"
-                              )}
-                            >
-                              <div className="flex items-center gap-1 group/header-label">
-                                <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Unsorted</span>
-                                <ChevronDown
-                                  strokeWidth={2}
-                                  className={cn(
-                                    "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
-                                    isUnsortedCollapsed ? "-rotate-90" : "rotate-0"
-                                  )}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    openContextMenu('unsorted', rect.right, rect.top, 'sidebar-section');
-                                  }}
-                                  className={cn(
-                                    "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
-                                    contextMenu?.entityId === 'unsorted' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
-                                  )}
-                                >
-                                  <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            <div
-                              className={cn(
-                                "grid transition-all duration-100 ease-out",
-                                !isUnsortedCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                              )}
-                            >
-                              <div className="overflow-hidden">
+                          if (sectionId === 'unsorted') {
+                            if (displayUnsorted.length === 0) return null;
+                            return (
+                              <div key="unsorted" className="flex flex-col gap-[1px]">
                                 <div
-                                  className=""
+                                  onClick={() => setIsUnsortedCollapsed(!isUnsortedCollapsed)}
+                                  className={cn(
+                                    "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
+                                    contextMenu?.entityId === 'unsorted'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-30)]"
+                                  )}
                                 >
-                                  <DroppableZone id="unsorted-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
-                                    <SortableContext items={displayUnsorted.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                                      {displayUnsorted.map(entity => (
-                                        <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
-                                      ))}
-                                    </SortableContext>
-                                  </DroppableZone>
+                                  <div className="flex items-center gap-1 group/header-label">
+                                    <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Unsorted</span>
+                                    <ChevronDown
+                                      strokeWidth={2}
+                                      className={cn(
+                                        "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
+                                        isUnsortedCollapsed ? "-rotate-90" : "rotate-0"
+                                      )}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        openContextMenu('unsorted', rect.right, rect.top, 'sidebar-section');
+                                      }}
+                                      className={cn(
+                                        "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
+                                        contextMenu?.entityId === 'unsorted' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                                      )}
+                                    >
+                                      <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div
+                                  className={cn(
+                                    "grid transition-all duration-100 ease-out",
+                                    !isUnsortedCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                                  )}
+                                >
+                                  <div className="overflow-hidden">
+                                    <div
+                                      className=""
+                                    >
+                                      <DroppableZone id="unsorted-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
+                                        <SortableContext items={displayUnsorted.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                                          {displayUnsorted.map(entity => (
+                                            <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
+                                          ))}
+                                        </SortableContext>
+                                      </DroppableZone>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (sectionId === 'workspaces') {
-                        return (
-                          <div key="workspaces" className="flex flex-col gap-[1px]">
-                            <div
-                              className={cn(
-                                "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
-                                contextMenu?.entityId === 'workspaces'
-                                  ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
-                                  : "text-[var(--bone-30)]"
-                              )}
-                              onClick={() => setIsWorkspacesCollapsed(!isWorkspacesCollapsed)}
-                            >
-                              <div className="flex items-center gap-1 group/header-label">
-                                <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Workspaces</span>
-                                <ChevronDown
-                                  strokeWidth={2}
-                                  className={cn(
-                                    "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
-                                    isWorkspacesCollapsed ? "-rotate-90" : "rotate-0"
-                                  )}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    openContextMenu('workspaces', rect.right, rect.top, 'sidebar-section');
-                                  }}
-                                  className={cn(
-                                    "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
-                                    contextMenu?.entityId === 'workspaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
-                                  )}
-                                >
-                                  <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openModal({ kind: 'newCollection' });
-                                  }}
-                                  className="btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]"
-                                >
-                                  <Plus strokeWidth={2} className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            <div
-                              className={cn(
-                                "grid transition-all duration-100 ease-out",
-                                !isWorkspacesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                              )}
-                            >
-                              <div className="overflow-hidden">
+                          if (sectionId === 'workspaces') {
+                            return (
+                              <div key="workspaces" className="flex flex-col gap-[1px]">
                                 <div
-                                  className=""
+                                  className={cn(
+                                    "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
+                                    contextMenu?.entityId === 'workspaces'
+                                      ? "!bg-[var(--bone-10)] text-[var(--bone-100)]"
+                                      : "text-[var(--bone-30)]"
+                                  )}
+                                  onClick={() => setIsWorkspacesCollapsed(!isWorkspacesCollapsed)}
                                 >
-                                  <DroppableZone id="workspaces-container" className="flex flex-col gap-[1px] mt-[1px] mb-2">
-                                    <SortableContext items={displayWorkspaces.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                                      {displayWorkspaces.map(workspace => (
-                                        <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
-                                      ))}
-                                    </SortableContext>
-                                  </DroppableZone>
+                                  <div className="flex items-center gap-1 group/header-label">
+                                    <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Workspaces</span>
+                                    <ChevronDown
+                                      strokeWidth={2}
+                                      className={cn(
+                                        "w-3.5 h-3.5 text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] opacity-0 group-hover:opacity-100 transition-opacity duration-75",
+                                        isWorkspacesCollapsed ? "-rotate-90" : "rotate-0"
+                                      )}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        openContextMenu('workspaces', rect.right, rect.top, 'sidebar-section');
+                                      }}
+                                      className={cn(
+                                        "btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]",
+                                        contextMenu?.entityId === 'workspaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                                      )}
+                                    >
+                                      <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openModal({ kind: 'newCollection' });
+                                      }}
+                                      className="btn-sidebar-utility opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)]"
+                                    >
+                                      <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div
+                                  className={cn(
+                                    "grid transition-all duration-100 ease-out",
+                                    !isWorkspacesCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                                  )}
+                                >
+                                  <div className="overflow-hidden">
+                                    <div
+                                      className=""
+                                    >
+                                      <DroppableZone id="workspaces-container" className="flex flex-col gap-[1px] mt-[1px] mb-2">
+                                        <SortableContext items={displayWorkspaces.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                                          {displayWorkspaces.map(workspace => (
+                                            <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
+                                          ))}
+                                        </SortableContext>
+                                      </DroppableZone>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                    <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
-                      {activeDragEntity ? (
-                        <TreeItem
-                          entity={activeDragEntity}
-                          depth={0}
-                          isDragOverlay
-                          disableNesting
-                          showUnpinHint={showUnpinHint}
-                        />
-                      ) : null}
-                    </DragOverlay>
-                  </DndContext>
-                  </div>
+                            );
+                          }
+                          return null;
+                        })}
+                        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
+                          {activeDragEntity ? (
+                            <TreeItem
+                              entity={activeDragEntity}
+                              depth={0}
+                              isDragOverlay
+                              disableNesting
+                              showUnpinHint={showUnpinHint}
+                            />
+                          ) : null}
+                        </DragOverlay>
+                      </DndContext>
+                    </div>
                   </ScrollArea>
                 </div>
               )}

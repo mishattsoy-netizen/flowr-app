@@ -1,0 +1,10 @@
+{"type":"server-started","port":53641,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:53641","screen_dir":"/Users/mktsoy/Dev/flowr-4-main/.superpowers/brainstorm/49879-1779749644/content","state_dir":"/Users/mktsoy/Dev/flowr-4-main/.superpowers/brainstorm/49879-1779749644/state"}
+{"type":"screen-added","file":"/Users/mktsoy/Dev/flowr-4-main/.superpowers/brainstorm/49879-1779749644/content/vibe.html"}
+{"source":"user-event","type":"click","text":"🎉\n    \n    \n      Playful & Celebratory\n      Confetti, animation, a little party. \"You're in!\" Fun, energetic, makes you smile. More dopamine hit than sophistication.","choice":"playful","id":null,"timestamp":1779749728853}
+{"source":"user-event","type":"click","text":"✨\n    \n    \n      Premium & Exclusive\n      Feels like you got a VIP pass. Dark, polished, confident. \"You're one of the chosen few.\" Sophisticated tone.","choice":"premium","id":null,"timestamp":1779749731366}
+{"source":"user-event","type":"click","text":"🎉\n    \n    \n      Playful & Celebratory\n      Confetti, animation, a little party. \"You're in!\" Fun, energetic, makes you smile. More dopamine hit than sophistication.","choice":"playful","id":null,"timestamp":1779749748760}
+{"source":"user-event","type":"click","text":"✨\n    \n    \n      Premium & Exclusive\n      Feels like you got a VIP pass. Dark, polished, confident. \"You're one of the chosen few.\" Sophisticated tone.","choice":"premium","id":null,"timestamp":1779749749659}
+{"source":"user-event","type":"click","text":"🎉\n    \n    \n      Playful & Celebratory\n      Confetti, animation, a little party. \"You're in!\" Fun, energetic, makes you smile. More dopamine hit than sophistication.","choice":"playful","id":null,"timestamp":1779749750293}
+{"type":"screen-added","file":"/Users/mktsoy/Dev/flowr-4-main/.superpowers/brainstorm/49879-1779749644/content/layout.html"}
+{"type":"screen-added","file":"/Users/mktsoy/Dev/flowr-4-main/.superpowers/brainstorm/49879-1779749644/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

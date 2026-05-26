@@ -34,7 +34,7 @@ export function FolderView({ entity }: FolderViewProps) {
   const [itemTempTitle, setItemTempTitle] = useState('');
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const isMounted = useSyncExternalStore(() => () => { }, () => true, () => false);
 
   useEffect(() => {
     if (editingEntity?.id === entity.id && editingEntity.source === 'view') {
@@ -250,7 +250,7 @@ export function FolderView({ entity }: FolderViewProps) {
             <div className="flex flex-col gap-1">
               {filteredChildren.map(item => {
                 const isEditing = editingEntity?.id === item.id && editingEntity.source === 'view';
-                
+
                 return (
                   <div
                     key={item.id}

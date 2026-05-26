@@ -34,7 +34,7 @@ export default function WelcomePage() {
   const router = useRouter()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [checked, setChecked] = useState(false)
-  const [exiting, setExiting] = useState(false)
+  const [exiting] = useState(false)
 
   useEffect(() => {
     setChecked(true)
@@ -83,9 +83,7 @@ export default function WelcomePage() {
   }, [checked])
 
   function handleEnter() {
-    if (exiting) return
-    setExiting(true)
-    setTimeout(() => router.push('/app'), 500)
+    router.push('/app')
   }
 
   if (!checked) return null
@@ -111,10 +109,13 @@ export default function WelcomePage() {
           background: radial-gradient(ellipse 80% 60% at 50% 40%, #1e130a 0%, #111110 55%, #0a0a09 100%);
           background-size: 200% 200%;
           animation: bg-drift 8s ease-in-out infinite;
+          opacity: 1;
+          transition: opacity 0.7s ease;
+          will-change: opacity;
         }
         .welcome-exiting {
-          opacity: 0;
-          transition: opacity 0.5s ease;
+          opacity: 0 !important;
+          animation-play-state: paused;
         }
         .welcome-enter-btn {
           transition: opacity 0.15s ease;

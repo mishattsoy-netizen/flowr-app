@@ -1323,6 +1323,7 @@ export const useStore = create<AppState>()(
           parentId: finalParentId,
           workspaceId: entity.workspaceId || activeWorkspaceId,
           sortOrder: entity.sortOrder ?? (maxSortOrder + 1),
+          cloudSyncEnabled: entity.cloudSyncEnabled ?? true,
           lastModified: entity.lastModified || Date.now()
         } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));

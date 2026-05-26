@@ -21,7 +21,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [newItemPopupPos, setNewItemPopupPos] = useState<{ x: number; y: number } | null>(null);
 
-  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const isMounted = useSyncExternalStore(() => () => { }, () => true, () => false);
 
   /* ── Rename ── */
   const isEditing = editingEntity?.id === entity.id && editingEntity.source === 'view';
@@ -46,7 +46,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
         }}
         className="group text-4xl font-display font-medium leading-none text-foreground mb-1 flex items-center gap-3"
       >
-        <div 
+        <div
           className="shrink-0 w-10 h-10 flex items-center justify-center cursor-pointer hover:bg-hover rounded-xl transition-colors"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();

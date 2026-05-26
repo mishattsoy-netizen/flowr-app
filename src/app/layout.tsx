@@ -4,7 +4,8 @@ import "./globals.css";
 import SupabaseProvider from "@/components/SupabaseProvider";
 import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import FadeTextObserver from "@/components/ui/FadeTextObserver";
+import FadeTextObserver from "@/components/ui/FadeTextObserver"
+import WelcomeTransition from "@/components/WelcomeTransition";
 
 const literata = Literata({
   variable: "--font-display",
@@ -87,6 +88,7 @@ export default function RootLayout({
             <SupabaseProvider>
               {children}
               <FadeTextObserver />
+              <WelcomeTransition />
             </SupabaseProvider>
           </AuthProvider>
         </ThemeProvider>
