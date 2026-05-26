@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { validateInviteToken } from '@/lib/beta'
+import { acceptInvite } from './actions'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -23,14 +23,6 @@ export default async function InvitePage({ params }: Props) {
     )
   }
 
-  const cookieStore = await cookies()
-  cookieStore.set('beta_invite_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60, // 1 hour
-    path: '/',
-    sameSite: 'lax',
-  })
-
+  await acceptInvite(token)
   redirect('/login')
 }
