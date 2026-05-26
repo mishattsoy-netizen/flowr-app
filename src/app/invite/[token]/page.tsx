@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
 import { validateInviteToken } from '@/lib/beta'
-import { acceptInvite } from './actions'
+import InviteAcceptor from './InviteAcceptor'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -23,6 +22,5 @@ export default async function InvitePage({ params }: Props) {
     )
   }
 
-  await acceptInvite(token)
-  redirect('/login')
+  return <InviteAcceptor token={token} />
 }
