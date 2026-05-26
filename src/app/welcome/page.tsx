@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const FlowrLogo = () => (
@@ -9,30 +9,78 @@ const FlowrLogo = () => (
   </svg>
 )
 
-// Particles placed at fixed screen positions (% from top-left), away from center content
-const CONFETTI = [
-  { color: '#d67a3c', top:  8, left:  6, size: 6, delay: 0 },
-  { color: '#a78bfa', top: 12, left: 88, size: 5, delay: 0.08 },
-  { color: '#34d399', top: 22, left: 92, size: 7, delay: 0.04 },
-  { color: '#fb7185', top:  5, left: 42, size: 4, delay: 0.12 },
-  { color: '#d67a3c', top:  5, left: 72, size: 5, delay: 0.06 },
-  { color: '#a78bfa', top: 18, left:  3, size: 7, delay: 0.02 },
-  { color: '#34d399', top: 75, left:  5, size: 5, delay: 0.10 },
-  { color: '#fb7185', top: 82, left: 92, size: 6, delay: 0.05 },
-  { color: '#d67a3c', top: 88, left: 18, size: 7, delay: 0.14 },
-  { color: '#a78bfa', top: 90, left: 78, size: 4, delay: 0.01 },
-  { color: '#34d399', top: 70, left: 94, size: 6, delay: 0.11 },
-  { color: '#fb7185', top: 78, left:  2, size: 5, delay: 0.07 },
-]
+const COLORS = ['#d67a3c', '#a78bfa', '#34d399', '#fb7185', '#fbbf24']
+
+interface Particle {
+  x: number; y: number; w: number; h: number
+  color: string; speed: number; angle: number; spin: number; rot: number
+}
+
+function spawnParticle(W: number): Particle {
+  return {
+    x: Math.random() * W,
+    y: -12,
+    w: 5 + Math.random() * 5,
+    h: 3 + Math.random() * 4,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    speed: 1.5 + Math.random() * 2,
+    angle: (Math.random() - 0.5) * 0.8,
+    spin: (Math.random() - 0.5) * 0.12,
+    rot: Math.random() * Math.PI * 2,
+  }
+}
 
 export default function WelcomePage() {
   const router = useRouter()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [checked, setChecked] = useState(false)
   const [exiting, setExiting] = useState(false)
 
   useEffect(() => {
     setChecked(true)
   }, [])
+
+  useEffect(() => {
+    if (!checked) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    let W = canvas.width = window.innerWidth
+    let H = canvas.height = window.innerHeight
+    const onResize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight }
+    window.addEventListener('resize', onResize)
+
+    const particles: Particle[] = Array.from({ length: 40 }, () => {
+      const p = spawnParticle(W)
+      p.y = Math.random() * H  // scatter initial positions so not all start at top
+      return p
+    })
+
+    let raf: number
+    function draw() {
+      ctx.clearRect(0, 0, W, H)
+      for (const p of particles) {
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rot)
+        ctx.fillStyle = p.color
+        ctx.globalAlpha = 0.75
+        ctx.beginPath()
+        ctx.rect(-p.w / 2, -p.h / 2, p.w, p.h)
+        ctx.fill()
+        ctx.restore()
+        p.y += p.speed
+        p.x += p.angle
+        p.rot += p.spin
+        if (p.y > H + 20) {
+          Object.assign(p, spawnParticle(W))
+        }
+      }
+      raf = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize) }
+  }, [checked])
 
   function handleEnter() {
     if (exiting) return
@@ -45,12 +93,6 @@ export default function WelcomePage() {
   return (
     <>
       <style>{`
-        @keyframes confetti-float {
-          0%   { opacity: 0; transform: translateY(8px) scale(0.8); }
-          20%  { opacity: 1; }
-          80%  { opacity: 1; }
-          100% { opacity: 0; transform: translateY(-18px) scale(0.6); }
-        }
         @keyframes content-up {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -90,22 +132,11 @@ export default function WelcomePage() {
           fontFamily: 'var(--font-sans)',
         }}
       >
-        {/* Confetti — fixed positions around screen edges */}
-        {CONFETTI.map((p, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: `${p.top}%`, left: `${p.left}%`,
-              width: p.size, height: p.size,
-              borderRadius: p.size > 6 ? 2 : '50%',
-              background: p.color,
-              pointerEvents: 'none',
-              zIndex: 0,
-              animation: `confetti-float 2s ${p.delay}s ease-in-out both`,
-            }}
-          />
-        ))}
+        {/* Confetti canvas */}
+        <canvas
+          ref={canvasRef}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}
+        />
 
         {/* Subtle vignette edges */}
         <div style={{
