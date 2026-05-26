@@ -23,6 +23,9 @@ export async function expandImagePrompt(
 
   const expansionPrompt = `User Request: "${prompt}"\n\nGenerate a detailed image prompt based on this and the provided conversation history.`
 
+  // Strip onChunk so the expanded prompt isn't streamed to the user as chat content.
+  const subContext = { ...(context || {}), onChunk: undefined }
+
   for (const model of chain) {
     if (!model.is_enabled) continue
 
@@ -31,15 +34,15 @@ export async function expandImagePrompt(
       const provider = model.provider.toLowerCase()
 
       if (provider === 'google' || provider === 'gemini') {
-        response = await runGoogle(model.id, expansionPrompt, systemPrompt, undefined, context || {}, history)
+        response = await runGoogle(model.id, expansionPrompt, systemPrompt, undefined, subContext, history)
       } else if (provider === 'groq') {
-        response = await runGroq(model.id, expansionPrompt, systemPrompt, context?.aiApiKey, context || {}, history)
+        response = await runGroq(model.id, expansionPrompt, systemPrompt, subContext?.aiApiKey, subContext, history)
       } else if (provider === 'openrouter') {
         const keys = await getProviderKeys('OPENROUTER')
-        response = await runOpenRouter(model.id, expansionPrompt, systemPrompt, history, context?.aiApiKey || keys[0], { ...(context || {}), openrouterProvider: model.openrouter_provider })
+        response = await runOpenRouter(model.id, expansionPrompt, systemPrompt, history, subContext?.aiApiKey || keys[0], { ...subContext, openrouterProvider: model.openrouter_provider })
       } else if (provider === 'pollinations') {
         const { runPollinationsText } = await import('./providers/pollinations')
-        response = await runPollinationsText(model.id, expansionPrompt, systemPrompt, history, context?.aiApiKey)
+        response = await runPollinationsText(model.id, expansionPrompt, systemPrompt, history, subContext?.aiApiKey)
       }
 
       if (response) {

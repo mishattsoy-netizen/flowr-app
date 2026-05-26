@@ -22,6 +22,10 @@ export async function narrateGeneratedImage(
 
   const prompt = 'Describe this image in detail (250-700 characters).'
 
+  // Strip onChunk so narration tokens don't leak into the user-facing chat stream
+  // (the narration is returned as image_description, not as message content).
+  const subContext = { ...(context || {}), onChunk: undefined }
+
   for (const model of chain) {
     if (!model.is_enabled) continue
 
@@ -30,13 +34,13 @@ export async function narrateGeneratedImage(
       const provider = model.provider.toLowerCase()
 
       if (provider === 'google' || provider === 'gemini') {
-        response = await runGoogle(model.id, prompt, systemPrompt, imageBuffer, context, [])
+        response = await runGoogle(model.id, prompt, systemPrompt, imageBuffer, subContext, [])
       } else if (provider === 'cloudflare') {
-        response = await runCloudflare(model.id, prompt, context?.aiApiKey, systemPrompt, [], 'VISION')
+        response = await runCloudflare(model.id, prompt, subContext?.aiApiKey, systemPrompt, [], 'VISION')
       } else if (provider === 'openrouter') {
-        response = await runOpenRouter(model.id, prompt, systemPrompt, [], context?.aiApiKey, { ...(context || {}), openrouterProvider: model.openrouter_provider }, imageBuffer)
+        response = await runOpenRouter(model.id, prompt, systemPrompt, [], subContext?.aiApiKey, { ...subContext, openrouterProvider: model.openrouter_provider }, imageBuffer)
       } else if (provider === 'groq') {
-        response = await runGroq(model.id, prompt, systemPrompt, context?.aiApiKey, context, [], imageBuffer)
+        response = await runGroq(model.id, prompt, systemPrompt, subContext?.aiApiKey, subContext, [], imageBuffer)
       }
 
       if (response) {
