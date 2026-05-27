@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import FadeTextObserver from "@/components/ui/FadeTextObserver"
 import WelcomeTransition from "@/components/WelcomeTransition";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const literata = Literata({
   variable: "--font-display",
@@ -91,6 +92,7 @@ export default function RootLayout({
               <FadeTextObserver />
               <WelcomeTransition />
               <Analytics />
+              <SpeedInsights />
             </SupabaseProvider>
           </AuthProvider>
         </ThemeProvider>
