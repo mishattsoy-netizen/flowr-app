@@ -81,14 +81,14 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
             <div className="flex items-center gap-0.5 bg-[var(--app-dark)] rounded-[4px] p-0.5">
               {(['list', 'by-status'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => onUpdateData({ ...data, view: v })}
-                  className={cn("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] transition-colors",
+                  className={cn("px-2 py-0.5 text-[10px] font-semibold rounded-[3px] transition-colors duration-200 ease-in-out",
                     view === v ? "bg-dark text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]"
                   )}>{v === 'list' ? 'List' : 'Status'}</button>
               ))}
             </div>
           )}
           <button onClick={() => { setIsAdding(true); setTimeout(() => inputRef.current?.focus(), 50); }}
-            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]">
+            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -107,13 +107,13 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
                 type="button"
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "relative pb-2 px-3 font-semibold transition-colors flex items-center gap-1.5 border-none bg-transparent cursor-pointer text-xs focus:outline-none",
+                  "relative pb-2 px-3 font-semibold transition-colors duration-200 ease-in-out flex items-center gap-1.5 border-none bg-transparent cursor-pointer text-xs focus:outline-none",
                   isActive ? "text-[var(--bone-100)] font-bold" : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
                 )}
               >
                 <span>{label}</span>
                 <span className={cn(
-                  "px-1.5 py-0.5 text-[9px] rounded-full font-bold transition-all",
+                  "px-1.5 py-0.5 text-[9px] rounded-full font-bold transition-all duration-200 ease-in-out",
                   isActive ? "bg-[var(--accent)] text-white" : "bg-[var(--bone-6)] text-[var(--bone-40)]"
                 )}>
                   {count}
@@ -141,8 +141,8 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
         {view === 'list' ? (
           <div className="space-y-1">
             {currentTabTasks.map(t => (
-              <div key={t.id} className="group flex items-center gap-3 px-3 py-2 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)] transition-all">
-                <button onClick={() => toggleTask(t.id)} className={cn("shrink-0 transition-colors", t.completed ? "text-accent" : "text-[var(--bone-20)] hover:text-accent")}>
+              <div key={t.id} className="group flex items-center gap-3 px-3 py-2 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out">
+                <button onClick={() => toggleTask(t.id)} className={cn("shrink-0 transition-colors duration-200 ease-in-out", t.completed ? "text-accent" : "text-[var(--bone-20)] hover:text-accent")}>
                   {t.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 </button>
                 <span className={cn("flex-1 text-sm font-medium", t.completed ? "text-muted-foreground line-through opacity-60" : "text-foreground")}>
@@ -165,8 +165,8 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
               <div key={group}>
                 <div className="text-[10px] font-semibold text-bone-70 uppercase tracking-widest mb-1 px-1">{group}</div>
                 {items.map(t => (
-                  <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)]">
-                    <button onClick={() => toggleTask(t.id)} className="shrink-0 text-[var(--bone-20)] hover:text-accent"><Circle className="w-3.5 h-3.5" /></button>
+                  <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out">
+                    <button onClick={() => toggleTask(t.id)} className="shrink-0 text-[var(--bone-20)] hover:text-accent transition-colors duration-200 ease-in-out"><Circle className="w-3.5 h-3.5" /></button>
                     <span className="text-sm text-foreground">{stripHtml(t.title || '')}</span>
                   </div>
                 ))}

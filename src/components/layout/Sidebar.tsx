@@ -864,13 +864,19 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">New Page</span>
                     </button>
                     <button
-                      onClick={() => openModal({ kind: 'newTask' })}
-                      className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent  text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all"
+                      onClick={() => {
+                        setActiveEntityId('dashboard');
+                        clearSelectedSidebarIds();
+                      }}
+                      className={cn(
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all",
+                        activeEntityId === 'dashboard' && "!bg-dark !text-[var(--bone-100)]"
+                      )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
-                        <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+                        <LayoutDashboard strokeWidth={2} className="w-3.5 h-3.5" />
                       </div>
-                      <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">New Task</span>
+                      <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Dashboard</span>
                     </button>
                     <div className="h-px bg-border/20 -mx-[10px] mt-[10px] mb-0" />
                   </div>
@@ -1142,11 +1148,15 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 : "flex-1 min-w-0 gap-3"
             )}
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--bone-15)] to-[var(--bone-6)] flex items-center justify-center shrink-0 overflow-hidden">
-              {sidebarAvatarUrl ? (
-                <img src={sidebarAvatarUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-              ) : (
-                <span className="text-[13px] font-bold text-[var(--bone-70)] tracking-wide group-hover/profile:text-[var(--bone-100)] transition-colors">{sidebarInitial}</span>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--bone-15)] to-[var(--bone-6)] flex items-center justify-center shrink-0 overflow-hidden relative">
+              <span className="text-[11px] font-bold text-[var(--bone-70)] tracking-wide group-hover/profile:text-[var(--bone-100)] transition-colors">{sidebarInitial}</span>
+              {sidebarAvatarUrl && (
+                <img 
+                  src={sidebarAvatarUrl} 
+                  alt="" 
+                  className="absolute inset-0 w-full h-full object-cover" 
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} 
+                />
               )}
             </div>
             {!effectiveCollapsed && (
@@ -1173,8 +1183,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               className={cn(
                 contextMenu?.source === 'spaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100",
                 effectiveCollapsed
-                  ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-colors border border-transparent"
-                  : "btn-sidebar-utility hover:!bg-[var(--bone-6)]"
+                  ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+                  : "btn-sidebar-utility hover:!bg-[var(--app-dark)]"
               )}
             >
               <ChevronsUpDown strokeWidth={2} className="w-4 h-4" />
@@ -1187,8 +1197,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 toggleTheme();
               }}
               className={effectiveCollapsed
-                ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-colors border border-transparent"
-                : "btn-sidebar-utility hover:!bg-[var(--bone-6)]"
+                ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+                : "btn-sidebar-utility hover:!bg-[var(--app-dark)]"
               }
             >
               {theme === 'dark' ? <Sun strokeWidth={2} className="w-4 h-4" /> : <Moon strokeWidth={2} className="w-4 h-4" />}

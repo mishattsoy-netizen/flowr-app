@@ -1,13 +1,12 @@
 "use client";
 
 import { AppTask, useStore } from '@/data/store';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { useDroppable } from '@dnd-kit/core';
 import { TaskCard } from './TaskCard';
-import { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Plus, MoreHorizontal, Trash2 } from 'lucide-react';
+import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 
 const DOT_COLORS: Record<string, string> = {
   todo: '#3B82F6',       // Blue
@@ -17,19 +16,61 @@ const DOT_COLORS: Record<string, string> = {
   completed: '#10B981'   // Emerald
 };
 
+// The moving full-size gap. It is ITSELF a drop target reporting its own
+// current position, so hovering the gap resolves to the same slot it already
+// occupies — this is what prevents the insert/relayout oscillation (the loop).
+// The drop target is registered once (empty deps) and reads latest props from
+// a ref so it never needs to tear down and re-create on cursor moves.
+function GapBox({ columnId, afterTaskId, height }: { columnId: string; afterTaskId: string | null; height: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const dataRef = useRef({ columnId, afterTaskId });
+  dataRef.current = { columnId, afterTaskId };
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'task',
+      getData: () => ({ type: 'gap', ...dataRef.current }),
+    });
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="rounded-[10px] bg-[var(--bone-6)] shrink-0 transition-[height] duration-150 ease-out"
+      style={{ height }}
+    />
+  );
+}
+
 interface KanbanColumnProps {
   id: string;
   title: string;
   tasks: AppTask[];
-  isDraggingOver?: boolean;
+  // The moving full-size gap, when the cursor is over THIS column (else null).
+  // afterTaskId === null → gap before the first card.
+  gap: { afterTaskId: string | null; height: number } | null;
+  // Id of the card currently being dragged (null when no drag in progress).
+  // That card stays mounted but hidden in its origin slot so pragmatic-dnd
+  // keeps tracking it; the visual gap is drawn separately.
+  activeDragId: string | null;
+  // The card that just landed + a nonce that bumps each drop, so the settle
+  // animation restarts every time (even on a rapid re-drop of the same card).
+  justDropped: { taskId: string; nonce: number } | null;
 }
 
-export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: id,
-  });
+export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped }: KanbanColumnProps) {
+  const dropRef = useRef<HTMLDivElement>(null);
 
-  const taskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+  useEffect(() => {
+    const el = dropRef.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'task',
+      getData: () => ({ type: 'column', columnId: id }),
+    });
+  }, [id]);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -109,26 +150,46 @@ export function KanbanColumn({ id, title, tasks }: KanbanColumnProps) {
       </div>
 
       <div
-        ref={setNodeRef}
+        ref={dropRef}
+        data-kanban-column={id}
         className="flex-1 flex flex-col overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[var(--bone-10)] scrollbar-track-transparent"
       >
-        {tasks.length > 0 ? (
-          <SortableContext
-            id={id}
-            items={taskIds}
-            strategy={verticalListSortingStrategy}
-          >
+        {(() => {
+          const gapBox = gap ? (
+            <GapBox columnId={id} afterTaskId={gap.afterTaskId} height={gap.height} />
+          ) : null;
+
+          // Visible cards = all tasks except the one being dragged (it stays
+          // mounted but invisible inside TaskCard, so it keeps its drag).
+          const hasVisible = tasks.some(t => t.id !== activeDragId);
+
+          if (!hasVisible && !gap) {
+            return (
+              <div className="flex-1 flex items-center justify-center bg-[var(--bone-3)] rounded-[var(--radius-medium)] min-h-[100px]">
+                <span className="text-xs font-ui text-[var(--bone-15)]">No tasks here</span>
+              </div>
+            );
+          }
+
+          return (
             <div className="flex flex-col gap-3 min-h-0">
+              {/* Gap before the first card */}
+              {gap && gap.afterTaskId === null && gapBox}
               {tasks.map(task => (
-                <TaskCard key={task.id} task={task} />
+                <React.Fragment key={task.id}>
+                  <TaskCard
+                    task={task}
+                    columnId={id}
+                    closestEdge={null}
+                    isActiveDrag={task.id === activeDragId}
+                    dropNonce={justDropped?.taskId === task.id ? justDropped.nonce : 0}
+                  />
+                  {gap && gap.afterTaskId === task.id && gapBox}
+                </React.Fragment>
               ))}
             </div>
-          </SortableContext>
-        ) : (
-          <div className="flex-1 flex items-center justify-center bg-[var(--bone-3)] rounded-[var(--radius-medium)] min-h-[100px]">
-            <span className="text-xs font-ui text-[var(--bone-15)]">No tasks here</span>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

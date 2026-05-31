@@ -21,6 +21,9 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   
+  const numCols = shortcuts.length > 8 ? 3 : shortcuts.length > 4 ? 2 : 1;
+  const numRows = Math.ceil(shortcuts.length / numCols);
+  
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newValue, setNewValue] = useState('');
@@ -51,7 +54,7 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
         type, 
         label, 
         value: newValue.trim() 
-      }].slice(0, 8);
+      }].slice(0, 12);
     }
     
     onUpdateData({ shortcuts: newShortcuts });
@@ -71,17 +74,17 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">
           Shortcuts
         </h2>
-        {shortcuts.length < 8 && (
+        {shortcuts.length < 12 && (
           <button
             onClick={() => setIsAdding(true)}
-            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out"
           >
             <Plus strokeWidth={2} className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div className="flex-1 min-h-0 flex flex-col no-scrollbar">
         {isAdding ? (
           <div className="space-y-3 p-3 bg-[var(--bone-5)] rounded-xl border border-[var(--bone-3)]">
             <div className="flex gap-1 p-0.5 bg-[var(--bone-10)] rounded-md">
@@ -139,7 +142,17 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
             </div>
           </div>
         ) : shortcuts.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-3">
+          <div 
+            className={cn(
+              "grid gap-2 flex-1",
+              shortcuts.length > 8
+                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
+                : shortcuts.length > 4
+                  ? "grid-cols-1 sm:grid-cols-2"
+                  : "grid-cols-1"
+            )}
+            style={{ gridTemplateRows: `repeat(${numRows}, 1fr)` }}
+          >
             {shortcuts.map(s => (
               <ShortcutItem
                 key={s.id}
@@ -164,14 +177,14 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
             ))}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
+          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px]">
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">Get started with Shortcuts</p>
               <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Add quick links to your favorite apps, sites, and documents.</p>
             </div>
             <button
               onClick={() => setIsAdding(true)}
-              className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium transition-all duration-300"
+              className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium cursor-pointer transition-all duration-200 ease-in-out"
             >
               <Plus strokeWidth={2} className="w-3.5 h-3.5" /> Add Shortcut
             </button>
@@ -225,21 +238,25 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
   let Icon = ExternalLink;
   let isInternal = shortcut.type === 'entity';
   let faviconUrl = '';
+  let displaySubtitle = '';
   
   if (isInternal) {
     const ent = entities.find(e => e.id === shortcut.value);
     Icon = ent ? getEntityIcon(ent.icon) : FileText;
+    displaySubtitle = 'Document';
   } else {
     try {
-      const hostname = new URL(shortcut.value).hostname;
+      const urlObj = new URL(shortcut.value);
+      const hostname = urlObj.hostname;
       faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`;
+      displaySubtitle = hostname.replace('www.', '');
     } catch (e) {
-      // ignore
+      displaySubtitle = shortcut.value;
     }
   }
 
   return (
-    <div className="relative group/shortcut cursor-grab" {...dragProps}>
+    <div className="relative group/shortcut cursor-grab h-full" {...dragProps}>
       <button
         onClick={() => {
           if (isInternal) {
@@ -249,23 +266,27 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
           }
         }}
         onContextMenu={handleContextMenu}
-        className="w-full aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[var(--bone-5)] hover:bg-[var(--app-dark)] transition-all duration-200"
+        className="w-full h-full flex items-center gap-3 pl-4 pr-5 py-3 rounded-[10px] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-10)] text-left cursor-pointer group transition-all duration-200 ease-in-out"
       >
-        <div className="w-10 h-10 rounded-xl bg-[var(--bone-10)] flex items-center justify-center text-[var(--bone-70)] group-hover/shortcut:text-[var(--bone-100)] group-hover/shortcut:bg-[var(--bone-15)] transition-all duration-200 overflow-hidden">
-          {!isInternal && faviconUrl && !imgError ? (
-            <img 
-              src={faviconUrl} 
-              alt="" 
-              className="w-5 h-5 object-contain" 
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <Icon strokeWidth={2} className="w-5 h-5" />
-          )}
+        {!isInternal && faviconUrl && !imgError ? (
+          <img 
+            src={faviconUrl} 
+            alt="" 
+            className="w-6 h-6 object-contain shrink-0 rounded-sm" 
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <Icon className="w-6 h-6 text-[var(--bone-60)] group-hover/shortcut:text-[var(--bone-100)] shrink-0 transition-colors duration-200 ease-in-out" />
+        )}
+        <div className="min-w-0 flex-1 leading-normal">
+          <span className="text-[12px] font-semibold text-[var(--bone-80)] group-hover/shortcut:text-[var(--bone-100)] truncate block">
+            {shortcut.label}
+          </span>
+          <span className="text-[10px] text-[var(--bone-40)] group-hover/shortcut:text-[var(--bone-60)] truncate block mt-0.5">
+            {displaySubtitle}
+          </span>
         </div>
-        <span className="text-[10px] font-medium text-[var(--bone-70)] group-hover/shortcut:text-[var(--bone-100)] truncate w-full px-1 text-center transition-colors">
-          {shortcut.label}
-        </span>
+        <ExternalLink className="w-3 h-3 text-[var(--bone-30)] opacity-0 group-hover/shortcut:opacity-100 group-hover/shortcut:translate-x-0.5 shrink-0 transition-all duration-200 ease-in-out" />
       </button>
 
       {showMenu && createPortal(

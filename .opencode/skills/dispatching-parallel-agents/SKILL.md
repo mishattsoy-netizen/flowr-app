@@ -1,1 +1,0 @@
-/Users/mktsoy/Dev/flowr-4-main/skills/dispatching-parallel-agents/SKILL.md

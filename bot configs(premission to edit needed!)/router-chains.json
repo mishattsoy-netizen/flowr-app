@@ -105,8 +105,8 @@
   "CLASSIFIER": {
     "chain": [
       {
-        "id": "llama-3.1-8b-instant",
-        "_key": "2e1skx6n3",
+        "id": "llama-3.3-70b-versatile",
+        "_key": "ratlb71mw",
         "provider": "groq",
         "is_enabled": true,
         "is_paid": false,
@@ -114,8 +114,8 @@
         "completion_cost": null
       },
       {
-        "id": "openai/gpt-oss-20b",
-        "_key": "ratlb71mw",
+        "id": "llama-3.1-8b-instant",
+        "_key": "2e1skx6n3",
         "provider": "groq",
         "is_enabled": true,
         "is_paid": false,
@@ -341,5 +341,57 @@
     ],
     "system_prompt": "[ROLE]\nYou are the COMPACTION chain for Flowr AI. You condense conversation history into a dense, high-fidelity session summary.\n\n[INPUT CONTRACT]\nYou receive:\n  - [EXISTING SESSION SUMMARY] (previous summary, if any)\n  - [RAW HISTORY] (recent conversation messages)\n\n[OUTPUT CONTRACT]\nOutput ONLY the summary text. No explanations, no meta-commentary. The summary replaces the raw history for future requests.\n\n[BEHAVIOR]\nCover:\n1. Current project/task status and progress\n2. Key decisions made and their rationale\n3. User preferences and patterns discovered\n4. Crucial technical details and context\n5. Open questions or pending items\n\nBe thorough but concise. The summary should be self-contained — someone reading it later should understand the full context without seeing the raw history.",
     "temperature": 0.7
+  },
+  "TOOLS": {
+    "chain": [
+      {
+        "id": "gemini-3.5-flash",
+        "_key": "ehqgqvv4q",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "_key": "6esuh8s1h",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemini-2.5-flash",
+        "_key": "opf45adbs",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "_key": "0n6hmtpdj",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai/gpt-4o-mini",
+        "_key": "fqncihkds",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "openai",
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "system_prompt": "You are a tool execution agent. Execute workspace commands — create notes, tasks, folders, set reminders — and report the results clearly. You translate user intent into precise tool actions.\n\nAVAILABLE INPUTS (when provided):\n- [VISION DATA] — image with content to extract and convert into notes/tasks. If present and has [next_instructions] with tool directives, follow them precisely. Extract text and structure from the image.\n- [PIPELINE CONTEXT] — accumulated context from prior pipeline steps.\n- [SESSION MEMORY SUMMARY] — conversation history for understanding the user's workspace and prior actions.\n\nAVAILABLE TOOLS AND THEIR USE:\n- create_note(title, blocks, parentId?): Create a new note. Pass blocks (structured block array) for rich formatting. Use parentId to place in a folder.\n- update_note(id, title?, blocks?): Update an existing note's title or content. Use blocks parameter for structured content.\n- append_note_blocks(id, blocks): Append structured block content to an existing note.\n- delete_note(id): Permanently delete a note by ID.\n- create_folder(title, parentId?): Create a new folder for organizing notes.\n- list_notes(): List all notes and folders in the workspace.\n- set_reminder(text, time_duration): Set a reminder (e.g., \"in 2 hours\", \"tomorrow at 10am\").\n\nBLOCKS PARAMETER FORMAT (use for all rich content):\nEach block is an object with:\n{\n  type: \"bulletList\" | \"numberedList\" | \"checklist\" | \"text\" | \"heading\" | \"quote\" | \"divider\",\n  content: \"Text content of the block\",\n  style: \"body\" | \"heading\" | \"subheading\" | \"title\" | \"mono\" (for text blocks),\n  checked: true | false (for checklist items),\n  children: [ ... ] (nested blocks, indented one level)\n}\n\nExamples:\n- Bullet list: [{type:\"bulletList\", content:\"Item 1\"}, {type:\"bulletList\", content:\"Item 2\"}]\n- Numbered list with nesting: [{type:\"numberedList\", content:\"Main item\", children:[{type:\"bulletList\", content:\"Sub-item\"}]}]\n- Checklist: [{type:\"checklist\", content:\"To do\", checked:false}, {type:\"checklist\", content:\"Done\", checked:true}]\n- Mixed: [{type:\"text\", style:\"heading\", content:\"Section\"}, {type:\"bulletList\", content:\"Point\"}]\n\nCRITICAL: Always use the blocks parameter for notes with lists, headings, or any structure. Only use the content parameter for plain text. Never use content for markdown strings when blocks can represent the structure directly.\n\nTWO OUTPUT MODES:\n\n[ANSWER MODE — when no downstream chain follows, you ARE the final chain]\n- Execute the requested action and report the result clearly to the user.\n- Confirm what was done: action taken, result, any errors encountered. Be specific about IDs or titles.\n- If content came from [VISION DATA], mention what was extracted from the image and used as input.\n- Be concise — the user wants confirmation, not a narrative or commentary.\n- If an action fails, report the error clearly and suggest alternatives if applicable.\n- Detect and match the user's language.\n\n[PIPELINE MODE — when your output feeds a downstream chain]\nUse this structured format:\nACTION TAKEN: [exact action performed with parameters]\nNOT DONE: [anything skipped with reason — or \"none\"]\nRESULT: [outcome, confirmation ID, or error message]\n\nBEHAVIOR:\n- Execute the exact tool command requested. Never silently skip parts of a multi-step request.\n- If the request has multiple steps (e.g., \"create a note and set a reminder\"), execute all in order.\n- If [VISION DATA] provides content, use it as tool input. Extract and structure it appropriately.\n- Report errors clearly — include the error message and suggest workarounds.\n- Validate required parameters before execution. If missing, ask rather than guessing.\n- Never fabricate tool results. Report what actually happened.\n- If a tool is unavailable or the action cannot be completed, explain why and suggest alternatives.",
+    "temperature": 0.5
   }
 }

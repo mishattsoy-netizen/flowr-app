@@ -48,8 +48,8 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
     return (
       <div key={entity.id}>
         <button onClick={() => setActiveEntityId(entity.id)} style={{ paddingLeft: `${8 + depth * 16}px` }}
-          className="w-full flex items-center gap-2 pr-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)] transition-all group/item text-left">
-          <Icon strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 group-hover/item:opacity-100 shrink-0 transition-opacity duration-200" />
+          className="w-full flex items-center gap-2 pr-2 py-1.5 rounded-[var(--radius-medium)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out group/item text-left">
+          <Icon strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 group-hover/item:opacity-100 shrink-0 transition-opacity duration-200 ease-in-out" />
           <span className="text-sm text-foreground truncate flex-1">{stripHtml(entity.title || 'Untitled')}</span>
         </button>
         {children.map(c => renderItem(c, depth + 1))}
@@ -69,7 +69,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
               <option value="name">Name</option>
             </select>
             <button onClick={() => onUpdateData({ ...data, view: view === 'flat' ? 'tree' : 'flat' })}
-              className={cn("w-6 h-6 flex items-center justify-center rounded-[4px] transition-colors",
+              className={cn("w-6 h-6 flex items-center justify-center rounded-[4px] transition-colors duration-200 ease-in-out",
                 view === 'tree' ? "bg-dark text-[var(--bone-100)]" : "text-[var(--bone-30)] hover:text-[var(--bone-100)]")}>
               {view === 'tree' ? <GitBranch strokeWidth={2} className="w-3.5 h-3.5" /> : <List strokeWidth={2} className="w-3.5 h-3.5" />}
             </button>

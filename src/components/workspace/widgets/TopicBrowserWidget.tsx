@@ -19,9 +19,9 @@ export function TopicBrowserWidget() {
               <button
                 key={topic.id}
                 onClick={() => setActiveEntityId(topic.id)}
-                className="flex flex-col items-center justify-center p-4 rounded-xl border border-[var(--bone-3)] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] hover:border-[var(--bone-20)] transition-colors group"
+                className="flex flex-col items-center justify-center p-4 rounded-xl border border-[var(--bone-3)] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] hover:border-[var(--bone-20)] transition-colors duration-200 ease-in-out group"
               >
-                <div className="w-12 h-12 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-200 ease-in-out">
                   <Icon className="w-6 h-6 text-[var(--bone-100)]" />
                 </div>
                 <span className="font-medium text-sm text-center mb-1">{topic.title}</span>

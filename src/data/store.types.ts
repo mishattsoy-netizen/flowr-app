@@ -195,6 +195,7 @@ export interface AppTask {
   subtasks?: SubTask[];
   difficulty?: number;
   status?: 'todo' | 'in-progress' | 'done';
+  position?: number | null;
   createdAt?: number;
   completedAt?: number;
 }

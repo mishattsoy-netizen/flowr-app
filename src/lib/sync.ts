@@ -116,12 +116,11 @@ function rowToTask(row: Record<string, any>): AppTask {
     entityId:    row.entity_id ?? null,
     workspaceId: row.workspace_id ?? null,
     note:        row.note ?? undefined,
-    description: row.description ?? undefined,
     color:       row.color ?? undefined,
     priority:    row.priority ?? undefined,
     subtasks:    row.subtasks ?? undefined,
-    difficulty:  row.difficulty ?? undefined,
     status:      row.status ?? undefined,
+    position:    row.position ?? null,
     createdAt:   parseTimestamp(row.created_at),
     completedAt: parseTimestamp(row.completed_at),
   };
@@ -142,10 +141,9 @@ function taskToRow(t: AppTask): Record<string, any> {
   row.entity_id    = t.entityId    ?? null;
   row.workspace_id = t.workspaceId ?? null;
   row.note         = t.note        ?? null;
-  row.description  = t.description ?? null;
   row.color        = t.color       ?? null;
-  row.difficulty   = t.difficulty  ?? null;
   row.status       = t.status      ?? null;
+  row.position     = t.position    ?? null;
   if (t.priority !== undefined) row.priority = t.priority;
   if (t.subtasks)   row.subtasks    = t.subtasks;
   if (t.createdAt) {

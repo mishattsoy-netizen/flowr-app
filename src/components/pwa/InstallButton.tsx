@@ -69,8 +69,8 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
         aria-label="Install Flowr"
         className={cn(
           collapsed
-            ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-colors border border-transparent"
-            : "btn-sidebar-utility hover:!bg-[var(--bone-6)]"
+            ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+            : "btn-sidebar-utility hover:!bg-[var(--app-dark)]"
         )}
       >
         <Download strokeWidth={2} className="w-4 h-4" />

@@ -31,7 +31,7 @@ COMPLEX: Primary Pro operating tier. Strategy, architecture, dense logic, trade-
 
 REGULAR: Lightweight tier for fast factual lookup, trivial acknowledgments, greetings. Reserved ONLY for queries with zero analytical complexity.
 
-CODING: Engineering workflows - actual development logic, scripts, SQL, DevOps infrastructure. Strictly exclusive to active dev tasks (writing code, debugging, architecture). NOT for simple terminal commands or "how do I check X" questions — those are REGULAR.
+CODING: Engineering workflows - actual development logic, scripts, SQL, DevOps infrastructure. Strictly exclusive to active dev tasks (writing code, debugging, architecture). NOT for simple terminal commands or "how do I check X" questions — those are REGULAR. NOT for hardware/physical maintenance questions (e.g., "remove keycaps", "replace screen", "clean keyboard") — those are WEB_SEARCH if a product is named, or COMPLEX otherwise.
 
 RESEARCH: Triggered ONLY by /research tag. Multi-source exhaustive analysis.
 

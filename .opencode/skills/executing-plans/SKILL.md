@@ -1,1 +1,0 @@
-/Users/mktsoy/Dev/flowr-4-main/skills/executing-plans/SKILL.md

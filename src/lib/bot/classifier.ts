@@ -255,6 +255,14 @@ export async function classifyIntentWithModel(
       logger.info(`[Classifier guard] Downgrading ${cat} → REGULAR: message refers to a prior uploaded image`)
       return 'REGULAR'
     }
+    // Guard: hardware/physical maintenance questions misclassified as CODING → WEB_SEARCH
+    if (cat === 'CODING') {
+      const isHardwareMaintenance = /(remove|replace|fix|repair|clean|take\s+off|disassemble|detach|pry|unscrew)[\s\S]{0,80}(keycap|keyboard|screen|display|battery|trackpad|touchpad|hinge|fan|speaker|camera|bezel|screw|adhesive|gasket|seal)|(keycap|keyboard|screen|display|battery|trackpad|touchpad|hinge|fan|speaker|camera|bezel|screw|adhesive|gasket|seal)[\s\S]{0,80}(remove|replace|fix|repair|clean|take\s+off|disassemble|detach|pry|unscrew)/i
+      if (isHardwareMaintenance.test(message)) {
+        logger.info(`[Classifier guard] Downgrading CODING → WEB_SEARCH: message appears to be hardware maintenance`)
+        return 'WEB_SEARCH'
+      }
+    }
     return cat
   }
 

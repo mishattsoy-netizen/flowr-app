@@ -35,7 +35,8 @@
 - `font-ui-label` for small uppercase labels (Today, Clear, etc.)
 - **Chat message hover footprints:** Wrap right-aligned user messages and their action buttons in a stretched `w-full flex flex-col items-end` container, matching the bot's `w-full` hover detection block. This guarantees stable, stutter-free mouse-down movements to click actions, while keeping all bubble elements perfectly right-aligned.
 - **Instant response:** **Universal Mandate (0ms)**. ALL interactive elements, including navigation components, tabs, buttons, context menus, and selection indicators, must have **no transition duration** and no fade-in/out effects. State changes (hover, selection) must be perfectly sharp and immediate. 
-  - **Exception**: Structural **Collapse/Expand** animations (e.g., Sidebar width, Folder tree expansion, Section accordions) should maintain their smooth transitions (100ms-300ms) to provide spatial continuity. All other CSS transitions or durations are strictly prohibited.
+  - **Exception**: Dashboard **Widgets** must use a standardized hover transition of exactly `200ms ease-in-out` (`transition-all duration-200 ease-in-out`) to provide fluid and uniform fade in/out animations across all cards.
+  - **Exception**: Structural **Collapse/Expand** animations (e.g., Sidebar width, Folder tree expansion, Section accordions) should maintain their smooth transitions (100ms-300ms) to provide spatial continuity.
 - **Selection Indicators:** Prefers checkmarks (`Check` icon) on the right side of the label for nested menu options. Indicator should be subtle (`bone-60`) and brighten to `bone-100` on hover.
 - **Popup Fills:** Selected items in menus/popups should have a subtle background fill (`bone-6`) rather than just a text color change.
 - **Widget Borders:** Prefers ultra-subtle borders for widgets (`border-[var(--bone-3)]`, 3% opacity) to ensure seamless integration into the dashboard.

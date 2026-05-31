@@ -9,6 +9,7 @@ import { FolderView } from './folder/FolderView';
 import { WorkspacePage } from './workspace/WorkspacePage';
 import { TrackerPage } from './tracker/TrackerPage';
 import ChatPage from './chat/ChatPage';
+import { SettingsPage } from './settings/SettingsPage';
 import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
 import { ChatMainSkeleton } from './chat/ChatSkeleton';
 import { TrackerSkeleton } from './tracker/TrackerSkeleton';
@@ -75,6 +76,10 @@ export const WorkspaceRouter = memo(function WorkspaceRouter({ initialEntityId }
 
     if (activeEntityId === 'chat') {
       return <ChatPage />;
+    }
+
+    if (activeEntityId === 'settings') {
+      return <SettingsPage />;
     }
 
     const activeEntity = entities.find(e => e.id === activeEntityId);

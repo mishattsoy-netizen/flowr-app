@@ -12,19 +12,22 @@ import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/el
 interface TaskCardUIProps {
   task: AppTask;
   isDragging?: boolean;
+  // Plays the one-shot drop-settle animation right after this card lands.
+  justDropped?: boolean;
   style?: React.CSSProperties;
   attributes?: any;
   listeners?: any;
   setNodeRef?: (node: HTMLElement | null) => void;
 }
 
-export function TaskCardUI({ 
-  task, 
-  isDragging, 
-  style, 
-  attributes, 
-  listeners, 
-  setNodeRef 
+export function TaskCardUI({
+  task,
+  isDragging,
+  justDropped,
+  style,
+  attributes,
+  listeners,
+  setNodeRef
 }: TaskCardUIProps) {
   const { entities, toggleTask, updateTask } = useStore();
   const workspaceName = entities.find(e => e.id === task.workspaceId)?.title || null;
@@ -61,7 +64,8 @@ export function TaskCardUI({
         "group relative p-3 rounded-[10px] border border-[var(--bone-10)] shrink-0 touch-none select-none flex flex-col gap-2 transition-colors duration-200 ease-in-out",
         isDragging
           ? "bg-[var(--app-dark)] cursor-grabbing"
-          : "bg-[var(--bone-6)] cursor-pointer active:cursor-grabbing hover:bg-[var(--app-dark)]"
+          : "bg-[var(--bone-6)] cursor-pointer active:cursor-grabbing hover:bg-[var(--app-dark)]",
+        justDropped && "task-drop-settle"
       )}
     >
       <div className="flex flex-col gap-2 w-full h-full">
@@ -176,14 +180,24 @@ export function TaskCard({
   task,
   columnId,
   closestEdge,
+  isActiveDrag = false,
+  dropNonce = 0,
 }: {
   task: AppTask;
   columnId: string;
   closestEdge: CardEdge | null;
+  isActiveDrag?: boolean;
+  // Bumps each time THIS card lands; a non-zero value plays the settle and the
+  // changing value remounts the UI subtree so the animation restarts every drop.
+  dropNonce?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<{ container: HTMLElement } | null>(null);
+
+  // Clean up the ghost preview portal when drag ends.
+  useEffect(() => {
+    if (!isActiveDrag && preview) setPreview(null);
+  }, [isActiveDrag]);
 
   useEffect(() => {
     const el = ref.current;
@@ -191,18 +205,21 @@ export function TaskCard({
     return draggable({
       element: el,
       getInitialData: () => ({ type: 'task', taskId: task.id, columnId }),
-      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+      onGenerateDragPreview: ({ nativeSetDragImage, source, location }) => {
+        const rect = (source.element as HTMLElement).getBoundingClientRect();
+        const offset = {
+          x: location.current.input.clientX - rect.left,
+          y: location.current.input.clientY - rect.top,
+        };
         setCustomNativeDragPreview({
           nativeSetDragImage,
-          getOffset: () => ({ x: 16, y: 16 }),
+          getOffset: () => offset,
           render: ({ container }) => {
             setPreview({ container });
             return () => setPreview(null);
           },
         });
       },
-      onDragStart: () => setIsDragging(true),
-      onDrop: () => setIsDragging(false),
     });
   }, [task.id, columnId]);
 
@@ -211,7 +228,9 @@ export function TaskCard({
     if (!el) return;
     return dropTargetForElements({
       element: el,
-      canDrop: ({ source }) => source.data.type === 'task',
+      // Never let the dragged card target itself — that confuses edge/column
+      // resolution and freezes the gap on its own slot.
+      canDrop: ({ source }) => source.data.type === 'task' && source.data.taskId !== task.id,
       getData: ({ input, element }) =>
         attachClosestEdge(
           { type: 'card', taskId: task.id, columnId },
@@ -221,28 +240,32 @@ export function TaskCard({
   }, [task.id, columnId]);
 
   return (
-    <div ref={ref} className="relative">
-      {/* Live insertion indicator: a card-sized bone-3 box is rendered by the
-          column at the right slot, so here we only need the drop-edge line as a
-          subtle aid. The placeholder box itself lives in KanbanColumn. */}
-      {closestEdge && (
-        <div
-          className={cn(
-            'absolute left-0 right-0 h-[2px] bg-[var(--bone-20)] rounded-full z-10',
-            closestEdge === 'top' ? '-top-1.5' : '-bottom-1.5'
-          )}
-        />
-      )}
-      <div className={cn(isDragging && 'opacity-0')}>
-        <TaskCardUI task={task} />
+    <>
+      <div
+        ref={ref}
+        data-task-id={task.id}
+        className={cn('relative', isActiveDrag && 'hidden')}
+      >
+        {closestEdge && (
+          <div
+            className={cn(
+              'absolute left-0 right-0 h-[2px] bg-[var(--bone-20)] rounded-full z-10',
+              closestEdge === 'top' ? '-top-1.5' : '-bottom-1.5'
+            )}
+          />
+        )}
+        {/* Keyed by the drop nonce so each landing remounts this subtree and the
+            CSS drop-settle animation restarts reliably — toggling a class on a
+            reused node does not replay a CSS animation. */}
+        <TaskCardUI key={`drop-${dropNonce}`} task={task} justDropped={dropNonce > 0} />
       </div>
       {preview &&
         createPortal(
-          <div className="w-[268px] rounded-[10px] shadow-[0_16px_40px_-8px_rgba(0,0,0,0.55)]">
+          <div className="w-[268px] rounded-[10px] shadow-[0_20px_55px_6px_rgba(0,0,0,0.55)] pointer-events-none">
             <TaskCardUI task={task} isDragging />
           </div>,
           preview.container
         )}
-    </div>
+    </>
   );
 }

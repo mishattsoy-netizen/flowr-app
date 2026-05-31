@@ -113,7 +113,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
                 <button
                   onClick={() => onUpdateData({ ...data, filter: f.id })}
                   className={cn(
-                    "flex items-center justify-center py-0.5 transition-colors duration-200",
+                    "flex items-center justify-center py-0.5 transition-colors duration-200 ease-in-out",
                     filter === f.id ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-[var(--bone-100)]"
                   )}
                 >
@@ -137,8 +137,8 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
           return (
             <button key={entity.id} onClick={() => setActiveEntityId(entity.id)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all group/item text-left text-[14px]">
-              <div className="w-4 shrink-0 flex items-center justify-center text-[var(--bone-100)] opacity-30 group-hover/item:opacity-100 transition-opacity duration-200">
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out group/item text-left text-[14px]">
+              <div className="w-4 shrink-0 flex items-center justify-center text-[var(--bone-100)] opacity-30 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out">
                 <Icon strokeWidth={2} className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -148,7 +148,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
                   {ws && <><span>·</span><span className="truncate max-w-[80px]">{ws.name}</span></>}
                 </div>
               </div>
-              <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 group-hover/item:translate-x-0.5 transition-all" />
+              <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 group-hover/item:translate-x-0.5 transition-all duration-200 ease-in-out" />
             </button>
           );
         }) : (

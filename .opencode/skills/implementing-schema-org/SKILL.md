@@ -1,1 +1,0 @@
-/Users/mktsoy/Dev/flowr-4-main/skills/implementing-schema-org/SKILL.md

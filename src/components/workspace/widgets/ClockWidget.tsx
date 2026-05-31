@@ -72,7 +72,7 @@ export function ClockWidget({ data, onUpdateData, isEditing }: ClockWidgetProps)
                 key={s.key}
                 onClick={() => onUpdateData({ ...data, style: s.key })}
                 className={cn(
-                  'px-2.5 py-0.5 text-[10px] font-semibold rounded-[4px] transition-colors',
+                  'px-2.5 py-0.5 text-[10px] font-semibold rounded-[4px] transition-all duration-200 ease-in-out',
                   style === s.key
                     ? 'bg-dark text-[var(--bone-100)]'
                     : 'text-[var(--bone-30)] hover:text-[var(--bone-100)]'
@@ -85,7 +85,7 @@ export function ClockWidget({ data, onUpdateData, isEditing }: ClockWidgetProps)
           <div className="flex items-center gap-1">
             <button
               onClick={() => onUpdateData({ ...data, hour12: !hour12 })}
-              className="px-2 py-0.5 text-[10px] font-semibold rounded-[4px] bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
+              className="px-2 py-0.5 text-[10px] font-semibold rounded-[4px] bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-all duration-200 ease-in-out"
             >
               {hour12 ? '12h' : '24h'}
             </button>

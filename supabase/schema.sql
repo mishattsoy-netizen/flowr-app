@@ -38,6 +38,8 @@ create table if not exists tasks (
   color       text,
   priority    text        check (priority in ('low', 'medium', 'high')),
   difficulty  integer,
+  status      text        check (status in ('todo', 'in-progress', 'done')),
+  position    double precision,
   created_at  bigint      default 0
 );
 
@@ -61,6 +63,9 @@ create policy "tasks: owner full access"
   on tasks for all
   using      (auth.uid() is not null)
   with check (auth.uid() is not null);
+
+-- Enable real-time updates for entities and tasks
+alter publication supabase_realtime add table entities, tasks;
 
 -- ─── settings ────────────────────────────────────────────────
 -- Stores app-level global configuration (e.g., router settings)

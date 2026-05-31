@@ -1343,6 +1343,31 @@ body.is-dragging-widget [data-widget-id] * {
   }
 }
 
+/* Task drop settle — the just-dropped card eases from its lifted drag/hover
+   background back to idle. Color only (no transform/scale). `!important` on the
+   animation so it beats the global `.preload * { animation: none !important }`
+   reset; and on background-color so it wins over the Tailwind bg utility on the
+   card for the duration of the settle. */
+.task-drop-settle {
+  animation: task-drop-settle 0.4s ease-out forwards !important;
+}
+
+@keyframes task-drop-settle {
+  from {
+    background-color: var(--app-dark) !important;
+  }
+
+  to {
+    background-color: var(--bone-6) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-drop-settle {
+    animation: none;
+  }
+}
+
 /* Shimmer Animation */
 @keyframes skeleton-shimmer {
   0% {
@@ -1428,4 +1453,4 @@ table:not(.rdp-table) tr:last-child td {
 
 .animate-drawer-in {
   animation: drawer-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+}

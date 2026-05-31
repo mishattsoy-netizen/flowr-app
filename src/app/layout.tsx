@@ -56,8 +56,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
-      <head>
+      <head suppressHydrationWarning>
         <script
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function() {
               try {
@@ -101,6 +102,7 @@ export default function RootLayout({
           </AuthProvider>
         </ThemeProvider>
         <script
+          suppressHydrationWarning
           src="https://js.puter.com/v2/"
           async
           defer

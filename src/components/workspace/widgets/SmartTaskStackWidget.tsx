@@ -223,7 +223,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                 <button
                   onClick={() => handleTabSwitch(tab.id)}
                   className={cn(
-                    "flex items-center justify-center py-1 transition-colors duration-200",
+                    "flex items-center justify-center py-1 transition-colors duration-200 ease-in-out",
                     activeId === tab.id ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -234,7 +234,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                   <button
                     onPointerDown={e => e.stopPropagation()}
                     onClick={e => { e.stopPropagation(); hideTab(tab.id); }}
-                    className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 opacity-0 group-hover/tab:opacity-100 transition-opacity z-20"
+                    className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 opacity-0 group-hover/tab:opacity-100 transition-opacity duration-200 ease-in-out z-20"
                   >
                     <X strokeWidth={2} className="w-2 h-2" />
                   </button>
@@ -247,7 +247,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                 <button
                   onPointerDown={e => e.stopPropagation()}
                   onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}
-                  className="w-full flex items-center justify-center py-1 transition-colors duration-200 text-muted-foreground hover:text-foreground"
+                  className="w-full flex items-center justify-center py-1 transition-colors duration-200 ease-in-out text-muted-foreground hover:text-foreground"
                   title="Add tab"
                 >
                   <Plus strokeWidth={2} className="w-3.5 h-3.5" />
@@ -259,7 +259,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                         key={tab.id}
                         onPointerDown={e => e.stopPropagation()}
                         onClick={e => { e.stopPropagation(); showTab(tab.id); }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--app-dark)] transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
                       >
                         <tab.icon strokeWidth={2} className={cn("w-3 h-3", tab.color)} />
                         {tab.label}
@@ -283,7 +283,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
           )}
           <button
             onClick={handleToggleAdding}
-            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none"
+            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out"
             title="Add task"
           >
             <Plus strokeWidth={2} className="w-4 h-4" />
@@ -298,13 +298,13 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
               <div
                 key={t.id}
                 className={cn(
-                  "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all",
+                  "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out",
                   t.completed && "opacity-35 line-through decoration-[var(--bone-30)]"
                 )}
               >
                 <button
                   onClick={() => toggleTask(t.id)}
-                  className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors"
+                  className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
                 >
                   {t.completed && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
                 </button>

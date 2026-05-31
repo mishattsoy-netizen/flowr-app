@@ -13,6 +13,7 @@ import { runWebSearchChain } from './providers/tavily'
 import { runDuckDuckGoSearchChain } from './providers/duckduckgo'
 import { runExaSearchChain } from './providers/exa'
 import { runDeepResearchChain } from './providers/deepResearch'
+import { extractContent, formatExtractedPages } from './providers/content-extract'
 import { runCloudflare } from './providers/cloudflare'
 import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
@@ -859,6 +860,33 @@ export async function runChain(
     onStatus({ chain: 'RESEARCH', goal: 'Running iterative web research', status: 'done' })
   }
 
+  // ── WEB_SEARCH: read pasted page URLs directly instead of keyword-searching for them ──
+  // Image URLs are handled earlier by the vision flow; here we fetch non-image pages
+  // (articles, docs) and inject their content as [SEARCH DATA] so the synthesis model
+  // answers from the actual page. Downstream search providers skip when [SEARCH DATA] is present.
+  if (category === 'WEB_SEARCH' && !system_prompt.includes('[SEARCH DATA]') && /https?:\/\//i.test(prompt)) {
+    const urls = (prompt.match(/https?:\/\/[^\s<>"')]+/gi) || [])
+      .filter(u => !/\.(jpe?g|png|webp|gif|bmp|svg|tiff|avif)(\?|$)/i.test(u))
+      .slice(0, 3)
+    if (urls.length > 0) {
+      onStatus({ chain: 'WEB_SEARCH', goal: 'Reading linked page(s)', status: 'running', label: getStatusLabel('WEB_SEARCH', 'Reading page') })
+      try {
+        const pages = await extractContent(urls, context)
+        const formatted = formatExtractedPages(pages)
+        if (formatted) {
+          system_prompt = `${system_prompt}\n\n[SEARCH DATA]\n${formatted}\n\n`
+          logger.info(`[WEB_SEARCH] Injected extracted content for ${pages.filter(p => p.content).length}/${urls.length} pasted URL(s)`)
+          routingTrace.push({ model: 'content-extract', category, key: 'URL_FETCH', success: true })
+        } else {
+          logger.warn(`[WEB_SEARCH] URL fetch returned no content for: ${urls.join(', ')}`)
+        }
+      } catch (e: any) {
+        logger.warn(`[WEB_SEARCH] URL fetch failed: ${e.message}`)
+      }
+      onStatus({ chain: 'WEB_SEARCH', goal: 'Reading linked page(s)', status: 'done' })
+    }
+  }
+
   // ── Prompt Expansion for IMAGE_GEN ──
   if (category === 'IMAGE_GEN') {
     onStatus({ chain: 'IMAGE_GEN', goal: 'Expanding prompt with context', status: 'running', label: getStatusLabel('IMAGE_GEN') })
@@ -1177,7 +1205,25 @@ export async function runChain(
               providerReasoning = (response as any).reasoning
             }
 
-            // For WEB_SEARCH/RESEARCH search steps, we DON'T return. 
+            // ── Grounding guard: a WEB_SEARCH Gemini step that was asked to ground but
+            // returned no citations means grounding silently no-op'd. Accepting it lets
+            // the model answer from training and fabricate source pills. Treat as a failed
+            // search attempt and fall through to the next chain model (tavily/duckduckgo)
+            // — which will inject [SEARCH DATA], or trip the [SEARCH FAILED] path. ──
+            if (
+              category === 'WEB_SEARCH' &&
+              routeContext.useGrounding &&
+              (!citations || citations.length === 0) &&
+              !system_prompt.includes('[SEARCH DATA]')
+            ) {
+              logger.warn(`[GroundingGuard] ${modelConfig.id} produced no grounding citations for WEB_SEARCH — discarding ungrounded answer and falling through to search providers`)
+              const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
+              routingTrace.push({ model: modelConfig.id, category, key: `${displayKey} (no grounding)`, success: false })
+              tracer.recordFailed({ ...traceMeta, error: 'grounding requested but no citations returned' }, Date.now() - t0)
+              continue modelLoop
+            }
+
+            // For WEB_SEARCH/RESEARCH search steps, we DON'T return.
             // We've already updated system_prompt and recorded trace inside the switch.
             // We just need to move to the next model in the modelLoop (the synthesis LLM).
             if ((modelConfig.provider === 'tavily' || modelConfig.id.includes('search')) && (category === 'WEB_SEARCH' || category === 'RESEARCH')) {

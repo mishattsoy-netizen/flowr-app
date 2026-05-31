@@ -3,6 +3,67 @@ import type { AppTask } from '@/data/store';
 export type ColumnItems = Record<string, AppTask[]>;
 export type Edge = 'top' | 'bottom';
 
+/** The vertical extent of a rendered card, in viewport (client) coordinates. */
+export type CardRect = { id: string; top: number; bottom: number };
+
+/** The horizontal extent of a rendered column, in viewport coordinates. */
+export type ColumnRect = { id: string; left: number; right: number };
+
+/**
+ * Resolve an insertion index from a pointer's Y position against the ordered
+ * card rects of a column. A card "owns" everything above its vertical midpoint;
+ * the inter-card gaps therefore resolve to the nearest adjacent card rather than
+ * to the bottom of the column. Returns the append sentinel -1 only when the
+ * pointer is genuinely below the last card's midpoint (or the column is empty).
+ *
+ * The returned index is against the array BEFORE the dragged item is removed —
+ * the same convention used by `edgeToIndex` and `computeFinalColumns`.
+ */
+export function indexFromPointer(clientY: number, rects: CardRect[]): number {
+  for (let i = 0; i < rects.length; i++) {
+    const mid = (rects[i].top + rects[i].bottom) / 2;
+    if (clientY < mid) return i;
+  }
+  return -1;
+}
+
+/**
+ * The column a given X coordinate falls into, by horizontal span. We resolve
+ * the destination from the dragged card's CENTER X (not the bare cursor), so
+ * the gap follows where the card visually sits — the column it overlaps most —
+ * rather than the cursor pixel, which is offset from the card by wherever it
+ * was grabbed.
+ *
+ * Inside a column's span → that column. In a gap BETWEEN columns → the nearest
+ * by center distance. But OUTSIDE the board entirely (left of the first column
+ * or right of the last) → null, so the caller can fall back to the card's
+ * origin: dragging out to the sidebar/header should return the drop-box home,
+ * not snap it to the edge column. Returns null when there are no columns.
+ */
+export function columnIdFromX(centerX: number, columns: ColumnRect[]): string | null {
+  if (columns.length === 0) return null;
+  // Off the board entirely → no column (caller falls back to origin).
+  const first = columns[0];
+  const last = columns[columns.length - 1];
+  if (centerX < first.left || centerX > last.right) return null;
+  // Inside a column's span → that column.
+  for (const col of columns) {
+    if (centerX >= col.left && centerX <= col.right) return col.id;
+  }
+  // In a gap between columns → nearest by center distance.
+  let best = columns[0];
+  let bestDist = Infinity;
+  for (const col of columns) {
+    const mid = (col.left + col.right) / 2;
+    const dist = Math.abs(centerX - mid);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = col;
+    }
+  }
+  return best.id;
+}
+
 export function findContainer(id: string, cols: ColumnItems): string | null {
   if (id in cols) return id;
   for (const key of Object.keys(cols)) {
@@ -62,4 +123,79 @@ export function computeFinalColumns(
     return { ...cols, [destColumn]: destItems };
   }
   return { ...cols, [srcColumn]: srcItems, [destColumn]: destItems };
+}
+
+export function getTaskImplicitPosition(task: AppTask): number {
+  if (typeof task.position === 'number') {
+    return task.position;
+  }
+  if (task.completed) {
+    const time = task.completedAt ?? task.createdAt ?? 0;
+    return -time;
+  }
+  return task.createdAt ?? 0;
+}
+
+export function getOrGeneratePositions(tasks: AppTask[]): number[] {
+  if (tasks.length === 0) return [];
+  
+  const positions: number[] = new Array(tasks.length);
+  
+  // 1. Fill in existing manual or implicit positions
+  for (let i = 0; i < tasks.length; i++) {
+    if (typeof tasks[i].position === 'number') {
+      positions[i] = tasks[i].position!;
+    }
+  }
+  
+  // 2. Interpolate/extrapolate missing positions
+  let i = 0;
+  while (i < tasks.length) {
+    if (positions[i] !== undefined) {
+      i++;
+      continue;
+    }
+    
+    // Find the end of this missing block
+    let j = i;
+    while (j < tasks.length && positions[j] === undefined) {
+      j++;
+    }
+    
+    // Missing block is from index i to j-1
+    // Left position bound
+    let leftPos: number;
+    if (i > 0) {
+      leftPos = positions[i - 1];
+    } else {
+      // If we are at the very beginning of the array, look at the first non-missing position at j
+      const nextVal = j < tasks.length ? positions[j] : undefined;
+      if (typeof nextVal === 'number') {
+        leftPos = nextVal - (j - i + 1) * 1000;
+      } else {
+        // Entire array is missing, use implicit positions!
+        leftPos = getTaskImplicitPosition(tasks[0]) - 1000;
+      }
+    }
+    
+    // Right position bound
+    let rightPos: number;
+    if (j < tasks.length) {
+      rightPos = positions[j];
+    } else {
+      // If we are at the very end of the array, extrapolate from leftPos
+      rightPos = leftPos + (j - i + 1) * 1000;
+    }
+    
+    // Space the elements evenly between leftPos and rightPos
+    const count = j - i;
+    const step = (rightPos - leftPos) / (count + 1);
+    for (let k = 0; k < count; k++) {
+      positions[i + k] = leftPos + step * (k + 1);
+    }
+    
+    i = j;
+  }
+  
+  return positions;
 }

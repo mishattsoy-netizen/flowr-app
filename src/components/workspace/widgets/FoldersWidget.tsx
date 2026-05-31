@@ -44,12 +44,12 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
                     setEditingEntityId(folder.id, 'sidebar');
                   }}
                   className={cn(
-                    "group/item flex items-center gap-2.5 px-3 py-1.5 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-200",
+                    "group/item flex items-center gap-2.5 px-3 py-1.5 rounded-[var(--radius-medium)] cursor-pointer transition-all duration-200 ease-in-out",
                     activeEntityId === folder.id ? "bg-[var(--app-dark)] text-[var(--bone-100)]" : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
                   )}
                   role="button"
                 >
-                  <Folder strokeWidth={2} className="w-4 h-4 text-[var(--bone-100)] opacity-70 group-hover/item:opacity-100 shrink-0 transition-opacity duration-200" />
+                  <Folder strokeWidth={2} className="w-4 h-4 text-[var(--bone-100)] opacity-70 group-hover/item:opacity-100 shrink-0 transition-opacity duration-200 ease-in-out" />
                   
                   {isEditing ? (
                     <input
@@ -86,7 +86,7 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
                           openContextMenu(folder.id, rect.right + 4, rect.top, 'sidebar');
                         }}
                         className={cn(
-                          "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-100",
+                          "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-all duration-200 ease-in-out",
                           contextMenu?.entityId === folder.id
                             ? "opacity-100 !text-[var(--bone-100)] !bg-dark"
                             : "opacity-0 group-hover/item:opacity-100 text-[var(--bone-30)] group-hover/item:text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"

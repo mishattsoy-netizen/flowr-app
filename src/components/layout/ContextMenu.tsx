@@ -132,6 +132,7 @@ export function ContextMenu() {
     closeContextMenu,
     setEditingEntityId,
     setSectionSortMode,
+    setActiveEntityId,
     setSectionItemLimit,
     toggleEntityVisibility,
     moveEntityInList,
@@ -283,7 +284,7 @@ export function ContextMenu() {
         {
           label: 'Sidebar Settings',
           icon: <Settings className="w-4 h-4" />,
-          onClick: () => { openModal({ kind: 'settings' }); },
+          onClick: () => { setActiveEntityId('settings'); closeContextMenu(); },
         },
       ].filter(item => !item.hidden);
     }

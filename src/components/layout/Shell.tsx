@@ -289,7 +289,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       <div
         className={cn(
           "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
-          (!currentSidebarCollapsed || !isTabsHeaderVisible) && "border-r border-[var(--bone-15)]",
+          (!currentSidebarCollapsed || !isTabsHeaderVisible) && "border-r border-[var(--bone-10)]",
           currentSidebarCollapsed ? "flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
         )}
         style={{
@@ -367,7 +367,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <div
           className={cn(
             "h-full bg-sidebar shrink-0 overflow-hidden relative z-40 transition-colors duration-200",
-            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-6)]"
+            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-10)]"
           )}
           style={{
             width: (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') ? `${currentAiSidebarWidth}px` : '0px',

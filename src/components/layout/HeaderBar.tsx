@@ -166,7 +166,7 @@ export const HeaderBar = memo(function HeaderBar() {
   if (!isTabsHeaderVisible) return null;
 
   return (
-    <div className="h-8 flex items-center px-3 bg-sidebar border-b border-b-[var(--bone-6)] shrink-0 relative z-30">
+    <div className="h-8 flex items-center px-3 bg-sidebar border-b border-b-[var(--bone-10)] shrink-0 relative z-30">
       <div className="flex items-center gap-1.5 shrink-0">
         <button 
           onClick={toggleSidebar}
@@ -205,7 +205,7 @@ export const HeaderBar = memo(function HeaderBar() {
       </div>
 
       {/* Divider (only if not dashboard or if we want it always) */}
-      <div className="w-px h-5 bg-[var(--app-dark)] mx-2" />
+      <div className="w-px h-5 bg-[var(--bone-6)] mx-2" />
 
       {/* Tabs */}
       <div className="flex-1 flex items-center gap-1 h-full px-2 min-w-0">
@@ -356,13 +356,13 @@ export const HeaderBar = memo(function HeaderBar() {
         if (!isWorkspaceOrPage) return null;
 
         return (
-          <div className="flex items-center gap-3 px-3 border-l border-[var(--bone-6)] h-5 text-[11px]">
+          <div className="flex items-center gap-3 px-3 border-l border-[var(--bone-10)] h-5 text-[11px]">
             <div className="flex items-center gap-1.5 text-[var(--bone-40)]">
               <History strokeWidth={2} className="w-3 h-3" />
               <span>Last saved: {lastSaved ? new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Never'}</span>
             </div>
 
-            <div className="flex items-center gap-2 pl-3 border-l border-[var(--bone-6)] h-full">
+            <div className="flex items-center gap-2 pl-3 border-l border-[var(--bone-10)] h-full">
               {(() => {
                 const isSynced = !!activeEntity.cloudSyncEnabled;
                 return (

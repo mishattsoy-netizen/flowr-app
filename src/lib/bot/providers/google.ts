@@ -84,8 +84,16 @@ export async function runGoogle(
         // Grounding (Google Search) and function calling are mutually exclusive — grounding wins for WEB_SEARCH.
         const useGrounding = context?.useGrounding && useSystemInstruction && !isLegacyGemma
         const useFunctionTools = !useGrounding && context?.useTools && useSystemInstruction
+        // Tool shape differs by model generation: 1.5 models use `googleSearchRetrieval`,
+        // 2.0+ (2.x / 3.x) models require `googleSearch`. Sending the wrong shape makes the
+        // API silently ignore grounding — the model then answers from training and fabricates
+        // citations to satisfy the "cite every block" prompt rule.
+        const isLegacyGroundingModel = /gemini-1\.5/.test(sanitizedId)
+        const groundingTool = isLegacyGroundingModel
+          ? { googleSearchRetrieval: {} }
+          : { googleSearch: {} }
         const toolsConfig = useGrounding
-          ? { tools: [{ googleSearchRetrieval: {} } as any] }
+          ? { tools: [groundingTool as any] }
           : useFunctionTools
             ? { tools: [{ functionDeclarations: FLOWR_TOOLS as any }] }
             : {}
