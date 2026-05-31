@@ -888,7 +888,33 @@ export function recoverLayout(layout: BentoLayoutItem[]): BentoLayoutItem[] | nu
   });
 
   const recovered = fillGaps(compactLayout(rebalanceAll(clamped)));
-  return validateLayout(recovered).valid ? recovered : null;
+  if (validateLayout(recovered).valid) {
+    return recovered;
+  }
+
+  // Fallback: If standard clamping and rebalancing failed, perform a sequential
+  // reconstruction using findFirstFit to guarantee a valid, gap-free, overlap-free layout.
+  const reconstructed: BentoLayoutItem[] = [];
+  const sortedWidgets = [...clamped].sort((a, b) => a.row - b.row || a.order - b.order);
+
+  for (const item of sortedWidgets) {
+    const entry = widgetRegistry[item.type];
+    const w = entry ? Math.max(entry.minW, Math.min(item.w, entry.maxW)) : item.w;
+    const h = entry ? Math.max(entry.minH, Math.min(item.h, entry.maxH)) : item.h;
+    const slot = findFirstFit(reconstructed, w, h);
+    if (slot) {
+      reconstructed.push({
+        ...item,
+        row: slot.row,
+        order: slot.order,
+        w,
+        h,
+      });
+    }
+  }
+
+  const finalRecovered = fillGaps(compactLayout(rebalanceAll(reconstructed)));
+  return validateLayout(finalRecovered).valid ? finalRecovered : null;
 }
 
 export function computeGridPositions(layout: BentoLayoutItem[]) {

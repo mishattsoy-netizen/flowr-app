@@ -20,12 +20,12 @@ const DEFAULT_LAYOUTS: Record<string, BentoLayoutItem[]> = {
   dashboard: [
     { i: 'dashboard-recent',         type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
     { i: 'dashboard-tasks-today',    type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
-    { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 1, order: 1, w: 4, h: 2 },
+    { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
   ],
   workspace: [
     { i: 'ws-recent',    type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
     { i: 'ws-tasks',     type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
-    { i: 'ws-shortcuts', type: 'shortcuts',   row: 1, order: 1, w: 4, h: 2 },
+    { i: 'ws-shortcuts', type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
   ],
 };
 
@@ -70,6 +70,11 @@ export function useBentoLayout(contextId: string) {
   layoutRef.current = previewLayout ?? layout;
   realLayoutRef.current = layout;
 
+  const debouncedSave = useCallback((nextItems: BentoLayoutItem[]) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => saveBentoLayout(contextId, nextItems, [6, 6, 6, 6]), 500);
+  }, [contextId]);
+
   useEffect(() => {
     loadBentoLayout(contextId).then(saved => {
       if (saved) {
@@ -80,15 +85,22 @@ export function useBentoLayout(contextId: string) {
         const recovered = recoverLayout(items) ?? compactLayout(rebalanceAll(items));
         if (validateLayout(recovered).valid) {
           setLayout(recovered);
+          // Persist the migrated layout if it changed from the loaded layout
+          const hasChanges = JSON.stringify(items) !== JSON.stringify(recovered);
+          if (hasChanges) {
+            console.log(`[useBentoLayout] Migrating and persisting layout for ${contextId}`);
+            debouncedSave(recovered);
+          }
         } else {
           console.error("[useBentoLayout] Saved layout is invalid and unrecoverable, using default.");
           const defaults = rebalanceAll(getCloneDefaults(contextId));
           setLayout(defaults);
+          debouncedSave(defaults);
         }
       }
       setTimeout(() => setIsLoading(false), 200);
     });
-  }, [contextId]);
+  }, [contextId, debouncedSave]);
 
   // Save on unmount
   useEffect(() => {
@@ -98,11 +110,6 @@ export function useBentoLayout(contextId: string) {
         saveBentoLayout(contextId, layoutRef.current, [6, 6, 6, 6]);
       }
     };
-  }, [contextId]);
-
-  const debouncedSave = useCallback((nextItems: BentoLayoutItem[]) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => saveBentoLayout(contextId, nextItems, [6, 6, 6, 6]), 500);
   }, [contextId]);
 
   const commitLayout = useCallback((nextItems: BentoLayoutItem[], skipHistory = false, skipRebalance = false) => {

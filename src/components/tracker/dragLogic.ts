@@ -138,16 +138,16 @@ export function getTaskImplicitPosition(task: AppTask): number {
 
 export function getOrGeneratePositions(tasks: AppTask[]): number[] {
   if (tasks.length === 0) return [];
-  
+
   const positions: number[] = new Array(tasks.length);
-  
+
   // 1. Fill in existing manual or implicit positions
   for (let i = 0; i < tasks.length; i++) {
     if (typeof tasks[i].position === 'number') {
       positions[i] = tasks[i].position!;
     }
   }
-  
+
   // 2. Interpolate/extrapolate missing positions
   let i = 0;
   while (i < tasks.length) {
@@ -155,13 +155,13 @@ export function getOrGeneratePositions(tasks: AppTask[]): number[] {
       i++;
       continue;
     }
-    
+
     // Find the end of this missing block
     let j = i;
     while (j < tasks.length && positions[j] === undefined) {
       j++;
     }
-    
+
     // Missing block is from index i to j-1
     // Left position bound
     let leftPos: number;
@@ -177,7 +177,7 @@ export function getOrGeneratePositions(tasks: AppTask[]): number[] {
         leftPos = getTaskImplicitPosition(tasks[0]) - 1000;
       }
     }
-    
+
     // Right position bound
     let rightPos: number;
     if (j < tasks.length) {
@@ -186,16 +186,52 @@ export function getOrGeneratePositions(tasks: AppTask[]): number[] {
       // If we are at the very end of the array, extrapolate from leftPos
       rightPos = leftPos + (j - i + 1) * 1000;
     }
-    
+
     // Space the elements evenly between leftPos and rightPos
     const count = j - i;
     const step = (rightPos - leftPos) / (count + 1);
     for (let k = 0; k < count; k++) {
       positions[i + k] = leftPos + step * (k + 1);
     }
-    
+
     i = j;
   }
-  
+
   return positions;
+}
+
+/**
+ * Compute a `position` for a card being dropped at `destIndex` in `ordered`
+ * (the destination column already arranged in the desired visual order, INCLUDING
+ * the moved card at destIndex; -1 means appended at the end). The position is
+ * chosen strictly between the EFFECTIVE positions (`getTaskImplicitPosition`,
+ * which honours explicit `position` and falls back to `createdAt`) of the cards
+ * on either side — so the drop lands correctly even next to never-dragged,
+ * createdAt-only neighbours. Neighbours are skipped over the moved card itself.
+ */
+export function positionForDrop(ordered: AppTask[], movedId: string, destIndex: number): number {
+  const movedIdx = destIndex === -1 ? ordered.length - 1 : destIndex;
+  const neighbours = ordered.filter(t => t.id !== movedId);
+  // The moved card sits between neighbour (movedIdx-1) and neighbour (movedIdx)
+  // in the neighbour-only array.
+  const before = movedIdx - 1 >= 0 ? neighbours[movedIdx - 1] : undefined;
+  const after = movedIdx < neighbours.length ? neighbours[movedIdx] : undefined;
+
+  const beforePos = before ? getTaskImplicitPosition(before) : undefined;
+  const afterPos = after ? getTaskImplicitPosition(after) : undefined;
+
+  if (beforePos === undefined && afterPos === undefined) return 0;  // empty column
+  if (beforePos === undefined) return afterPos! - 1000;             // dropped at top
+  if (afterPos === undefined) return beforePos + 1000;              // dropped at bottom
+  if (afterPos > beforePos) {
+    // Midpoint, unless the gap is too small for float precision to represent a
+    // value strictly between the neighbours (only reachable after very many
+    // drops into the exact same sub-unit gap). In that rare case there's no
+    // numeric room; return the midpoint anyway — the displayed order is still
+    // resolved deterministically by the id tiebreak in buildColumns.
+    return beforePos + (afterPos - beforePos) / 2;
+  }
+  // Neighbours out of numeric order (explicit position sitting out of createdAt
+  // order): place just above the `before` neighbour so visual order is kept.
+  return beforePos + 1;
 }

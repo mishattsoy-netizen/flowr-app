@@ -8,6 +8,7 @@ import {
   columnIdFromX,
   getOrGeneratePositions,
   getTaskImplicitPosition,
+  positionForDrop,
   type ColumnItems,
   type CardRect,
   type ColumnRect,
@@ -214,6 +215,73 @@ describe('drop position assignment (commitDrop fractional indexing)', () => {
       expect(ids[0]).toBe('L');
       expect(ids[ids.length - 1]).toBe('R');
       // The newest mover should sit just before R.
+      expect(ids[ids.length - 2]).toBe(id);
+    }
+  });
+
+});
+
+describe('positionForDrop (the actual commitDrop position logic)', () => {
+  it('drops correctly among a MIX of positioned and unpositioned (createdAt-only) cards', () => {
+    // Some cards have a manual `position` (dragged before), others only a
+    // `createdAt` (never dragged). A drop next to a createdAt-only neighbour
+    // must land on the correct side of it.
+    const base = [
+      t('p1', { createdAt: 100 }),                 // implicit 100
+      t('p2', { position: 150, createdAt: 999 }),  // explicit 150
+      t('p3', { createdAt: 200 }),                 // implicit 200
+      t('p4', { createdAt: 300 }),                 // implicit 300
+    ];
+    const sorted = sortByPosition(base);
+    expect(sorted.map(x => x.id)).toEqual(['p1', 'p2', 'p3', 'p4']);
+
+    // Drag p4 to sit BETWEEN p1 and p2 (visual index 1).
+    const desiredOrder = [sorted[0], t('p4', { createdAt: 300 }), sorted[1], sorted[2]];
+    const pos = positionForDrop(desiredOrder, 'p4', 1);
+
+    const resorted = sortByPosition([
+      t('p1', { createdAt: 100 }),
+      t('p2', { position: 150, createdAt: 999 }),
+      t('p3', { createdAt: 200 }),
+      t('p4', { createdAt: 300, position: pos }),
+    ]);
+    expect(resorted.map(x => x.id)).toEqual(['p1', 'p4', 'p2', 'p3']);
+  });
+
+  it('drop at top → position below the first card', () => {
+    const ordered = [t('x', { createdAt: 500 }), t('a', { createdAt: 100 }), t('b', { createdAt: 200 })];
+    const pos = positionForDrop(ordered, 'x', 0);
+    const resorted = sortByPosition([
+      t('a', { createdAt: 100 }), t('b', { createdAt: 200 }), t('x', { createdAt: 500, position: pos }),
+    ]);
+    expect(resorted.map(t => t.id)).toEqual(['x', 'a', 'b']);
+  });
+
+  it('drop at bottom (-1) → position above the last card', () => {
+    const ordered = [t('a', { createdAt: 100 }), t('b', { createdAt: 200 }), t('x', { createdAt: 50 })];
+    const pos = positionForDrop(ordered, 'x', -1);
+    const resorted = sortByPosition([
+      t('a', { createdAt: 100 }), t('b', { createdAt: 200 }), t('x', { createdAt: 50, position: pos }),
+    ]);
+    expect(resorted.map(t => t.id)).toEqual(['a', 'b', 'x']);
+  });
+
+  it('repeated drops into the same gap stay correctly ordered (realistic depth)', () => {
+    // Spaced anchors give plenty of fractional headroom for the handful of
+    // same-gap drops that happen in practice. (Fractional indexing over large
+    // magnitudes has a finite precision ceiling — many dozens of drops into the
+    // identical sub-unit gap would eventually need a column renormalization,
+    // which is out of scope here; normal use never approaches it.)
+    let cards = [t('L', { position: 0 }), t('R', { position: 1_000_000 })];
+    for (let i = 0; i < 10; i++) {
+      const id = `m${String(i).padStart(3, '0')}`;
+      const sorted = sortByPosition(cards);
+      const ordered = [...sorted.slice(0, sorted.length - 1), t(id, { createdAt: 1_700_000_000_500 }), sorted[sorted.length - 1]];
+      const pos = positionForDrop(ordered, id, sorted.length - 1);
+      cards.push(t(id, { createdAt: 1_700_000_000_500, position: pos }));
+      const ids = sortByPosition(cards).map(t => t.id);
+      expect(ids[0]).toBe('L');
+      expect(ids[ids.length - 1]).toBe('R');
       expect(ids[ids.length - 2]).toBe(id);
     }
   });

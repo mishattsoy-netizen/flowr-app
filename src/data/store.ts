@@ -362,6 +362,10 @@ export const useStore = create<AppState>()(
 
       setActiveWorkspaceId: (id) => {
         set({ activeWorkspaceId: id });
+        if (id && id !== 'dashboard') {
+          const nextRecent = [id, ...get().recentEntityIds.filter(rid => rid !== id)].slice(0, 8);
+          set({ recentEntityIds: nextRecent });
+        }
       },
 
       setTrackerFilterWorkspace: (id) => {

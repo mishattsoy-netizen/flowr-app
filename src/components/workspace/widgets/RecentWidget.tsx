@@ -30,11 +30,37 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
   const entities = useStore(s => s.entities);
   const workspaces = useStore(s => s.workspaces);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
+  const setActiveWorkspaceId = useStore(s => s.setActiveWorkspaceId);
   const openModal = useStore(s => s.openModal);
   const filter: Filter = data?.filter ?? 'all';
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
  
   const recentEntities = useMemo(() => {
-    let list = recentEntityIds.map(id => entities.find(e => e.id === id)).filter((e): e is Entity => !!e);
+    let list = recentEntityIds.map(id => {
+      // Find in entities (pages, folders, etc.)
+      const entity = entities.find(e => e.id === id);
+      if (entity) return entity;
+      // Find in workspaces
+      const workspace = workspaces.find(w => w.id === id);
+      if (workspace) {
+        return {
+          id: workspace.id,
+          title: workspace.name,
+          type: 'workspace' as const,
+          parentId: null,
+          lastModified: workspace.createdAt || Date.now(),
+          icon: workspace.icon,
+          color: workspace.color,
+          workspaceId: workspace.id
+        } as Entity;
+      }
+      return null;
+    }).filter((e): e is Entity => !!e);
+
     if (contextId && contextId !== 'dashboard') {
       // Exclude workspaces and collections inside a specific workspace dashboard to avoid self-listing
       list = list.filter(e => e.type !== 'workspace' && e.type !== 'collection');
@@ -58,7 +84,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
       });
     }
     return list.filter(e => filter === 'all' || e.type === filter);
-  }, [recentEntityIds, entities, filter, contextId]);
+  }, [recentEntityIds, entities, workspaces, filter, contextId]);
  
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const [pillStyle, setPillStyle] = useState({ left: 3, width: 40 });
@@ -87,6 +113,8 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
     };
   }, [filter]);
  
+  if (!mounted) return null;
+
   return (
     <section className="bg-panel group/widget px-5 pb-5 pt-4 widget-shadow h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 h-8 shrink-0 gap-2">
@@ -136,7 +164,17 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           })();
           const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
           return (
-            <button key={entity.id} onClick={() => setActiveEntityId(entity.id)}
+            <button key={entity.id} onClick={() => {
+              if (entity.type === 'workspace') {
+                setActiveWorkspaceId(entity.id);
+                setActiveEntityId(null);
+              } else {
+                if (entity.workspaceId) {
+                  setActiveWorkspaceId(entity.workspaceId);
+                }
+                setActiveEntityId(entity.id);
+              }
+            }}
               className="w-full flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out group/item text-left text-[14px]">
               <div className="w-4 shrink-0 flex items-center justify-center text-[var(--bone-100)] opacity-30 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out">
                 <Icon strokeWidth={2} className="w-4 h-4" />
@@ -144,8 +182,14 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] leading-snug truncate text-[var(--bone-100)]">{stripHtml(entity.title || '')}</div>
                 <div className="text-[10px] text-[var(--bone-30)] flex items-center gap-1">
-                  <span>{formatAge(entity.lastModified)} ago</span>
-                  {ws && <><span>·</span><span className="truncate max-w-[80px]">{ws.name}</span></>}
+                  {entity.type === 'workspace' ? (
+                    <span>Workspace</span>
+                  ) : (
+                    <>
+                      <span>{formatAge(entity.lastModified)} ago</span>
+                      {ws && <><span>·</span><span className="truncate max-w-[80px]">{ws.name}</span></>}
+                    </>
+                  )}
                 </div>
               </div>
               <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 group-hover/item:translate-x-0.5 transition-all duration-200 ease-in-out" />

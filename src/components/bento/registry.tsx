@@ -50,7 +50,7 @@ export const widgetRegistry: Record<string, WidgetRegistryEntry> = {
 
   'smart-tasks':      { label: 'Smart Tasks',      description: 'Stacked task views',            component: SmartTaskStackWidget,  defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 6, maxH: 4,  category: 'Organization' },
   'stacked-widgets':  { label: 'Stacked Widgets',  description: 'Combine up to 3 widgets',      component: GenericStackedWidget,  defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 6, maxH: 4,  category: 'General' },
-  'shortcuts':        { label: 'Shortcuts',        description: 'App-like shortcuts',            component: ShortcutsWidget,       defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 6, maxH: 4,  category: 'General' },
+  'shortcuts':        { label: 'Shortcuts',        description: 'App-like shortcuts',            component: ShortcutsWidget,       defaultW: 4, defaultH: 2, minW: 4, minH: 2, maxW: 6, maxH: 2,  category: 'General' },
   'recent':           { label: 'Recent',           description: 'Recently opened pages',         component: RecentWidget,          defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 6, maxH: 4,  category: 'General' },
 
   'topic-browser':    { label: 'Topic Browser',    description: 'Browse topics and notes',        component: TopicBrowserWidget,    defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 6, maxH: 4,  category: 'Organization' },

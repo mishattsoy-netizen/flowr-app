@@ -2,6 +2,7 @@
 
 import { AppTask, useStore } from '@/data/store';
 import { TaskCard } from './TaskCard';
+import { OverlayScrollbar } from './OverlayScrollbar';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -37,7 +38,7 @@ function GapBox({ columnId, afterTaskId, height }: { columnId: string; afterTask
   return (
     <div
       ref={ref}
-      className="rounded-[10px] bg-[var(--bone-6)] shrink-0 transition-[height] duration-150 ease-out"
+      className="rounded-[10px] bg-[color-mix(in_srgb,var(--app-dark)_50%,transparent)] shrink-0 transition-[height] duration-150 ease-out"
       style={{ height }}
     />
   );
@@ -71,6 +72,7 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
       getData: () => ({ type: 'column', columnId: id }),
     });
   }, [id]);
+
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -149,10 +151,11 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
         </div>
       </div>
 
-      <div
-        ref={dropRef}
-        data-kanban-column={id}
-        className="flex-1 flex flex-col overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[var(--bone-10)] scrollbar-track-transparent"
+      <OverlayScrollbar
+        className="flex-1"
+        scrollClassName="flex flex-col pr-2"
+        scrollRef={(node) => { dropRef.current = node; }}
+        scrollProps={{ 'data-kanban-column': id } as Record<string, unknown>}
       >
         {(() => {
           const gapBox = gap ? (
@@ -190,7 +193,7 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
             </div>
           );
         })()}
-      </div>
+      </OverlayScrollbar>
     </div>
   );
 }

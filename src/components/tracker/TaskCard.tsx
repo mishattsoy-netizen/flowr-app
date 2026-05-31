@@ -63,7 +63,10 @@ export function TaskCardUI({
       className={cn(
         "group relative p-3 rounded-[10px] border border-[var(--bone-10)] shrink-0 touch-none select-none flex flex-col gap-2 transition-colors duration-200 ease-in-out",
         isDragging
-          ? "bg-[var(--app-dark)] cursor-grabbing"
+          // Dragging = same look as hover: just a bg change, no border. Dark mode
+          // is the default (the app adds `.light` for light mode), so drop the
+          // border by default and restore it only under `.light`.
+          ? "bg-[var(--app-dark)] border-transparent [.light_&]:border-[var(--bone-10)] cursor-grabbing"
           : "bg-[var(--bone-6)] cursor-pointer active:cursor-grabbing hover:bg-[var(--app-dark)]",
         justDropped && "task-drop-settle"
       )}
@@ -207,9 +210,11 @@ export function TaskCard({
       getInitialData: () => ({ type: 'task', taskId: task.id, columnId }),
       onGenerateDragPreview: ({ nativeSetDragImage, source, location }) => {
         const rect = (source.element as HTMLElement).getBoundingClientRect();
+        // Add 32px to offset to account for the 32px padding on the drag preview container.
+        // This ensures the pointer is perfectly aligned with the spot grabbed by the user.
         const offset = {
-          x: location.current.input.clientX - rect.left,
-          y: location.current.input.clientY - rect.top,
+          x: location.current.input.clientX - rect.left + 32,
+          y: location.current.input.clientY - rect.top + 32,
         };
         setCustomNativeDragPreview({
           nativeSetDragImage,
@@ -261,8 +266,12 @@ export function TaskCard({
       </div>
       {preview &&
         createPortal(
-          <div className="w-[268px] rounded-[10px] shadow-[0_20px_55px_6px_rgba(0,0,0,0.55)] pointer-events-none">
-            <TaskCardUI task={task} isDragging />
+          <div style={{ padding: '32px' }} className="pointer-events-none">
+            {/* Added solid background and refined shadow wrapper. The 32px padding on the parent 
+                ensures that the browser's native drag snapshot includes the outer box shadow without clipping. */}
+            <div className="w-[268px] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_15px_40px_rgba(0,0,0,0.5)] bg-[var(--app-dark)]">
+              <TaskCardUI task={task} isDragging />
+            </div>
           </div>,
           preview.container
         )}

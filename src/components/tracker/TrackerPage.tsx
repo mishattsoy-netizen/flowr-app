@@ -11,7 +11,7 @@ import {
   indexFromPointer,
   columnIdFromX,
   getTaskImplicitPosition,
-  getOrGeneratePositions,
+  positionForDrop,
   type ColumnItems,
   type CardRect,
   type ColumnRect,
@@ -96,8 +96,6 @@ export function TrackerPage() {
   // off-board the gap returns here so what's shown matches what will commit
   // (a drop off-board lands back at origin).
   const originPosRef = useRef<{ destColumn: string; destIndex: number } | null>(null);
-  // DEBUG: the gap position last *displayed*, to compare against what commits.
-  const displayedGapRef = useRef<{ destColumn: string; destIndex: number; gapAfter: string | null } | null>(null);
   // Render store columns directly; the dragged card is invisible in place and
   // a separate moving gap is drawn at the destination. No optimistic reordering
   // → the dragged DOM node never unmounts mid-drag.
@@ -109,28 +107,14 @@ export function TrackerPage() {
     const finalCols = computeFinalColumns(storeColumns, activeItemId, destColumn, destIndex);
     if (finalCols === storeColumns && srcColumn === destColumn) return; // no-op
 
-    // Calculate new position using fractional indexing
+    // Position the moved card strictly between its neighbours' EFFECTIVE
+    // positions in the final order. Using effective positions (which honour
+    // createdAt for never-dragged cards) is what makes a drop land on the right
+    // side of an unpositioned neighbour — the old getOrGeneratePositions only
+    // anchored on the raw `position` field and mis-placed such drops.
     const destTasks = finalCols[destColumn] ?? [];
     const movedIdx = destTasks.findIndex(t => t.id === activeItemId);
-    let newPosition = 0;
-    if (movedIdx !== -1) {
-      const destTasksWithClearedMoved = destTasks.map(t =>
-        t.id === activeItemId ? { ...t, position: undefined } : t
-      );
-      const newPositions = getOrGeneratePositions(destTasksWithClearedMoved);
-      newPosition = newPositions[movedIdx];
-      // eslint-disable-next-line no-console
-      console.log('[DND commit]', {
-        destColumn,
-        destIndex,
-        movedIdx,
-        newPosition,
-        leftNeighborPos: movedIdx > 0 ? newPositions[movedIdx - 1] : null,
-        rightNeighborPos: movedIdx < newPositions.length - 1 ? newPositions[movedIdx + 1] : null,
-        finalOrder: destTasks.map(t => t.id.slice(-3)),
-        finalPositions: newPositions.map(p => Math.round(p * 100) / 100),
-      });
-    }
+    const newPosition = positionForDrop(destTasks, activeItemId, movedIdx);
 
     let updates: Partial<AppTask> = { position: newPosition };
     const columnChanged = srcColumn !== null && srcColumn !== destColumn;
@@ -277,7 +261,6 @@ export function TrackerPage() {
     const height = heightRef.current;
     dropPosRef.current = target;
     const gapAfter = gapAfterId(taskId, destColumn, destIndex);
-    displayedGapRef.current = { destColumn, destIndex, gapAfter };
     const signature = `${destColumn}:${destIndex}`;
     setDrag(d =>
       d && d.signature === signature
@@ -349,20 +332,21 @@ export function TrackerPage() {
         // Stop intercepting window drag events now the drag is over.
         preventUnhandled.stop();
         const taskId = source.data.taskId as string;
-        const landedOnBoard = location.current.dropTargets.length > 0;
+        // Commit whatever the continuously-updated dropPosRef holds — it is the
+        // SAME position the gap was showing (set by the last onDrag, geometry-
+        // based). Do NOT gate on location.dropTargets: on a fast flick-drop the
+        // browser can fire `drop` with an empty dropTargets list even while the
+        // cursor is over a column, which previously skipped the commit and left
+        // the card at origin (the "drops in initial place, not the box" bug).
+        // Off-board drops are already handled: resolvePosition returned null and
+        // dropPosRef fell back to origin, so commitDrop becomes a no-op there.
         const pos = dropPosRef.current;
         // eslint-disable-next-line no-console
-        console.log('[DND drop vs display]', {
-          landedOnBoard,
-          committedPos: pos,
-          lastDisplayedGap: displayedGapRef.current,
-          diverged: pos && displayedGapRef.current
-            ? (pos.destColumn !== displayedGapRef.current.destColumn || pos.destIndex !== displayedGapRef.current.destIndex)
-            : 'n/a',
+        console.log('[DND fastdrop]', {
+          dropTargetsLen: location.current.dropTargets.length,
+          committing: pos,
         });
-        // Only commit a move when the drop landed on the board; off-board drops
-        // return the card to its origin (no store change).
-        if (landedOnBoard && pos) {
+        if (pos) {
           commitDrop(taskId, pos.destColumn, pos.destIndex);
         }
         // Play the settle on EVERY drop — on a landing AND on an off-board drop

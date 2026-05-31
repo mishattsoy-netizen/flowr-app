@@ -28,7 +28,7 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
 
   const hide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setVisible(false), 400);
+    hideTimer.current = setTimeout(() => setVisible(false), 1000);
   }, []);
 
   const updateThumb = useCallback(() => {
@@ -108,7 +108,7 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
       >
         <div
           className="absolute right-[2px] top-0 bottom-0 w-[4px] pointer-events-none"
-          style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.15s ease' }}
+          style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}
         >
           <div
             ref={thumbRef}

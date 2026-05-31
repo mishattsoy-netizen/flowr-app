@@ -577,6 +577,7 @@ html {
   background: transparent !important;
 }
 
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -637,6 +638,23 @@ html {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--bone-30);
+}
+
+/* Reveal modifier — compose with `scrollbar-thin` to keep its exact style
+   (4px, --bone-15 thumb, radius 10px) but hide the thumb until the container is
+   hovered or actively scrolling (`.is-scrolling`), fading in and out. */
+.scrollbar-reveal::-webkit-scrollbar-thumb {
+  background: transparent;
+  transition: background 0.3s ease;
+}
+
+.scrollbar-reveal:hover::-webkit-scrollbar-thumb,
+.scrollbar-reveal.is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--bone-15);
+}
+
+.scrollbar-reveal::-webkit-scrollbar-thumb:hover {
   background: var(--bone-30);
 }
 
@@ -1345,20 +1363,22 @@ body.is-dragging-widget [data-widget-id] * {
 
 /* Task drop settle — the just-dropped card eases from its lifted drag/hover
    background back to idle. Color only (no transform/scale). `!important` on the
-   animation so it beats the global `.preload * { animation: none !important }`
-   reset; and on background-color so it wins over the Tailwind bg utility on the
-   card for the duration of the settle. */
+   animation shorthand so it beats the global `.preload * { animation: none
+   !important }` reset. A running animation already overrides the element's
+   normal `background-color` for the animated property, so the keyframes must
+   NOT use `!important` — WebKit/Safari silently drops `!important` declarations
+   inside @keyframes, which killed the whole animation there. */
 .task-drop-settle {
   animation: task-drop-settle 0.4s ease-out forwards !important;
 }
 
 @keyframes task-drop-settle {
   from {
-    background-color: var(--app-dark) !important;
+    background-color: var(--app-dark);
   }
 
   to {
-    background-color: var(--bone-6) !important;
+    background-color: var(--bone-6);
   }
 }
 
