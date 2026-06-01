@@ -4,10 +4,11 @@
 //   - Static assets (/_next/static/*, icons, manifest): stale-while-revalidate.
 //   - HTML navigations: network-first, fall back to cached / on failure.
 //   - API / Supabase / non-GET: pass through, never cached.
-// Cache name includes a build ID so each deploy invalidates old caches.
+// The cache name is a fixed constant. Updates to JS/CSS propagate via Next.js
+// content-hashed URLs (a new deploy = new URL = fresh fetch), not via the cache
+// name. Bump CACHE_NAME manually only if you need to force-purge all caches.
 
-const BUILD_ID = self.__FLOWR_BUILD_ID || 'dev';
-const CACHE_NAME = `flowr-shell-v${BUILD_ID}`;
+const CACHE_NAME = 'flowr-shell-v1';
 
 const PRECACHE_URLS = [
   '/',
