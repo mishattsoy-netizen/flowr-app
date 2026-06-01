@@ -9,8 +9,14 @@ export default function ChatPage() {
   const activeChatId = useStore(s => s.activeChatId);
   const chatConversations = useStore(s => s.chatConversations);
   const isTempChat = useStore(s => s.isTempChat);
+  const aiMessages = useStore(s => s.aiMessages);
+  const isAILoading = useStore(s => s.isAILoading);
+
   const activeConv = chatConversations.find(c => c.id === activeChatId);
   const title = isTempChat ? 'Temporary Chat' : (activeConv?.title || 'New Chat');
+
+  const displayMessages = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant');
+  const showBottomBar = displayMessages.length > 0 || isAILoading;
 
   return (
     <div className="flex h-full w-full bg-background">
@@ -53,20 +59,24 @@ export default function ChatPage() {
         </div>
 
         {/* Fade behind bar — same height as bar+gap, z-index below bar */}
-        <div
-          className="absolute left-0 right-0 bottom-0 pointer-events-none"
-          style={{ zIndex: 38, height: '140px', background: 'linear-gradient(to bottom, transparent 0%, var(--color-background) 55%)' }}
-        />
+        {showBottomBar && (
+          <div
+            className="absolute left-0 right-0 bottom-0 pointer-events-none"
+            style={{ zIndex: 38, height: '140px', background: 'linear-gradient(to bottom, transparent 0%, var(--color-background) 55%)' }}
+          />
+        )}
 
         {/* Floating glass bar */}
-        <div
-          className="absolute left-0 right-0 bottom-0 pb-8 pt-2 flex justify-center"
-          style={{ zIndex: 40 }}
-        >
-          <div className="w-full max-w-4xl mx-auto px-6">
-            <AIAssistant chatPageMode={true} />
+        {showBottomBar && (
+          <div
+            className="absolute left-0 right-0 bottom-0 pb-8 pt-2 flex justify-center"
+            style={{ zIndex: 40 }}
+          >
+            <div className="w-full max-w-4xl mx-auto px-6">
+              <AIAssistant chatPageMode={true} />
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
