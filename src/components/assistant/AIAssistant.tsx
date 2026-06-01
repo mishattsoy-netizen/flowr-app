@@ -7,6 +7,7 @@ import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
 import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
+import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -54,6 +55,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
 };
 
 const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { isFloating?: boolean; chatPageMode?: boolean }) => {
+  const { resolvedTheme } = useTheme();
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const toggleAIAssistant = useStore(state => state.toggleAIAssistant);
@@ -470,7 +472,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
   return (
     <>
-      {!isAIAssistantOpen && !chatPageMode && (
+      {!isAIAssistantOpen && !chatPageMode && activeEntityId !== 'settings' && (
         <div className="fixed bottom-8 right-8 z-[90]">
           <button
             onClick={toggleAIAssistant}
@@ -560,7 +562,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             ? "relative w-full h-auto"
             : actualExtended
               ? "relative w-full h-full"
-              : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] rounded-[var(--radius-big)] border border-[var(--bone-12)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
+              : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] rounded-[var(--radius-big)] border border-[var(--bone-10)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
         )}
         style={{ display: (isAIAssistantOpen || chatPageMode) ? 'flex' : 'none' }}
       >
@@ -769,8 +771,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             className={cn(
               "border flex flex-col relative transition-colors duration-300",
               chatPageMode
-                ? "backdrop-blur-xl border-[var(--bone-3)] hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-2xl"
-                : "bg-[var(--bone-6)] border-[var(--bone-3)] hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[16px] p-3"
+                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-2xl`
+                : `bg-[var(--bone-6)] ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[16px] p-3`
             )}
             style={chatPageMode ? { backgroundColor: 'color-mix(in srgb, var(--color-panel) 70%, transparent)' } : undefined}
           >

@@ -49,9 +49,6 @@ export function SettingsPage() {
       {/* Settings Sub-Sidebar */}
       <div className="w-64 border-r border-[var(--bone-10)] flex flex-col p-6 bg-sidebar/30 shrink-0">
         <div className="flex items-center gap-2 mb-8 px-2">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
-            <SettingsIcon className="w-4 h-4 text-accent" />
-          </div>
           <h2 className="text-xl font-display font-semibold tracking-tight text-[var(--bone-100)]">Settings</h2>
         </div>
 
@@ -76,7 +73,7 @@ export function SettingsPage() {
                     : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
                 )}
               >
-                <Icon strokeWidth={2} className={cn("w-4 h-4 transition-colors", isActive ? "text-accent" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />
+                <Icon strokeWidth={2} className={cn("w-4 h-4 transition-colors", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -84,15 +81,15 @@ export function SettingsPage() {
         </nav>
 
         {/* Version Info */}
-        <div className="pt-4 border-t border-[var(--bone-10)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr 4.4.1 - Build 2304</p>
+        <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
+          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr 1.2 - Build 2304</p>
         </div>
       </div>
 
       {/* Main Settings Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-transparent overflow-y-auto">
         <div className="flex-1 max-w-4xl w-full mx-auto px-8 md:px-12 py-10">
-          <div className="mb-8 pb-4 border-b border-[var(--bone-10)]">
+          <div className="mb-8 pb-4 border-b border-[var(--bone-6)]">
             <h3 className="font-display text-2xl font-bold tracking-tight text-[var(--bone-100)] capitalize">{activeTab}</h3>
             <p className="text-sm text-[var(--bone-70)] mt-1">
               {activeTab === 'profile' && "Manage your visual presentation and account identity."}
@@ -149,7 +146,7 @@ export function SettingsPage() {
                 </section>
 
                 {/* Scale Section */}
-                <section className="border-t border-[var(--bone-10)] pt-8 flex items-center justify-between max-w-2xl">
+                <section className="border-t border-[var(--bone-6)] pt-8 flex items-center justify-between max-w-2xl">
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--bone-100)]">Interface Scaling</h4>
                     <p className="text-xs text-[var(--bone-70)] mt-0.5">Adjust the overall size of the UI components.</p>
@@ -194,7 +191,7 @@ export function SettingsPage() {
                 </section>
 
                 {/* Tabs Header Section */}
-                <section className="border-t border-[var(--bone-10)] pt-8">
+                <section className="border-t border-[var(--bone-6)] pt-8">
                   <div className="flex items-center justify-between max-w-md">
                     <div>
                       <h4 className="text-xs font-semibold text-[var(--bone-40)] uppercase tracking-widest">Tabs Header</h4>

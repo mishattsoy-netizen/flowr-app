@@ -746,7 +746,7 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 border-t border-[var(--bone-10)] pt-1.5 mt-0.5">
+          <div className="flex items-center gap-1 border-t border-[var(--bone-6)] pt-1.5 mt-0.5">
             <Tooltip content={copying ? "Copied!" : "Copy Link"}>
               <button
                 onClick={handleCopy}
@@ -762,7 +762,7 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
                 </span>
               </button>
             </Tooltip>
-            <div className="w-px h-3 bg-[var(--bone-10)]" />
+            <div className="w-px h-3 bg-[var(--bone-6)]" />
             <Tooltip content="Open in New Tab">
               <a
                 href={href}

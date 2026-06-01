@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/ThemeProvider';
 import gsap from 'gsap';
 import { widgetRegistry } from './registry';
 import type { BentoLayoutItem } from './types';
@@ -20,6 +21,7 @@ interface BentoWidgetProps {
 }
 
 export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, onUpdateData, isSwapTarget, isStackTarget, staggerIndex = 0 }: BentoWidgetProps) {
+  const { resolvedTheme } = useTheme();
   const entry = widgetRegistry[item.type];
   const ref = useRef<HTMLDivElement>(null);
   const prevEditMode = useRef(editMode);
@@ -67,7 +69,7 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
           isEditing={editMode}
         />
       </div>
-      <div className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border border-[var(--bone-3)]" />
+      <div className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border border-[var(--bone-10)]" style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }} />
       {editMode && (
         <button
           onPointerDown={e => e.stopPropagation()}

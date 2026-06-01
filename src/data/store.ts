@@ -266,6 +266,8 @@ export const useStore = create<AppState>()(
       activeTabId: 'dashboard',
       modal: null,
       contextMenu: null,
+      selectedTaskIds: [],
+      taskContextMenu: null,
       editingEntity: null,
       theme: 'dark',
       interfaceSize: 'regular',
@@ -302,6 +304,14 @@ export const useStore = create<AppState>()(
         unsorted: { sortMode: 'lastModified', itemLimit: 20 },
         workspaces: { sortMode: 'lastModified', itemLimit: 20 },
       },
+      trackerColumnSortModes: {
+        todo: 'automatic',
+        inProgress: 'automatic',
+        today: 'automatic',
+        overdue: 'automatic',
+        completed: 'recently_added'
+      },
+      trackerColumnSortLocks: {},
       hiddenEntityIds: [],
       isCommandPaletteOpen: false,
       selectedSidebarIds: [],
@@ -1575,6 +1585,7 @@ export const useStore = create<AppState>()(
           id: generateId(),
           completed: false,
           ...task,
+          userDueDate: task.userDueDate || task.dueDate || undefined,
           workspaceId: task.workspaceId || activeWorkspaceId
         } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
@@ -1604,10 +1615,42 @@ export const useStore = create<AppState>()(
         deleteTaskFromDB(id);
       },
 
+      toggleTaskSelection: (id) => set((s) => ({
+        selectedTaskIds: s.selectedTaskIds.includes(id)
+          ? s.selectedTaskIds.filter(x => x !== id)
+          : [...s.selectedTaskIds, id],
+      })),
+      setSelectedTaskIds: (ids) => set({ selectedTaskIds: ids }),
+      clearTaskSelection: () => set({ selectedTaskIds: [] }),
+      openTaskContextMenu: (taskId, column, x, y) => set({ taskContextMenu: { taskId, column, x, y } }),
+      closeTaskContextMenu: () => set({ taskContextMenu: null }),
+
       clearCompletedTasks: () => {
         const completed = get().tasks.filter(t => t.completed);
         set((s) => ({ tasks: s.tasks.filter(t => !t.completed) }));
         completed.forEach(t => deleteTaskFromDB(t.id));
+      },
+
+      setTrackerColumnSortMode: (columnId, mode) => {
+        set((s) => ({
+          trackerColumnSortModes: {
+            ...s.trackerColumnSortModes,
+            [columnId]: mode
+          },
+          trackerColumnSortLocks: {
+            ...s.trackerColumnSortLocks,
+            [columnId]: mode === 'manual' ? false : !!s.trackerColumnSortLocks?.[columnId]
+          }
+        }));
+      },
+
+      toggleTrackerColumnSortLock: (columnId) => {
+        set((s) => ({
+          trackerColumnSortLocks: {
+            ...s.trackerColumnSortLocks,
+            [columnId]: !s.trackerColumnSortLocks?.[columnId]
+          }
+        }));
       },
 
       updateTask: (id, updates) => {
@@ -1882,6 +1925,8 @@ export const useStore = create<AppState>()(
         aiApiKey: state.aiApiKey,
         copiedBlock: state.copiedBlock,
         sidebarSectionSettings: state.sidebarSectionSettings,
+        trackerColumnSortModes: state.trackerColumnSortModes,
+        trackerColumnSortLocks: state.trackerColumnSortLocks,
         hiddenEntityIds: state.hiddenEntityIds,
         recentEntityIds: state.recentEntityIds,
         activeMode: state.activeMode,

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { preventUnhandled } from '@atlaskit/pragmatic-drag-and-drop/prevent-unhandled';
 import { KanbanColumn } from './KanbanColumn';
+import { TaskContextMenu } from './TaskContextMenu';
 import {
   findContainer,
   computeFinalColumns,
@@ -19,21 +20,82 @@ import {
 
 const COLUMN_KEYS = ['todo', 'inProgress', 'today', 'overdue', 'completed'] as const;
 
-function buildColumns(tasks: AppTask[], today: string): ColumnItems {
-  const sortTasks = (a: AppTask, b: AppTask) => {
+function buildColumns(
+  tasks: AppTask[],
+  today: string,
+  sortModes: Record<string, 'manual' | 'automatic' | 'recently_added'>
+): ColumnItems {
+  const getAutomaticTier = (t: AppTask): number => {
+    if (t.dueDate) return 1;
+    if (t.priority) return 2;
+    if (t.color && t.color !== '') return 3;
+    return 4;
+  };
+
+  const sortManual = (a: AppTask, b: AppTask) => {
     const posA = getTaskImplicitPosition(a);
     const posB = getTaskImplicitPosition(b);
     if (posA !== posB) return posA - posB;
-    // Keep it stable with id fallback
     return a.id.localeCompare(b.id);
   };
 
+  const sortAutomatic = (a: AppTask, b: AppTask) => {
+    const tierA = getAutomaticTier(a);
+    const tierB = getAutomaticTier(b);
+    if (tierA !== tierB) {
+      return tierA - tierB;
+    }
+
+    if (tierA === 1) {
+      const dateA = a.dueDate!;
+      const dateB = b.dueDate!;
+      const dateCompare = dateA.localeCompare(dateB);
+      if (dateCompare !== 0) return dateCompare;
+    }
+
+    const priorityVal = (p: string | null | undefined) => {
+      if (p === 'high') return 3;
+      if (p === 'medium') return 2;
+      if (p === 'low') return 1;
+      return 0;
+    };
+    const prioA = priorityVal(a.priority);
+    const prioB = priorityVal(b.priority);
+    if (prioA !== prioB) {
+      return prioB - prioA;
+    }
+
+    const colorA = a.color || '';
+    const colorB = b.color || '';
+    const colorCompare = colorA.localeCompare(colorB);
+    if (colorCompare !== 0) return colorCompare;
+
+    const posA = getTaskImplicitPosition(a);
+    const posB = getTaskImplicitPosition(b);
+    if (posA !== posB) return posA - posB;
+    return a.id.localeCompare(b.id);
+  };
+
+  const sortRecentlyAdded = (a: AppTask, b: AppTask) => {
+    const timeA = a.completed ? (a.completedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0);
+    const timeB = b.completed ? (b.completedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0);
+    if (timeA !== timeB) return timeB - timeA;
+    return a.id.localeCompare(b.id);
+  };
+
+  const getSorter = (colId: string) => {
+    const mode = sortModes?.[colId] || 'manual';
+    if (mode === 'automatic') return sortAutomatic;
+    if (mode === 'recently_added') return sortRecentlyAdded;
+    return sortManual;
+  };
+
   return {
-    todo:      tasks.filter(t => !t.completed && t.status !== 'in-progress' && (!t.dueDate || t.dueDate > today)).sort(sortTasks),
-    inProgress: tasks.filter(t => !t.completed && t.status === 'in-progress').sort(sortTasks),
-    today:     tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate === today).sort(sortTasks),
-    overdue:   tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate && t.dueDate < today).sort(sortTasks),
-    completed: tasks.filter(t => t.completed).sort(sortTasks),
+    todo:      tasks.filter(t => !t.completed && t.status !== 'in-progress' && (!t.dueDate || t.dueDate > today)).sort(getSorter('todo')),
+    inProgress: tasks.filter(t => !t.completed && t.status === 'in-progress').sort(getSorter('inProgress')),
+    today:     tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate === today).sort(getSorter('today')),
+    overdue:   tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate && t.dueDate < today).sort(getSorter('overdue')),
+    completed: tasks.filter(t => t.completed).sort(getSorter('completed')),
   };
 }
 
@@ -57,8 +119,13 @@ export function TrackerPage() {
   }, [allTasks, trackerFilterWorkspace]);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
+  const trackerColumnSortModes = useStore(s => s.trackerColumnSortModes);
+
   // Derived columns from store — stable when tasks don't change
-  const storeColumns = useMemo(() => buildColumns(tasks, today), [tasks, today]);
+  const storeColumns = useMemo(
+    () => buildColumns(tasks, today, trackerColumnSortModes),
+    [tasks, today, trackerColumnSortModes]
+  );
 
   type Drag = {
     taskId: string;
@@ -79,7 +146,7 @@ export function TrackerPage() {
   // The task that just landed + a monotonic nonce. The nonce bumps every drop so
   // the settle animation restarts even on a rapid re-drop of the same card; it
   // clears after the animation so it doesn't replay on later re-renders.
-  const [justDropped, setJustDropped] = useState<{ taskId: string; nonce: number } | null>(null);
+  const [justDropped, setJustDropped] = useState<{ taskIds: string[]; nonce: number } | null>(null);
   const dropNonceRef = useRef(0);
   const dropAnimTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The dragged card's gap height is captured once on dragStart and cached
@@ -101,8 +168,38 @@ export function TrackerPage() {
   // → the dragged DOM node never unmounts mid-drag.
   const columns = storeColumns;
 
+  // The status/date changes a task needs to belong to a given column.
+  const columnUpdates = (destColumn: string, task?: AppTask): Partial<AppTask> => {
+    const yesterday = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().split('T')[0];
+    })();
+    switch (destColumn) {
+      case 'todo': {
+        const userDueDate = task?.userDueDate;
+        const restoredDate = (userDueDate && userDueDate > today) ? userDueDate : undefined;
+        return { status: 'todo', dueDate: restoredDate, completed: false };
+      }
+      case 'inProgress': {
+        const userDueDate = task?.userDueDate;
+        return { status: 'in-progress', dueDate: userDueDate || undefined, completed: false };
+      }
+      case 'today':      return { status: 'todo', dueDate: today, completed: false };
+      case 'overdue':    return { status: 'todo', dueDate: yesterday, completed: false };
+      case 'completed':  return { completed: true };
+      default:           return {};
+    }
+  };
+
   // Apply a committed drop to the store (mirrors the previous handleDragEnd).
   const commitDrop = (activeItemId: string, destColumn: string, destIndex: number) => {
+    // If the destination column is not sorted manually, drop toggles it to manual (unless locked)
+    const isLocked = useStore.getState().trackerColumnSortLocks?.[destColumn];
+    if (trackerColumnSortModes[destColumn] !== 'manual' && !isLocked) {
+      useStore.getState().setTrackerColumnSortMode(destColumn, 'manual');
+    }
+
     const srcColumn = findContainer(activeItemId, storeColumns);
     const finalCols = computeFinalColumns(storeColumns, activeItemId, destColumn, destIndex);
     if (finalCols === storeColumns && srcColumn === destColumn) return; // no-op
@@ -116,25 +213,15 @@ export function TrackerPage() {
     const movedIdx = destTasks.findIndex(t => t.id === activeItemId);
     const newPosition = positionForDrop(destTasks, activeItemId, movedIdx);
 
+    const originalTask = allTasks.find(t => t.id === activeItemId);
+    if (!originalTask) return;
+
     let updates: Partial<AppTask> = { position: newPosition };
     const columnChanged = srcColumn !== null && srcColumn !== destColumn;
     if (columnChanged) {
-      const yesterday = (() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0];
-      })();
-      switch (destColumn) {
-        case 'todo':       updates = { ...updates, status: 'todo', dueDate: undefined, completed: false }; break;
-        case 'inProgress': updates = { ...updates, status: 'in-progress', completed: false }; break;
-        case 'today':      updates = { ...updates, status: 'todo', dueDate: today, completed: false }; break;
-        case 'overdue':    updates = { ...updates, status: 'todo', dueDate: yesterday, completed: false }; break;
-        case 'completed':  updates = { ...updates, completed: true }; break;
-      }
+      updates = { ...updates, ...columnUpdates(destColumn, originalTask) };
     }
 
-    const originalTask = allTasks.find(t => t.id === activeItemId);
-    if (!originalTask) return;
     const nextCompleted = updates.completed !== undefined ? updates.completed : originalTask.completed;
     const completedAt = nextCompleted
       ? (originalTask.completed ? originalTask.completedAt : Date.now())
@@ -160,6 +247,68 @@ export function TrackerPage() {
     
     // Always persist task status and position changes to the DB!
     useStore.getState().updateTask(activeItemId, updates);
+  };
+
+  // ─── Context-menu / keyboard moves (no drag) ──────────────────────────────
+
+  // Move one or more tasks to the end of `destColumn`, preserving their relative
+  // order, applying the column's status/date changes. Used by the context menu's
+  // "Move to →" (works on a single task or the whole selection).
+  const moveTasksToColumn = (ids: string[], destColumn: string) => {
+    const isLocked = useStore.getState().trackerColumnSortLocks?.[destColumn];
+    if (trackerColumnSortModes[destColumn] !== 'manual' && !isLocked) {
+      useStore.getState().setTrackerColumnSortMode(destColumn, 'manual');
+    }
+
+    const moving = ids
+      .map(id => allTasks.find(t => t.id === id))
+      .filter((t): t is AppTask => !!t)
+      // Keep them in their current visual order within the move.
+      .sort((a, b) => getTaskImplicitPosition(a) - getTaskImplicitPosition(b));
+    if (moving.length === 0) return;
+
+    // Base position = just past the current max in the destination column.
+    const destItems = (storeColumns[destColumn] ?? []).filter(t => !ids.includes(t.id));
+    const maxPos = destItems.length
+      ? Math.max(...destItems.map(getTaskImplicitPosition))
+      : 0;
+    const base = maxPos + 1000;
+
+    moving.forEach((task, i) => {
+      const updates: Partial<AppTask> = { ...columnUpdates(destColumn, task), position: base + i * 1000 };
+      useStore.getState().updateTask(task.id, updates);
+    });
+    // The moved cards have landed; drop the selection so they aren't left
+    // highlighted and stale in their new column.
+    if (moving.length > 1) useStore.getState().clearTaskSelection();
+  };
+
+  // Move a single task one row up/down within its own column by swapping its
+  // effective position with the adjacent neighbour.
+  const moveTaskByOne = (id: string, dir: 'up' | 'down') => {
+    const col = findContainer(id, storeColumns);
+    if (!col) return;
+
+    // If the column sorting is locked, moving up/down in the same column is disabled
+    if (useStore.getState().trackerColumnSortLocks?.[col]) {
+      return;
+    }
+
+    if (trackerColumnSortModes[col] !== 'manual') {
+      useStore.getState().setTrackerColumnSortMode(col, 'manual');
+    }
+
+    const items = storeColumns[col] ?? [];
+    const idx = items.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= items.length) return; // already at an edge
+    const a = items[idx];
+    const b = items[swapIdx];
+    const posA = getTaskImplicitPosition(a);
+    const posB = getTaskImplicitPosition(b);
+    useStore.getState().updateTask(a.id, { position: posB });
+    useStore.getState().updateTask(b.id, { position: posA });
   };
 
   type Resolved = { destColumn: string; destIndex: number } | null;
@@ -219,7 +368,7 @@ export function TrackerPage() {
   // center-Y proximity. destIndex is against storeColumns BEFORE removal.
   // Off the board on EITHER axis (X past the side columns, or Y above/below the
   // columns — e.g. the header strip) → null, so the caller restores origin.
-  const resolvePosition = (clientX: number, clientY: number): Resolved => {
+  const resolvePosition = (taskId: string, clientX: number, clientY: number): Resolved => {
     const g = grabRef.current;
     const centerX = clientX + (g.width / 2 - g.offsetX);
     const centerY = clientY + (g.height / 2 - g.offsetY);
@@ -228,6 +377,14 @@ export function TrackerPage() {
     if (centerY < top || centerY > bottom) return null;
     const destColumn = columnIdFromX(centerX, rects);
     if (!destColumn) return null;
+
+    // Check lock
+    const srcColumn = findContainer(taskId, storeColumns);
+    const isLocked = useStore.getState().trackerColumnSortLocks?.[destColumn];
+    if (isLocked && srcColumn === destColumn) {
+      return null;
+    }
+
     return { destColumn, destIndex: columnIndexFromPointer(destColumn, centerY) };
   };
 
@@ -320,15 +477,15 @@ export function TrackerPage() {
       // gap follows the dragged card's center without needing precise alignment.
       onDrag: ({ source, location }) => {
         const taskId = source.data.taskId as string;
-        const resolved = resolvePosition(location.current.input.clientX, location.current.input.clientY);
+        const resolved = resolvePosition(taskId, location.current.input.clientX, location.current.input.clientY);
         applyResolved(taskId, resolved);
       },
       onDropTargetChange: ({ source, location }) => {
         const taskId = source.data.taskId as string;
-        const resolved = resolvePosition(location.current.input.clientX, location.current.input.clientY);
+        const resolved = resolvePosition(taskId, location.current.input.clientX, location.current.input.clientY);
         applyResolved(taskId, resolved);
       },
-      onDrop: ({ source, location }) => {
+      onDrop: ({ source }) => {
         // Stop intercepting window drag events now the drag is over.
         preventUnhandled.stop();
         const taskId = source.data.taskId as string;
@@ -341,22 +498,31 @@ export function TrackerPage() {
         // Off-board drops are already handled: resolvePosition returned null and
         // dropPosRef fell back to origin, so commitDrop becomes a no-op there.
         const pos = dropPosRef.current;
-        // eslint-disable-next-line no-console
-        console.log('[DND fastdrop]', {
-          dropTargetsLen: location.current.dropTargets.length,
-          committing: pos,
-        });
+        // The cards that just landed — the whole group on a group drag, else the
+        // single grabbed card. Captured here so the settle plays on ALL of them
+        // (and before moveTasksToColumn clears the selection).
+        let landedIds = [taskId];
         if (pos) {
-          commitDrop(taskId, pos.destColumn, pos.destIndex);
+          const selected = useStore.getState().selectedTaskIds;
+          // Group drag: dragging any card that is part of a multi-selection
+          // moves the WHOLE selection to the drop column together (preserving
+          // their order). Otherwise just the one grabbed card moves.
+          if (selected.length > 1 && selected.includes(taskId)) {
+            landedIds = [...selected];
+            moveTasksToColumn(selected, pos.destColumn);
+          } else {
+            commitDrop(taskId, pos.destColumn, pos.destIndex);
+          }
         }
         // Play the settle on EVERY drop — on a landing AND on an off-board drop
         // (where the card snaps back to origin) — for consistent feedback that
-        // the drop was registered. Keep the class until the 0.4s color
-        // animation finishes (+ buffer), else it gets cut off mid-fade.
+        // the drop was registered. On a group drop, every moved card settles.
+        // Keep the class until the 0.7s color animation finishes (+ buffer),
+        // else it gets cut off mid-fade.
         dropNonceRef.current += 1;
-        setJustDropped({ taskId, nonce: dropNonceRef.current });
+        setJustDropped({ taskIds: landedIds, nonce: dropNonceRef.current });
         if (dropAnimTimer.current) clearTimeout(dropAnimTimer.current);
-        dropAnimTimer.current = setTimeout(() => setJustDropped(null), 450);
+        dropAnimTimer.current = setTimeout(() => setJustDropped(null), 800);
         setDrag(null);
       },
     });
@@ -369,8 +535,31 @@ export function TrackerPage() {
     if (dropAnimTimer.current) clearTimeout(dropAnimTimer.current);
   }, []);
 
+  // Lock document body cursor to grabbing during task drag
+  useEffect(() => {
+    if (drag) {
+      document.body.classList.add('is-dragging');
+    } else {
+      document.body.classList.remove('is-dragging');
+    }
+    return () => {
+      document.body.classList.remove('is-dragging');
+    };
+  }, [drag]);
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative px-8 py-5">
+    <div
+      className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative px-8 py-5"
+      onClick={(e) => {
+        // Click on empty board space (not on a card) clears the selection.
+        if (
+          useStore.getState().selectedTaskIds.length > 0 &&
+          !(e.target as HTMLElement).closest('[data-task-id]')
+        ) {
+          useStore.getState().clearTaskSelection();
+        }
+      }}
+    >
       <header className="flex items-end justify-between mb-3 px-[6px] shrink-0">
         <div>
           <h1 className="text-2xl font-display font-medium text-foreground mb-1">Tasks</h1>
@@ -410,6 +599,7 @@ export function TrackerPage() {
             })}
           </div>
         </div>
+      <TaskContextMenu onMoveToColumn={moveTasksToColumn} onMoveByOne={moveTaskByOne} />
     </div>
   );
 }

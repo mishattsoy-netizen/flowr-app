@@ -31,6 +31,7 @@ export function OverlayScrollbar({
   const [thumb, setThumb] = useState<{ height: number; top: number } | null>(null);
   const [visible, setVisible] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startY: number; startScroll: number } | null>(null);
 
@@ -95,6 +96,7 @@ export function OverlayScrollbar({
     e.preventDefault();
     e.stopPropagation();
     dragState.current = { startY: e.clientY, startScroll: el.scrollTop };
+    setIsDragging(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onThumbPointerMove = (e: React.PointerEvent) => {
@@ -110,17 +112,14 @@ export function OverlayScrollbar({
   };
   const onThumbPointerUp = (e: React.PointerEvent) => {
     dragState.current = null;
+    setIsDragging(false);
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
   const onScrollProp = scrollProps?.onScroll as ((e: React.UIEvent<HTMLDivElement>) => void) | undefined;
 
   return (
-    <div
-      className={cn('relative min-h-0', className)}
-      onMouseEnter={() => { setHovering(true); reveal(); }}
-      onMouseLeave={() => setHovering(false)}
-    >
+    <div className={cn('relative min-h-0', className)}>
       <div
         {...scrollProps}
         ref={setRef}
@@ -131,16 +130,24 @@ export function OverlayScrollbar({
       </div>
       {thumb && (
         <div
-          onPointerDown={onThumbPointerDown}
-          onPointerMove={onThumbPointerMove}
-          onPointerUp={onThumbPointerUp}
-          className={cn(
-            'absolute w-[5px] rounded-full bg-[var(--bone-15)] hover:bg-[var(--bone-30)]',
-            'transition-opacity duration-300 ease-out cursor-default',
-            (visible || hovering) ? 'opacity-100' : 'opacity-0'
-          )}
-          style={{ height: thumb.height, top: thumb.top, right: -4 }}
-        />
+          className={cn("absolute top-0 bottom-0 w-[20px] bg-transparent z-10", isDragging ? "cursor-grabbing" : "cursor-default")}
+          style={{ right: -15 }}
+          onMouseEnter={() => { setHovering(true); reveal(); }}
+          onMouseLeave={() => setHovering(false)}
+        >
+          <div
+            onPointerDown={onThumbPointerDown}
+            onPointerMove={onThumbPointerMove}
+            onPointerUp={onThumbPointerUp}
+            className={cn(
+              'absolute w-[5px] rounded-full bg-[var(--bone-15)] hover:bg-[var(--bone-30)]',
+              'transition-opacity duration-300 ease-out',
+              isDragging ? 'cursor-grabbing' : 'cursor-pointer',
+              (visible || hovering || isDragging) ? 'opacity-100' : 'opacity-0'
+            )}
+            style={{ height: thumb.height, top: thumb.top, right: 6 }}
+          />
+        </div>
       )}
     </div>
   );

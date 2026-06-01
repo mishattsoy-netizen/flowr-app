@@ -21,7 +21,7 @@ const LogoSimple = ({ className }: { className?: string }) => (
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-sidebar flex flex-col overflow-hidden flex-shrink-0 h-full relative z-10 select-none border-r border-[var(--bone-6)]">
+    <aside className="w-64 bg-sidebar flex flex-col overflow-hidden flex-shrink-0 h-full relative z-10 select-none border-r border-[var(--bone-10)]">
       <div className="flex items-center justify-between px-4 py-5 border-b border-[var(--bone-6)] transition-all duration-0">
         <div className="flex items-center gap-3 group">
           <LogoSimple className="w-7 h-7" />

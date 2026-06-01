@@ -6,11 +6,25 @@ import { X, Plus, Calendar, Palette, Trash2, CheckSquare, Circle, AlertCircle, F
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { DatePickerTime } from '@/components/ui/date-time-picker';
+import { getEntityIcon } from '@/data/icons';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return undefined;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const COLORS = [
   '#EF4444', // Red
@@ -22,7 +36,7 @@ const COLORS = [
 ];
 
 export function NewTaskModal() {
-  const { modal, closeModal, addTask, updateTask, deleteTask, entities, tasks } = useStore();
+  const { modal, closeModal, addTask, updateTask, deleteTask, entities, tasks, trackerFilterWorkspace } = useStore();
   const taskId = modal?.kind === 'newTask' ? modal.taskId : undefined;
   const isEditing = !!taskId;
 
@@ -99,12 +113,12 @@ export function NewTaskModal() {
       setDueTime('');
       setPriority(null);
       setColor('');
-      setWorkspaceId(null);
+      setWorkspaceId(trackerFilterWorkspace || null);
       setSubtasks([]);
       setCompleted(false);
       setStatus('todo');
     }
-  }, [modal, activeTask]);
+  }, [modal, activeTask, trackerFilterWorkspace]);
 
   // Autosave on Unmount (Fix 3.1)
   useEffect(() => {
@@ -118,6 +132,7 @@ export function NewTaskModal() {
           description: data.description.trim(),
           note: data.description.trim(), // Fix 3.11 Concurrent writes
           dueDate: data.dueDate || undefined,
+          userDueDate: data.dueDate || undefined,
           // @ts-ignore
           dueTime: data.dueTime || undefined,
           priority: data.priority,
@@ -161,6 +176,7 @@ export function NewTaskModal() {
         description: description.trim(),
         note: description.trim(), // Fix 3.11
         dueDate: dueDate || undefined,
+        userDueDate: dueDate || undefined,
         // @ts-ignore
         dueTime: dueTime || undefined,
         priority: priority,
@@ -179,6 +195,7 @@ export function NewTaskModal() {
         description: description.trim(),
         note: description.trim(),
         dueDate: dueDate || undefined,
+        userDueDate: dueDate || undefined,
         // @ts-ignore
         dueTime: dueTime || undefined,
         priority: priority,
@@ -397,8 +414,8 @@ export function NewTaskModal() {
             </div>
             <div className="w-[180px]">
               <DatePickerTime 
-                date={dueDate ? new Date(dueDate) : undefined} 
-                setDate={(d) => setDueDate(d ? d.toISOString().split('T')[0] : '')}
+                date={dueDate ? parseLocalDate(dueDate) : undefined} 
+                setDate={(d) => setDueDate(d ? formatLocalDate(d) : '')}
                 time={dueTime}
                 setTime={setDueTime}
                 hideLabels
@@ -412,39 +429,71 @@ export function NewTaskModal() {
               Workspace
             </div>
             <div className="w-[180px]">
+              <div className="relative w-full">
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="w-full flex items-center justify-between bg-[var(--bone-6)] data-[state=open]:bg-[var(--bone-10)] data-[state=open]:text-[var(--bone-100)] border-none rounded-[6px] px-3 py-1.5 text-xs text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-colors cursor-pointer">
-                    <span className="truncate">
-                      {workspaceId ? workspaces.find(w => w.id === workspaceId)?.title || "Assigned" : "Unsorted"}
-                    </span>
-                    <Plus className="w-3.5 h-3.5 opacity-30 rotate-45 shrink-0" />
-                  </button>
+                  {workspaceId ? (() => {
+                    const ws = workspaces.find(w => w.id === workspaceId);
+                    const WorkspaceIcon = ws ? getEntityIcon(ws.icon) : Folder;
+                    return (
+                      <button className="w-full flex items-center bg-[var(--bone-6)] data-[state=open]:bg-[var(--bone-10)] data-[state=open]:text-[var(--bone-100)] border border-transparent rounded-[6px] pl-3 pr-8 py-1.5 text-xs text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-none cursor-pointer">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <WorkspaceIcon className="w-3.5 h-3.5 opacity-60 shrink-0 text-[var(--bone-70)]" />
+                          <span className="truncate font-semibold text-[var(--bone-90)]">{ws?.title || "Assigned"}</span>
+                        </div>
+                      </button>
+                    );
+                  })() : (
+                    <button className="w-full flex items-center justify-start bg-[var(--bone-6)] border border-transparent hover:bg-[var(--bone-10)] rounded-[6px] px-3 py-1.5 text-xs text-[var(--bone-30)] transition-none cursor-pointer">
+                      <span className="font-medium">None</span>
+                    </button>
+                  )}
                 </PopoverTrigger>
                 <PopoverContent className="w-[220px] p-1.5 bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] backdrop-blur-3xl z-[202]" align="start">
                   <button
                     onClick={() => setWorkspaceId(null)}
                     className={cn(
-                      "w-full px-3 py-1.5 text-left text-xs rounded-[8px] transition-colors cursor-pointer",
-                      !workspaceId ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                      "w-full px-3 py-1.5 text-left text-xs rounded-[8px] transition-none cursor-pointer",
+                      !workspaceId ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-semibold" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                     )}
                   >
-                    Unsorted
+                    None
                   </button>
-                  {workspaces.map(w => (
-                    <button
-                      key={w.id}
-                      onClick={() => setWorkspaceId(w.id)}
-                      className={cn(
-                        "w-full px-3 py-1.5 text-left text-xs rounded-[8px] transition-colors mt-0.5 cursor-pointer",
-                        workspaceId === w.id ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
-                      )}
-                    >
-                      {w.title}
-                    </button>
-                  ))}
+                  {workspaces.map(w => {
+                    const WsIcon = getEntityIcon(w.icon);
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => setWorkspaceId(w.id)}
+                        className={cn(
+                          "w-full px-3 py-1.5 text-left text-xs rounded-[8px] transition-none mt-0.5 cursor-pointer",
+                          workspaceId === w.id ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-semibold" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 w-full">
+                          <WsIcon className="w-3.5 h-3.5 opacity-60 text-[var(--bone-70)]" />
+                          <span className="truncate">{w.title}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </PopoverContent>
               </Popover>
+              {workspaceId && (
+                <span
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setWorkspaceId(null);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-[4px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-15)] transition-none shrink-0 cursor-pointer z-20"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </span>
+              )}
+              </div>
             </div>
 
             {/* Property 5: Color Tag */}

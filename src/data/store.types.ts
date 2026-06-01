@@ -19,6 +19,7 @@ export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'mixed' |
 
 export type SidebarSectionId = 'pinned' | 'unsorted' | 'workspaces';
 export type SortMode = 'lastModified' | 'alphabetical' | 'manual';
+export type TrackerSortMode = 'manual' | 'automatic' | 'recently_added';
 
 export interface SidebarSectionSettings {
   sortMode: SortMode;
@@ -186,6 +187,7 @@ export interface AppTask {
   title: string;
   completed: boolean;
   dueDate?: string;
+  userDueDate?: string;
   entityId?: string | null;
   workspaceId?: string | null;
   note?: string;
@@ -433,9 +435,15 @@ export interface AppState {
   aiAbortController: AbortController | null;
   copiedBlock: EditorBlock | null;
   sidebarSectionSettings: Record<SidebarSectionId, SidebarSectionSettings>;
+  trackerColumnSortModes: Record<string, TrackerSortMode>;
+  trackerColumnSortLocks: Record<string, boolean>;
   hiddenEntityIds: string[];
   isCommandPaletteOpen: boolean;
   selectedSidebarIds: string[];
+  // Multi-selected tasks in the tracker (for group move/delete via shift+click).
+  selectedTaskIds: string[];
+  // Right-click context menu over a kanban task.
+  taskContextMenu: { taskId: string; column: string; x: number; y: number } | null;
   lastSaved: number | null;
   cloudSyncEnabled: boolean;
   aiSessionContext: AISessionContext | null;
@@ -549,6 +557,14 @@ export interface AppState {
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   clearCompletedTasks: () => void;
+  setTrackerColumnSortMode: (columnId: string, mode: TrackerSortMode) => void;
+  toggleTrackerColumnSortLock: (columnId: string) => void;
+  // Task multi-selection (tracker)
+  toggleTaskSelection: (id: string) => void;
+  setSelectedTaskIds: (ids: string[]) => void;
+  clearTaskSelection: () => void;
+  openTaskContextMenu: (taskId: string, column: string, x: number, y: number) => void;
+  closeTaskContextMenu: () => void;
   updateTask: (id: string, updates: Partial<AppTask>) => void;
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
   sortEntities: (criteria: 'title' | 'lastModified') => void;

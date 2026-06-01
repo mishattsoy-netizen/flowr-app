@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { CalendarIcon, Clock } from 'lucide-react'
+import { CalendarIcon, Clock, X } from 'lucide-react'
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -42,35 +42,52 @@ export function DatePickerTime({
     <FieldGroup className={cn("flex-row items-end gap-2", className)}>
       <Field className="flex-1">
         {!hideLabels && <FieldLabel htmlFor="date-picker">Date</FieldLabel>}
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              id="date-picker"
-              className={cn(
-                "w-full justify-between font-medium text-xs h-8 px-3 rounded-[6px] border-none bg-[var(--bone-6)] hover:bg-[var(--bone-10)] transition-all",
-                !activeDate && "text-[var(--bone-30)]",
-                activeDate && "text-[var(--bone-90)]"
-              )}
-            >
-              <span className="truncate">
-                {activeDate ? format(activeDate, "dd/MM/yyyy") : "dd/mm/yyyy"}
-              </span>
-              <CalendarIcon className="w-4 h-4 opacity-40 shrink-0 ml-2" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={activeDate}
-              onSelect={(d) => {
-                handleSelect(d)
-                setOpen(false)
+        <div className="relative w-full">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                id="date-picker"
+                className={cn(
+                  "w-full flex items-center font-medium text-xs h-8 pl-3 pr-8 rounded-[6px] border-none bg-[var(--bone-6)] hover:bg-[var(--bone-10)] transition-all text-left cursor-pointer outline-none focus:outline-none",
+                  !activeDate && "text-[var(--bone-30)]",
+                  activeDate && "text-[var(--bone-90)]"
+                )}
+              >
+                <span className="truncate">
+                  {activeDate ? format(activeDate, "dd/MM/yyyy") : "dd/mm/yyyy"}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] backdrop-blur-3xl z-[202]" align="start">
+              <Calendar
+                mode="single"
+                selected={activeDate}
+                onSelect={(d) => {
+                  handleSelect(d)
+                  setOpen(false)
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          {activeDate && (
+            <span
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setOpen(false);
+                handleSelect(undefined);
               }}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-[4px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-15)] transition-none shrink-0 cursor-pointer z-20"
+            >
+              <X className="w-2.5 h-2.5" />
+            </span>
+          )}
+        </div>
       </Field>
       {!hideTime && (
         <Field className="w-[140px]">

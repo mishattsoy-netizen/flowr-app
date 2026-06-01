@@ -6,7 +6,8 @@ import { OverlayScrollbar } from './OverlayScrollbar';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { Plus, MoreHorizontal, Trash2 } from 'lucide-react';
+import { useTheme } from '@/components/ThemeProvider';
+import { Plus, MoreHorizontal, Trash2, ArrowUpDown, Check } from 'lucide-react';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 
 const DOT_COLORS: Record<string, string> = {
@@ -55,12 +56,13 @@ interface KanbanColumnProps {
   // That card stays mounted but hidden in its origin slot so pragmatic-dnd
   // keeps tracking it; the visual gap is drawn separately.
   activeDragId: string | null;
-  // The card that just landed + a nonce that bumps each drop, so the settle
+  // The cards that just landed + a nonce that bumps each drop, so the settle
   // animation restarts every time (even on a rapid re-drop of the same card).
-  justDropped: { taskId: string; nonce: number } | null;
+  justDropped: { taskIds: string[]; nonce: number } | null;
 }
 
 export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped }: KanbanColumnProps) {
+  const { resolvedTheme } = useTheme();
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,19 +80,32 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+  const sortButtonRef = useRef<HTMLButtonElement>(null);
+
+  const currentSortMode = useStore(s => s.trackerColumnSortModes?.[id] || 'manual');
+  const setTrackerColumnSortMode = useStore(s => s.setTrackerColumnSortMode);
+  const isLocked = useStore(s => s.trackerColumnSortLocks?.[id]);
+  const toggleTrackerColumnSortLock = useStore(s => s.toggleTrackerColumnSortLock);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
       }
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setIsSortMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [id]);
 
   return (
     <div
       className="flex flex-col w-[300px] shrink-0 h-full rounded-[var(--radius-big)] p-4 bg-[var(--color-panel)] border border-[var(--bone-3)]"
+      style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
     >
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-2">
@@ -111,6 +126,99 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1.5 text-[var(--bone-40)]">
+          <button
+            ref={sortButtonRef}
+            onClick={() => setIsSortMenuOpen(prev => !prev)}
+            className={cn(
+              "p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] transition-none",
+              isSortMenuOpen ? "text-[var(--bone-100)] bg-[var(--app-dark)]" : "hover:text-[var(--bone-100)]"
+            )}
+            title="Sort tasks"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={2.5} />
+          </button>
+          {isSortMenuOpen && typeof document !== 'undefined' && createPortal(
+            <div
+              ref={sortMenuRef}
+              className="fixed popup-glass-small z-[9999] min-w-[160px] p-1.5 flex flex-col gap-[3px] shadow-2xl"
+              style={{
+                top: (sortButtonRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
+                left: (sortButtonRef.current?.getBoundingClientRect().right ?? 0) - 160,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackerColumnSortMode(id, 'manual');
+                  setIsSortMenuOpen(false);
+                }}
+                className={cn(
+                  "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
+                  currentSortMode === 'manual' && "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
+                )}
+              >
+                <span>Manual sorting</span>
+                {currentSortMode === 'manual' && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--bone-60)]" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackerColumnSortMode(id, 'automatic');
+                  setIsSortMenuOpen(false);
+                }}
+                className={cn(
+                  "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
+                  currentSortMode === 'automatic' && "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
+                )}
+              >
+                <span>Auto-sorting</span>
+                {currentSortMode === 'automatic' && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--bone-60)]" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackerColumnSortMode(id, 'recently_added');
+                  setIsSortMenuOpen(false);
+                }}
+                className={cn(
+                  "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
+                  currentSortMode === 'recently_added' && "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
+                )}
+              >
+                <span>Recently Added</span>
+                {currentSortMode === 'recently_added' && <Check className="w-3.5 h-3.5 shrink-0 text-[var(--bone-60)]" />}
+              </button>
+              {currentSortMode !== 'manual' && (
+                <>
+                  <div className="popup-divider" />
+                  <div
+                    onClick={() => {
+                      toggleTrackerColumnSortLock(id);
+                      setIsSortMenuOpen(false);
+                    }}
+                    className={cn(
+                      "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
+                      isLocked && "text-[var(--bone-100)]"
+                    )}
+                  >
+                    <span>Lock sorting</span>
+                    <label className="toggle-switch toggle-sm pointer-events-none">
+                      <input
+                        type="checkbox"
+                        className="toggle-input"
+                        checked={!!isLocked}
+                        readOnly
+                      />
+                      <span className="toggle-label" />
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>,
+            document.body
+          )}
+
           <button 
             onClick={() => useStore.getState().openModal({ kind: 'newTask' })}
             className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
@@ -153,7 +261,7 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
 
       <OverlayScrollbar
         className="flex-1"
-        scrollClassName="flex flex-col pr-2"
+        scrollClassName="flex flex-col"
         scrollRef={(node) => { dropRef.current = node; }}
         scrollProps={{ 'data-kanban-column': id } as Record<string, unknown>}
       >
@@ -185,7 +293,8 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
                     columnId={id}
                     closestEdge={null}
                     isActiveDrag={task.id === activeDragId}
-                    dropNonce={justDropped?.taskId === task.id ? justDropped.nonce : 0}
+                    activeDragId={activeDragId}
+                    dropNonce={justDropped?.taskIds.includes(task.id) ? justDropped.nonce : 0}
                   />
                   {gap && gap.afterTaskId === task.id && gapBox}
                 </React.Fragment>

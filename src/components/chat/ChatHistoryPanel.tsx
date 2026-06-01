@@ -184,7 +184,7 @@ export function ChatHistoryPanel() {
         </div>
 
         {/* Collapse toggle */}
-        <div className="shrink-0 border-t border-[var(--bone-10)] p-2 flex justify-end">
+        <div className="shrink-0 border-t border-[var(--bone-6)] p-2 flex justify-end">
           <button
             onClick={() => setChatHistoryOpen(!chatHistoryOpen)}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-hover transition-colors"

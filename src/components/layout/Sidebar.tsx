@@ -480,7 +480,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       <div
         className={cn(
           "flex items-center px-[10px] pt-4 pb-2",
-          effectiveCollapsed ? "justify-center border-b border-[var(--bone-10)]" : "justify-between"
+          effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
         )}
       >
         {effectiveCollapsed ? null : (
@@ -663,7 +663,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Temp Chat</span>
                     </button>
-                    <div className="h-px bg-border/20 -mx-[10px] mt-[10px] mb-0" />
+                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
                   {chatConfirmDeleteId && (
@@ -806,7 +806,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         </span>
                       )}
                     </button>
-                    <div className="h-px bg-border/20 -mx-[10px] mt-[10px] mb-0" />
+                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] py-2">
                     <div className="flex flex-col gap-[1px]">
@@ -878,7 +878,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Dashboard</span>
                     </button>
-                    <div className="h-px bg-border/20 -mx-[10px] mt-[10px] mb-0" />
+                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
                   <ScrollArea
@@ -1128,7 +1128,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       </div>
       <div 
         className={cn(
-          "border-t border-[var(--bone-10)] flex items-center mt-auto h-[60px] select-none transition-all duration-200 justify-between",
+          "border-t border-[var(--bone-6)] flex items-center mt-auto h-[60px] select-none transition-all duration-200 justify-between",
           effectiveCollapsed 
             ? "flex-col items-center py-4 h-auto gap-4 px-0" 
             : "px-4 hover:bg-[var(--app-dark)]",
