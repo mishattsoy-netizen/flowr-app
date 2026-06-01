@@ -121,7 +121,7 @@ export function ChatConversation() {
                     onClick={() => handlePillClick(pill)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[12px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
                   >
-                    <span className="text-accent/80 shrink-0">{pill.icon}</span>
+                    <span className="shrink-0">{pill.icon}</span>
                     <span>{pill.label}</span>
                   </button>
                 ))}
