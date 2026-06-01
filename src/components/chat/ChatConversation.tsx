@@ -119,7 +119,7 @@ export function ChatConversation() {
                   <button
                     key={pill.id}
                     onClick={() => handlePillClick(pill)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[11px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[11px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
                   >
                     <span className="text-accent/80 shrink-0">{pill.icon}</span>
                     <span>{pill.label}</span>
