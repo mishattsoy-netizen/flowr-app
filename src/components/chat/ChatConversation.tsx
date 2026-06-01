@@ -10,11 +10,11 @@ import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { useAuth } from '@/components/AuthProvider';
 
 const QUICK_ACCESS_PILLS = [
-  { id: 'image', label: 'Generate Image', prefix: '/image ', icon: <ImageIcon className="w-3 h-3 shrink-0" /> },
-  { id: 'search', label: 'Web Search', prefix: '/search ', icon: <Globe className="w-3 h-3 shrink-0" /> },
-  { id: 'research', label: 'Deep Research', prefix: '/research ', icon: <Telescope className="w-3 h-3 shrink-0" /> },
-  { id: 'code', label: 'Code', prefix: '/code ', icon: <Terminal className="w-3 h-3 shrink-0" /> },
-  { id: 'task', label: 'Add Task', prefix: '/task ', icon: <CheckSquare className="w-3 h-3 shrink-0" /> },
+  { id: 'image', label: 'Generate Image', prefix: '/image ', icon: <ImageIcon className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'search', label: 'Web Search', prefix: '/search ', icon: <Globe className="w-3.5 h-3.5" /> },
+  { id: 'research', label: 'Deep Research', prefix: '/research ', icon: <Telescope className="w-3.5 h-3.5" /> },
+  { id: 'code', label: 'Code', prefix: '/code ', icon: <Terminal className="w-3.5 h-3.5" /> },
+  { id: 'task', label: 'Add Task', prefix: '/task ', icon: <CheckSquare className="w-3.5 h-3.5" /> },
 ];
 
 export function ChatConversation() {
@@ -99,9 +99,9 @@ export function ChatConversation() {
           )}
 
           {displayMessages.length === 0 && !isAILoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-6 pt-16 max-w-4xl mx-auto w-full px-6">
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-16 max-w-4xl mx-auto w-full px-6">
               {/* Welcome Title */}
-              <div className="flex items-center gap-3 justify-center mb-2">
+              <div className="flex items-center gap-3 justify-center mb-5">
                 <AIAvatar className="w-8 h-8 opacity-100" />
                 <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
                   {getGreeting()}
@@ -114,12 +114,12 @@ export function ChatConversation() {
               </div>
 
               {/* 5 Suggestion pills */}
-              <div className="flex flex-wrap gap-1.5 justify-center max-w-3xl mt-2 animate-fade-in select-none">
+              <div className="flex flex-wrap gap-1.5 justify-center max-w-3xl mt-3 animate-fade-in select-none">
                 {QUICK_ACCESS_PILLS.map(pill => (
                   <button
                     key={pill.id}
                     onClick={() => handlePillClick(pill)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[11px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[12px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
                   >
                     <span className="text-accent/80 shrink-0">{pill.icon}</span>
                     <span>{pill.label}</span>
