@@ -432,6 +432,16 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
     { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
   ];
 
+  // Maps an active chain intent tag (e.g. "/image") to the icon + short label
+  // shown in the selected-tool pill next to the AI Actions button.
+  const INTENT_PILL: Record<string, { icon: React.ReactNode; label: string }> = {
+    '/image': { icon: <ImageIcon strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Image gen' },
+    '/search': { icon: <Globe strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Web Search' },
+    '/research': { icon: <Telescope strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Research' },
+    '/code': { icon: <Terminal strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Code' },
+  };
+  const activeIntentPill = activeIntentTag ? INTENT_PILL[activeIntentTag] : undefined;
+
   const filteredCommands = assistantInput.startsWith('/')
     ? commands.filter(c => c.label.toLowerCase().includes(assistantInput.slice(1).toLowerCase()) || c.id.includes(assistantInput.slice(1).toLowerCase()))
     : [];
@@ -776,20 +786,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             )}
             style={chatPageMode ? { backgroundColor: 'color-mix(in srgb, var(--color-panel) 70%, transparent)' } : undefined}
           >
-            {activeIntentTag && (
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-[var(--bone-12)] w-fit mb-2 ">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-bone-100" />
-                  <span className="text-[10px] font-bold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
-                </div>
-                <button
-                  onClick={() => useStore.getState().setActiveIntentTag(null)}
-                  className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 "
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
             {attachments.length > 0 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-[var(--bone-12)]">
                 {attachments.map((att, i) => (
@@ -947,6 +943,19 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     <SquareSlash strokeWidth={2} className="w-4 h-4" />
                   </button>
                 </Tooltip>
+
+                {activeIntentPill && (
+                  <div className="flex items-center gap-1.5 py-1.5 pl-2 pr-1 rounded-[8px] bg-white/10 border border-[var(--bone-12)] text-bone-100">
+                    {activeIntentPill.icon}
+                    <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
+                    <button
+                      onClick={() => useStore.getState().setActiveIntentTag(null)}
+                      className="p-0.5 hover:bg-white/20 rounded-md"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Actions */}
@@ -1124,15 +1133,13 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           />
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
-                          {activeIntentTag && (
-                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-[10px] bg-white/10 border border-[var(--bone-12)] w-fit ">
-                              <div className="flex items-center gap-1.5">
-                                <Sparkles className="w-3 h-3 text-bone-100" />
-                                <span className="text-[10px] font-semibold text-bone-100 uppercase tracking-wider">{activeIntentTag.replace(/^!/, '').replace(/_/g, ' ')}</span>
-                              </div>
+                          {activeIntentPill && (
+                            <div className="flex items-center gap-1.5 py-1.5 pl-2 pr-1 rounded-[8px] bg-white/10 border border-[var(--bone-12)] w-fit text-bone-100">
+                              {activeIntentPill.icon}
+                              <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
                               <button
                                 onClick={() => useStore.getState().setActiveIntentTag(null)}
-                                className="ml-1 p-0.5 hover:bg-white/20 rounded-md text-bone-100 "
+                                className="p-0.5 hover:bg-white/20 rounded-md"
                               >
                                 <X className="w-3 h-3" />
                               </button>
