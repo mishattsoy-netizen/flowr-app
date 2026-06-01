@@ -53,6 +53,70 @@
   --border-outer: var(--bone-12);
   --border-hover: var(--bone-30);
   --icon-default: var(--bone-30);
+  --icon-active: var(--bone-70);
+  --dim-foreground: var(--bone-70);
+  --foreground: var(--bone-100);
+
+  --accent: #d67a3c;
+  --on-accent: #FFFFFF;
+  --color-danger: #ff6060;
+
+  --radius-big: 24px;
+  --radius-regular: 12px;
+  --radius-medium: 8px;
+  --radius-small: 6px;
+  --radius-tiny: 4px;
+
+  --color-brand-blue: #2A78D6;
+  --brand-blue: #2A78D6;
+  color-scheme: light;
+}
+
+.dark {
+  --app-background: #1F1F1E;
+  --app-panel: #262626;
+  --app-dark: #121212;
+  --sys-color: #1E1E1D;
+  --slider-pill: var(--bone-12);
+  --slider-track: rgba(233, 233, 226, 0.06);
+  --slider-pill-shadow: inset 0 0 0 1px var(--bone-6);
+  --popup-shadow-color: rgba(0, 0, 0, 0.3);
+
+  /* Standard Font Weights for Dark Mode */
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --bone-5: rgba(233, 233, 226, 0.05);
+  --bone-2: rgba(233, 233, 226, 0.02);
+  --bone-3: rgba(233, 233, 226, 0.03);
+  --bone-6: rgba(233, 233, 226, 0.06);
+  --bone-10: rgba(233, 233, 226, 0.10);
+  --bone-12: rgba(233, 233, 226, 0.12);
+  --bone-15: rgba(233, 233, 226, 0.15);
+  --bone-30: rgba(233, 233, 226, 0.30);
+  --bone-60: rgba(233, 233, 226, 0.60);
+  --bone-70: rgba(233, 233, 226, 0.70);
+  --bone-100: #eeeee8;
+  --white-overlay: rgba(255, 255, 255, 0.03);
+  --black-overlay: rgba(0, 0, 0, 0.06);
+  --border-inner: var(--bone-10);
+  --border-outer: var(--bone-12);
+  --border-hover: var(--bone-30);
+  --icon-default: var(--bone-30);
+  --icon-active: var(--bone-70);
+  --dim-foreground: var(--bone-70);
+  --foreground: var(--bone-100);
+  --accent: #d67a3c;
+  --on-accent: #242423;
+  --color-danger: #ff6060;
+  --radius-big: 24px;
+  --radius-regular: 12px;
+  --radius-medium: 8px;
+  --radius-small: 6px;
+  --radius-tiny: 4px;
+  --color-brand-blue: #2A78D6;
+  --brand-blue: #2A78D6;
+  color-scheme: dark;
 }
 
 @layer base {
