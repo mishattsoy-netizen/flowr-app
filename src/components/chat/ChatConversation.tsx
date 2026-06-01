@@ -7,12 +7,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import { Brain, ArrowRight } from 'lucide-react';
 import { StatusTyping } from '@/components/assistant/components/StatusTyping';
 
-const SUGGESTED_PROMPTS = [
-  'Deep-search the web for [topic] and summarize',
-  'Analyze my current workspace and find action items',
-  'Draft a technical outline for a new project',
-  'Brainstorm 5 innovative solutions for [problem]',
-];
 
 export function ChatConversation() {
   const aiMessages = useStore(s => s.aiMessages);
@@ -76,18 +70,6 @@ export function ChatConversation() {
               <p className="text-[26px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
                 How can I help you today?
               </p>
-              <div className="flex flex-wrap gap-2 justify-center max-w-md mx-auto">
-                {SUGGESTED_PROMPTS.map(prompt => (
-                  <button
-                    key={prompt}
-                    onClick={() => setAssistantInput(prompt)}
-                    className="px-4 py-2 rounded-full bg-white/5 border border-[var(--bone-12)] text-[13px] text-bone-70 hover:bg-white/10 hover:text-bone-100 transition-all active:scale-[0.98] whitespace-nowrap"
-
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
             </div>
           ) : (
             <>
