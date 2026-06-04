@@ -32,8 +32,12 @@ export function TaskCardUI({
   listeners,
   setNodeRef
 }: TaskCardUIProps) {
-  const { entities, toggleTask, updateTask } = useStore();
-  const workspaceName = entities.find(e => e.id === task.workspaceId)?.title || null;
+  // Narrow selectors: subscribing to the whole store (the old `useStore()`)
+  // re-rendered every card on any store change — including the rapid setState on
+  // each drag commit. Select only what this card actually depends on.
+  const toggleTask = useStore(s => s.toggleTask);
+  const updateTask = useStore(s => s.updateTask);
+  const workspaceName = useStore(s => s.entities.find(e => e.id === task.workspaceId)?.title || null);
   const isSelected = useStore(s => s.selectedTaskIds.includes(task.id));
   const toggleTaskSelection = useStore(s => s.toggleTaskSelection);
   const openTaskContextMenu = useStore(s => s.openTaskContextMenu);
@@ -198,7 +202,7 @@ export function TaskCardUI({
 
 export type CardEdge = 'top' | 'bottom';
 
-export function TaskCard({
+function TaskCardInner({
   task,
   columnId,
   closestEdge,
@@ -386,3 +390,10 @@ export function TaskCard({
     </>
   );
 }
+
+// Memoized: when the moving gap changes slot, TrackerPage → KanbanColumn
+// re-render, but every non-dragged card receives identical props (the `task`
+// objects come from the memoized storeColumns, and activeDragId/isActiveDrag
+// only flip at drag start/end — not per move). Shallow prop compare therefore
+// bails out on all of them, so a gap move no longer re-renders the whole board.
+export const TaskCard = React.memo(TaskCardInner);
