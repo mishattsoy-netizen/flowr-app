@@ -1237,30 +1237,32 @@ body.is-dragging-widget [data-widget-id] * {
   border-radius: 4px;
 }
 
+/*
+ * Edge-fade mask for scroll containers. The fade is a STATIC gradient (fixed
+ * 20px bands) toggled per-edge by the `data-fade-top` / `data-fade-bottom`
+ * attributes, which the scroller sets only when it crosses the top/bottom
+ * threshold — NOT on every scroll event. A mask that changes per scroll tick
+ * forces the browser to re-rasterize the whole scrolling layer each frame
+ * (defeating compositor scrolling → stutter); a static mask is rasterized once
+ * and scrolls cheaply. We switch between four precomputed masks (none / top /
+ * bottom / both) instead of recomputing gradient stops continuously.
+ */
 @utility scroll-fade {
+  --fade-top: 0px;
+  --fade-bottom: 0px;
   mask-image: linear-gradient(to bottom,
       transparent 0%,
-      rgba(0, 0, 0, 0.2) calc(var(--scroll-top-offset) * 0.2),
-      rgba(0, 0, 0, 0.5) calc(var(--scroll-top-offset) * 0.5),
-      rgba(0, 0, 0, 0.8) calc(var(--scroll-top-offset) * 0.8),
-      #000 var(--scroll-top-offset, 0px),
-      #000 calc(100% - var(--scroll-bottom-offset, 0px)),
-      rgba(0, 0, 0, 0.8) calc(100% - var(--scroll-bottom-offset) * 0.8),
-      rgba(0, 0, 0, 0.5) calc(100% - var(--scroll-bottom-offset) * 0.5),
-      rgba(0, 0, 0, 0.2) calc(100% - var(--scroll-bottom-offset) * 0.2),
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
       transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom,
       transparent 0%,
-      rgba(0, 0, 0, 0.2) calc(var(--scroll-top-offset) * 0.2),
-      rgba(0, 0, 0, 0.5) calc(var(--scroll-top-offset) * 0.5),
-      rgba(0, 0, 0, 0.8) calc(var(--scroll-top-offset) * 0.8),
-      #000 var(--scroll-top-offset, 0px),
-      #000 calc(100% - var(--scroll-bottom-offset, 0px)),
-      rgba(0, 0, 0, 0.8) calc(100% - var(--scroll-bottom-offset) * 0.8),
-      rgba(0, 0, 0, 0.5) calc(100% - var(--scroll-bottom-offset) * 0.5),
-      rgba(0, 0, 0, 0.2) calc(100% - var(--scroll-bottom-offset) * 0.2),
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
       transparent 100%);
 }
+.scroll-fade[data-fade-top="true"] { --fade-top: 20px; }
+.scroll-fade[data-fade-bottom="true"] { --fade-bottom: 20px; }
 
 /* Command Palette Animations */
 .palette-enter {
