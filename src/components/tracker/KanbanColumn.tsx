@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/ThemeProvider';
 import { Plus, MoreHorizontal, Trash2, ArrowUpDown, Check } from 'lucide-react';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { shouldShowEmptyState } from './dragLogic';
 
 const DOT_COLORS: Record<string, string> = {
   todo: '#3B82F6',       // Blue
@@ -270,11 +271,13 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
             <GapBox columnId={id} afterTaskId={gap.afterTaskId} height={gap.height} />
           ) : null;
 
-          // Visible cards = all tasks except the one being dragged (it stays
-          // mounted but invisible inside TaskCard, so it keeps its drag).
-          const hasVisible = tasks.some(t => t.id !== activeDragId);
-
-          if (!hasVisible && !gap) {
+          // Empty-state must NOT show while this column still owns the dragged
+          // card — the hidden dragged card carries its follower-preview portal,
+          // which React would destroy if we collapsed to the empty branch. That
+          // is what made a card dragged OUT of its only-card column vanish
+          // mid-drag (gap moves away → column looks empty) until drop. See
+          // shouldShowEmptyState for the full reasoning.
+          if (shouldShowEmptyState(tasks.map(t => t.id), activeDragId, gap !== null)) {
             return (
               <div className="flex-1 flex items-center justify-center bg-[var(--bone-3)] rounded-[var(--radius-medium)] min-h-[100px]">
                 <span className="text-xs font-ui text-[var(--bone-15)]">No tasks here</span>
