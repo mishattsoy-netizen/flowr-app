@@ -5,6 +5,35 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 
+// Per-key concurrency semaphore: serializes API calls per key to avoid rate-limit storms
+const keyQueues = new Map<string, Array<() => void>>()
+
+function runNext(key: string): void {
+  const queue = keyQueues.get(key)
+  if (!queue) return
+  queue.shift()
+  if (queue.length > 0) {
+    queue[0]()
+  } else {
+    keyQueues.delete(key)
+  }
+}
+
+async function withKeyLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const execute = () => {
+      fn().then(resolve, reject).finally(() => runNext(key))
+    }
+    const queue = keyQueues.get(key)
+    if (!queue || queue.length === 0) {
+      keyQueues.set(key, [execute])
+      execute()
+    } else {
+      queue.push(execute)
+    }
+  })
+}
+
 const GOOGLE_TIMEOUT_MS = 60000
 const GOOGLE_TIMEOUT_MS_GEMMA4 = 120000
 
@@ -98,41 +127,85 @@ export async function runGoogle(
             ? { tools: [{ functionDeclarations: FLOWR_TOOLS as any }] }
             : {}
 
-        const model = genAI.getGenerativeModel({
-          model: sanitizedId,
-          systemInstruction: useSystemInstruction ? systemPrompt : undefined,
-          generationConfig: {
-            temperature: temperature,
-            maxOutputTokens: context?.max_tokens || 4096,
-          },
-          ...toolsConfig,
-        }, {
-          apiVersion: forceLegacy ? 'v1' : 'v1beta',
-        })
-
-        const parts: any[] = []
-        for (const buf of imageBufferArray) {
-          parts.push({
-            inlineData: {
-              data: buf.toString('base64'),
-              mimeType: detectMimeType(buf),
+        const lockResult = await withKeyLock(key!, async () => {
+          const m = genAI.getGenerativeModel({
+            model: sanitizedId,
+            systemInstruction: useSystemInstruction ? systemPrompt : undefined,
+            generationConfig: {
+              temperature: temperature,
+              maxOutputTokens: context?.max_tokens || 4096,
             },
+            ...toolsConfig,
+          }, {
+            apiVersion: forceLegacy ? 'v1' : 'v1beta',
           })
-        }
-        parts.push({ text: finalPrompt })
 
-        let result: any
-        let responseContent = ''
-        let capturedToolCalls: any[] = []
-        let usage: any = undefined
-        let reasoning: string | undefined = undefined
+          logger.info(`[runGoogle] Payload for ${sanitizedId} (Key ${keyIndex + 1}): temp=${temperature}, maxTokens=${context?.max_tokens || 4096}, sysInst=${useSystemInstruction && !!systemPrompt}, ground=${useGrounding}, tools=${useFunctionTools}, apiVer=${forceLegacy ? 'v1' : 'v1beta'}, images=${imageBufferArray.length}, history=${history?.length || 0}`)
 
-        const hasStreaming = !!(context as any)?.onChunk
-        const onChunk = (context as any)?.onChunk
+          const pts: any[] = []
+          for (const buf of imageBufferArray) {
+            pts.push({
+              inlineData: {
+                data: buf.toString('base64'),
+                mimeType: detectMimeType(buf),
+              },
+            })
+          }
+          pts.push({ text: finalPrompt })
 
-        // Streaming path (no function-tool calling). Grounding is allowed here.
-        if (hasStreaming && !useFunctionTools) {
-          let streamResult: any
+          let rslt: any
+          let responseContent = ''
+          let capturedToolCalls: any[] = []
+          let usage: any = undefined
+          let reasoning: string | undefined = undefined
+
+          const hasStreaming = !!(context as any)?.onChunk
+          const onChunk = (context as any)?.onChunk
+
+          // Streaming path (no function-tool calling). Grounding is allowed here.
+          if (hasStreaming && !useFunctionTools) {
+            let streamResult: any
+            if (history && history.length > 0) {
+              const safeHistory: any[] = []
+              for (const msg of history) {
+                const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
+                if (msg.role === expectedRole) safeHistory.push(msg)
+              }
+              if (safeHistory.length % 2 !== 0) safeHistory.pop()
+
+              const chat = m.startChat({ history: safeHistory })
+              logger.info(`[runGoogle] Stream Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length}${useGrounding ? ', grounded' : ''})`)
+              streamResult = await withSignal(chat.sendMessageStream(pts), (context as any)?.signal)
+            } else {
+              logger.info(`[runGoogle] Stream Content for ${sanitizedId} (Key ${keyIndex + 1}${useGrounding ? ', grounded' : ''})`)
+              streamResult = await withSignal(m.generateContentStream({ contents: [{ role: 'user', parts: pts }] }), (context as any)?.signal)
+            }
+            for await (const chunk of streamResult.stream) {
+              const chunkText = chunk.text()
+              if (chunkText) {
+                responseContent += chunkText
+                onChunk(chunkText)
+              }
+              usage = extractUsage(chunk) || usage
+              reasoning = extractReasoning(chunk) || reasoning
+            }
+
+            // Pull grounding citations from the aggregated final response.
+            let citations: string[] | undefined
+            try {
+              const finalResp = await streamResult.response
+              citations = extractCitations(finalResp)
+            } catch { /* citations optional */ }
+
+            logger.info(`[runGoogle] Stream complete for ${sanitizedId} (Key ${keyIndex + 1}): contentLen=${responseContent.length}${citations ? `, citations=${citations.length}` : ''}`)
+            if (!responseContent) {
+              const err = new Error(`Stream produced empty content for ${sanitizedId} (Key ${keyIndex + 1}) — likely silent quota/safety failure`)
+              logger.error(`[runGoogle] ${err.message}`)
+              throw err
+            }
+            return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
+          }
+
           if (history && history.length > 0) {
             const safeHistory: any[] = []
             for (const msg of history) {
@@ -141,89 +214,51 @@ export async function runGoogle(
             }
             if (safeHistory.length % 2 !== 0) safeHistory.pop()
 
-            const chat = model.startChat({ history: safeHistory })
-            logger.info(`[runGoogle] Stream Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length}${useGrounding ? ', grounded' : ''})`)
-            streamResult = await withSignal(chat.sendMessageStream(parts), (context as any)?.signal)
-          } else {
-            logger.info(`[runGoogle] Stream Content for ${sanitizedId} (Key ${keyIndex + 1}${useGrounding ? ', grounded' : ''})`)
-            streamResult = await withSignal(model.generateContentStream({ contents: [{ role: 'user', parts }], safetySettings: [] }), (context as any)?.signal)
-          }
-          for await (const chunk of streamResult.stream) {
-            const chunkText = chunk.text()
-            if (chunkText) {
-              responseContent += chunkText
-              onChunk(chunkText)
-            }
-            usage = extractUsage(chunk) || usage
-            reasoning = extractReasoning(chunk) || reasoning
-          }
+            const chat = m.startChat({ history: safeHistory })
+            logger.info(`[runGoogle] Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length})`)
+            rslt = await withSignal(withTimeout(chat.sendMessage(pts), activeTimeout), (context as any)?.signal)
 
-          // Pull grounding citations from the aggregated final response.
-          let citations: string[] | undefined
-          try {
-            const finalResp = await streamResult.response
-            citations = extractCitations(finalResp)
-          } catch { /* citations optional */ }
+            // Tool Handling
+            let currentResponse = rslt.response
+            const MAX_TOOL_HOPS = 4
+            let hops = 0
 
-          logger.info(`[runGoogle] Stream complete for ${sanitizedId} (Key ${keyIndex + 1}): contentLen=${responseContent.length}${citations ? `, citations=${citations.length}` : ''}`)
-          if (!responseContent) {
-            const err = new Error(`Stream produced empty content for ${sanitizedId} (Key ${keyIndex + 1}) — likely silent quota/safety failure`)
-            logger.error(`[runGoogle] ${err.message}`)
-            throw err
-          }
-          return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
-        }
-
-        if (history && history.length > 0) {
-          const safeHistory: any[] = []
-          for (const msg of history) {
-            const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
-            if (msg.role === expectedRole) safeHistory.push(msg)
-          }
-          if (safeHistory.length % 2 !== 0) safeHistory.pop()
-
-          const chat = model.startChat({ history: safeHistory })
-          logger.info(`[runGoogle] Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length})`)
-          result = await withSignal(withTimeout(chat.sendMessage(parts), activeTimeout), (context as any)?.signal)
-
-          // Tool Handling
-          let currentResponse = result.response
-          const MAX_TOOL_HOPS = 4
-          let hops = 0
-
-          while (currentResponse.functionCalls() && currentResponse.functionCalls().length > 0 && hops < MAX_TOOL_HOPS) {
-            hops++
-            const toolCalls = currentResponse.functionCalls()
-            const toolResults = []
-            for (const call of toolCalls) {
-              const handler = toolHandlers[call.name]
-              if (handler) {
-                const output = await (handler as any)(call.args, context)
-                toolResults.push({ functionResponse: { name: call.name, response: output } })
-                if (['create_note', 'update_note', 'delete_note', 'create_folder', 'create_task'].includes(call.name)) {
-                  capturedToolCalls.push({ type: call.name, ...output, ...call.args })
+            while (currentResponse.functionCalls() && currentResponse.functionCalls().length > 0 && hops < MAX_TOOL_HOPS) {
+              hops++
+              const toolCalls = currentResponse.functionCalls()
+              const toolResults = []
+              for (const call of toolCalls) {
+                const handler = toolHandlers[call.name]
+                if (handler) {
+                  const output = await (handler as any)(call.args, context)
+                  toolResults.push({ functionResponse: { name: call.name, response: output } })
+                  if (['create_note', 'update_note', 'delete_note', 'create_folder', 'create_task'].includes(call.name)) {
+                    capturedToolCalls.push({ type: call.name, ...output, ...call.args })
+                  }
                 }
               }
+              rslt = await withSignal(chat.sendMessage(toolResults), (context as any)?.signal)
+              currentResponse = rslt.response
             }
-            result = await withSignal(chat.sendMessage(toolResults), (context as any)?.signal)
-            currentResponse = result.response
+            responseContent = currentResponse.text()
+            usage = extractUsage(currentResponse)
+            reasoning = extractReasoning(currentResponse)
+            var finalRespForCitations: any = currentResponse
+          } else {
+            // No history
+            logger.info(`[runGoogle] Content for ${sanitizedId} (Key ${keyIndex + 1}${useGrounding ? ', grounded' : ''})`)
+            rslt = await withSignal(withTimeout(m.generateContent({ contents: [{ role: 'user', parts: pts }] }), activeTimeout), (context as any)?.signal)
+            responseContent = rslt.response.text()
+            usage = extractUsage(rslt.response)
+            reasoning = extractReasoning(rslt.response)
+            finalRespForCitations = rslt.response
           }
-          responseContent = currentResponse.text()
-          usage = extractUsage(currentResponse)
-          reasoning = extractReasoning(currentResponse)
-          var finalRespForCitations: any = currentResponse
-        } else {
-          // No history
-          logger.info(`[runGoogle] Content for ${sanitizedId} (Key ${keyIndex + 1}${useGrounding ? ', grounded' : ''})`)
-          result = await withSignal(withTimeout(model.generateContent({ contents: [{ role: 'user', parts }], safetySettings: [] }), activeTimeout), (context as any)?.signal)
-          responseContent = result.response.text()
-          usage = extractUsage(result.response)
-          reasoning = extractReasoning(result.response)
-          finalRespForCitations = result.response
-        }
 
-        const citations = extractCitations(finalRespForCitations)
-        return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
+          const citations = extractCitations(finalRespForCitations)
+          return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
+        })
+
+        return lockResult
       } catch (error: any) {
         const errorMsg = error.message || 'Unknown error'
         const isQuotaOrService = errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('503') || errorMsg.includes('500')
@@ -232,8 +267,16 @@ export async function runGoogle(
         lastError = error instanceof Error ? error : new Error(errorMsg)
 
         if (isQuotaOrService && keyIndex < keys.length - 1) {
-          logger.warn(`[runGoogle] Retrying with next key...`)
+          logger.warn(`[runGoogle] ${modelId} (Key ${keyIndex + 1}) — quota/service error, switching to next key`)
           break // Exit the retryCount loop to try next key
+        }
+
+        // 429/503 on last key: retry with backoff before giving up
+        if (isQuotaOrService && retryCount < 2) {
+          const delayMs = 1000 * retryCount
+          logger.warn(`[runGoogle] ${modelId} (Key ${keyIndex + 1}) — ${errorMsg.includes('429') ? 'rate limited' : 'service error'}, last key, retrying in ${delayMs}ms (attempt ${retryCount}/2)`)
+          await new Promise(resolve => setTimeout(resolve, delayMs))
+          continue
         }
 
         if (retryCount === 1 && !forceLegacy && (errorMsg.includes('400') || errorMsg.includes('500'))) {

@@ -30,6 +30,7 @@
 - Square/rounded-rect shapes (`rounded-[4px]`) for calendar date cells
 - Borderless selected states (no `border` on selected items)
 - **Tab switchers:** Clean, borderless `bg-dark` containers with a rounded active sliding pill (`bg-[var(--bone-10)]`) rather than solid `bg-background` or borders, providing a unified dark aesthetic across widgets.
+- **Mono Pills (Quick Access):** Transparent background with a `1px` border of `var(--bone-10)`, `var(--bone-100)` text (idle), and `var(--bone-30)` icon (idle). On hover, it fills with `var(--app-dark)`, removes the border (`border-transparent`), and transitions the icon to `var(--bone-60)` while maintaining `var(--bone-100)` text. Sized compactly (`px-3 py-1.5`, `text-[12px]`) with corners using `rounded-[var(--radius-medium)]` (8px) rather than capsule shapes, maintaining a minimal boxy tone.
 - Subtle hover backgrounds (`hover:bg-white/5`) over bordered buttons
 - Compact, tight spacing
 - `font-ui-label` for small uppercase labels (Today, Clear, etc.)

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
-import { getProviderKeys } from '@/lib/vault'
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,16 +68,13 @@ DO NOT include markdown code fences or any conversational wrapper in the output.
       .single()
     const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
 
-    const keys = await getProviderKeys('GEMINI')
-    const apiKey = process.env.GEMINI_API_KEY || (keys && keys.length > 0 ? keys[0] : null)
-    if (!apiKey) {
+    const { runGoogle } = await import('@/lib/bot/providers/google')
+    const contextKey = process.env.GEMINI_API_KEY || undefined
+    const response = await runGoogle(backendModel, message, systemPrompt, undefined, contextKey ? { aiApiKey: contextKey } : undefined)
+    if (!response) {
       return NextResponse.json({ error: 'GEMINI_API_KEY is not configured' }, { status: 500 })
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: backendModel })
-    const result = await model.generateContent(systemPrompt + '\n\n' + message)
-    const raw = result.response.text().trim()
+    const raw = (typeof response === 'string' ? response : response.content).trim()
 
     // Strip out possible AI markdown code fence wrappers
     const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()

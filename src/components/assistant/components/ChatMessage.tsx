@@ -13,6 +13,7 @@ import { AIAvatar } from './AIAvatar';
 import { StatusTyping } from './StatusTyping';
 import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
+import { useWordReveal } from '../hooks/useWordReveal';
 import { cn } from '@/lib/utils';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -366,8 +367,8 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   return text;
 };
 
-export const stableAppendStreamingCursor = (content: string): string => {
-  if (!content) return "~~AICURSORZX~~";
+export const stableAppendStreamingCursor = (content: string, showCursor = true): string => {
+  if (!content) return showCursor ? "~~AICURSORZX~~" : '';
 
   const text = content;
 
@@ -376,8 +377,8 @@ export const stableAppendStreamingCursor = (content: string): string => {
   const inCodeBlock = codeBlockMatches ? codeBlockMatches.length % 2 !== 0 : false;
 
   if (inCodeBlock) {
-    // If inside a fenced code block, append the cursor and then close the code block
-    return text + '~~AICURSORZX~~\n```';
+    const cursor = showCursor ? '~~AICURSORZX~~' : '';
+    return text + cursor + '\n```';
   }
 
   // Helper to check if a character at index is escaped by backslashes
@@ -444,7 +445,8 @@ export const stableAppendStreamingCursor = (content: string): string => {
   }
 
   const closingTags = [...stack].reverse().join('');
-  return text + '~~AICURSORZX~~' + closingTags;
+  const cursor = showCursor ? '~~AICURSORZX~~' : '';
+  return text + cursor + closingTags;
 };
 
 
@@ -905,13 +907,24 @@ export const ChatMessage = memo(({
     const trimmed = targetContent.trim();
     return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
   }, [targetContent]);
+  const { revealedText, isRevealing } = useWordReveal(targetContent, {
+    enabled: isLast,
+  });
   const displayContent = useMemo(() => {
-    if (isAILoading && isLast && !isPureImage && targetContent) {
-      return stableAppendStreamingCursor(targetContent);
+    if (isPureImage) return targetContent;
+
+    if (isLast && targetContent) {
+      if (isAILoading) {
+        return stableAppendStreamingCursor(revealedText, true);
+      }
+      if (isRevealing) {
+        return stableAppendStreamingCursor(revealedText, false);
+      }
     }
+
     return targetContent;
-  }, [targetContent, isAILoading, isLast, isPureImage]);
-  const hasFinishedTyping = !isAILoading;
+  }, [targetContent, isAILoading, isLast, isPureImage, revealedText, isRevealing]);
+  const hasFinishedTyping = !isAILoading && !isRevealing;
 
   const [feedbackState, setFeedbackState] = useState<'like' | 'dislike' | null>(null);
 
@@ -1448,7 +1461,7 @@ export const ChatMessage = memo(({
                         <Tooltip content="Reply">
                           <button
                             onClick={() => onReply(msg)}
-                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-foreground transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-foreground opacity-30 hover:opacity-100 transition-none"
                           >
                             <CornerUpLeft strokeWidth={2} className="w-4 h-4" />
                           </button>
@@ -1456,7 +1469,7 @@ export const ChatMessage = memo(({
                         <Tooltip content="Copy">
                           <button
                             onClick={() => navigator.clipboard.writeText(targetContent)}
-                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-foreground transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-foreground opacity-30 hover:opacity-100 transition-none"
                           >
                             <Copy strokeWidth={2} className="w-4 h-4" />
                           </button>
@@ -1614,7 +1627,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Copy Text">
                                 <button
                                   onClick={() => navigator.clipboard.writeText(displayContent)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-foreground transition-colors"
+                                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-foreground opacity-30 hover:opacity-100 transition-none"
                                 >
                                   <Copy strokeWidth={2} className="w-4 h-4" />
                                 </button>
@@ -1622,7 +1635,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Good response">
                                 <button
                                   onClick={() => submitFeedback('like')}
-                                  className={cn("w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] transition-colors", feedbackState === 'like' ? "text-green-400" : "text-[var(--bone-30)] hover:text-foreground")}
+                                  className={cn("w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] transition-none", feedbackState === 'like' ? "text-green-400 opacity-100" : "text-foreground opacity-30 hover:opacity-100")}
                                 >
                                   <ThumbsUp strokeWidth={2} className="w-4 h-4" />
                                 </button>
@@ -1630,7 +1643,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Bad response">
                                 <button
                                   onClick={() => submitFeedback('dislike')}
-                                  className={cn("w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] transition-colors", feedbackState === 'dislike' ? "text-red-400" : "text-[var(--bone-30)] hover:text-foreground")}
+                                  className={cn("w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] transition-none", feedbackState === 'dislike' ? "text-red-400 opacity-100" : "text-foreground opacity-30 hover:opacity-100")}
                                 >
                                   <ThumbsDown strokeWidth={2} className="w-4 h-4" />
                                 </button>
@@ -1639,7 +1652,7 @@ export const ChatMessage = memo(({
                                 <Tooltip content="Regenerate">
                                   <button
                                     onClick={onRegenerate}
-                                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-foreground transition-colors"
+                                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-foreground opacity-30 hover:opacity-100 transition-none"
                                   >
                                     <RotateCcw strokeWidth={2} className="w-4 h-4" />
                                   </button>
@@ -1650,7 +1663,7 @@ export const ChatMessage = memo(({
                                   <button
                                     onClick={() => setVariantIndex(msg.id!, currentVariantIndex - 1)}
                                     disabled={currentVariantIndex === 0}
-                                    className="w-4 h-4 flex items-center justify-center text-[var(--bone-30)] hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                                    className="w-4 h-4 flex items-center justify-center text-foreground opacity-30 hover:opacity-100 disabled:opacity-10 disabled:cursor-not-allowed transition-none"
                                   >
                                     <ChevronLeft strokeWidth={2} className="w-3 h-3" />
                                   </button>
@@ -1660,7 +1673,7 @@ export const ChatMessage = memo(({
                                   <button
                                     onClick={() => setVariantIndex(msg.id!, currentVariantIndex + 1)}
                                     disabled={currentVariantIndex === totalVariants - 1}
-                                    className="w-4 h-4 flex items-center justify-center text-[var(--bone-30)] hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                                    className="w-4 h-4 flex items-center justify-center text-foreground opacity-30 hover:opacity-100 disabled:opacity-10 disabled:cursor-not-allowed transition-none"
                                   >
                                     <ChevronRight strokeWidth={2} className="w-3 h-3" />
                                   </button>
@@ -1669,7 +1682,7 @@ export const ChatMessage = memo(({
                               <Tooltip content="Reply">
                                 <button
                                   onClick={() => onReply(msg)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-foreground transition-colors"
+                                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--app-dark)] text-foreground opacity-30 hover:opacity-100 transition-none"
                                 >
                                   <CornerUpLeft strokeWidth={2} className="w-4 h-4" />
                                 </button>

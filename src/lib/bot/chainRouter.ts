@@ -981,6 +981,7 @@ export async function runChain(
 
     const exhaustionKey = `${key}:${modelConfig.id}`
     const startIndex = triedKeysCount[exhaustionKey] || 0
+    let tracePushed = false
 
     try {
       keyLoop: for (let k = startIndex; k < providerKeys.length; k++) {
@@ -999,7 +1000,15 @@ export async function runChain(
             ...(context || {}),
             sessionId,
             useTools: category === 'TOOLS',
-            useGrounding: category === 'WEB_SEARCH' && modelConfig.provider === 'gemini',
+            // Ground a Gemini step only when no search engine has fed it data yet.
+            // [SEARCH DATA] is injected once tavily/exa run, so a Gemini model placed
+            // ABOVE the search engine self-grounds, while one BELOW it synthesizes the
+            // injected results instead — avoiding the free-tier grounding-quota 429.
+            // Also acts as a fallback: if the search engine failed (no [SEARCH DATA]),
+            // a downstream Gemini still self-grounds rather than answering blind.
+            useGrounding: (category === 'WEB_SEARCH' || category === 'RESEARCH')
+              && modelConfig.provider === 'gemini'
+              && !system_prompt.includes('[SEARCH DATA]'),
             aiApiKey: activeKey || undefined,
             usedKeyIndex: k + 1,
             temperature: typeof temperature === 'number' ? temperature : undefined,
@@ -1205,13 +1214,13 @@ export async function runChain(
               providerReasoning = (response as any).reasoning
             }
 
-            // ── Grounding guard: a WEB_SEARCH Gemini step that was asked to ground but
-            // returned no citations means grounding silently no-op'd. Accepting it lets
+            // ── Grounding guard: a WEB_SEARCH/RESEARCH Gemini step that was asked to ground
+            // but returned no citations means grounding silently no-op'd. Accepting it lets
             // the model answer from training and fabricate source pills. Treat as a failed
             // search attempt and fall through to the next chain model (tavily/duckduckgo)
             // — which will inject [SEARCH DATA], or trip the [SEARCH FAILED] path. ──
             if (
-              category === 'WEB_SEARCH' &&
+              (category === 'WEB_SEARCH' || category === 'RESEARCH') &&
               routeContext.useGrounding &&
               (!citations || citations.length === 0) &&
               !system_prompt.includes('[SEARCH DATA]')
@@ -1468,6 +1477,7 @@ export async function runChain(
             markModelFailed(modelConfig.id, errMsg)
           }
           routingTrace.push({ model: modelConfig.id, category, key: `${key} ${lastTried + 1}`, success: false })
+          tracePushed = true
           logger.warn(`Failure with key ${lastTried + 1} for [${modelConfig.id}]: ${error.message}`)
           if (fallbackMode !== 'api_key_first') {
             throw error
@@ -1476,8 +1486,10 @@ export async function runChain(
       }
     } catch (outerError: any) {
       logger.error(`[ROUTING FAILURE] Category ${category} | Model ${modelConfig.id} failed: ${outerError.message}`)
-      const displayKey = (context as any)?.usedKeyIndex ? `${key} ${(context as any).usedKeyIndex}` : `${key} 1`
-      routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false })
+      if (!tracePushed) {
+        const displayKey = (context as any)?.usedKeyIndex ? `${key} ${(context as any).usedKeyIndex}` : `${key} 1`
+        routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false })
+      }
       continue
     }
   }

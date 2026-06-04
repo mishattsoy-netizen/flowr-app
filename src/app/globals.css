@@ -42,6 +42,7 @@
   --bone-30: rgba(0, 0, 0, 0.30);
   --bone-60: rgba(0, 0, 0, 0.60);
   --bone-70: rgba(0, 0, 0, 0.70);
+  --bone-90: rgba(0, 0, 0, 0.90);
   --bone-100: #242423;
   /* Dark text on light background */
 
@@ -96,6 +97,7 @@
   --bone-30: rgba(233, 233, 226, 0.30);
   --bone-60: rgba(233, 233, 226, 0.60);
   --bone-70: rgba(233, 233, 226, 0.70);
+  --bone-90: rgba(233, 233, 226, 0.90);
   --bone-100: #eeeee8;
   --white-overlay: rgba(255, 255, 255, 0.03);
   --black-overlay: rgba(0, 0, 0, 0.06);
@@ -210,6 +212,7 @@ html[data-interface-size="big"] {
   --color-bone-30: var(--bone-30);
   --color-bone-60: var(--bone-60);
   --color-bone-70: var(--bone-70);
+  --color-bone-90: var(--bone-90);
   --color-bone-100: var(--bone-100);
   --color-bone-hover: var(--bone-5);
   --color-accent: var(--accent);
@@ -1476,4 +1479,25 @@ table:not(.rdp-table) tr:last-child td {
 
 .animate-drawer-in {
   animation: drawer-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Mono Pill SVG stroke optimization to avoid overlapping/stacked strokes.
+   The "stacked stroke" artifact is NOT a width issue: Lucide icons are a single
+   <svg> of multiple stroke segments sharing currentColor. When the icon color is a
+   translucent value (e.g. --bone-30 = rgba(0,0,0,0.30)), overlapping segments
+   composite twice (0.30 over 0.30 ≈ 0.51), so seams read as doubled lines.
+   Fix: paint the icon with an OPAQUE color so overlaps flatten at 100%, then fade
+   the whole element uniformly via opacity (set on the wrapper as --mono-pill-icon-opacity). */
+/* Keep glyph metrics identical regardless of the pill background. When the bg goes
+   transparent -> opaque on hover, the browser can switch text antialiasing modes
+   (grayscale <-> subpixel), which subtly changes glyph advance widths; in a
+   justify-center flex row that recenters the row and makes the icon appear to "shift"
+   on hover. Pinning antialiasing keeps the label width constant across states. */
+.mono-pill {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono-pill svg {
+  stroke-width: 1.5px !important;
 }

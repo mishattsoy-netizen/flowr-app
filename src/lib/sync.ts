@@ -24,6 +24,37 @@ async function getCurrentUserId(): Promise<string | null> {
   return data?.user?.id ?? null;
 }
 
+// ─── Self-originated DELETE suppression ─────────────────────────────────────────
+//
+// When this client deletes a row from the DB (e.g. toggling cloud sync OFF, which
+// removes the cloud copy of a now-local-only workspace), Supabase echoes that DELETE
+// back to us as a realtime event. Without a guard, the realtime handler would then
+// remove the entity from the *local* store as well — destroying data the user only
+// meant to make local-only, and overwriting localStorage with the emptied array.
+//
+// We record each ID we delete ourselves and skip the matching realtime echo exactly
+// once. Entries expire after a short window so a genuine *remote* delete of the same
+// ID later still propagates.
+
+const SELF_DELETE_TTL_MS = 10_000;
+const selfDeletedAt = new Map<string, number>();
+
+export function markSelfDeleted(id: string): void {
+  selfDeletedAt.set(id, Date.now());
+}
+
+/**
+ * Returns true if `id` was deleted by this client within the suppression window,
+ * meaning the incoming realtime DELETE is our own echo and should be ignored.
+ * Consumes the record so a subsequent real remote delete is not suppressed.
+ */
+export function consumeSelfDeleteEcho(id: string, now: number = Date.now()): boolean {
+  const ts = selfDeletedAt.get(id);
+  if (ts === undefined) return false;
+  selfDeletedAt.delete(id);
+  return now - ts <= SELF_DELETE_TTL_MS;
+}
+
 // ─── Row ↔ Store mappers ──────────────────────────────────────────────────────
 
 function parseTimestamp(val: any): number | undefined {
@@ -207,27 +238,29 @@ export async function upsertSetting(key: string, value: any) {
   if (error) console.error('[Flowr sync] upsertSetting:', error.message);
 }
 
-export async function upsertWorkspace(workspace: Workspace) {
-  if (!supabase) return;
+export async function upsertWorkspace(workspace: Workspace): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) return { error: null };
   const row = { ...workspaceToRow(workspace), owner_id: userId };
   const { error } = await supabase
     .from('workspaces')
     .upsert(row, { onConflict: 'id' });
   if (error) console.error('[Flowr sync] upsertWorkspace:', error.message);
+  return { error };
 }
 
 export async function deleteWorkspaceFromDB(id: string) {
   if (!supabase) return;
+  markSelfDeleted(id);
   const { error } = await supabase!.from('workspaces').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteWorkspace:', error.message);
 }
 
-export async function upsertEntity(entity: Entity) {
-  if (!supabase) return;
+export async function upsertEntity(entity: Entity): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) return { error: null };
   const row = { ...entityToRow(entity), owner_id: userId };
 
   async function performUpsert(currentRow: Record<string, any>): Promise<{ error: any }> {
@@ -253,18 +286,21 @@ export async function upsertEntity(entity: Entity) {
 
   const { error } = await performUpsert(row);
   if (error) console.error('[Flowr sync] upsertEntity:', error.message);
+  return { error };
 }
 
-export async function deleteEntityFromDB(id: string) {
-  if (!supabase) return;
+export async function deleteEntityFromDB(id: string): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
+  markSelfDeleted(id);
   const { error } = await supabase!.from('entities').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteEntity:', error.message);
+  return { error };
 }
 
-export async function upsertTask(task: AppTask) {
-  if (!supabase) return;
+export async function upsertTask(task: AppTask): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
   const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (!userId) return { error: null };
   const row = { ...taskToRow(task), owner_id: userId };
   
   async function performUpsert(currentRow: Record<string, any>): Promise<{ error: any }> {
@@ -290,12 +326,15 @@ export async function upsertTask(task: AppTask) {
 
   const { error } = await performUpsert(row);
   if (error) console.error('[Flowr sync] upsertTask:', error.message);
+  return { error };
 }
 
-export async function deleteTaskFromDB(id: string) {
-  if (!supabase) return;
+export async function deleteTaskFromDB(id: string): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
+  markSelfDeleted(id);
   const { error } = await supabase!.from('tasks').delete().eq('id', id);
   if (error) console.error('[Flowr sync] deleteTask:', error.message);
+  return { error };
 }
 
 // ─── Realtime subscriptions ───────────────────────────────────────────────────
@@ -349,7 +388,11 @@ export function subscribeRealtime(store: StoreSetters) {
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'entities' },
       ({ old: row }: any) => {
-        store.setEntities(store.getEntities().filter(e => e.id !== (row as any).id));
+        const id = (row as any).id;
+        // Ignore our own delete echo — the user may have toggled this workspace to
+        // local-only, which removes the cloud copy but must NOT wipe local data.
+        if (consumeSelfDeleteEcho(id)) return;
+        store.setEntities(store.getEntities().filter(e => e.id !== id));
       }
     )
 
@@ -383,7 +426,9 @@ export function subscribeRealtime(store: StoreSetters) {
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'workspaces' },
       ({ old: row }: any) => {
-        store.setWorkspaces(store.getWorkspaces().filter(w => w.id !== (row as any).id));
+        const id = (row as any).id;
+        if (consumeSelfDeleteEcho(id)) return;
+        store.setWorkspaces(store.getWorkspaces().filter(w => w.id !== id));
       }
     )
 
@@ -418,7 +463,11 @@ export function subscribeRealtime(store: StoreSetters) {
       'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'tasks' },
       ({ old: row }: any) => {
-        store.setTasks(store.getTasks().filter(t => t.id !== (row as any).id));
+        const id = (row as any).id;
+        // Ignore our own delete echo — disabling a workspace's cloud sync removes its
+        // tasks from the DB but must NOT wipe the local copy.
+        if (consumeSelfDeleteEcho(id)) return;
+        store.setTasks(store.getTasks().filter(t => t.id !== id));
       }
     )
 

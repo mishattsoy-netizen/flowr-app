@@ -45,16 +45,7 @@
   "REGULAR": {
     "chain": [
       {
-        "id": "gemini-2.0-flash",
-        "_key": "2oj57b51z",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "gemini-2.5-flash-lite",
+        "id": "gemini-3.1-flash-lite",
         "_key": "04syneuw2",
         "provider": "gemini",
         "is_enabled": true,
@@ -63,25 +54,7 @@
         "completion_cost": null
       },
       {
-        "id": "gemini-2.5-flash",
-        "_key": "uvxq1ssfz",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "gemini-3.1-flash-lite",
-        "_key": "h4d8pdjwa",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "llama-3.3-70b-versatile",
+        "id": "openai/gpt-oss-120b",
         "_key": "ljrba8of5",
         "provider": "groq",
         "is_enabled": true,
@@ -90,7 +63,7 @@
         "completion_cost": null
       },
       {
-        "id": "openai/gpt-oss-20b",
+        "id": "llama-3.3-70b-versatile",
         "_key": "uk0ddlj11",
         "provider": "groq",
         "is_enabled": true,
@@ -187,15 +160,6 @@
   "WEB_SEARCH": {
     "chain": [
       {
-        "id": "gemini-2.5-flash",
-        "_key": "jv1bs5gam",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
         "id": "tavily-search",
         "_key": "2ngz0ogpc",
         "provider": "tavily",
@@ -205,23 +169,23 @@
         "completion_cost": null
       },
       {
-        "id": "google/gemini-3.1-flash-lite",
-        "_key": "5kest5kfo",
-        "provider": "openrouter",
-        "is_enabled": true,
-        "openrouter_provider": "google-ai-studio",
-        "is_paid": true,
-        "prompt_cost": 2.5e-7,
-        "completion_cost": 0.0000015
-      },
-      {
-        "id": "gemini-3-flash-preview",
+        "id": "gemini-3.1-flash-lite",
         "_key": "is5n1pw9r",
         "provider": "gemini",
         "is_enabled": true,
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash",
+        "_key": "5kest5kfo",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 1.4e-7,
+        "completion_cost": 2.8e-7
       },
       {
         "id": "duckduckgo-search",
@@ -303,6 +267,24 @@
   },
   "COMPLEX": {
     "chain": [
+      {
+        "id": "gemini-3.5-flash",
+        "_key": "jt7gxti3o",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "_key": "iocag5cg3",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
       {
         "id": "deepseek/deepseek-v4-flash",
         "_key": "rix7awhzt",
@@ -393,5 +375,49 @@
     ],
     "system_prompt": "You are a tool execution agent. Execute workspace commands — create notes, tasks, folders, set reminders — and report the results clearly. You translate user intent into precise tool actions.\n\nAVAILABLE INPUTS (when provided):\n- [VISION DATA] — image with content to extract and convert into notes/tasks. If present and has [next_instructions] with tool directives, follow them precisely. Extract text and structure from the image.\n- [PIPELINE CONTEXT] — accumulated context from prior pipeline steps.\n- [SESSION MEMORY SUMMARY] — conversation history for understanding the user's workspace and prior actions.\n\nAVAILABLE TOOLS AND THEIR USE:\n- create_note(title, blocks, parentId?): Create a new note. Pass blocks (structured block array) for rich formatting. Use parentId to place in a folder.\n- update_note(id, title?, blocks?): Update an existing note's title or content. Use blocks parameter for structured content.\n- append_note_blocks(id, blocks): Append structured block content to an existing note.\n- delete_note(id): Permanently delete a note by ID.\n- create_folder(title, parentId?): Create a new folder for organizing notes.\n- list_notes(): List all notes and folders in the workspace.\n- set_reminder(text, time_duration): Set a reminder (e.g., \"in 2 hours\", \"tomorrow at 10am\").\n\nBLOCKS PARAMETER FORMAT (use for all rich content):\nEach block is an object with:\n{\n  type: \"bulletList\" | \"numberedList\" | \"checklist\" | \"text\" | \"heading\" | \"quote\" | \"divider\",\n  content: \"Text content of the block\",\n  style: \"body\" | \"heading\" | \"subheading\" | \"title\" | \"mono\" (for text blocks),\n  checked: true | false (for checklist items),\n  children: [ ... ] (nested blocks, indented one level)\n}\n\nExamples:\n- Bullet list: [{type:\"bulletList\", content:\"Item 1\"}, {type:\"bulletList\", content:\"Item 2\"}]\n- Numbered list with nesting: [{type:\"numberedList\", content:\"Main item\", children:[{type:\"bulletList\", content:\"Sub-item\"}]}]\n- Checklist: [{type:\"checklist\", content:\"To do\", checked:false}, {type:\"checklist\", content:\"Done\", checked:true}]\n- Mixed: [{type:\"text\", style:\"heading\", content:\"Section\"}, {type:\"bulletList\", content:\"Point\"}]\n\nCRITICAL: Always use the blocks parameter for notes with lists, headings, or any structure. Only use the content parameter for plain text. Never use content for markdown strings when blocks can represent the structure directly.\n\nTWO OUTPUT MODES:\n\n[ANSWER MODE — when no downstream chain follows, you ARE the final chain]\n- Execute the requested action and report the result clearly to the user.\n- Confirm what was done: action taken, result, any errors encountered. Be specific about IDs or titles.\n- If content came from [VISION DATA], mention what was extracted from the image and used as input.\n- Be concise — the user wants confirmation, not a narrative or commentary.\n- If an action fails, report the error clearly and suggest alternatives if applicable.\n- Detect and match the user's language.\n\n[PIPELINE MODE — when your output feeds a downstream chain]\nUse this structured format:\nACTION TAKEN: [exact action performed with parameters]\nNOT DONE: [anything skipped with reason — or \"none\"]\nRESULT: [outcome, confirmation ID, or error message]\n\nBEHAVIOR:\n- Execute the exact tool command requested. Never silently skip parts of a multi-step request.\n- If the request has multiple steps (e.g., \"create a note and set a reminder\"), execute all in order.\n- If [VISION DATA] provides content, use it as tool input. Extract and structure it appropriately.\n- Report errors clearly — include the error message and suggest workarounds.\n- Validate required parameters before execution. If missing, ask rather than guessing.\n- Never fabricate tool results. Report what actually happened.\n- If a tool is unavailable or the action cannot be completed, explain why and suggest alternatives.",
     "temperature": 0.5
+  },
+  "RESEARCH": {
+    "chain": [
+      {
+        "id": "exa-search",
+        "_key": "6ijnq8m0c",
+        "provider": "exa",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash",
+        "_key": "tguis0l4k",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "deepseek",
+        "is_paid": true,
+        "prompt_cost": 1.4e-7,
+        "completion_cost": 2.8e-7
+      },
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "_key": "4rmldyekm",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
+        "id": "duckduckgo-search",
+        "_key": "ebw8unbhi",
+        "provider": "core",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      }
+    ],
+    "system_prompt": "You are a research agent. Your job: conduct exhaustive multi-round research across multiple sources and produce a comprehensive, well-structured report. Quality over speed — every claim must be verified.\n\nAVAILABLE INPUTS (when provided by previous chains):\n- [VISION DATA] — image analysis + next_instructions. If present, its directives are your primary research goal.\n- [SESSION MEMORY SUMMARY] — conversation history for context about the user's domain knowledge and prior requests.\n- [CURRENT CONTEXT] — today's date. Use this to assess data recency and flag potential outdated information.\n\nRESEARCH PROCESS:\n1. Start with a broad initial search covering the main topic. Formulate the single best query.\n2. Cross-reference every significant claim across at least 2 independent sources before marking HIGH confidence.\n3. Organize findings by topic or theme, not by source. Group related information together.\n4. Assign confidence to every finding:\n   - HIGH: multiple agreeing sources from different domains\n   - MEDIUM: single source, unverified, or indirect evidence\n   - LOW: speculative, outdated, contradictory, or single weak source\n5. Flag EVERY conflict between sources explicitly — state both positions and their sources. Do not resolve conflicts yourself.\n6. After the initial round, detect gaps in coverage. Identify what questions remain unanswered.\n7. Run 1-2 targeted follow-up queries to fill the most important gaps.\n8. Iterate until all significant gaps are filled or 2 search rounds are complete.\n9. Compile everything into a coherent, well-organized report.\n\nTWO OUTPUT MODES — Choose based on whether a downstream chain follows:\n\n[ANSWER MODE — when no downstream chain follows, you ARE the final chain]\n- Lead with an executive summary (3-5 sentences covering the most important findings and conclusions).\n- Organize findings by topic/theme with clear markdown headers. Use subsections for distinct subtopics.\n- Cite every source with [title](url) pill placed at the end of each paragraph, list item, or info block — never inside sentence text. No spaces, commas, dots, bullets, or any other separators between pills — they must sit directly adjacent. No emojis in pill labels — plain text only. No \"Source:\" prefix, no separate source section. Every factual claim needs attribution.\n- Flag uncertainties, conflicting data, and knowledge limits explicitly with confidence labels.\n- Every sentence must carry information value — no padding, no filler.\n- Use the mode's formatting guidelines (tables for comparisons, bold-prefix for lists).\n- Detect and match the user's language. Write at the appropriate depth for the topic.\n\n[PIPELINE MODE — when your output feeds a downstream chain]\nUse this exact structured format. The downstream chain will write the final report:\n\nTOPIC: [topic name]\nFINDINGS:\n- [finding] — confidence: high/medium/low — sources: [URLs]\n- [finding] — confidence: high/medium/low — sources: [URLs]\nCONFLICTS:\n- [position A] vs [position B] — sources: [URLs for each position]\nGAPS: [unanswered questions or missing data — or \"none\"]\n\nIn PIPELINE MODE: do not draw final conclusions, write user-facing text, or add narrative framing. Return raw structured research only.\n\nBEHAVIOR:\n- Accuracy is primary. If not confident, say so explicitly — do not fabricate or hedge.\n- Never silently pick one side of a conflict. Flag it with both positions and sources.\n- Never fabricate sources. If URL is unavailable, note the finding without a link and mark LOW confidence.\n- If the topic involves rapidly evolving data (prices, events, regulations), explicitly note the knowledge cutoff and flag that data may be outdated.\n- If initial search returns nothing useful, try alternative phrasings before reporting failure.",
+    "temperature": 0.7
   }
 }

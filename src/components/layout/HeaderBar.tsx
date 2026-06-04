@@ -22,8 +22,6 @@ import {
   X,
   ChevronRight,
   Plus,
-  Cloud,
-  CloudOff,
   Database,
   History,
   PanelLeft,
@@ -34,7 +32,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { Portal } from './Portal';
-import { Toggle } from '@/components/ui/Toggle';
 import { stripHtml } from '@/lib/utils';
 
 // Constants
@@ -73,7 +70,6 @@ export const HeaderBar = memo(function HeaderBar() {
   const addTab = useStore(state => state.addTab);
   const lastSaved = useStore(state => state.lastSaved);
   const cloudSyncEnabled = useStore(state => state.cloudSyncEnabled);
-  const toggleEntityCloudSync = useStore(state => state.toggleEntityCloudSync);
   const isTempChat = useStore(state => state.isTempChat);
   const chatConversations = useStore(state => state.chatConversations);
   const activeChatId = useStore(state => state.activeChatId);
@@ -350,7 +346,7 @@ export const HeaderBar = memo(function HeaderBar() {
         </Portal>
       )}
 
-      {/* Save Status & Cloud Toggle */}
+      {/* Save Status */}
       {(() => {
         const activeEntity = entities.find(e => e.id === activeEntityId);
         const isWorkspaceOrPage = activeEntity && ['workspace', 'folder', 'note', 'canvas', 'mixed'].includes(activeEntity.type);
@@ -361,32 +357,6 @@ export const HeaderBar = memo(function HeaderBar() {
             <div className="flex items-center gap-1.5 text-[var(--bone-40)]">
               <History strokeWidth={2} className="w-3 h-3" />
               <span>Last saved: {lastSaved ? new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Never'}</span>
-            </div>
-
-            <div className="flex items-center gap-2 pl-3 border-l border-[var(--bone-10)] h-full">
-              {(() => {
-                const isSynced = !!activeEntity.cloudSyncEnabled;
-                return (
-                  <button 
-                    onClick={() => toggleEntityCloudSync(activeEntity.id)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-small)] bg-[var(--app-dark)]",
-                      isSynced 
-                        ? "text-accent" 
-                        : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                    )}
-                  >
-                    {isSynced ? <Cloud strokeWidth={2} className="w-3 h-3" /> : <CloudOff strokeWidth={2} className="w-3 h-3" />}
-                    <span className="font-medium">{isSynced ? 'Cloud Sync' : 'Local Only'}</span>
-                    <Toggle 
-                      size="sm"
-                      checked={isSynced}
-                      onChange={() => {}}
-                      className="pointer-events-none scale-75 origin-right"
-                    />
-                  </button>
-                );
-              })()}
             </div>
           </div>
         );

@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabase'
-import { getProviderKeys } from '@/lib/vault'
 import { logAdminAction } from '@/lib/admin/logAction'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 
 function sseMessage(data: object): string {
   return `data: ${JSON.stringify(data)}\n\n`
@@ -210,18 +208,14 @@ Each item must have exactly these fields: topic (string), title (string), reason
           .single()
         const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
 
-        const keys = await getProviderKeys('GEMINI')
-        if (keys.length === 0) {
+        const { runGoogle } = await import('@/lib/bot/providers/google')
+        log(`⟳ Generating improvement plans… (model: ${backendModel})`)
+        const response = await runGoogle(backendModel, analysisPrompt)
+        if (!response) {
           log('✗ No Gemini API key found — add one via Secure Vault (key prefix: GEMINI)')
           throw new Error('No Gemini API key available')
         }
-
-        const genAI = new GoogleGenerativeAI(keys[0])
-        const model = genAI.getGenerativeModel({ model: backendModel })
-
-        log(`⟳ Generating improvement plans… (model: ${backendModel})`)
-        const result = await model.generateContent(analysisPrompt)
-        const raw = result.response.text().trim()
+        const raw = (typeof response === 'string' ? response : response.content).trim()
 
         // Extract reasoning (any markdown before the JSON array)
         const reasoningMatch = raw.match(/^([\s\S]*?)(\[[\s\S]*\])/)

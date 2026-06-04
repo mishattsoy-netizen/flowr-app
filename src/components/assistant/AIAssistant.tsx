@@ -420,27 +420,29 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const CHAIN_TAGS = ['/search', '/research', '/code', '/image'];
 
   const commands = [
-    { id: 'image', label: 'Generate Image', icon: <ImageIcon strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Create an image from text', prefix: '/image ' },
-    { id: 'search', label: 'Web Search', icon: <Globe strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Search the internet for info', prefix: '/search ' },
-    { id: 'research', label: 'Deep Research', icon: <Telescope strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Research using Perplexity and Tavily', prefix: '/research ' },
-    { id: 'code', label: 'Code', icon: <Terminal strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Use the coding chain for programming tasks', prefix: '/code ' },
-    { id: 'note', label: 'Create Note', icon: <FileText strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
-    { id: 'canvas', label: 'Create Canvas', icon: <Frame strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
-    { id: 'split', label: 'Create Split Page', icon: <Layers strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Create a new mixed split page', prefix: '/split ' },
-    { id: 'task', label: 'Add Task', icon: <CheckSquare strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
-    { id: 'mention', label: 'Mention', icon: <AtSign strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Mention page or workspace', prefix: '@' },
-    { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={2} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
+    { id: 'image', label: 'Generate Image', icon: <ImageIcon strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create an image from text', prefix: '/image ' },
+    { id: 'search', label: 'Web Search', icon: <Globe strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Search the internet for info', prefix: '/search ' },
+    { id: 'research', label: 'Deep Research', icon: <Telescope strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Research using Perplexity and Tavily', prefix: '/research ' },
+    { id: 'code', label: 'Code', icon: <Terminal strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Use the coding chain for programming tasks', prefix: '/code ' },
+    { id: 'note', label: 'Create Note', icon: <FileText strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
+    { id: 'canvas', label: 'Create Canvas', icon: <Frame strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
+    { id: 'split', label: 'Create Split Page', icon: <Layers strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new mixed split page', prefix: '/split ' },
+    { id: 'task', label: 'Add Task', icon: <CheckSquare strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
+    { id: 'mention', label: 'Mention', icon: <AtSign strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Mention page or workspace', prefix: '@' },
+    { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
   ];
 
   // Maps an active chain intent tag (e.g. "/image") to the icon + short label
   // shown in the selected-tool pill next to the AI Actions button.
   const INTENT_PILL: Record<string, { icon: React.ReactNode; label: string }> = {
-    '/image': { icon: <ImageIcon strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Image gen' },
-    '/search': { icon: <Globe strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Web Search' },
-    '/research': { icon: <Telescope strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Research' },
-    '/code': { icon: <Terminal strokeWidth={2} className="w-3.5 h-3.5" />, label: 'Code' },
+    '/image': { icon: <ImageIcon strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Image gen' },
+    '/search': { icon: <Globe strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Web Search' },
+    '/research': { icon: <Telescope strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Research' },
+    '/code': { icon: <Terminal strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Code' },
   };
   const activeIntentPill = activeIntentTag ? INTENT_PILL[activeIntentTag] : undefined;
+
+  const isNewChatEmpty = chatPageMode && aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0;
 
   const filteredCommands = assistantInput.startsWith('/')
     ? commands.filter(c => c.label.toLowerCase().includes(assistantInput.slice(1).toLowerCase()) || c.id.includes(assistantInput.slice(1).toLowerCase()))
@@ -457,12 +459,15 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
   const handleCommandSelect = (cmd: typeof commands[0]) => {
     if (cmd.prefix) {
-      // Set activeIntentTag for chain-related commands
       const tag = `/${cmd.id}`;
       if (CHAIN_TAGS.includes(tag)) {
+        // Chain commands are represented by the pill, so don't leave the
+        // "/code " prefix in the textarea — the tag is sent via intentTag.
         setActiveIntentTag(tag);
+        setAssistantInput('');
+      } else {
+        setAssistantInput(cmd.prefix);
       }
-      setAssistantInput(cmd.prefix);
       textareaRef.current?.focus();
     } else if (cmd.action) {
       cmd.action();
@@ -945,12 +950,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 </Tooltip>
 
                 {activeIntentPill && (
-                  <div className="flex items-center gap-1.5 py-1.5 pl-2 pr-1 rounded-[8px] bg-white/10 border border-[var(--bone-12)] text-bone-100">
+                  <div className="flex items-center gap-1.5 h-7 pl-2 pr-1 ml-1.5 rounded-[8px] bg-white/10 text-bone-100">
                     {activeIntentPill.icon}
                     <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
                     <button
                       onClick={() => useStore.getState().setActiveIntentTag(null)}
-                      className="p-0.5 hover:bg-white/20 rounded-md"
+                      className="p-0.5 hover:bg-white/20 rounded-[4px]"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1134,12 +1139,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
                           {activeIntentPill && (
-                            <div className="flex items-center gap-1.5 py-1.5 pl-2 pr-1 rounded-[8px] bg-white/10 border border-[var(--bone-12)] w-fit text-bone-100">
+                            <div className="flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-[8px] bg-white/10 w-fit text-bone-100">
                               {activeIntentPill.icon}
                               <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
                               <button
                                 onClick={() => useStore.getState().setActiveIntentTag(null)}
-                                className="p-0.5 hover:bg-white/20 rounded-md"
+                                className="p-0.5 hover:bg-white/20 rounded-[4px]"
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -1252,7 +1257,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
             {/* Command Menu Portal (Local to container) */}
             {showCommandMenu && filteredCommands.length > 0 && (
-              <div className="absolute bottom-full left-0 right-0 mb-4 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1.5 flex flex-col gap-0.5">
+              <div className={cn(
+                "absolute left-0 right-0 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1.5 flex flex-col gap-0.5",
+                isNewChatEmpty ? "top-full mt-4" : "bottom-full mb-4"
+              )}>
                 <div className="px-3 pt-1 pb-2">
                   <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--bone-30)] opacity-80">
                     Actions & Commands
@@ -1272,8 +1280,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       )}
                     >
                       <div className={cn(
-                        "w-4 h-4 flex items-center justify-center shrink-0 opacity-60 group-hover:opacity-100",
-                        i === activeCommandIndex ? "text-bone-100 opacity-100" : "text-bone-70"
+                        // Opaque currentColor + element opacity for dimming: a translucent icon color
+                        // makes overlapping Lucide segments (e.g. the Layers icon) composite twice into a
+                        // visible "stacked stroke" seam. Keep the color solid and let opacity-* fade it.
+                        "w-4 h-4 flex items-center justify-center shrink-0 text-bone-100 opacity-60 group-hover:opacity-100",
+                        i === activeCommandIndex && "opacity-100"
                       )}>
                         {cmd.icon}
                       </div>

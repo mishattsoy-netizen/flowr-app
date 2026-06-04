@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '../supabase'
 import { getVaultKey } from '../vault'
 import { logger } from '../logger'
@@ -35,10 +34,11 @@ export async function logInteraction(
         if (modelConfig) {
           const apiKey = await getVaultKey('GEMINI_PRIMARY')
           if (apiKey) {
-            const genAI = new GoogleGenerativeAI(apiKey)
-            const model = genAI.getGenerativeModel({ model: modelConfig.id })
-            const result = await model.generateContent(`${TOPIC_TAGGER_PROMPT}\n"${content}"`)
-            topicTag = result.response.text().trim()
+            const { runGoogle } = await import('./providers/google')
+            const response = await runGoogle(modelConfig.id, `${TOPIC_TAGGER_PROMPT}\n"${content}"`, undefined, undefined, { aiApiKey: apiKey })
+            if (response) {
+              topicTag = (typeof response === 'string' ? response : response.content).trim()
+            }
           }
         }
       } catch (err) {

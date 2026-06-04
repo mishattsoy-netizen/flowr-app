@@ -472,9 +472,29 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                 )}
                 <button
                   onClick={toggleEditMode}
-                  className={editMode ? 'btn-bento-active' : 'btn-bento'}
+                  style={{ transition: 'background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out' }}
+                  className={cn(
+                    "mono-pill group flex items-center gap-1.5 px-3 h-7 rounded-[var(--radius-medium)] text-[12px] font-medium tracking-tight active:scale-[0.98] shrink-0",
+                    editMode
+                      ? "bg-[var(--app-dark)] border border-transparent"
+                      : "bg-transparent border border-[var(--bone-10)] hover:bg-[var(--app-dark)] hover:border-transparent"
+                  )}
                 >
-                  {editMode ? <><Check strokeWidth={2} className="w-3.5 h-3.5" /> Done</> : <><Settings2 strokeWidth={2} className="w-3.5 h-3.5" /> Edit Layout</>}
+                  {editMode ? (
+                    <>
+                      <span className="shrink-0 text-[var(--bone-100)] opacity-60" style={{ transition: 'opacity 200ms ease-out', willChange: 'opacity' }}>
+                        <Check strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+                      </span>
+                      <span className="text-[var(--bone-100)]" style={{ transition: 'color 200ms ease-out' }}>Done</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="shrink-0 text-[var(--bone-100)] opacity-30 group-hover:opacity-60" style={{ transition: 'opacity 200ms ease-out', willChange: 'opacity' }}>
+                        <Settings2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+                      </span>
+                      <span className="text-[var(--bone-90)] group-hover:text-[var(--bone-100)]" style={{ transition: 'color 200ms ease-out' }}>Edit Layout</span>
+                    </>
+                  )}
                 </button>
               </div>
 

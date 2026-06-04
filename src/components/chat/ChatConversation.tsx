@@ -10,11 +10,11 @@ import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { useAuth } from '@/components/AuthProvider';
 
 const QUICK_ACCESS_PILLS = [
-  { id: 'image', label: 'Generate Image', prefix: '/image ', icon: <ImageIcon className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'search', label: 'Web Search', prefix: '/search ', icon: <Globe className="w-3.5 h-3.5" /> },
-  { id: 'research', label: 'Deep Research', prefix: '/research ', icon: <Telescope className="w-3.5 h-3.5" /> },
-  { id: 'code', label: 'Code', prefix: '/code ', icon: <Terminal className="w-3.5 h-3.5" /> },
-  { id: 'task', label: 'Add Task', prefix: '/task ', icon: <CheckSquare className="w-3.5 h-3.5" /> },
+  { id: 'image', label: 'Generate Image', prefix: '/image ', icon: ImageIcon },
+  { id: 'search', label: 'Web Search', prefix: '/search ', icon: Globe },
+  { id: 'research', label: 'Deep Research', prefix: '/research ', icon: Telescope },
+  { id: 'code', label: 'Code', prefix: '/code ', icon: Terminal },
+  { id: 'task', label: 'Add Task', prefix: '/task ', icon: CheckSquare },
 ];
 
 export function ChatConversation() {
@@ -47,9 +47,14 @@ export function ChatConversation() {
   };
 
   const handlePillClick = (pill: typeof QUICK_ACCESS_PILLS[0]) => {
-    setAssistantInput(pill.prefix);
+    // Chain commands are represented by the intent pill, so don't leave the
+    // "/image " prefix in the textarea — the tag is sent via intentTag.
+    // Mirrors handleCommandSelect / CHAIN_TAGS in AIAssistant.
     if (['image', 'search', 'research', 'code'].includes(pill.id)) {
       setActiveIntentTag(`/${pill.id}`);
+      setAssistantInput('');
+    } else {
+      setAssistantInput(pill.prefix);
     }
     setTimeout(() => {
       document.querySelector('textarea')?.focus();
@@ -113,18 +118,25 @@ export function ChatConversation() {
                 <AIAssistant chatPageMode={true} />
               </div>
 
-              {/* 5 Suggestion pills */}
-              <div className="flex flex-wrap gap-1.5 justify-center max-w-3xl mt-3 animate-fade-in select-none">
-                {QUICK_ACCESS_PILLS.map(pill => (
-                  <button
-                    key={pill.id}
-                    onClick={() => handlePillClick(pill)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[12px] font-medium tracking-tight text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:border-transparent hover:text-[var(--bone-100)] transition-all duration-200 active:scale-[0.98] shrink-0"
-                  >
-                    <span className="shrink-0">{pill.icon}</span>
-                    <span>{pill.label}</span>
-                  </button>
-                ))}
+              <div className="flex justify-center max-w-3xl mt-3">
+                <div className="flex flex-wrap gap-1.5 select-none">
+                  {QUICK_ACCESS_PILLS.map(pill => {
+                    const Icon = pill.icon;
+                    return (
+                      <button
+                        key={pill.id}
+                        onClick={() => handlePillClick(pill)}
+                        style={{ transition: 'background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out' }}
+                        className="mono-pill group flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[12px] font-medium tracking-tight hover:bg-[var(--app-dark)] hover:border-transparent active:scale-[0.98] shrink-0"
+                      >
+                        <span className="shrink-0 text-[var(--bone-100)] opacity-30 group-hover:opacity-60" style={{ transition: 'opacity 200ms ease-out', willChange: 'opacity' }}>
+                          <Icon strokeWidth={1.5} className="w-4 h-4 shrink-0" />
+                        </span>
+                        <span className="text-[var(--bone-90)] group-hover:text-[var(--bone-100)]" style={{ transition: 'color 200ms ease-out' }}>{pill.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ) : (

@@ -598,8 +598,7 @@ export interface AppState {
   updateGuide: (id: string, updates: Partial<Guide>) => void;
   deleteGuide: (id: string) => void;
   setCloudSyncEnabled: (enabled: boolean) => void;
-  toggleEntityCloudSync: (entityId: string) => void;
-  setWorkspaceCloudSync: (rootEntityId: string, enabled: boolean) => void;
+  setWorkspaceCloudSync: (rootEntityId: string, enabled: boolean) => Promise<void>;
   setLastSaved: (time: number | null) => void;
   setKnowledgeData: (data: Partial<AppState>) => void;
   openModal: (modal: ModalType) => void;

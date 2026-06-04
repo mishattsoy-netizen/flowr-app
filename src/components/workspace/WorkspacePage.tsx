@@ -2,7 +2,7 @@
 
 import { Entity, useStore, generateId } from '@/data/store';
 import { useState, useSyncExternalStore } from 'react';
-import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import { getEntityIcon } from '@/data/icons';
 import { IconPicker } from '@/components/layout/IconPicker';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -20,6 +20,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
   const cloudSyncOn = !!entity.cloudSyncEnabled;
 
   const [tempTitle, setTempTitle] = useState(entity.title);
+  const [syncPending, setSyncPending] = useState(false);
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [newItemPopupPos, setNewItemPopupPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -102,14 +103,27 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
     <div className="flex items-center gap-3">
       <Tooltip content={cloudSyncOn ? 'Cloud sync ON — toggle off to keep this workspace local-only' : 'Cloud sync OFF — toggle on to sync this workspace and all its content'}>
         <button
-          onClick={(e) => {
+          disabled={syncPending}
+          onClick={async (e) => {
             e.stopPropagation();
-            setWorkspaceCloudSync(entity.id, !cloudSyncOn);
+            if (syncPending) return;
+            setSyncPending(true);
+            try {
+              await setWorkspaceCloudSync(entity.id, !cloudSyncOn);
+            } catch (err) {
+              // Switch failed — store has already reverted to the prior mode, so the
+              // button returns to its previous state. Log for diagnostics.
+              console.error('[Flowr] cloud sync toggle failed:', err);
+            } finally {
+              setSyncPending(false);
+            }
           }}
-          className={`flex items-center gap-2 px-3 h-7 rounded-[var(--radius-medium)] text-xs font-medium transition-colors border ${cloudSyncOn ? 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30 hover:bg-[var(--accent)]/25' : 'bg-transparent text-bone-70 border-white/10 hover:bg-hover'}`}
+          className={`flex items-center gap-2 px-3 h-7 rounded-[var(--radius-medium)] text-xs font-medium transition-colors border disabled:opacity-60 disabled:cursor-not-allowed ${cloudSyncOn ? 'bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30 hover:bg-[var(--accent)]/25' : 'bg-transparent text-bone-70 border-white/10 hover:bg-hover'}`}
         >
-          {cloudSyncOn ? <Cloud strokeWidth={2} className="w-3.5 h-3.5" /> : <CloudOff strokeWidth={2} className="w-3.5 h-3.5" />}
-          {cloudSyncOn ? 'Synced' : 'Local only'}
+          {syncPending
+            ? <Loader2 strokeWidth={1.5} className="w-4 h-4 animate-spin" />
+            : (cloudSyncOn ? <Cloud strokeWidth={1.5} className="w-4 h-4" /> : <CloudOff strokeWidth={1.5} className="w-4 h-4" />)}
+          {syncPending ? (cloudSyncOn ? 'Disabling…' : 'Syncing…') : (cloudSyncOn ? 'Synced' : 'Local only')}
         </button>
       </Tooltip>
       <button
@@ -121,7 +135,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
         onClick={(e) => e.stopPropagation()}
         className="flex items-center gap-2 px-3 h-7 rounded-[var(--radius-medium)] text-xs font-bold bg-[var(--accent)] text-[var(--bone-100)] hover:opacity-90 transition-opacity border-none shadow-none"
       >
-        <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+        <Plus strokeWidth={1.5} className="w-4 h-4" />
         New Item
       </button>
     </div>

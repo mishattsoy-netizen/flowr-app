@@ -3,9 +3,7 @@
 import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { addBrainEntry } from '@/app/admin/bot/brain/actions'
 import { logAdminAction } from '@/lib/admin/logAction'
-import { getProviderKeys } from '@/lib/vault'
 import { revalidatePath } from 'next/cache'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { BrainCategory } from '@/app/admin/bot/brain/actions'
 
 export interface ImprovementPlan {
@@ -162,11 +160,7 @@ export async function submitPlanEdit(planId: string, editNotes: string): Promise
     .single()
   if (fetchErr || !plan) throw fetchErr ?? new Error('Plan not found')
 
-  const keys = await getProviderKeys('GEMINI')
-  if (keys.length === 0) throw new Error('No Gemini API key available — add one via Secure Vault')
-
-  const genAI = new GoogleGenerativeAI(keys[0])
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const { runGoogle } = await import('@/lib/bot/providers/google')
 
   const rewritePrompt = `Rewrite this improvement plan incorporating the user's feedback.
 
@@ -181,8 +175,9 @@ User's feedback/change request: ${editNotes}
 Return ONLY a valid JSON object with exactly these fields: topic, title, reasoning, plan.
 Example: {"topic":"Answer Style","title":"Context-aware response length","reasoning":"...","plan":"..."}`
 
-  const result = await model.generateContent(rewritePrompt)
-  const raw = result.response.text().trim()
+  const response = await runGoogle('gemini-1.5-flash', rewritePrompt)
+  if (!response) throw new Error('No Gemini API key available — add one via Secure Vault')
+  const raw = (typeof response === 'string' ? response : response.content).trim()
   const jsonMatch = raw.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('AI returned invalid JSON')
   const revised: { topic: string; title: string; reasoning: string; plan: string } =

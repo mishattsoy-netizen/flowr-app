@@ -163,58 +163,15 @@ export const useStore = create<AppState>()(
           clearAllDataFromCloud();
         }
       },
-      toggleEntityCloudSync: (entityId: string) => {
-        const { entities, workspaces } = get();
-        const target = entities.find(e => e.id === entityId);
-        if (!target) return;
-
-        const newState = !target.cloudSyncEnabled;
-        const wsId = target.workspaceId || 'ws-personal';
-
-        if (newState) {
-          // Enable: Propagate upwards to guarantee access path (Fix 1.4)
-          const toEnableIds = new Set<string>();
-          const lineage: Entity[] = [];
-          let curr: Entity | undefined = target;
-          while (curr) {
-            toEnableIds.add(curr.id);
-            lineage.unshift(curr); // Oldest ancestor first
-            const pid = curr.parentId as string | null | undefined;
-            curr = pid ? entities.find(e => e.id === pid) : undefined;
-          }
-
-          set({ 
-            entities: entities.map(e => toEnableIds.has(e.id) ? { ...e, cloudSyncEnabled: true } : e),
-            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: true } : w)
-          });
-
-          // Dispatch side-effects async
-          (async () => {
-            const updatedWs = get().workspaces.find(w => w.id === wsId);
-            if (updatedWs) await upsertWorkspace(updatedWs);
-            for (const n of lineage) {
-              await upsertEntity({ ...n, cloudSyncEnabled: true });
-            }
-            set({ lastSaved: Date.now() });
-          })();
-        } else {
-          // Disable: Keep locally but purge from database
-          set({ 
-            entities: entities.map(e => e.id === entityId ? { ...e, cloudSyncEnabled: false } : e) 
-          });
-          (async () => {
-            await deleteEntityFromDB(entityId);
-            set({ lastSaved: Date.now() });
-          })();
-        }
-      },
-      setWorkspaceCloudSync: (rootEntityId: string, enabled: boolean): void => {
-        const { entities, workspaces } = get();
+      setWorkspaceCloudSync: async (rootEntityId: string, enabled: boolean): Promise<void> => {
+        const { entities, workspaces, tasks } = get();
         const root = entities.find(e => e.id === rootEntityId);
         if (!root) return;
         const wsId = root.workspaceId || 'ws-personal';
 
         // Collect root + all descendants (BFS over parentId graph).
+        // Set preserves insertion order → parent-before-child for upserts,
+        // reversed → child-before-parent for deletes.
         const subtreeIds = new Set<string>([rootEntityId]);
         let frontier = [rootEntityId];
         while (frontier.length > 0) {
@@ -230,25 +187,72 @@ export const useStore = create<AppState>()(
           frontier = next;
         }
 
-        set({
-          entities: entities.map(e => subtreeIds.has(e.id) ? { ...e, cloudSyncEnabled: enabled, lastModified: Date.now() } : e),
-          workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: enabled } : w),
-        });
+        // Tasks belonging to this workspace (by workspaceId or attached to a subtree page).
+        const workspaceTasks = tasks.filter(
+          t => t.workspaceId === wsId || (t.entityId != null && subtreeIds.has(t.entityId))
+        );
 
-        (async () => {
-          if (enabled) {
-            const updatedWs = get().workspaces.find(w => w.id === wsId);
-            if (updatedWs) await upsertWorkspace(updatedWs);
-            for (const e of get().entities) {
-              if (subtreeIds.has(e.id)) await upsertEntity(e);
-            }
-          } else {
-            for (const id of subtreeIds) {
-              await deleteEntityFromDB(id);
-            }
+        // Snapshot for abort-and-revert (local state only).
+        const prevEntities = entities;
+        const prevWorkspaces = workspaces;
+        const prevTasks = tasks;
+
+        if (enabled) {
+          // ── Enable: push to cloud FIRST; flip the local flag only after all writes succeed.
+          const ts = Date.now();
+          const nextEntities = entities.map(e =>
+            subtreeIds.has(e.id) ? { ...e, cloudSyncEnabled: true, lastModified: ts } : e
+          );
+          const wsToSync = workspaces.find(w => w.id === wsId);
+
+          if (wsToSync) {
+            const { error } = await upsertWorkspace({ ...wsToSync, cloudSyncEnabled: true });
+            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
           }
-          set({ lastSaved: Date.now() });
-        })();
+          // Parent-before-child (subtreeIds insertion order).
+          for (const id of subtreeIds) {
+            const e = nextEntities.find(x => x.id === id);
+            if (!e) continue;
+            const { error } = await upsertEntity(e);
+            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
+          }
+          for (const t of workspaceTasks) {
+            const { error } = await upsertTask(t);
+            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
+          }
+
+          // Commit only after every write succeeded. Orphan cloud rows from a partial
+          // failure above are intentionally left (we never reach here on failure).
+          set({
+            entities: nextEntities,
+            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: true } : w),
+            lastSaved: Date.now(),
+          });
+        } else {
+          // ── Disable: local cache is source of truth, so flip optimistically, then purge cloud.
+          set({
+            entities: entities.map(e => subtreeIds.has(e.id) ? { ...e, cloudSyncEnabled: false } : e),
+            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: false } : w),
+          });
+
+          try {
+            // Child-before-parent for FK safety. deleteEntityFromDB marks self-delete,
+            // so the realtime DELETE echo will not wipe the local copy.
+            for (const id of [...subtreeIds].reverse()) {
+              const { error } = await deleteEntityFromDB(id);
+              if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
+            }
+            for (const t of workspaceTasks) {
+              const { error } = await deleteTaskFromDB(t.id);
+              if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
+            }
+            set({ lastSaved: Date.now() });
+          } catch (err) {
+            // Revert to synced state.
+            set({ entities: prevEntities, workspaces: prevWorkspaces, tasks: prevTasks });
+            throw err instanceof Error ? err : new Error(String(err));
+          }
+        }
       },
       setLastSaved: (time) => set({ lastSaved: time }),
 
