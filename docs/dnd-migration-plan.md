@@ -165,3 +165,30 @@ Acceptance (Phase 2):
 - No `@dnd-kit` imports in `Sidebar.tsx`, `TreeItem.tsx`, `NoteEditor.tsx`,
   `BlockRenderer.tsx`, `TableBlock.tsx` (admin grid optional).
 - All listed manual acceptance checks pass on each surface.
+
+---
+
+## Appendix: Safari tracker-drag stutter (investigated, engine-level)
+
+The tracker (Kanban) drag is smooth-ish in Chrome after the memo + rAF fixes,
+but **Safari still stutters**. Safari Timelines profiling of a card drag showed:
+
+- **Composite** is the dominant, near-continuous activity (CPU spiking to ~88%).
+- Not Paint-dominated, not Scripting-dominated.
+
+Concrete, fixable causes were each tested and **ruled out**:
+
+- **CSS transitions** (cards' `transition-colors`, gap's `transition-[height]`):
+  disabled during drag via `.is-dragging [data-kanban-column] *`. No improvement.
+- **Dragged preview box-shadow** re-rasterizing per frame: removed via console
+  mid-drag. No improvement.
+- **React re-renders**: already minimized (KanbanColumn memo + TaskCard memo);
+  confirmed in Chrome via highlight test.
+
+Conclusion: the residual Safari cost is **engine-level compositing of the
+transform-animated dragged card subtree** — Safari re-composites the layer tree
+each frame more aggressively than Chrome. No single scoped CSS/JS change fixed
+it. Not pursued further (one-browser, diminishing returns). If revisited, the
+only plausible levers are reducing the dragged preview's layer complexity
+(simpler preview DOM, `contain: paint`, isolating it on its own layer) — but
+these are speculative and were not validated.
