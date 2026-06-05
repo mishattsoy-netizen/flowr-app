@@ -149,6 +149,8 @@ export function TrackerPage() {
   const [justDropped, setJustDropped] = useState<{ taskIds: string[]; nonce: number } | null>(null);
   const dropNonceRef = useRef(0);
   const dropAnimTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The board root, used to clear Safari's stuck `:hover` after a drop (below).
+  const boardRef = useRef<HTMLDivElement>(null);
   // The dragged card's gap height is captured once on dragStart and cached
   // here so move handlers don't read 0 from the hidden element.
   const heightRef = useRef(0);
@@ -565,6 +567,21 @@ export function TrackerPage() {
         if (dropAnimTimer.current) clearTimeout(dropAnimTimer.current);
         dropAnimTimer.current = setTimeout(() => setJustDropped(null), 800);
         setDrag(null);
+
+        // Safari latches `:hover` onto whatever card lands under the stationary
+        // cursor after the drop reorders the DOM, and never clears it until the
+        // next real pointer move — leaving a card stuck with the hover fill.
+        // Briefly disabling pointer-events on the board removes every element
+        // from hit-testing, so Safari drops the stale :hover; restoring it next
+        // frame re-evaluates hover against the real cursor position. (No-op in
+        // Chrome, which clears :hover correctly on its own.)
+        const board = boardRef.current;
+        if (board) {
+          board.style.pointerEvents = 'none';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { board.style.pointerEvents = ''; });
+          });
+        }
       },
     });
     // Closures read storeColumns/allTasks/today/trackerFilterWorkspace, so
@@ -590,6 +607,7 @@ export function TrackerPage() {
 
   return (
     <div
+      ref={boardRef}
       className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative px-8 py-5"
       onClick={(e) => {
         // Click on empty board space (not on a card) clears the selection.
