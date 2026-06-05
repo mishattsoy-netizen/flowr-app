@@ -38,6 +38,9 @@ export function OverlayScrollbar({
   // can fire several times per frame, and each sync() does layout reads + a
   // setState. rafPending guards against scheduling more than one per frame.
   const rafPending = useRef(false);
+  // Same one-per-frame guard for ResizeObserver-driven syncs (content/viewport
+  // size changes), which fire in bursts during a card drag's moving gap.
+  const roPending = useRef(false);
   // Last applied edge-fade flags, so we only touch the DOM attribute when an
   // edge actually crosses its threshold (not on every scroll tick).
   const fadeState = useRef({ top: false, bottom: false });
@@ -103,11 +106,28 @@ export function OverlayScrollbar({
   }, [sync, reveal]);
 
   // Keep the thumb in sync when content size or viewport changes.
+  // sync() reads layout (scrollHeight/clientHeight), so coalesce ResizeObserver
+  // bursts to one read per frame. During a Kanban card drag the moving gap
+  // changes this column's children every slot move; without coalescing that
+  // fired a synchronous layout read (reflow) per move — re-introducing drag
+  // stutter. One rAF-batched read per frame keeps the thumb correct without the
+  // per-move reflow.
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    sync();
-    const ro = new ResizeObserver(sync);
+    // Frame-coalesced sync: the effect re-runs on every `children` change (the
+    // moving gap during a card drag), and the observer fires in bursts. Batch
+    // both to one layout read per frame instead of a synchronous read per move.
+    const scheduleSync = () => {
+      if (roPending.current) return;
+      roPending.current = true;
+      requestAnimationFrame(() => {
+        roPending.current = false;
+        sync();
+      });
+    };
+    scheduleSync();
+    const ro = new ResizeObserver(scheduleSync);
     ro.observe(el);
     for (const child of Array.from(el.children)) ro.observe(child);
     return () => ro.disconnect();

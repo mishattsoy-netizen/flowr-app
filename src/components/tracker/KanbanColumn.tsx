@@ -62,7 +62,7 @@ interface KanbanColumnProps {
   justDropped: { taskIds: string[]; nonce: number } | null;
 }
 
-export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped }: KanbanColumnProps) {
+function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }: KanbanColumnProps) {
   const { resolvedTheme } = useTheme();
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -309,3 +309,12 @@ export function KanbanColumn({ id, title, tasks, gap, activeDragId, justDropped 
     </div>
   );
 }
+
+// Memoized: TrackerPage re-renders on each gap/slot change during a card drag.
+// The 4 columns the cursor is NOT over receive gap={null} plus otherwise-stable
+// props (tasks from memoized storeColumns, constant activeDragId), so the shallow
+// prop compare bails out on them — only the hovered column re-renders. This stops
+// all 5 columns (and their OverlayScrollbars) re-rendering per slot move. This is
+// safe here because the tracker uses pragmatic-dnd (drag state in refs/DOM), not
+// dnd-kit's per-item React context.
+export const KanbanColumn = React.memo(KanbanColumnInner);
