@@ -34,11 +34,34 @@ export function OverlayScrollbar({
   const [isDragging, setIsDragging] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startY: number; startScroll: number } | null>(null);
+  // Coalesce scroll work to one measurement per animation frame: scroll events
+  // can fire several times per frame, and each sync() does layout reads + a
+  // setState. rafPending guards against scheduling more than one per frame.
+  const rafPending = useRef(false);
+  // Same one-per-frame guard for ResizeObserver-driven syncs (content/viewport
+  // size changes), which fire in bursts during a card drag's moving gap.
+  const roPending = useRef(false);
+  // Last applied edge-fade flags, so we only touch the DOM attribute when an
+  // edge actually crosses its threshold (not on every scroll tick).
+  const fadeState = useRef({ top: false, bottom: false });
 
   const setRef = useCallback((node: HTMLDivElement | null) => {
     elRef.current = node;
     scrollRef?.(node);
   }, [scrollRef]);
+
+  // Toggle an edge-fade attribute only when it actually changes, so the static
+  // mask switches at the threshold instead of being recomputed each scroll.
+  const setFade = useCallback((el: HTMLElement, top: boolean, bottom: boolean) => {
+    if (fadeState.current.top !== top) {
+      el.dataset.fadeTop = String(top);
+      fadeState.current.top = top;
+    }
+    if (fadeState.current.bottom !== bottom) {
+      el.dataset.fadeBottom = String(bottom);
+      fadeState.current.bottom = bottom;
+    }
+  }, []);
 
   // Recompute thumb geometry from the scroll element's metrics.
   const sync = useCallback(() => {
@@ -47,8 +70,7 @@ export function OverlayScrollbar({
     const { scrollHeight, clientHeight, scrollTop } = el;
     if (scrollHeight <= clientHeight) {
       setThumb(null); // nothing to scroll → no thumb
-      el.style.setProperty('--scroll-top-offset', '0px');
-      el.style.setProperty('--scroll-bottom-offset', '0px');
+      setFade(el, false, false);
       return;
     }
     const trackH = clientHeight;
@@ -56,30 +78,56 @@ export function OverlayScrollbar({
     const height = Math.max(minThumb, (clientHeight / scrollHeight) * trackH);
     const maxTop = trackH - height;
     const top = maxTop * (scrollTop / (scrollHeight - clientHeight));
-    setThumb({ height, top });
-    // Edge fade mask: grow the top fade as content scrolls under the top edge,
-    // shrink the bottom fade as the end is reached (matches the sidebar).
-    el.style.setProperty('--scroll-top-offset', `${Math.min(scrollTop, 20)}px`);
-    el.style.setProperty('--scroll-bottom-offset', `${Math.min(scrollHeight - clientHeight - scrollTop, 20)}px`);
-  }, []);
+    setThumb(prev =>
+      prev && prev.height === height && prev.top === top ? prev : { height, top }
+    );
+    // Fade the top edge once any content has scrolled under it, and the bottom
+    // edge until the end is reached. A few px of slack avoids flicker right at
+    // the extremes.
+    setFade(el, scrollTop > 1, scrollHeight - clientHeight - scrollTop > 1);
+  }, [setFade]);
 
   const reveal = useCallback(() => {
-    setVisible(true);
+    setVisible(prev => (prev ? prev : true));
     if (idleTimer.current) clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(() => setVisible(false), 1000);
   }, []);
 
+  // Scroll events can fire multiple times per frame; do the layout read +
+  // setState at most once per animation frame.
   const handleScroll = useCallback(() => {
-    sync();
     reveal();
+    if (rafPending.current) return;
+    rafPending.current = true;
+    requestAnimationFrame(() => {
+      rafPending.current = false;
+      sync();
+    });
   }, [sync, reveal]);
 
   // Keep the thumb in sync when content size or viewport changes.
+  // sync() reads layout (scrollHeight/clientHeight), so coalesce ResizeObserver
+  // bursts to one read per frame. During a Kanban card drag the moving gap
+  // changes this column's children every slot move; without coalescing that
+  // fired a synchronous layout read (reflow) per move — re-introducing drag
+  // stutter. One rAF-batched read per frame keeps the thumb correct without the
+  // per-move reflow.
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    sync();
-    const ro = new ResizeObserver(sync);
+    // Frame-coalesced sync: the effect re-runs on every `children` change (the
+    // moving gap during a card drag), and the observer fires in bursts. Batch
+    // both to one layout read per frame instead of a synchronous read per move.
+    const scheduleSync = () => {
+      if (roPending.current) return;
+      roPending.current = true;
+      requestAnimationFrame(() => {
+        roPending.current = false;
+        sync();
+      });
+    };
+    scheduleSync();
+    const ro = new ResizeObserver(scheduleSync);
     ro.observe(el);
     for (const child of Array.from(el.children)) ro.observe(child);
     return () => ro.disconnect();

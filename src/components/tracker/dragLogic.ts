@@ -64,6 +64,30 @@ export function columnIdFromX(centerX: number, columns: ColumnRect[]): string | 
   return best.id;
 }
 
+/**
+ * Whether a kanban column should render its empty-state ("No tasks here")
+ * placeholder during the current frame.
+ *
+ * The subtlety is drag-time: the actively-dragged card stays mounted but
+ * hidden in its origin column (it carries the follower-preview portal), and a
+ * moving gap is drawn in whichever column the cursor is over. A column must
+ * therefore NOT collapse to the empty state while it still owns the dragged
+ * card — even once the gap (and every visible card) has left it — or React
+ * unmounts that hidden card and destroys the preview, making the dragged card
+ * vanish mid-drag until drop. `taskIds` is the column's full task list,
+ * `activeDragId` the card being dragged anywhere on the board (null = none),
+ * `hasGap` whether the moving gap is currently in this column.
+ */
+export function shouldShowEmptyState(
+  taskIds: string[],
+  activeDragId: string | null,
+  hasGap: boolean
+): boolean {
+  const hasVisible = taskIds.some(id => id !== activeDragId);
+  const ownsActiveDrag = activeDragId != null && taskIds.includes(activeDragId);
+  return !hasVisible && !hasGap && !ownsActiveDrag;
+}
+
 export function findContainer(id: string, cols: ColumnItems): string | null {
   if (id in cols) return id;
   for (const key of Object.keys(cols)) {

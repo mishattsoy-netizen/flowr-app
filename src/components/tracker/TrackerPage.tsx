@@ -149,6 +149,8 @@ export function TrackerPage() {
   const [justDropped, setJustDropped] = useState<{ taskIds: string[]; nonce: number } | null>(null);
   const dropNonceRef = useRef(0);
   const dropAnimTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The board root, used to clear Safari's stuck `:hover` after a drop (below).
+  const boardRef = useRef<HTMLDivElement>(null);
   // The dragged card's gap height is captured once on dragStart and cached
   // here so move handlers don't read 0 from the hidden element.
   const heightRef = useRef(0);
@@ -163,6 +165,32 @@ export function TrackerPage() {
   // off-board the gap returns here so what's shown matches what will commit
   // (a drop off-board lands back at origin).
   const originPosRef = useRef<{ destColumn: string; destIndex: number } | null>(null);
+  // Per-frame geometry cache. Pointer events fire many times per frame; reading
+  // getBoundingClientRect() on every card+column each time forces a synchronous
+  // layout flush (reflow) per event — the main source of drag stutter. We
+  // measure at most once per animation frame and reuse within the frame. A new
+  // frame (or a re-render that may have shifted the cards) invalidates it, so it
+  // never goes more than ~16ms stale and still tracks the moving gap/scroll.
+  const geomCacheRef = useRef<{
+    frameId: number;
+    columns: { rects: ColumnRect[]; top: number; bottom: number };
+    cardRects: Record<string, CardRect[]>;
+  } | null>(null);
+  // Bumped on each rAF so the cache knows when a fresh frame has started.
+  const frameIdRef = useRef(0);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => { frameIdRef.current += 1; raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const freshGeomCache = () => {
+    const c = geomCacheRef.current;
+    if (c && c.frameId === frameIdRef.current) return c;
+    const next = { frameId: frameIdRef.current, columns: readColumnsRaw(), cardRects: {} as Record<string, CardRect[]> };
+    geomCacheRef.current = next;
+    return next;
+  };
   // Render store columns directly; the dragged card is invisible in place and
   // a separate moving gap is drawn at the destination. No optimistic reordering
   // → the dragged DOM node never unmounts mid-drag.
@@ -315,7 +343,18 @@ export function TrackerPage() {
 
   // Read the rendered (non-hidden) card rects for a column, in DOM order. The
   // dragged card is `hidden` so it has no box and is naturally excluded.
+  // Cached per frame (see freshGeomCache) so repeated pointer events within one
+  // frame don't each force a layout flush.
   const columnCardRects = (destColumn: string): CardRect[] => {
+    const cache = freshGeomCache();
+    const hit = cache.cardRects[destColumn];
+    if (hit) return hit;
+    const rects = readCardRectsRaw(destColumn);
+    cache.cardRects[destColumn] = rects;
+    return rects;
+  };
+
+  const readCardRectsRaw = (destColumn: string): CardRect[] => {
     const container =
       typeof document !== 'undefined'
         ? document.querySelector<HTMLElement>(`[data-kanban-column="${destColumn}"]`)
@@ -344,8 +383,12 @@ export function TrackerPage() {
     return idx === -1 ? -1 : idx;
   };
 
+  // Horizontal span + shared vertical extent of the columns, cached per frame.
+  const readColumns = (): { rects: ColumnRect[]; top: number; bottom: number } =>
+    freshGeomCache().columns;
+
   // Horizontal span + shared vertical extent of the columns, read from the DOM.
-  const readColumns = (): { rects: ColumnRect[]; top: number; bottom: number } => {
+  const readColumnsRaw = (): { rects: ColumnRect[]; top: number; bottom: number } => {
     if (typeof document === 'undefined') return { rects: [], top: 0, bottom: 0 };
     const els = Array.from(document.querySelectorAll<HTMLElement>('[data-kanban-column]'));
     const rects: ColumnRect[] = [];
@@ -524,6 +567,21 @@ export function TrackerPage() {
         if (dropAnimTimer.current) clearTimeout(dropAnimTimer.current);
         dropAnimTimer.current = setTimeout(() => setJustDropped(null), 800);
         setDrag(null);
+
+        // Safari latches `:hover` onto whatever card lands under the stationary
+        // cursor after the drop reorders the DOM, and never clears it until the
+        // next real pointer move — leaving a card stuck with the hover fill.
+        // Briefly disabling pointer-events on the board removes every element
+        // from hit-testing, so Safari drops the stale :hover; restoring it next
+        // frame re-evaluates hover against the real cursor position. (No-op in
+        // Chrome, which clears :hover correctly on its own.)
+        const board = boardRef.current;
+        if (board) {
+          board.style.pointerEvents = 'none';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { board.style.pointerEvents = ''; });
+          });
+        }
       },
     });
     // Closures read storeColumns/allTasks/today/trackerFilterWorkspace, so
@@ -549,6 +607,7 @@ export function TrackerPage() {
 
   return (
     <div
+      ref={boardRef}
       className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative px-8 py-5"
       onClick={(e) => {
         // Click on empty board space (not on a card) clears the selection.

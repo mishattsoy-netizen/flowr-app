@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { AppTask } from '@/data/store';
 import {
   findContainer,
+  shouldShowEmptyState,
   edgeToIndex,
   computeFinalColumns,
   indexFromPointer,
@@ -44,6 +45,32 @@ describe('findContainer', () => {
   });
   it('returns null when not found', () => {
     expect(findContainer('nope', { todo: [] })).toBeNull();
+  });
+});
+
+describe('shouldShowEmptyState', () => {
+  it('shows empty state for a genuinely empty column (no drag)', () => {
+    expect(shouldShowEmptyState([], null, false)).toBe(true);
+  });
+  it('does not show empty state when the column has visible cards', () => {
+    expect(shouldShowEmptyState(['a', 'b'], null, false)).toBe(false);
+  });
+  it('does not show empty state while the gap is in this column', () => {
+    // Single card dragged, gap still here → keep rendering the cards branch.
+    expect(shouldShowEmptyState(['a'], 'a', true)).toBe(false);
+  });
+  // The regression: dragging the ONLY card out of a column moved the gap to
+  // another column, so this column had no visible card and no gap. The old
+  // logic collapsed it to the empty state, unmounting the hidden dragged card
+  // and destroying its follower-preview portal → the dragged card vanished
+  // mid-drag until drop. It must keep the cards branch because it still owns
+  // the active drag.
+  it('does NOT show empty state when this column still owns the dragged card and the gap has left', () => {
+    expect(shouldShowEmptyState(['a'], 'a', false)).toBe(false);
+  });
+  it('shows empty state once the dragged card is the active drag but not in this column', () => {
+    // A different column, now truly empty, while some OTHER card is dragged.
+    expect(shouldShowEmptyState([], 'x', false)).toBe(true);
   });
 });
 
