@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, X, ExternalLink, FileText, Layout, Edit2, Trash2 } from 'lucide-react';
+import { Plus, X, ExternalLink, FileText, Layout, Edit2, Trash2, Link2, Check } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getEntityIcon } from '@/data/icons';
@@ -21,8 +21,13 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   
-  const numCols = shortcuts.length > 8 ? 3 : shortcuts.length > 4 ? 2 : 1;
-  const numRows = Math.ceil(shortcuts.length / numCols);
+  // Grid is always 2 columns minimum, 4 rows tall. Each shortcut occupies a
+  // half-column block (1 col x 2 rows), so 4 shortcuts fill the widget. When
+  // more are added we densify each block to 1 row, allowing up to 8, then add
+  // a third column for up to 12.
+  const numCols = shortcuts.length > 8 ? 3 : 2;
+  // Rows each shortcut spans: 2 while there's room (<=4 in 2-col), else 1.
+  const rowSpan = shortcuts.length <= numCols * 2 ? 2 : 1;
   
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -142,20 +147,18 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
             </div>
           </div>
         ) : shortcuts.length > 0 ? (
-          <div 
-            className={cn(
-              "grid gap-2 flex-1",
-              shortcuts.length > 8
-                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
-                : shortcuts.length > 4
-                  ? "grid-cols-1 sm:grid-cols-2"
-                  : "grid-cols-1"
-            )}
-            style={{ gridTemplateRows: `repeat(${numRows}, 1fr)` }}
+          <div
+            className="grid gap-2 flex-1 grid-flow-row"
+            style={{
+              gridTemplateColumns: `repeat(${numCols}, minmax(0, 1fr))`,
+              gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
+              gridAutoRows: 'minmax(0, 1fr)',
+            }}
           >
             {shortcuts.map(s => (
               <ShortcutItem
                 key={s.id}
+                rowSpan={rowSpan}
                 shortcut={s}
                 entities={entities}
                 onSelectEntity={setActiveEntityId}
@@ -198,16 +201,18 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
 interface ShortcutItemProps {
   shortcut: Shortcut;
   entities: any[];
+  rowSpan: number;
   onSelectEntity: (id: string) => void;
   onRemove: (id: string) => void;
   onEdit: (s: Shortcut) => void;
   dragProps: any;
 }
 
-function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dragProps }: ShortcutItemProps) {
+function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, onEdit, dragProps }: ShortcutItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!showMenu) return;
@@ -235,6 +240,16 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
     setShowMenu(true);
   };
 
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shortcut.value).then(() => {
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setShowMenu(false);
+      }, 800);
+    });
+  };
+
   let Icon = ExternalLink;
   let isInternal = shortcut.type === 'entity';
   let faviconUrl = '';
@@ -256,7 +271,11 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
   }
 
   return (
-    <div className="relative group/shortcut cursor-grab h-full" {...dragProps}>
+    <div
+      className="relative group/shortcut cursor-grab h-full"
+      style={{ gridRow: `span ${rowSpan}` }}
+      {...dragProps}
+    >
       <button
         onClick={() => {
           if (isInternal) {
@@ -266,7 +285,7 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
           }
         }}
         onContextMenu={handleContextMenu}
-        className="w-full h-full flex items-center gap-3 pl-4 pr-5 py-3 rounded-[10px] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-10)] text-left cursor-pointer group transition-all duration-200 ease-in-out"
+        className="relative w-full h-full flex items-center gap-3 pl-4 pr-5 py-3 rounded-[10px] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-10)] text-left cursor-pointer group transition-colors duration-200 ease-in-out"
       >
         {!isInternal && faviconUrl && !imgError ? (
           <img 
@@ -278,7 +297,7 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
         ) : (
           <Icon className="w-6 h-6 text-[var(--bone-60)] group-hover/shortcut:text-[var(--bone-100)] shrink-0 transition-colors duration-200 ease-in-out" />
         )}
-        <div className="min-w-0 flex-1 leading-normal">
+        <div className="min-w-0 flex-1 leading-normal pr-4">
           <span className="text-[12px] font-semibold text-[var(--bone-80)] group-hover/shortcut:text-[var(--bone-100)] truncate block">
             {shortcut.label}
           </span>
@@ -286,7 +305,7 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
             {displaySubtitle}
           </span>
         </div>
-        <ExternalLink className="w-3 h-3 text-[var(--bone-30)] opacity-0 group-hover/shortcut:opacity-100 group-hover/shortcut:translate-x-0.5 shrink-0 transition-all duration-200 ease-in-out" />
+        <ExternalLink className="absolute right-5 top-1/2 w-3 h-3 text-[var(--bone-30)] opacity-0 -translate-x-1 -translate-y-1/2 group-hover/shortcut:opacity-100 group-hover/shortcut:translate-x-0 transition-[opacity,translate] duration-200 ease-in-out" />
       </button>
 
       {showMenu && createPortal(
@@ -298,7 +317,16 @@ function ShortcutItem({ shortcut, entities, onSelectEntity, onRemove, onEdit, dr
             top: `${menuPos.y}px`
           }}
         >
-          <button 
+          {!isInternal && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleCopyLink(); }}
+              className="popup-item"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Copied' : 'Copy link'}</span>
+            </button>
+          )}
+          <button
             onClick={() => { onEdit(shortcut); setShowMenu(false); }}
             className="popup-item"
           >

@@ -34,6 +34,70 @@ const VALID_CATEGORIES: (IntentCategory | 'MULTI_CHAIN')[] = [
   'CODING', 'RESEARCH', 'MULTI_CHAIN', 'ADVISOR',
 ]
 
+// Regexes matching an explicit reference back to a previously-uploaded image.
+const PRIOR_IMAGE_REF =
+  /\b(my|the|that|this)\s+(image|picture|photo|screenshot|pic|document|doc|file|attachment)\b|\bfrom\s+(the|my)\s+(image|picture|photo|pic|screenshot)\b|\bin\s+the\s+(image|picture|photo|screenshot)\b/i
+
+// Detects the digital-twin / image markers that the vision pipeline injects into
+// history when the user has uploaded an image earlier in the conversation.
+const HISTORY_IMAGE_MARKER = /\[VISION CONTEXT|\[Image[: \]]|data:image|\[Image attached\]/i
+
+// Mixed-intent: the message references the image AND pulls in an EXTERNAL entity to
+// compare/contrast against it ("compare the cheapest one in my screenshot to gemini
+// 3.1 flash lite", "X vs Y", "how does it stack up against Z"). These need BOTH the
+// image (from history/twin) AND web search for the external entity — so they route to
+// WEB_SEARCH, where the twin is now injected as a foreground [IMAGE FACTS] block and
+// the search step fetches the external entity. Detected by a comparison structure.
+const COMPARISON_STRUCTURE =
+  /\b(compare[ds]?|comparison|versus|vs\.?|stack(?:s|ed)?\s+up|better\s+than|worse\s+than|cheaper\s+than|faster\s+than|differ(?:ence|s)?\s+(?:from|between|to)|how\s+does\s+\S.*\b(compare|stack|differ)|against)\b/i
+
+/**
+ * Pure decision for how a prior uploaded image should influence classification of
+ * the CURRENT message. Extracted so it can be unit-tested without Supabase/LLM mocks.
+ *
+ * Returns:
+ *  - hasVisionContext: an image's digital twin is present earlier in history
+ *  - refersToPriorImage: this message explicitly references that image
+ *  - mixedIntent: references the image AND compares it to an external entity
+ *  - contextHint: the [CONTEXT: ...] string appended to the classifier user prompt
+ *
+ * Bug history: the previous code emitted a one-sided "prefer REGULAR over WEB_SEARCH"
+ * hint whenever ANY image sat in history — even for messages that named NEW products
+ * and had nothing to do with the image. That biased the classifier into REGULAR and
+ * skipped web search (see transcript ai-transcript-2026-06-04T17-52-23). The hint is
+ * now a NEUTRAL fork: refer to the image -> history; raise a new topic -> WEB_SEARCH.
+ *
+ * Mixed-intent: a message that BOTH references the image AND compares it to an external
+ * entity ("how does the cheapest one in my screenshot compare to gemini 3.1 flash lite")
+ * routes to WEB_SEARCH — verified (transcript 21-49-08) that with the twin injected as a
+ * foreground block + reconciliation prompt, the synthesis model keeps image and external
+ * entity separate and produces a real comparison.
+ */
+export function resolveImageContext(message: string, history: any[]): {
+  hasVisionContext: boolean
+  refersToPriorImage: boolean
+  mixedIntent: boolean
+  contextHint: string
+} {
+  const hasVisionContext = history.some(h => {
+    const t = h?.content || h?.parts?.[0]?.text || ''
+    return HISTORY_IMAGE_MARKER.test(t)
+  })
+  const refersToPriorImage = PRIOR_IMAGE_REF.test(message)
+  const mixedIntent = refersToPriorImage && COMPARISON_STRUCTURE.test(message)
+
+  let contextHint = ''
+  if (hasVisionContext && mixedIntent) {
+    contextHint = `\n[CONTEXT: An image the user uploaded is in history, and THIS message compares something from that image against an EXTERNAL entity (a product/model/version not in the image). The external comparison target needs current data — classify as WEB_SEARCH so the comparison is grounded. The image's own contents are preserved and injected into the search chain; do NOT classify REGULAR just because the image is referenced.]`
+  } else if (hasVisionContext && refersToPriorImage) {
+    contextHint = `\n[CONTEXT: An image the user already uploaded is described in the conversation history. The user is referring to that existing image's content. Answer from history — classify as REGULAR or COMPLEX, NEVER WEB_SEARCH or RESEARCH.]`
+  } else if (hasVisionContext) {
+    contextHint = `\n[CONTEXT: An image is present earlier in the conversation, but THIS message may or may not be about it. If this message asks about the image's content, classify REGULAR/COMPLEX. If it instead raises a NEW topic, product, model, or version — even one loosely related to the image — classify normally; a named or versioned product/model is WEB_SEARCH. Do not assume continuity with the image; judge from what this message actually asks.]`
+  }
+
+  return { hasVisionContext, refersToPriorImage, mixedIntent, contextHint }
+}
+
 const DEFAULT_CLASSIFIER_PROMPT = `Classify user intent into exactly ONE category:
 FAST_SIMPLE: Quick questions, greetings, casual chat.
 COMPLEX: Hard logic, deep analysis, step-by-step reasoning.
@@ -228,21 +292,15 @@ export async function classifyIntentWithModel(
 
   // Vision context: did any recent turn contain an image the user uploaded (carries a
   // digital twin)? The twin is injected into the USER message text as [VISION CONTEXT...]
-  // or [Image: ...]. If so, follow-ups referring to "my image/picture/photo/screenshot/
-  // document" are about that existing visual content — they must NOT be web-searched.
-  const historyHasVisionContext = history.some(h => {
-    const t = h.content || h.parts?.[0]?.text || ''
-    return /\[VISION CONTEXT|\[Image[: \]]|data:image|\[Image attached\]/i.test(t)
-  })
-  const refersToPriorImage = /\b(my|the|that|this)\s+(image|picture|photo|screenshot|pic|document|doc|file|attachment)\b|\bfrom\s+(the|my)\s+(image|picture|photo|pic|screenshot)\b|\bin\s+the\s+(image|picture|photo|screenshot)\b/i.test(message)
+  // or [Image: ...]. The decision of how that influences this message's classification
+  // is a pure, unit-tested helper (see resolveImageContext).
+  const { hasVisionContext: historyHasVisionContext, refersToPriorImage, mixedIntent, contextHint: imageHint } =
+    resolveImageContext(message, history)
 
-  let contextHint = ''
+  let contextHint = imageHint
   if (lastWasImage) {
+    // Iterating on a just-generated image takes priority over the upload-context hint.
     contextHint = `\n[CONTEXT: The last response contained an image. Follow-up requests like "one more", "make it...", or "change..." should likely be IMAGE_GEN.]`
-  } else if (historyHasVisionContext && refersToPriorImage) {
-    contextHint = `\n[CONTEXT: An image the user already uploaded is described in the conversation history. The user is referring to that existing image's content. Answer from history — classify as REGULAR or COMPLEX, NEVER WEB_SEARCH or RESEARCH.]`
-  } else if (historyHasVisionContext) {
-    contextHint = `\n[CONTEXT: An image the user uploaded earlier is described in the conversation history. If this message refers to it, answer from that context — prefer REGULAR over WEB_SEARCH.]`
   }
   const finalUserPrompt = `${replyPrefix}${contextHint}\nUser: "${message}"`
 
@@ -251,7 +309,7 @@ export async function classifyIntentWithModel(
   // model would lose all knowledge of the image and answer about something unrelated.
   // Downgrade WEB_SEARCH/RESEARCH to REGULAR in that case, regardless of model output.
   const guardCategory = (cat: IntentCategory | 'MULTI_CHAIN'): IntentCategory | 'MULTI_CHAIN' => {
-    if ((cat === 'WEB_SEARCH' || cat === 'RESEARCH') && historyHasVisionContext && refersToPriorImage) {
+    if ((cat === 'WEB_SEARCH' || cat === 'RESEARCH') && historyHasVisionContext && refersToPriorImage && !mixedIntent) {
       logger.info(`[Classifier guard] Downgrading ${cat} → REGULAR: message refers to a prior uploaded image`)
       return 'REGULAR'
     }

@@ -887,6 +887,31 @@ export async function runChain(
     }
   }
 
+  // ── WEB_SEARCH/RESEARCH: foreground the uploaded image's digital twin ──
+  // When the user compares something in their screenshot against an external entity
+  // ("how does the cheapest one in my screenshot compare to gemini 3.1 flash lite"),
+  // the search step fetches the external entity, but the synthesis model also needs the
+  // image's own contents. Burying the twin in `history` makes a small synthesis model
+  // ignore it (it relabels the image as the searched product). Instead we extract the
+  // twin from history and inject it as a prominent, labeled [IMAGE FACTS] block so the
+  // model treats it as authoritative for what the image contains. The reconciliation
+  // rule in the chain prompt tells it: [IMAGE FACTS] = image truth, [SEARCH DATA] = the
+  // external entity, keep them separate.
+  if ((category === 'WEB_SEARCH' || category === 'RESEARCH') && !system_prompt.includes('[IMAGE FACTS]')) {
+    const twinEntry = [...history].reverse().find(h => {
+      if (h?.role !== 'user' && h?.role !== 'human') return false
+      const t = h?.content || h?.parts?.[0]?.text || ''
+      return /\[VISION CONTEXT|\[Image[: \]]|data:image|\[Image attached\]/i.test(t)
+    })
+    if (twinEntry) {
+      const twinText = (twinEntry.content || twinEntry.parts?.[0]?.text || '').trim()
+      if (twinText) {
+        system_prompt = `${system_prompt}\n\n[IMAGE FACTS — the user's uploaded image, AUTHORITATIVE for what the image contains]\n${twinText}\n\n`
+        logger.info(`[${category}] Injected [IMAGE FACTS] from digital twin (${twinText.length} chars)`)
+      }
+    }
+  }
+
   // ── Prompt Expansion for IMAGE_GEN ──
   if (category === 'IMAGE_GEN') {
     onStatus({ chain: 'IMAGE_GEN', goal: 'Expanding prompt with context', status: 'running', label: getStatusLabel('IMAGE_GEN') })
@@ -1024,10 +1049,14 @@ export async function runChain(
             routeContext.onChunk = undefined
           }
 
-          // WEB_SEARCH/RESEARCH: never pass conversation history — prior wrong answers poison synthesis.
-          // The search results are the ground truth; history would override them.
+          // WEB_SEARCH/RESEARCH: pass a SHORT tail of history for follow-up context
+          // ("the cheapest one", "compare it to X" depend on the prior turns). The twin's
+          // image content is already foregrounded as [IMAGE FACTS] above, so history is
+          // only for conversational continuity. Poison-control (prior model answers must
+          // not override fresh search results) is handled by the chain prompt's rule
+          // "[SEARCH DATA] wins on facts" — not by cutting history entirely.
           let historyForChain = (category === 'WEB_SEARCH' || category === 'RESEARCH')
-            ? []
+            ? history.slice(-4)
             : (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes(category)) ? history : []
 
           // When session summary exists, trim raw history — the summary carries prior context.
