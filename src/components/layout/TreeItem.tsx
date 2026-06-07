@@ -4,7 +4,8 @@ import { Entity, EntityType, useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { ChevronRight, ChevronDown, FileText, Frame, Folder, Layers, Plus, MoreHorizontal, StarOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { IconPicker } from './IconPicker';
 import { Tooltip } from './Tooltip';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
@@ -39,42 +40,94 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const aiCursor = useStore(state => state.aiCursor);
   const contextMenu = useStore(state => state.contextMenu);
 
-  // The overlay clone must register under a distinct id so it doesn't collide
-  // with the real row already in the SortableContext (duplicate ids destabilize
-  // dnd-kit's measurement and make the drag jump).
-  const sortable = useSortable({
-    id: isDragOverlay ? `overlay-${idOverride || entity.id}` : (idOverride || entity.id),
-    disabled: isDragOverlay
-  });
+  const elementRef = useRef<HTMLDivElement | null>(null);
+  const [isDraggingLocal, setIsDraggingLocal] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+  const [isOver, setIsOver] = useState(false);
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = sortable;
-
-  const { over } = useDndContext();
   const myId = idOverride || entity.id;
-  // Only the real tree row shows the insert line — never the floating overlay
-  // clone (which is also a TreeItem and would otherwise draw a stray line that
-  // follows the cursor). The line marks the drop slot under a sibling row.
-  const isDropTarget = !isDragging && !isDragOverlay && over?.id === myId;
   const isFolder = entity.type === 'folder' || entity.type === 'collection' || entity.type === 'workspace';
-  // Hovering a folder while dragging means "drop inside" — give the row a
-  // distinct nest highlight (ring + glow) instead of the between-rows insert line.
-  const isFolderDropTarget = isDropTarget && isFolder;
+  const isFolderDropTarget = isOver && isFolder;
+
+  // Render ghost preview portal using createPortal
+  const [preview, setPreview] = useState<boolean>(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const grabOffsetRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const el = elementRef.current;
+    if (!el || isDragOverlay) return;
+
+    return draggable({
+      element: el,
+      getInitialData: () => ({
+        type: 'tree-item',
+        id: myId,
+        parentId: entity.parentId,
+        workspaceId: entity.workspaceId,
+        isPinned: idOverride?.startsWith('pinned-') || false,
+      }),
+      onGenerateDragPreview: ({ nativeSetDragImage, source, location }) => {
+        disableNativeDragPreview({ nativeSetDragImage });
+        const rect = (source.element as HTMLElement).getBoundingClientRect();
+        grabOffsetRef.current = {
+          x: location.current.input.clientX - rect.left,
+          y: location.current.input.clientY - rect.top,
+        };
+        setPreview(true);
+      },
+      onDrag: ({ location }) => {
+        const node = previewRef.current;
+        if (!node) return;
+        const { x, y } = grabOffsetRef.current;
+        node.style.transform = `translate(${location.current.input.clientX - x}px, ${location.current.input.clientY - y}px)`;
+      },
+      onDragStart: () => setIsDraggingLocal(true),
+      onDrop: () => {
+        setIsDraggingLocal(false);
+        setPreview(false);
+      },
+    });
+  }, [myId, entity.parentId, entity.workspaceId, idOverride, isDragOverlay]);
+
+  useEffect(() => {
+    const el = elementRef.current;
+    if (!el || isDragOverlay) return;
+
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'tree-item' && source.data.id !== myId,
+      getData: ({ input, element }) => attachClosestEdge(
+        { type: 'tree-item', id: myId },
+        { input, element, allowedEdges: ['top', 'bottom'] }
+      ),
+      onDragEnter: ({ self }) => {
+        setIsOver(true);
+        if (!isFolder) {
+          setClosestEdge(extractClosestEdge(self.data));
+        }
+      },
+      onDrag: ({ self }) => {
+        setIsOver(true);
+        if (!isFolder) {
+          setClosestEdge(extractClosestEdge(self.data));
+        }
+      },
+      onDragLeave: () => {
+        setIsOver(false);
+        setClosestEdge(null);
+      },
+      onDrop: () => {
+        setIsOver(false);
+        setClosestEdge(null);
+      },
+    });
+  }, [myId, isFolder, isDragOverlay]);
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: isDragOverlay ? undefined : transition,
-    zIndex: isDragging ? 1000 : (isDragOverlay ? 2000 : undefined),
+    zIndex: isDraggingLocal ? 1000 : (isDragOverlay ? 2000 : undefined),
     position: 'relative' as const,
-    // A live clone follows the cursor in the DragOverlay, so dim the original
-    // in place to show its source slot without a second solid copy.
-    opacity: isDragging && !isDragOverlay ? 0.4 : undefined,
+    opacity: isDraggingLocal && !isDragOverlay ? 0.4 : undefined,
   };
 
   const [tempTitle, setTempTitle] = React.useState(entity.title);
@@ -234,7 +287,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
   return (
     <div
-      ref={setNodeRef}
+      ref={elementRef}
       style={style}
       className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
@@ -244,8 +297,6 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     >
       <div
         onClick={handleClick}
-        {...attributes}
-        {...listeners}
         data-selected={isActive || undefined}
         className={cn(
           "sidebar-item-row group relative flex w-full cursor-pointer select-none transition-all",
@@ -325,8 +376,13 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         </div>
       </div>
 
-      {isDropTarget && !isFolder && (
-        <div className="absolute bottom-0 left-3 right-3 h-0.5 bg-[var(--bone-30)] rounded-full pointer-events-none z-10" />
+      {isOver && !isFolder && closestEdge && (
+        <div
+          className={cn(
+            "absolute left-3 right-3 h-[2px] bg-[var(--bone-30)] rounded-full pointer-events-none z-10",
+            closestEdge === 'top' ? '-top-1' : '-bottom-1'
+          )}
+        />
       )}
 
       {/* Overlay-clone only: dragging a pinned item outside the pinned section
@@ -412,6 +468,26 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           </div>
         </>
       )}
+      {preview &&
+        createPortal(
+          <div
+            ref={previewRef}
+            className="fixed top-0 left-0 z-[10000] pointer-events-none"
+            style={{ transform: 'translate(-9999px, -9999px)' }}
+          >
+            <div className="w-[240px] bg-sidebar rounded-[var(--radius-small)] opacity-85 shadow-lg border border-[var(--bone-10)]">
+              <TreeItem
+                entity={entity}
+                depth={0}
+                isDragOverlay
+                disableNesting
+                showUnpinHint={showUnpinHint}
+              />
+            </div>
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 });
