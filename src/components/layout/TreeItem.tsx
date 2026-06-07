@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 import React, { useState, useCallback, useRef } from 'react';
 import { IconPicker } from './IconPicker';
 import { Tooltip } from './Tooltip';
-import { useSortable } from '@dnd-kit/sortable';
-import { useDndContext } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview';
 import { stripHtml } from '@/lib/utils';
 
 interface TreeItemProps {
