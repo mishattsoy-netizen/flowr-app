@@ -21,45 +21,27 @@ import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  closestCenter,
-  pointerWithin,
-  getFirstCollision,
-  type CollisionDetection,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from '@dnd-kit/sortable';
-import { snapCenterToCursor } from '@dnd-kit/modifiers';
-import { CSS } from '@dnd-kit/utilities';
-import { useDroppable } from '@dnd-kit/core';
+import { monitorForElements, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 
-function DroppableZone({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
-  const { setNodeRef } = useDroppable({ id });
-  return <div ref={setNodeRef} className={className}>{children}</div>;
+function arrayMove<T>(array: T[], from: number, to: number): T[] {
+  const newArray = array.slice();
+  newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+  return newArray;
 }
 
-// Pointer-first collision: resolve drop targets from where the cursor literally
-// is (pointerWithin), so insert/hover detection tracks the mouse — not the
-// dragged element's center. Falls back to closestCenter only when the pointer
-// sits in a gap between droppables, so drops never dead-zone.
-const pointerFirstCollision: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
-  if (pointerCollisions.length > 0 && getFirstCollision(pointerCollisions) != null) {
-    return pointerCollisions;
-  }
-  return closestCenter(args);
-};
+function DroppableZone({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      getData: () => ({ id }),
+    });
+  }, [id]);
+  return <div ref={ref} className={className}>{children}</div>;
+}
 
 export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId }: { forceFull?: boolean, initialEntityId?: string }) {
   const entities = useStore(state => state.entities);
@@ -255,43 +237,17 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     [entities, isEntityVisible, sidebarSectionSettings]
   );
 
-  // Local state for optimistic DnD ordering
-  const [workspaces, setWorkspaces] = useState<Entity[]>([]);
-  const [favoriteEntities, setFavoriteEntities] = useState<Entity[]>([]);
-  const [unsortedEntities, setUnsortedEntities] = useState<Entity[]>([]);
+  const displayWorkspaces = workspacesBase;
+  const displayFavorites = favoriteEntitiesBase;
+  const displayUnsorted = unsortedEntitiesBase;
 
-  // Effective display lists: use local state only during drag, otherwise use stable store-derived memos
-  const displayWorkspaces = activeDragId ? workspaces : workspacesBase;
-  const displayFavorites = activeDragId ? favoriteEntities : favoriteEntitiesBase;
-  const displayUnsorted = activeDragId ? unsortedEntities : unsortedEntitiesBase;
-
-  // The entity currently being dragged, resolved from the active id (which may
-  // be prefixed with `pinned-`). Rendered into the DragOverlay so the user sees
-  // what they're dragging following the cursor.
-  const activeDragEntity = useMemo(() => {
-    if (!activeDragId) return null;
-    const id = activeDragId.startsWith('pinned-') ? activeDragId.replace('pinned-', '') : activeDragId;
-    return entities.find(e => e.id === id) ?? null;
-  }, [activeDragId, entities]);
-
-  // Sync local state ONLY at the start of a drag to ensure we have a stable snapshot to reorder
-  React.useEffect(() => {
-    if (activeDragId) {
-      setWorkspaces(workspacesBase);
-      setFavoriteEntities(favoriteEntitiesBase);
-      setUnsortedEntities(unsortedEntitiesBase);
-    }
-  }, [activeDragId]);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  // Build a flat list of all selectable entity IDs (pinned + unsorted â€” NOT workspaces)
+  // Build a flat list of all selectable entity IDs (pinned + unsorted — NOT workspaces)
   const selectableIds = useMemo(() => {
     const ids: string[] = [];
-    favoriteEntities.forEach(e => ids.push(e.id));
-    unsortedEntities.forEach(e => ids.push(e.id));
+    favoriteEntitiesBase.forEach(e => ids.push(e.id));
+    unsortedEntitiesBase.forEach(e => ids.push(e.id));
     return ids;
-  }, [favoriteEntities, unsortedEntities]);
+  }, [favoriteEntitiesBase, unsortedEntitiesBase]);
 
   const handleShiftClick = useCallback((entityId: string) => {
     const current = [...selectedSidebarIds];
@@ -309,127 +265,137 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   // overlay clone then shows an "unpin" hint, since dropping there only unpins.
   const [showUnpinHint, setShowUnpinHint] = useState(false);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveDragId(event.active.id as string);
-    setShowUnpinHint(false);
-  }, []);
+  useEffect(() => {
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data.type === 'tree-item',
+      onDragStart: ({ source }) => {
+        setActiveDragId(source.data.id as string);
+        setShowUnpinHint(false);
+      },
+      onDropTargetChange: ({ source, location }) => {
+        const activeId = source.data.id as string;
+        if (!activeId || !activeId.startsWith('pinned-')) {
+          setShowUnpinHint(false);
+          return;
+        }
+        const target = location.current.dropTargets[0];
+        if (!target) {
+          setShowUnpinHint(true);
+          return;
+        }
+        const overId = target.data.id as string;
+        const inPinned = overId === 'pinned-container' || overId.startsWith('pinned-');
+        setShowUnpinHint(!inPinned);
+      },
+      onDrop: ({ source, location }) => {
+        setActiveDragId(null);
+        setShowUnpinHint(false);
+        const target = location.current.dropTargets[0];
+        if (!target) return;
 
-  const handleDragOver = useCallback((event: { active: { id: string | number }, over: { id: string | number, data?: { current?: any } } | null }) => {
-    const activeId = String(event.active.id);
-    if (!activeId.startsWith('pinned-')) { setShowUnpinHint(false); return; }
-    const over = event.over;
-    if (!over) { setShowUnpinHint(false); return; }
-    const overId = String(over.id);
-    const overContainerId = over.data?.current?.sortable?.containerId || overId;
-    const inPinned =
-      overContainerId === 'pinned-container' ||
-      overId === 'pinned-container' ||
-      overId.startsWith('pinned-');
-    setShowUnpinHint(!inPinned);
-  }, []);
+        const activeId = source.data.id as string;
+        const overId = target.data.id as string;
+        if (!activeId || !overId) return;
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setActiveDragId(null);
-    setShowUnpinHint(false);
-    const { active, over } = event;
-    if (!over) return;
+        const isPinnedDrag = source.data.isPinned as boolean;
+        const entityId = isPinnedDrag ? activeId.replace('pinned-', '') : activeId;
+        const entity = entities.find(e => e.id === entityId);
+        if (!entity) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+        const edge = extractClosestEdge(target.data);
 
-    const isPinnedDrag = activeId.startsWith('pinned-');
-    const entityId = isPinnedDrag ? activeId.replace('pinned-', '') : activeId;
-    const entity = entities.find(e => e.id === entityId);
-    if (!entity) return;
+        // Dropping in pinned section
+        if (overId === 'pinned-container' || overId.startsWith('pinned-')) {
+          if (!favoriteIds.includes(entityId)) {
+            toggleFavorite(entityId);
+          }
+          const oldIndex = favoriteEntitiesBase.findIndex(e => e.id === entityId);
+          const overEntityId = overId.startsWith('pinned-') ? overId.replace('pinned-', '') : overId;
+          const newIndex = favoriteEntitiesBase.findIndex(e => e.id === overEntityId);
 
-    const overData = over.data.current;
-    const containerId = overData?.sortable?.containerId || overId;
+          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            const reordered = arrayMove(favoriteEntitiesBase, oldIndex, newIndex);
+            reorderEntities(reordered.map(e => e.id));
+            setSectionSortMode('pinned', 'manual');
+          }
+          return;
+        }
 
-    if (containerId === 'pinned-container' || overId === 'pinned-container' || overId.startsWith('pinned-')) {
-      if (!favoriteIds.includes(entityId)) {
-        toggleFavorite(entityId);
+        // A pinned item is just a shortcut to the real entity. Dragging it OUT of
+        // the pinned section unpins it only — it must never move or reorder the
+        // underlying entity in workspaces/unsorted.
+        if (isPinnedDrag) {
+          toggleFavorite(entityId);
+          return;
+        }
+
+        const overEntity = entities.find(e => e.id === overId);
+        const moveEntityAction = useStore.getState().moveEntity;
+
+        let newParentId: string | null = entity.parentId;
+        let newWorkspaceId = entity.workspaceId;
+
+        if (overId === 'unsorted-container') {
+          newParentId = null;
+          newWorkspaceId = 'ws-personal';
+        } else if (overId === 'workspaces-container') {
+          newParentId = null;
+          newWorkspaceId = activeWorkspaceId;
+        } else if (overEntity) {
+          if (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace') {
+            if (edge === null) {
+              newParentId = overEntity.id;
+              newWorkspaceId = overEntity.workspaceId;
+            } else {
+              newParentId = overEntity.parentId;
+              newWorkspaceId = overEntity.workspaceId;
+            }
+          } else {
+            newParentId = overEntity.parentId;
+            newWorkspaceId = overEntity.workspaceId;
+          }
+        }
+
+        if (newParentId === entityId) return;
+        const descendantIds = getDescendantIds(entities, entityId);
+        if (newParentId && descendantIds.includes(newParentId)) return;
+
+        if (newParentId !== entity.parentId || newWorkspaceId !== entity.workspaceId) {
+          moveEntityAction(entityId, newParentId, newWorkspaceId);
+        }
+
+        const freshEntities = useStore.getState().entities;
+        const movedEntity = freshEntities.find(e => e.id === entityId);
+        const effectiveParentId = movedEntity?.parentId ?? null;
+        const effectiveWorkspaceId = movedEntity?.workspaceId ?? null;
+
+        const currentSiblings = freshEntities
+          .filter(e => e.parentId === effectiveParentId && (e.workspaceId || 'ws-personal') === (effectiveWorkspaceId || 'ws-personal'))
+          .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+
+        const fromIdx = currentSiblings.findIndex(e => e.id === entityId);
+        let toIdx = currentSiblings.findIndex(e => e.id === overId);
+        if (toIdx === -1) {
+          toIdx = currentSiblings.length - 1;
+        } else if (edge === 'bottom') {
+          toIdx += 1;
+        }
+
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          const reordered = arrayMove(currentSiblings, fromIdx, toIdx);
+          reorderEntities(reordered.map(e => e.id));
+
+          if (favoriteIds.includes(entityId)) {
+            setSectionSortMode('pinned', 'manual');
+          } else if (entity.type === 'workspace' || entity.type === 'collection') {
+            setSectionSortMode('workspaces', 'manual');
+          } else {
+            setSectionSortMode('unsorted', 'manual');
+          }
+        }
       }
-      const oldIndex = favoriteEntities.findIndex(e => e.id === entityId);
-      const overEntityId = overId.startsWith('pinned-') ? overId.replace('pinned-', '') : overId;
-      const newIndex = favoriteEntities.findIndex(e => e.id === overEntityId);
-
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        const reordered = arrayMove(favoriteEntities, oldIndex, newIndex);
-        reorderEntities(reordered.map(e => e.id));
-        setSectionSortMode('pinned', 'manual');
-      }
-      return;
-    }
-
-    // A pinned item is just a shortcut to the real entity. Dragging it OUT of
-    // the pinned section unpins it only — it must never move or reorder the
-    // underlying entity in workspaces/unsorted.
-    if (isPinnedDrag) {
-      toggleFavorite(entityId);
-      return;
-    }
-
-    const overEntity = entities.find(e => e.id === overId);
-    const moveEntityAction = useStore.getState().moveEntity;
-
-    let newParentId: string | null = entity.parentId;
-    let newWorkspaceId = entity.workspaceId;
-
-    if (containerId === 'unsorted-container' || overId === 'unsorted-container') {
-      newParentId = null;
-      newWorkspaceId = 'ws-personal';
-    } else if (containerId === 'workspaces-container' || overId === 'workspaces-container') {
-      newParentId = null;
-      newWorkspaceId = activeWorkspaceId;
-    } else if (overEntity) {
-      if (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace') {
-        newParentId = overEntity.id;
-        newWorkspaceId = overEntity.workspaceId;
-      } else {
-        newParentId = overEntity.parentId;
-        newWorkspaceId = overEntity.workspaceId;
-      }
-    }
-
-    if (newParentId === entityId) return;
-    const descendantIds = getDescendantIds(entities, entityId);
-    if (newParentId && descendantIds.includes(newParentId)) return;
-
-    if (newParentId !== entity.parentId || newWorkspaceId !== entity.workspaceId) {
-      moveEntityAction(entityId, newParentId, newWorkspaceId);
-    }
-
-    // moveEntity may have forced parentId to null for workspace/collection (flat
-    // hierarchy), so read the entity's *actual* resulting placement and compute
-    // the sibling reorder against fresh post-move state — not the stale closure.
-    const freshEntities = useStore.getState().entities;
-    const movedEntity = freshEntities.find(e => e.id === entityId);
-    const effectiveParentId = movedEntity?.parentId ?? null;
-    const effectiveWorkspaceId = movedEntity?.workspaceId ?? null;
-
-    const currentSiblings = freshEntities
-      .filter(e => e.parentId === effectiveParentId && (e.workspaceId || 'ws-personal') === (effectiveWorkspaceId || 'ws-personal'))
-      .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
-
-    const fromIdx = currentSiblings.findIndex(e => e.id === entityId);
-    // overId may be a sibling row, or a container/non-sibling (drop onto empty
-    // space or into a folder header) — in which case append to the end.
-    let toIdx = currentSiblings.findIndex(e => e.id === overId);
-    if (toIdx === -1) toIdx = currentSiblings.length - 1;
-
-    if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-      const reordered = arrayMove(currentSiblings, fromIdx, toIdx);
-      reorderEntities(reordered.map(e => e.id));
-
-      if (favoriteIds.includes(entityId)) {
-        setSectionSortMode('pinned', 'manual');
-      } else if (entity.type === 'workspace' || entity.type === 'collection') {
-        setSectionSortMode('workspaces', 'manual');
-      } else {
-        setSectionSortMode('unsorted', 'manual');
-      }
-    }
-  }, [entities, favoriteIds, favoriteEntities, activeWorkspaceId, toggleFavorite, reorderEntities, setSectionSortMode]);
+    });
+  }, [entities, favoriteIds, favoriteEntitiesBase, activeWorkspaceId, toggleFavorite, reorderEntities, setSectionSortMode]);
 
   const navItemClass = (isActive: boolean) => cn(
     "sidebar-item-row flex items-center w-full cursor-pointer select-none text-sm group",
@@ -891,13 +857,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         clearSelectedSidebarIds();
                       }
                     }}>
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={pointerFirstCollision}
-                        onDragStart={handleDragStart}
-                        onDragOver={handleDragOver}
-                        onDragEnd={handleDragEnd}
-                      >
+                      <>
                         {sectionOrder.map((sectionId) => {
                           if (sectionId === 'favorites') {
                             if (displayFavorites.length === 0) return null;
@@ -950,7 +910,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       className=""
                                     >
                                       <DroppableZone id="pinned-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
-                                        <SortableContext items={displayFavorites.map(e => `pinned-${e.id}`)} strategy={verticalListSortingStrategy}>
                                           {displayFavorites.map(entity => (
                                             <TreeItem
                                               key={`pinned-${entity.id}`}
@@ -962,7 +921,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                               onShiftClick={handleShiftClick}
                                             />
                                           ))}
-                                        </SortableContext>
                                       </DroppableZone>
                                     </div>
                                   </div>
@@ -1021,11 +979,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       className=""
                                     >
                                       <DroppableZone id="unsorted-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
-                                        <SortableContext items={displayUnsorted.map(e => e.id)} strategy={verticalListSortingStrategy}>
                                           {displayUnsorted.map(entity => (
                                             <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
                                           ))}
-                                        </SortableContext>
                                       </DroppableZone>
                                     </div>
                                   </div>
@@ -1092,11 +1048,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       className=""
                                     >
                                       <DroppableZone id="workspaces-container" className="flex flex-col gap-[1px] mt-[1px] mb-2">
-                                        <SortableContext items={displayWorkspaces.map(e => e.id)} strategy={verticalListSortingStrategy}>
                                           {displayWorkspaces.map(workspace => (
                                             <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
                                           ))}
-                                        </SortableContext>
                                       </DroppableZone>
                                     </div>
                                   </div>
@@ -1106,18 +1060,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                           }
                           return null;
                         })}
-                        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
-                          {activeDragEntity ? (
-                            <TreeItem
-                              entity={activeDragEntity}
-                              depth={0}
-                              isDragOverlay
-                              disableNesting
-                              showUnpinHint={showUnpinHint}
-                            />
-                          ) : null}
-                        </DragOverlay>
-                      </DndContext>
+                      </>
                     </div>
                   </ScrollArea>
                 </div>
