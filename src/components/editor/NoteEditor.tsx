@@ -10,22 +10,15 @@ import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
 
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { looksLikeMarkdown, parseMarkdownToBlocks } from '@/lib/editor/markdownBlocks';
+
+function arrayMove<T>(array: T[], from: number, to: number): T[] {
+  const newArray = array.slice();
+  newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+  return newArray;
+}
 
 interface NoteEditorProps {
   entity: Entity;
@@ -590,78 +583,61 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
   }, []);
 
-  const handleDragStart = useCallback((id: string, e: React.DragEvent) => {
-    // If dragging a block that isn't selected, select only it
-    if (!selectedBlockIds.has(id)) {
-      setSelectedBlockIds(new Set([id]));
-      setActiveBlockId(id);
-    }
-    setIsDragging(true);
+  const selectedBlockIdsRef = useRef(selectedBlockIds);
+  useEffect(() => {
+    selectedBlockIdsRef.current = selectedBlockIds;
   }, [selectedBlockIds]);
 
-  const findAndRemoveMultipleBlocks = (list: EditorBlock[], ids: Set<string>): { list: EditorBlock[], removed: EditorBlock[] } => {
-  let removed: EditorBlock[] = [];
-
-  const newList = list.flatMap(b => {
-    if (ids.has(b.id)) {
-      removed.push(b);
-      return [];
-    }
-    
-    if (b.children) {
-      const res = findAndRemoveMultipleBlocks(b.children, ids);
-      removed.push(...res.removed);
-      return [{ ...b, children: res.list }];
-    }
-    return [b];
-  });
-
-  return { list: newList, removed };
-};
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    setIsDragging(false);
-    setActiveId(null);
-    if (!over) return;
-
-    const activeId_val = active.id as string;
-    const overId = over.id as string;
-
-    if (activeId_val === overId) return;
-
-    setBlocks(prev => {
-      const movingIds = selectedBlockIds.has(activeId_val) 
-        ? Array.from(selectedBlockIds) 
-        : [activeId_val];
-      
-      const movingBlocks = prev.filter(b => movingIds.includes(b.id));
-      const remainingBlocks = prev.filter(b => !movingIds.includes(b.id));
-
-      const overIdx = remainingBlocks.findIndex(b => b.id === overId);
-      if (overIdx === -1) return prev;
-
-      const newBlocks = [...remainingBlocks];
-      newBlocks.splice(overIdx, 0, ...movingBlocks);
-
-      setTimeout(() => persistBlocks(newBlocks, true), 0);
-      return newBlocks;
-    });
-  }, [persistBlocks, selectedBlockIds]);
-
-  const handleDndStart = useCallback((event: any) => {
-    setActiveId(event.active.id as string);
-    setIsDragging(true);
-  }, []);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
+  useEffect(() => {
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data.type === 'note-block',
+      onDragStart: ({ source }) => {
+        const id = source.data.blockId as string;
+        setSelectedBlockIds(prev => {
+          if (!prev.has(id)) {
+            return new Set([id]);
+          }
+          return prev;
+        });
+        setActiveBlockId(id);
+        setIsDragging(true);
       },
-    }),
-    useSensor(KeyboardSensor)
-  );
+      onDrop: ({ source, location }) => {
+        setIsDragging(false);
+        setActiveId(null);
+        const target = location.current.dropTargets[0];
+        if (!target) return;
+
+        const activeId_val = source.data.blockId as string;
+        const overId = target.data.blockId as string;
+        if (!activeId_val || !overId || activeId_val === overId) return;
+
+        const edge = extractClosestEdge(target.data);
+
+        setBlocks(prev => {
+          const movingIds = selectedBlockIdsRef.current.has(activeId_val)
+            ? Array.from(selectedBlockIdsRef.current)
+            : [activeId_val];
+
+          const movingBlocks = prev.filter(b => movingIds.includes(b.id));
+          const remainingBlocks = prev.filter(b => !movingIds.includes(b.id));
+
+          let overIdx = remainingBlocks.findIndex(b => b.id === overId);
+          if (overIdx === -1) return prev;
+
+          if (edge === 'bottom') {
+            overIdx += 1;
+          }
+
+          const newBlocks = [...remainingBlocks];
+          newBlocks.splice(overIdx, 0, ...movingBlocks);
+
+          setTimeout(() => persistBlocks(newBlocks, true), 0);
+          return newBlocks;
+        });
+      }
+    });
+  }, [persistBlocks]);
 
   const undo = useCallback(() => {
     if (historyIndex > 0) {
@@ -1143,7 +1119,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           onOpenMenu={handleOpenMenu}
           onFocus={handleBlockFocus}
           isSelected={selectedBlockIds.has(block.id)}
-          onDragStart={handleDragStart}
           listNumber={block.type === 'numberedList' ? getListCounter(block.id, list) : undefined}
           slashMenuOpen={slashMenu?.blockId === block.id}
           menuOpen={activeOptionsMenu?.blockId === block.id}
@@ -1301,31 +1276,21 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
               <div
                 className="space-y-2 min-h-[50vh] note-editor-bg"
               >
-                <DndContext 
-                  sensors={sensors} 
-                  collisionDetection={closestCenter} 
-                  onDragStart={handleDndStart}
-                  onDragEnd={handleDragEnd}
-                  modifiers={[restrictToVerticalAxis]}
-                >
-                  <SortableContext items={renderedBlocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                    <div className="flex flex-col note-editor-bg">
-                      {blocks.length === 0 ? (
-                        <div 
-                          className="py-20 text-center cursor-text  group opacity-0 "
-                          onClick={() => persistBlocks([createBlock('text')])}
-                        >
-                          <p className="text-[#a1a1aa] text-lg font-light tracking-wide group-hover:text-[#f26f21]/50 ">
-                            This note is empty. Click anywhere to start writing...
-                          </p>
-                          <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
-                        </div>
-                      ) : (
-                        renderBlocksRecursive(renderedBlocks)
-                      )}
+                <div className="flex flex-col note-editor-bg">
+                  {blocks.length === 0 ? (
+                    <div 
+                      className="py-20 text-center cursor-text  group opacity-0 "
+                      onClick={() => persistBlocks([createBlock('text')])}
+                    >
+                      <p className="text-[#a1a1aa] text-lg font-light tracking-wide group-hover:text-[#f26f21]/50 ">
+                        This note is empty. Click anywhere to start writing...
+                      </p>
+                      <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
                     </div>
-                  </SortableContext>
-                </DndContext>
+                  ) : (
+                    renderBlocksRecursive(renderedBlocks)
+                  )}
+                </div>
               </div>
             );
           })()}
