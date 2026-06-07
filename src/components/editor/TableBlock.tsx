@@ -5,38 +5,27 @@ import { createPortal } from 'react-dom';
 import { GripVertical, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { EditorBlock } from '@/data/store';
-import {
-  DndContext,
-  closestCorners,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  type CollisionDetection,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { draggable, dropTargetForElements, monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 
 interface TableBlockProps {
   block: EditorBlock;
   onUpdate: (id: string, updates: Partial<EditorBlock>) => void;
 }
 
+function arrayMove<T>(array: T[], from: number, to: number): T[] {
+  const newArray = array.slice();
+  newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+  return newArray;
+}
+
 function RowHandle({
-  listeners,
-  attributes,
+  dragHandleRef,
   isSelected,
   onSelect,
   onContextMenu,
 }: {
-  listeners?: any;
-  attributes?: any;
+  dragHandleRef: React.RefObject<HTMLDivElement | null>;
   isSelected: boolean;
   onSelect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -49,11 +38,10 @@ function RowHandle({
       )}
     >
       <div
+        ref={dragHandleRef}
         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/row:opacity-100 cursor-grab active:cursor-grabbing"
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
         onContextMenu={onContextMenu}
-        {...listeners}
-        {...attributes}
       >
         <GripVertical strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-40)] hover:text-[var(--bone-100)]" />
       </div>
@@ -74,6 +62,7 @@ function SortableRow({
   onCellUpdate,
   colCount,
   onMoveColumn,
+  blockId,
 }: {
   id: string;
   row: string[];
@@ -87,25 +76,58 @@ function SortableRow({
   onCellUpdate: (ri: number, ci: number, html: string) => void;
   colCount: number;
   onMoveColumn?: (ci: number, direction: 'left' | 'right') => void;
+  blockId: string;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const elementRef = useRef<HTMLTableRowElement | null>(null);
+  const dragHandleRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+
+  useEffect(() => {
+    const el = elementRef.current;
+    const dragHandle = dragHandleRef.current;
+    if (!el || !dragHandle) return;
+
+    return draggable({
+      element: el,
+      dragHandle: dragHandle,
+      getInitialData: () => ({ type: 'table-row', rowId: id, index: ri, blockId }),
+      onDragStart: () => setIsDragging(true),
+      onDrop: () => setIsDragging(false),
+    });
+  }, [id, ri, blockId]);
+
+  useEffect(() => {
+    const el = elementRef.current;
+    if (!el) return;
+
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'table-row' && source.data.rowId !== id && source.data.blockId === blockId,
+      getData: ({ input, element }) => attachClosestEdge(
+        { type: 'table-row', rowId: id, index: ri },
+        { input, element, allowedEdges: ['top', 'bottom'] }
+      ),
+      onDragEnter: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+      onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+      onDragLeave: () => setClosestEdge(null),
+      onDrop: () => setClosestEdge(null),
+    });
+  }, [id, ri, blockId]);
 
   return (
     <tr
-      ref={setNodeRef}
+      ref={elementRef}
       className={cn(
-        "group/row relative transition-colors",
+        "group/row relative transition-colors duration-0",
         ri > 0 && "hover:bg-[var(--bone-2)]",
-        (isSelected || isDragging) && "bg-[var(--bone-3)]"
+        (isSelected || isDragging) && "bg-[var(--bone-3)]",
+        closestEdge === 'top' && "[&>td]:border-t-2 [&>td]:border-t-[var(--bone-35)]",
+        closestEdge === 'bottom' && "[&>td]:border-b-2 [&>td]:border-b-[var(--bone-35)]"
       )}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
-      }}
     >
       <RowHandle
-        listeners={listeners}
-        attributes={attributes}
+        dragHandleRef={dragHandleRef}
         isSelected={isSelected}
         onSelect={onSelect}
         onContextMenu={onContextMenu}
@@ -181,10 +203,6 @@ export function TableBlock({ block, onUpdate }: TableBlockProps) {
 
   const rowIds = tableData.map((_, ri) => `row-${ri}`);
   const colCount = tableData[0]?.length ?? 0;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  );
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -288,61 +306,61 @@ export function TableBlock({ block, onUpdate }: TableBlockProps) {
     setSelectedCol(target);
   }, [tableData, block.id, colCount, onUpdate]);
 
-  const collisionDetection: CollisionDetection = useCallback((args) => {
-    const { active } = args;
-    const activeId = String(active.id);
-    if (!activeId.startsWith('row-')) return [];
-    return closestCorners(args).filter(c => String(c.id).startsWith('row-'));
-  }, []);
+  useEffect(() => {
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data.type === 'table-row' && source.data.blockId === block.id,
+      onDrop: ({ source, location }) => {
+        const target = location.current.dropTargets[0];
+        if (!target) return;
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+        const sourceIndex = source.data.index as number;
+        const targetIndex = target.data.index as number;
+        if (sourceIndex === targetIndex) return;
 
-    const activeId = String(active.id);
-    const oldIndex = rowIds.indexOf(activeId);
-    const newIndex = rowIds.indexOf(String(over.id));
-    if (oldIndex === -1 || newIndex === -1) return;
-    const newData = arrayMove(tableData, oldIndex, newIndex);
-    onUpdate(block.id, { tableData: newData });
-  }, [rowIds, tableData, block.id, onUpdate]);
+        const edge = extractClosestEdge(target.data);
+        if (!edge) return;
+
+        let toIndex = targetIndex;
+        if (edge === 'bottom') {
+          toIndex += 1;
+        }
+
+        if (sourceIndex === toIndex) return;
+
+        const newData = arrayMove(tableData, sourceIndex, toIndex);
+        onUpdate(block.id, { tableData: newData });
+      }
+    });
+  }, [tableData, block.id, onUpdate]);
 
   const rowCount = tableData.length;
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={collisionDetection}
-        modifiers={[restrictToVerticalAxis]}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="border border-[var(--bone-6)] rounded-3xl overflow-hidden bg-panel">
-          <table className="w-full border-collapse">
-            <tbody>
-              <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
-                {tableData.map((row: string[], ri: number) => (
-                  <SortableRow
-                    key={rowIds[ri]}
-                    id={rowIds[ri]}
-                    row={row}
-                    ri={ri}
-                    isSelected={selectedRow === ri}
-                    selectedCol={selectedCol}
-                    onSelect={() => { setSelectedRow(ri); setSelectedCol(null); }}
-                    onContextMenu={(e) => handleRowContextMenu(e, ri)}
-                    onColSelect={(ci) => { setSelectedCol(ci); setSelectedRow(null); }}
-                    onColContextMenu={handleColContextMenu}
-                    onCellUpdate={handleCellUpdate}
-                    colCount={rowCount}
-                    onMoveColumn={handleMoveColumn}
-                  />
-                ))}
-              </SortableContext>
-            </tbody>
-          </table>
-        </div>
-      </DndContext>
+      <div className="border border-[var(--bone-6)] rounded-3xl overflow-hidden bg-panel">
+        <table className="w-full border-collapse">
+          <tbody>
+            {tableData.map((row: string[], ri: number) => (
+              <SortableRow
+                key={rowIds[ri]}
+                id={rowIds[ri]}
+                row={row}
+                ri={ri}
+                isSelected={selectedRow === ri}
+                selectedCol={selectedCol}
+                onSelect={() => { setSelectedRow(ri); setSelectedCol(null); }}
+                onContextMenu={(e) => handleRowContextMenu(e, ri)}
+                onColSelect={(ci) => { setSelectedCol(ci); setSelectedRow(null); }}
+                onColContextMenu={handleColContextMenu}
+                onCellUpdate={handleCellUpdate}
+                colCount={rowCount}
+                onMoveColumn={handleMoveColumn}
+                blockId={block.id}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <button
         onClick={() => {
