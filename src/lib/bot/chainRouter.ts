@@ -1,4 +1,5 @@
 import { classifyIntentWithModel } from './classifier'
+import { sanitizeOutput } from './outputGuard'
 import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory } from '../router-config'
 import type { BotMode } from '@/data/store.types'
@@ -530,15 +531,16 @@ export async function runChain(
                 context.vision_notes = `[VISION DATA - DIGITAL TWIN]\n${fastSimpleTwin}`
                 context._visionImageDescription = fastSimpleTwin
               }
+              const sanitizedInstructions = sanitizeOutput(metadata.next_instructions)
               trackModelUsage(modelConfig.id, modelConfig.provider)
               return {
                 type: 'text',
-                content: metadata.next_instructions,
+                content: sanitizedInstructions,
                 usage_type: 'vision',
                 model: modelConfig.id,
                 model_chain: `vision → ${modelConfig.id}`,
                 status: 'success',
-                image_description: fastSimpleTwin ?? String(metadata.next_instructions).slice(0, 600),
+                image_description: fastSimpleTwin ?? String(sanitizedInstructions).slice(0, 600),
                 trace: visionTrace,
                 step_traces: tracer.all.length > 0 ? tracer.all : undefined,
                 transcript_md: buildTranscript({
@@ -555,7 +557,7 @@ export async function runChain(
                   advisorEnabled: (context as any)?.advisorEnabled,
                   mode: (context as any)?.mode,
                   stepTraces: tracer.all.length > 0 ? tracer.all : undefined,
-                  finalContent: metadata.next_instructions,
+                  finalContent: sanitizedInstructions,
                   finalModel: modelConfig.id,
                   tokensUsed: (visionUsage as any)?.total_tokens,
                   providerUsage: visionUsage as any,
@@ -582,10 +584,11 @@ export async function runChain(
             context.vision_notes = `[VISION DATA - DIGITAL TWIN]\n${visionContextTwin}`
             context._visionImageDescription = visionContextTwin
           }
+          const sanitizedContent = typeof content === 'string' ? sanitizeOutput(content) : content
           trackModelUsage(modelConfig.id, modelConfig.provider)
           return {
             type: 'text',
-            content,
+            content: sanitizedContent,
             usage_type: 'vision',
             model: modelConfig.id,
             model_chain: `vision → ${modelConfig.id}`,
@@ -607,7 +610,7 @@ export async function runChain(
               advisorEnabled: (context as any)?.advisorEnabled,
               mode: (context as any)?.mode,
               stepTraces: tracer.all.length > 0 ? tracer.all : undefined,
-              finalContent: content,
+              finalContent: sanitizedContent,
               finalModel: modelConfig.id,
               tokensUsed: (visionUsage as any)?.total_tokens,
               providerUsage: visionUsage as any,
@@ -701,9 +704,14 @@ export async function runChain(
     onStatus({ chain: 'CLASSIFIER', status: 'done', goal: 'Classifying intent' })
   }
 
-  // Single-chain path
-  // FAST_SIMPLE is a classifier-only label — no router chain exists for it, map to REGULAR
-  if (rawCategory === 'FAST_SIMPLE') rawCategory = 'REGULAR'
+  // Normalize legacy / internal categories to the simplified set
+  if (rawCategory === 'FAST_SIMPLE' || rawCategory === 'REGULAR') rawCategory = 'COMPLEX'
+  if (rawCategory === 'MEDIUM_THINKING') rawCategory = 'COMPLEX'
+  if (rawCategory === 'CODING') rawCategory = 'COMPLEX'
+  if (rawCategory === 'ADVISOR') rawCategory = 'COMPLEX'
+  if (rawCategory === 'TOOLS') rawCategory = 'COMPLEX'
+  if (rawCategory === 'RESEARCH') rawCategory = 'WEB_SEARCH'
+
   let category: IntentCategory = rawCategory
   logger.info(`[Router] Starting runChain for category: ${category} | prompt: "${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`)
 
@@ -1024,14 +1032,14 @@ export async function runChain(
           const routeContext: any = {
             ...(context || {}),
             sessionId,
-            useTools: category === 'TOOLS',
+            useTools: ['COMPLEX'].includes(category),
             // Ground a Gemini step only when no search engine has fed it data yet.
             // [SEARCH DATA] is injected once tavily/exa run, so a Gemini model placed
             // ABOVE the search engine self-grounds, while one BELOW it synthesizes the
             // injected results instead — avoiding the free-tier grounding-quota 429.
             // Also acts as a fallback: if the search engine failed (no [SEARCH DATA]),
             // a downstream Gemini still self-grounds rather than answering blind.
-            useGrounding: (category === 'WEB_SEARCH' || category === 'RESEARCH')
+            useGrounding: (category === 'WEB_SEARCH')
               && modelConfig.provider === 'gemini'
               && !system_prompt.includes('[SEARCH DATA]'),
             aiApiKey: activeKey || undefined,
@@ -1040,22 +1048,22 @@ export async function runChain(
             setSynthesisModel: (m: string) => { usedSynthesisModel = m }
           }
 
-          // Only stream tokens for REGULAR and COMPLEX chains. All other chains
+          // Only stream tokens for COMPLEX chains. All other chains
           // (vision, search, image gen, tools, advisor, coding) buffer their full
           // response so post-processing (e.g. stripping [VISION_CONTEXT]) runs before
           // anything reaches the user.
-          const TEXT_STREAM_CATEGORIES = ['COMPLEX', 'REGULAR']
+          const TEXT_STREAM_CATEGORIES = ['COMPLEX']
           if (!TEXT_STREAM_CATEGORIES.includes(category)) {
             routeContext.onChunk = undefined
           }
 
-          // WEB_SEARCH/RESEARCH: pass a SHORT tail of history for follow-up context
+          // WEB_SEARCH: pass a SHORT tail of history for follow-up context
           // ("the cheapest one", "compare it to X" depend on the prior turns). The twin's
           // image content is already foregrounded as [IMAGE FACTS] above, so history is
           // only for conversational continuity. Poison-control (prior model answers must
           // not override fresh search results) is handled by the chain prompt's rule
           // "[SEARCH DATA] wins on facts" — not by cutting history entirely.
-          let historyForChain = (category === 'WEB_SEARCH' || category === 'RESEARCH')
+          let historyForChain = (category === 'WEB_SEARCH')
             ? history.slice(-4)
             : (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes(category)) ? history : []
 
@@ -1235,12 +1243,23 @@ export async function runChain(
             let citations: string[] | undefined = undefined
             let providerUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } | undefined
             let providerReasoning: string | undefined
+            let capturedToolCalls: any[] | undefined = undefined
 
             if (typeof response === 'object' && !Buffer.isBuffer(response) && 'content' in response) {
               finalContent = (response as any).content
               citations = (response as any).citations
               providerUsage = (response as any).usage
               providerReasoning = (response as any).reasoning
+              capturedToolCalls = (response as any).capturedToolCalls
+            }
+
+            if (capturedToolCalls && capturedToolCalls.length > 0) {
+              onStatus({
+                chain: category,
+                goal: `Executed ${capturedToolCalls.length} tool(s)`,
+                status: 'done',
+                label: getStatusLabel('TOOLS', '🔧 Tools used')
+              })
             }
 
             // ── Grounding guard: a WEB_SEARCH/RESEARCH Gemini step that was asked to ground
@@ -1432,6 +1451,10 @@ export async function runChain(
               }
             }
 
+            if (typeof finalContent === 'string') {
+              finalContent = sanitizeOutput(finalContent)
+            }
+
             const transcript_md = buildTranscript({
               prompt,
               history: history,
@@ -1478,6 +1501,7 @@ export async function runChain(
               image_prompt: category === 'IMAGE_GEN' ? activePromptForGen : undefined,
               pipeline_steps: thinkPipelineStepsPrepass.length > 0 ? thinkPipelineStepsPrepass : undefined,
               step_traces: tracer.all.length > 0 ? tracer.all : undefined,
+              captured_tool_calls: capturedToolCalls,
               transcript_md,
             }
           } else {

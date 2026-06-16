@@ -2,6 +2,8 @@ import { logger } from '../../logger'
 import { getProviderKeys } from '../../vault'
 import { detectMimeType } from '../image-utils'
 import { parseSSEStream } from './stream-utils'
+import { FLOWR_TOOLS } from '../tools/definitions'
+import { toolHandlers } from '../tools/handlers'
 
 export async function runOpenRouter(
   modelId: string,
@@ -11,7 +13,7 @@ export async function runOpenRouter(
   aiApiKey?: string,
   context?: any,
   imageBuffers?: Buffer | Buffer[]
-): Promise<{ content: string; provider?: string; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }; reasoning?: string } | null> {
+): Promise<{ content: string; provider?: string; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }; reasoning?: string; capturedToolCalls?: any[] } | null> {
   const normContext = typeof context === 'string' ? { openrouterProvider: context } : (context || {})
   logger.info(`[OpenRouter Audit] Entering runOpenRouter: model=${modelId}, provider=${normContext.openrouterProvider}, hasImages=${!!imageBuffers}`)
   let keys = aiApiKey ? [aiApiKey] : []
@@ -30,6 +32,15 @@ export async function runOpenRouter(
     role: h.role === 'model' ? 'assistant' : 'user',
     content: h.content || (h.parts?.[0]?.text) || ''
   })).filter(m => m.content)
+
+  const tools = FLOWR_TOOLS.map(t => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters
+    }
+  }))
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
@@ -83,6 +94,130 @@ export async function runOpenRouter(
         || normContext.activeEntityId 
         || undefined
 
+      const fetchHeaders: Record<string, string> = {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://flowr.ai',
+        'X-Title': 'Flowr AI'
+      }
+      if (isAnthropic) {
+        fetchHeaders['anthropic-beta'] = 'prompt-caching-2025-01-17'
+      }
+
+      // Tool-calling path: non-streaming due to tool loop
+      if (normContext.useTools) {
+        const MAX_TOOL_HOPS = 4
+        let hops = 0
+        const capturedToolCalls: any[] = []
+
+        while (hops < MAX_TOOL_HOPS) {
+          const toolRequestBody: any = {
+            model: modelId,
+            messages,
+            tools,
+            tool_choice: 'auto',
+            max_tokens: normContext.max_tokens || 5000,
+          }
+
+          if (resolvedSessionId) {
+            toolRequestBody.session_id = String(resolvedSessionId)
+          }
+          if (normContext.openrouterProvider) {
+            toolRequestBody.provider = {
+              order: [(normContext.openrouterProvider || '').trim()],
+              allow_fallbacks: true
+            }
+          }
+
+          // Redact base64 image data from log to keep terminal readable
+          if (process.env.NODE_ENV !== 'production') {
+            const logBody = JSON.parse(JSON.stringify(toolRequestBody))
+            if (Array.isArray(logBody.messages)) {
+              for (const msg of logBody.messages) {
+                if (typeof msg.content === 'string') {
+                  msg.content = msg.content.replace(/data:(image|application)\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[base64 data redacted]')
+                } else if (Array.isArray(msg.content)) {
+                  for (const part of msg.content) {
+                    if (part?.image_url?.url?.startsWith('data:')) {
+                      part.image_url.url = '[base64 data redacted]'
+                    }
+                  }
+                }
+              }
+            }
+            console.log(`[DEBUG openrouter.ts] TOOL PAYLOAD:`, JSON.stringify(logBody, null, 2));
+          }
+
+          const response = await fetch(`https://openrouter.ai/api/v1/chat/completions?cb=${Date.now()}`, {
+            method: 'POST',
+            headers: fetchHeaders,
+            body: JSON.stringify(toolRequestBody),
+            signal: normContext.signal,
+          })
+
+          const actualProvider = response.headers.get('x-openrouter-provider') || undefined
+
+          if (response.status === 429) {
+            logger.warn(`OpenRouter [${modelId}] key index ${i + 1} rate limited (429) — trying next key`)
+            break
+          }
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            throw new Error(err.error?.message || `OpenRouter API Error: ${response.status}`)
+          }
+
+          const data = await response.json()
+          const message = data.choices?.[0]?.message
+          if (!message) throw new Error('OpenRouter returned empty response')
+
+          messages.push(message)
+
+          if (message.tool_calls && message.tool_calls.length > 0) {
+            hops++
+            for (const call of message.tool_calls) {
+              const handler = toolHandlers[call.function.name]
+              let output = { error: 'Tool not found' }
+
+              if (handler) {
+                try {
+                  const args = JSON.parse(call.function.arguments)
+                  output = await handler(args, normContext)
+                  if (['create_note', 'update_note', 'delete_note', 'create_folder'].includes(call.function.name)) {
+                    capturedToolCalls.push({ type: call.function.name, ...output, ...args })
+                  }
+                } catch (e: any) {
+                  output = { error: e.message }
+                }
+              }
+
+              messages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: JSON.stringify(output)
+              })
+            }
+          } else {
+            // No more tool calls — return final response
+            const usage = data?.usage ? {
+              prompt_tokens: data.usage.prompt_tokens,
+              completion_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.total_tokens,
+            } : undefined
+
+            return {
+              content: message.content,
+              provider: actualProvider,
+              usage,
+              reasoning: message.reasoning || undefined,
+              capturedToolCalls: capturedToolCalls.length > 0 ? capturedToolCalls : undefined,
+            } as any
+          }
+        }
+        // If we exhausted tool hops, fall through to next key
+        continue
+      }
+
       const shouldStream = !!(normContext.onChunk) && !normContext._skipStreaming
       const requestBody: any = {
         model: modelId,
@@ -132,15 +267,6 @@ export async function runOpenRouter(
 
       logger.info(`OpenRouter: Preparing request for model ${modelId} with provider type: ${typeof normContext.openrouterProvider}, value: "${normContext.openrouterProvider}"`)
 
-      const fetchHeaders: Record<string, string> = {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://flowr.ai',
-        'X-Title': 'Flowr AI'
-      }
-      if (isAnthropic) {
-        fetchHeaders['anthropic-beta'] = 'prompt-caching-2025-01-17'
-      }
       const response = await fetch(`https://openrouter.ai/api/v1/chat/completions?cb=${Date.now()}`, {
         method: 'POST',
         headers: fetchHeaders,
