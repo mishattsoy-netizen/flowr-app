@@ -704,11 +704,9 @@ export async function runChain(
     onStatus({ chain: 'CLASSIFIER', status: 'done', goal: 'Classifying intent' })
   }
 
-  // Normalize legacy / internal categories to the simplified set
-  if (rawCategory === 'FAST_SIMPLE' || rawCategory === 'REGULAR') rawCategory = 'COMPLEX'
+  // Normalize legacy / internal categories
+  if (rawCategory === 'FAST_SIMPLE') rawCategory = 'REGULAR'
   if (rawCategory === 'MEDIUM_THINKING') rawCategory = 'COMPLEX'
-  if (rawCategory === 'CODING') rawCategory = 'COMPLEX'
-  if (rawCategory === 'ADVISOR') rawCategory = 'COMPLEX'
   if (rawCategory === 'TOOLS') rawCategory = 'COMPLEX'
 
   let category: IntentCategory = rawCategory
@@ -1031,7 +1029,7 @@ export async function runChain(
           const routeContext: any = {
             ...(context || {}),
             sessionId,
-            useTools: ['COMPLEX'].includes(category),
+            useTools: ['REGULAR', 'COMPLEX', 'CODING', 'TOOLS', 'ADVISOR'].includes(category),
             // Ground a Gemini step only when no search engine has fed it data yet.
             // [SEARCH DATA] is injected once tavily/exa run, so a Gemini model placed
             // ABOVE the search engine self-grounds, while one BELOW it synthesizes the
@@ -1047,11 +1045,11 @@ export async function runChain(
             setSynthesisModel: (m: string) => { usedSynthesisModel = m }
           }
 
-          // Only stream tokens for COMPLEX chains. All other chains
+          // Only stream tokens for COMPLEX and REGULAR chains. All other chains
           // (vision, search, image gen, tools, advisor, coding) buffer their full
           // response so post-processing (e.g. stripping [VISION_CONTEXT]) runs before
           // anything reaches the user.
-          const TEXT_STREAM_CATEGORIES = ['COMPLEX']
+          const TEXT_STREAM_CATEGORIES = ['COMPLEX', 'REGULAR']
           if (!TEXT_STREAM_CATEGORIES.includes(category)) {
             routeContext.onChunk = undefined
           }
