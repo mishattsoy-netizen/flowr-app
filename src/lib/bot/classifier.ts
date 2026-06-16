@@ -31,6 +31,7 @@ export interface ClassifyResult {
 const VALID_CATEGORIES: (IntentCategory | 'MULTI_CHAIN')[] = [
   'COMPLEX',
   'WEB_SEARCH',
+  'RESEARCH',
   'IMAGE_GEN',
   'AUDIO',
 ]
@@ -102,16 +103,17 @@ export function resolveImageContext(message: string, history: any[]): {
 const DEFAULT_CLASSIFIER_PROMPT = `Classify user intent into exactly ONE category:
 COMPLEX: Any text-based request — questions, analysis, coding, advice, tool use, reasoning, step-by-step thinking.
 WEB_SEARCH: Requires current or live data — news, prices, stock quotes, product comparisons, new software versions (e.g. "Gemini 3.1", "GPT-5"), sports scores, weather, or anything likely after training cutoff.
+RESEARCH: Exhaustive topic research and synthesis.
 IMAGE_GEN: Requests to create, draw, design, or generate images or art.
 AUDIO: Voice interaction or audio related.
 
-PRIOR IMAGE: If history contains [VISION CONTEXT - DIGITAL TWIN] or [Image: ...] and the message refers to it ("from my image", "in the picture", "from the document"), the answer is in history, not on the web — classify COMPLEX, NEVER WEB_SEARCH, even if it names a product.
+PRIOR IMAGE: If history contains [VISION CONTEXT - DIGITAL TWIN] or [Image: ...] and the message refers to it ("from my image", "in the picture", "from the document"), the answer is in history, not on the web — classify COMPLEX, NEVER WEB_SEARCH or RESEARCH, even if it names a product.
 
 Respond ONLY with the category name.`
 
 const TAG_CATEGORY_MAP: Record<string, IntentCategory> = {
   '/search': 'WEB_SEARCH',
-  '/research': 'WEB_SEARCH',
+  '/research': 'RESEARCH',
   '/code': 'COMPLEX',
   '/image': 'IMAGE_GEN',
   '/tool': 'COMPLEX',
@@ -303,7 +305,7 @@ export async function classifyIntentWithModel(
   // model would lose all knowledge of the image and answer about something unrelated.
   // Downgrade WEB_SEARCH/RESEARCH to REGULAR in that case, regardless of model output.
   const guardCategory = (cat: IntentCategory | 'MULTI_CHAIN'): IntentCategory | 'MULTI_CHAIN' => {
-    if (cat === 'WEB_SEARCH' && historyHasVisionContext && refersToPriorImage && !mixedIntent) {
+    if ((cat === 'WEB_SEARCH' || cat === 'RESEARCH') && historyHasVisionContext && refersToPriorImage && !mixedIntent) {
       logger.info(`[Classifier guard] Downgrading ${cat} → COMPLEX: message refers to a prior uploaded image`)
       return 'COMPLEX'
     }

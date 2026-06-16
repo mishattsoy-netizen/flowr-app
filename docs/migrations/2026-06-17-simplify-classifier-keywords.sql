@@ -7,15 +7,12 @@ UPDATE bot_settings
 SET content = REPLACE(
   REPLACE(
     REPLACE(
-      REPLACE(
-        REPLACE(content, '"REGULAR"', '"COMPLEX"'),
-        '"CODING"', '"COMPLEX"'
-      ),
-      '"ADVISOR"', '"COMPLEX"'
+      REPLACE(content, '"REGULAR"', '"COMPLEX"'),
+      '"CODING"', '"COMPLEX"'
     ),
-    '"TOOLS"', '"COMPLEX"'
+    '"ADVISOR"', '"COMPLEX"'
   ),
-  '"RESEARCH"', '"WEB_SEARCH"'
+  '"TOOLS"', '"COMPLEX"'
 )
 WHERE category = 'classifier_keywords';
 

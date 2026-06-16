@@ -710,7 +710,6 @@ export async function runChain(
   if (rawCategory === 'CODING') rawCategory = 'COMPLEX'
   if (rawCategory === 'ADVISOR') rawCategory = 'COMPLEX'
   if (rawCategory === 'TOOLS') rawCategory = 'COMPLEX'
-  if (rawCategory === 'RESEARCH') rawCategory = 'WEB_SEARCH'
 
   let category: IntentCategory = rawCategory
   logger.info(`[Router] Starting runChain for category: ${category} | prompt: "${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`)
@@ -1039,7 +1038,7 @@ export async function runChain(
             // injected results instead — avoiding the free-tier grounding-quota 429.
             // Also acts as a fallback: if the search engine failed (no [SEARCH DATA]),
             // a downstream Gemini still self-grounds rather than answering blind.
-            useGrounding: (category === 'WEB_SEARCH')
+            useGrounding: (category === 'WEB_SEARCH' || category === 'RESEARCH')
               && modelConfig.provider === 'gemini'
               && !system_prompt.includes('[SEARCH DATA]'),
             aiApiKey: activeKey || undefined,
@@ -1057,13 +1056,13 @@ export async function runChain(
             routeContext.onChunk = undefined
           }
 
-          // WEB_SEARCH: pass a SHORT tail of history for follow-up context
+          // WEB_SEARCH/RESEARCH: pass a SHORT tail of history for follow-up context
           // ("the cheapest one", "compare it to X" depend on the prior turns). The twin's
           // image content is already foregrounded as [IMAGE FACTS] above, so history is
-          // only for conversational continuity. Poison-control (prior model answers must
+          // only for conversational coherence. Poison-control (prior model answers must
           // not override fresh search results) is handled by the chain prompt's rule
           // "[SEARCH DATA] wins on facts" — not by cutting history entirely.
-          let historyForChain = (category === 'WEB_SEARCH')
+          let historyForChain = (category === 'WEB_SEARCH' || category === 'RESEARCH')
             ? history.slice(-4)
             : (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes(category)) ? history : []
 
