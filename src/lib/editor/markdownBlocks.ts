@@ -85,15 +85,15 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
   const h = line.match(/^(#{1,3}) (.+)/);
   if (h) return { indent, kind: { kind: 'heading', level: h[1].length as 1|2|3, text: h[2] } };
 
+  const check = line.match(/^([-*+]?\s+)?\[([ xX])\] (.+)/);
+  if (check) return { indent, kind: { kind: 'checklist', checked: check[2].toLowerCase() === 'x', text: check[3] } };
+
   const bullet = line.match(/^[-*] (.+)/);
   if (bullet) return { indent, kind: { kind: 'bullet', text: bullet[1] } };
 
   // Only match numeric list markers (1., 2., 3.) - not alpha/roman which over-matches prose
   const numbered = line.match(/^\d+\. (.+)/);
   if (numbered) return { indent, kind: { kind: 'numbered', text: numbered[1] } };
-
-  const check = line.match(/^\[([ x])\] (.+)/);
-  if (check) return { indent, kind: { kind: 'checklist', checked: check[1] === 'x', text: check[2] } };
 
   const quote = line.match(/^> (.+)/);
   if (quote) return { indent, kind: { kind: 'quote', text: quote[1] } };

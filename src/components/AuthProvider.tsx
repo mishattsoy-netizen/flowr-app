@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import type { User, Session } from '@supabase/supabase-js'
+import { useRouter, usePathname } from 'next/navigation'
 
 interface AuthContextValue {
   user: User | null
@@ -39,6 +40,20 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = useRef<ReturnType<typeof createClient> | null>(null)
   try { supabase.current = createClient() } catch {}
   const checkedAdmin = useRef(false)
+
+  const router = useRouter()
+  const pathname = usePathname()
+  const [isGuest, setIsGuest] = useState(false)
+
+  // Track guest bypass state using sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.search.includes('guest=1') || sessionStorage.getItem('is_guest') === 'true') {
+        setIsGuest(true)
+        sessionStorage.setItem('is_guest', 'true')
+      }
+    }
+  }, [])
 
   const checkAdmin = async (accessToken: string) => {
     if (checkedAdmin.current) return
@@ -111,6 +126,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: `${origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account',
+        },
       },
     })
   }
@@ -124,11 +142,29 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('is_guest')
+    }
+    setIsGuest(false)
     await supabase.current!.auth.signOut()
     setUser(null)
     setSession(null)
     setIsAdmin(false)
     setIsAdminLoading(false)
+    router.push('/login')
+  }
+
+  const isProtectedPath = pathname === '/' || pathname?.startsWith('/app') || pathname?.startsWith('/admin') || pathname?.startsWith('/welcome')
+
+  useEffect(() => {
+    if (!loading && !user && !isGuest && isProtectedPath) {
+      router.push('/login')
+    }
+  }, [loading, user, isGuest, isProtectedPath, router])
+
+  // Instantly hide the app if they log out or are not authenticated on a protected path
+  if (!loading && !user && !isGuest && isProtectedPath) {
+    return <div className="h-screen w-screen bg-[#0a0a0a]" />
   }
 
   return (

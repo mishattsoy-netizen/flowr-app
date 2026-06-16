@@ -1204,7 +1204,7 @@ body.is-dragging-widget [data-widget-id] * {
 /* â”€â”€â”€ Multi-Block Selection & Dragging â”€â”€â”€ */
 
 .note-editor-bg {
-  cursor: text;
+  cursor: default;
   direction: ltr !important;
 }
 

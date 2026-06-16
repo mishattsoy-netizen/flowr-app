@@ -136,6 +136,13 @@ describe('parseMarkdownToBlocks', () => {
     expect(blocks[1]).toMatchObject({ type: 'checklist', checked: true });
   });
 
+  it('parses checklist with bullet, dash, or plus prefixes and case-insensitive check state', () => {
+    const blocks = parseMarkdownToBlocks('- [ ] todo 1\n* [x] done 2\n+ [X] done 3');
+    expect(blocks[0]).toMatchObject({ type: 'checklist', checked: false, content: 'todo 1' });
+    expect(blocks[1]).toMatchObject({ type: 'checklist', checked: true, content: 'done 2' });
+    expect(blocks[2]).toMatchObject({ type: 'checklist', checked: true, content: 'done 3' });
+  });
+
   it('parses quote', () => {
     const blocks = parseMarkdownToBlocks('> A quoted line');
     expect(blocks[0]).toMatchObject({ type: 'quote', content: 'A quoted line' });

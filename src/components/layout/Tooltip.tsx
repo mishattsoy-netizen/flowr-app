@@ -136,17 +136,55 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
     document.body
   );
 
+  const isReactElement = React.isValidElement(children);
+
+  if (!isReactElement) {
+    return (
+      <span
+        ref={triggerRef as any}
+        className="inline-block"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClickCapture={handleClick}
+      >
+        {children}
+        {tooltipBody}
+      </span>
+    );
+  }
+
+  const child = children as React.ReactElement<any>;
+  const isReact19 = React.version && React.version.startsWith('19');
+  const childRef = isReact19 ? child.props?.ref : (child as any).ref;
+
+  const setRefs = React.useCallback((node: any) => {
+    (triggerRef as any).current = node;
+    if (typeof childRef === 'function') {
+      childRef(node);
+    } else if (childRef && typeof childRef === 'object') {
+      (childRef as any).current = node;
+    }
+  }, [childRef]);
+
   return (
-    <div 
-      ref={triggerRef}
-      className="contents" 
-      onMouseEnter={handleMouseEnter} 
-      onMouseLeave={handleMouseLeave}
-      onClickCapture={handleClick}
-    >
-      {children}
+    <>
+      {React.cloneElement(child, {
+        ref: setRefs,
+        onMouseEnter: (e: React.MouseEvent) => {
+          child.props.onMouseEnter?.(e);
+          handleMouseEnter();
+        },
+        onMouseLeave: (e: React.MouseEvent) => {
+          child.props.onMouseLeave?.(e);
+          handleMouseLeave();
+        },
+        onClick: (e: React.MouseEvent) => {
+          child.props.onClick?.(e);
+          handleClick();
+        }
+      })}
       {tooltipBody}
-    </div>
+    </>
   );
 }
 

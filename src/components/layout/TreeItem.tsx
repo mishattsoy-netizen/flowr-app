@@ -13,6 +13,22 @@ import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/prag
 import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview';
 import { stripHtml } from '@/lib/utils';
 
+// Global cursor tracker — updated by both the source draggable's onDrag
+// (Chrome) and a window-level pointermove listener (Safari fallback).
+// Safari doesn't reliably provide location.current.input in drop target
+// callbacks, so drop targets read from this instead.
+const dragCursor = { x: 0, y: 0, ready: false };
+
+// Bind a window-level listener so dragCursor is always in sync regardless
+// of pragmatic-dnd adapter quirks per browser.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', (e) => {
+    dragCursor.x = e.clientX;
+    dragCursor.y = e.clientY;
+    dragCursor.ready = true;
+  }, { passive: true });
+}
+
 interface TreeItemProps {
   entity: Entity;
   depth: number;
@@ -44,6 +60,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isOver, setIsOver] = useState(false);
+  const edgeRef = useRef<Edge | null>(null);
 
   const myId = idOverride || entity.id;
   const isFolder = entity.type === 'folder' || entity.type === 'collection' || entity.type === 'workspace';
@@ -52,14 +69,24 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   // Render ghost preview portal using createPortal
   const [preview, setPreview] = useState<boolean>(false);
   const previewRef = useRef<HTMLDivElement>(null);
-  const grabOffsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const el = elementRef.current;
     if (!el || isDragOverlay) return;
 
-    return draggable({
+    // Set cursor to grabbing immediately on native dragstart — before
+    // pragmatic-dnd's lifecycle fires — so the browser never shows the
+    // default copy/green-plus cursor.
+    const handleDragStart = (e: DragEvent) => {
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.dropEffect = 'move';
+      document.body.style.cursor = 'grabbing';
+    };
+    el.addEventListener('dragstart', handleDragStart, { capture: true });
+
+    const cleanup = draggable({
       element: el,
+      effectAllowed: 'move',
       getInitialData: () => ({
         type: 'tree-item',
         id: myId,
@@ -69,25 +96,33 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       }),
       onGenerateDragPreview: ({ nativeSetDragImage, source, location }) => {
         disableNativeDragPreview({ nativeSetDragImage });
-        const rect = (source.element as HTMLElement).getBoundingClientRect();
-        grabOffsetRef.current = {
-          x: location.current.input.clientX - rect.left,
-          y: location.current.input.clientY - rect.top,
-        };
         setPreview(true);
       },
       onDrag: ({ location }) => {
         const node = previewRef.current;
         if (!node) return;
-        const { x, y } = grabOffsetRef.current;
-        node.style.transform = `translate(${location.current.input.clientX - x}px, ${location.current.input.clientY - y}px)`;
+        // The centering wrapper inside the portal offsets by -50%,
+        // so positioning the outer wrapper's top-left at the cursor
+        // keeps the preview centered on it.
+        node.style.transform = `translate(${location.current.input.clientX}px, ${location.current.input.clientY}px)`;
+        // Keep the global cursor tracker updated for Safari fallback
+        dragCursor.x = location.current.input.clientX;
+        dragCursor.y = location.current.input.clientY;
       },
-      onDragStart: () => setIsDraggingLocal(true),
+      onDragStart: () => {
+        setIsDraggingLocal(true);
+        setPreview(true);
+      },
       onDrop: () => {
         setIsDraggingLocal(false);
         setPreview(false);
       },
     });
+
+    return () => {
+      el.removeEventListener('dragstart', handleDragStart, { capture: true } as EventListenerOptions);
+      cleanup();
+    };
   }, [myId, entity.parentId, entity.workspaceId, idOverride, isDragOverlay]);
 
   useEffect(() => {
@@ -101,24 +136,46 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         { type: 'tree-item', id: myId },
         { input, element, allowedEdges: ['top', 'bottom'] }
       ),
-      onDragEnter: ({ self }) => {
+      onDragEnter: ({ location }) => {
         setIsOver(true);
         if (!isFolder) {
-          setClosestEdge(extractClosestEdge(self.data));
+          const rect = elementRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          // Always use the globally-tracked cursor (updated by window
+          // pointermove AND the source draggable's onDrag). Safari's drop
+          // target callbacks can return stale/missing clientY from
+          // location.current.input, so we bypass it entirely.
+          if (!dragCursor.ready) return;
+          const clientY = dragCursor.y;
+          const edge: Edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+          if (edge !== edgeRef.current) {
+            edgeRef.current = edge;
+            setClosestEdge(edge);
+          }
         }
       },
-      onDrag: ({ self }) => {
-        setIsOver(true);
+      onDrag: ({ location }) => {
+        // isOver is already true from onDragEnter — no need to setState on every frame
         if (!isFolder) {
-          setClosestEdge(extractClosestEdge(self.data));
+          const rect = elementRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          if (!dragCursor.ready) return;
+          const clientY = dragCursor.y;
+          const edge: Edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+          if (edge !== edgeRef.current) {
+            edgeRef.current = edge;
+            setClosestEdge(edge);
+          }
         }
       },
       onDragLeave: () => {
         setIsOver(false);
+        edgeRef.current = null;
         setClosestEdge(null);
       },
       onDrop: () => {
         setIsOver(false);
+        edgeRef.current = null;
         setClosestEdge(null);
       },
     });
@@ -292,14 +349,15 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
         isWorkspace && isExpanded && "group/workspace",
-        "relative group/treeitem"
+        "relative group/treeitem",
+        "pt-[1px]"
       )}
     >
       <div
         onClick={handleClick}
         data-selected={isActive || undefined}
         className={cn(
-          "sidebar-item-row group relative flex w-full cursor-pointer select-none transition-all",
+          "sidebar-item-row group relative flex w-full select-none transition-all",
           isEditing ? "items-start pt-[5px]" : "items-center h-7",
           "px-3 rounded-[var(--radius-small)]",
           effectiveMultiSelected
@@ -379,8 +437,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       {isOver && !isFolder && closestEdge && (
         <div
           className={cn(
-            "absolute left-3 right-3 h-[2px] bg-[var(--bone-30)] rounded-full pointer-events-none z-10",
-            closestEdge === 'top' ? '-top-1' : '-bottom-1'
+            "absolute left-3 right-3 h-px bg-[var(--bone-30)] pointer-events-none z-10",
+            closestEdge === 'top' ? 'top-0' : '-bottom-px'
           )}
         />
       )}
@@ -410,7 +468,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           )}
         >
           <div className="overflow-hidden">
-            <div className={cn("relative flex flex-col gap-[1px]", isExpanded && "mt-[1px]")}>
+            <div className={cn("relative flex flex-col", isExpanded && "mt-[1px]")}>
               {children.map((child) => (
                 <TreeItem
                   key={idOverride ? `${idOverride.split('-')[0]}-${child.id}` : child.id}
@@ -475,14 +533,18 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             className="fixed top-0 left-0 z-[10000] pointer-events-none"
             style={{ transform: 'translate(-9999px, -9999px)' }}
           >
-            <div className="w-[240px] bg-sidebar rounded-[var(--radius-small)] opacity-85 shadow-lg border border-[var(--bone-10)]">
-              <TreeItem
-                entity={entity}
-                depth={0}
-                isDragOverlay
-                disableNesting
-                showUnpinHint={showUnpinHint}
-              />
+            {/* Centering wrapper offsets the preview so its center is at
+                the cursor position set by the parent's JS transform */}
+            <div className="-translate-x-1/2 -translate-y-1/2">
+              <div className="w-[240px] bg-sidebar rounded-[var(--radius-small)] opacity-85 shadow-lg border border-[var(--bone-10)]">
+                <TreeItem
+                  entity={entity}
+                  depth={0}
+                  isDragOverlay
+                  disableNesting
+                  showUnpinHint={showUnpinHint}
+                />
+              </div>
             </div>
           </div>,
           document.body

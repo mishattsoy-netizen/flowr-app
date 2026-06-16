@@ -22,7 +22,6 @@ import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
 import { monitorForElements, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
@@ -111,6 +110,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const lastClickedRef = useRef<string | null>(null);
   const theme = isMounted ? resolvedTheme : currentTheme;
 
+  const sidebarRef = useRef<HTMLElement>(null);
   const mainScrollRef = React.useRef<HTMLDivElement>(null);
   const pinnedScrollRef = React.useRef<HTMLDivElement>(null);
   const chatScrollRef = React.useRef<HTMLDivElement>(null);
@@ -271,6 +271,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       onDragStart: ({ source }) => {
         setActiveDragId(source.data.id as string);
         setShowUnpinHint(false);
+        document.body.style.cursor = 'grabbing';
       },
       onDropTargetChange: ({ source, location }) => {
         const activeId = source.data.id as string;
@@ -290,6 +291,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       onDrop: ({ source, location }) => {
         setActiveDragId(null);
         setShowUnpinHint(false);
+        document.body.style.cursor = '';
         const target = location.current.dropTargets[0];
         if (!target) return;
 
@@ -302,7 +304,16 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         const entity = entities.find(e => e.id === entityId);
         if (!entity) return;
 
-        const edge = extractClosestEdge(target.data);
+        // Calculate edge directly from cursor position vs element rect
+        // to avoid cached data from the library's getData.
+        let edge: string | null = null;
+        const targetEl = target.element;
+        const input = location.current.input;
+        const clientY = input?.clientY;
+        if (targetEl instanceof HTMLElement && clientY != null) {
+          const rect = targetEl.getBoundingClientRect();
+          edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+        }
 
         // Dropping in pinned section
         if (overId === 'pinned-container' || overId.startsWith('pinned-')) {
@@ -311,10 +322,13 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           }
           const oldIndex = favoriteEntitiesBase.findIndex(e => e.id === entityId);
           const overEntityId = overId.startsWith('pinned-') ? overId.replace('pinned-', '') : overId;
-          const newIndex = favoriteEntitiesBase.findIndex(e => e.id === overEntityId);
+          let newIndex = favoriteEntitiesBase.findIndex(e => e.id === overEntityId);
+          if (edge === 'bottom') newIndex += 1;
 
           if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            const reordered = arrayMove(favoriteEntitiesBase, oldIndex, newIndex);
+            // When dragging downwards, removing the source shifts elements left by 1
+            const insertAt = oldIndex < newIndex ? newIndex - 1 : newIndex;
+            const reordered = arrayMove(favoriteEntitiesBase, oldIndex, insertAt);
             reorderEntities(reordered.map(e => e.id));
             setSectionSortMode('pinned', 'manual');
           }
@@ -382,7 +396,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         }
 
         if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-          const reordered = arrayMove(currentSiblings, fromIdx, toIdx);
+          // When dragging downwards, removing the source shifts elements left by 1
+          const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+          const reordered = arrayMove(currentSiblings, fromIdx, insertAt);
           reorderEntities(reordered.map(e => e.id));
 
           if (favoriteIds.includes(entityId)) {
@@ -392,6 +408,16 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           } else {
             setSectionSortMode('unsorted', 'manual');
           }
+        }
+        // Safari latches :hover onto whichever element lands under the stationary
+        // cursor after a drop reorders the DOM — clear it by briefly disabling
+        // pointer-events so the browser recalculates. (No-op in Chrome.)
+        const sb = sidebarRef.current;
+        if (sb) {
+          sb.style.pointerEvents = 'none';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => { sb.style.pointerEvents = ''; });
+          });
         }
       }
     });
@@ -432,6 +458,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
   return (
     <aside
+      ref={sidebarRef}
       onMouseEnter={() => {
         if (!isSidebarPinned && effectiveCollapsed) toggleSidebar();
       }}
@@ -909,7 +936,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       ref={pinnedScrollRef}
                                       className=""
                                     >
-                                      <DroppableZone id="pinned-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
+                                      <DroppableZone id="pinned-container" className="flex flex-col mt-[1px] sidebar-list mb-2">
                                           {displayFavorites.map(entity => (
                                             <TreeItem
                                               key={`pinned-${entity.id}`}
@@ -978,7 +1005,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <div
                                       className=""
                                     >
-                                      <DroppableZone id="unsorted-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
+                                      <DroppableZone id="unsorted-container" className="flex flex-col mt-[1px] sidebar-list mb-2">
                                           {displayUnsorted.map(entity => (
                                             <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
                                           ))}
@@ -1047,7 +1074,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <div
                                       className=""
                                     >
-                                      <DroppableZone id="workspaces-container" className="flex flex-col gap-[1px] mt-[1px] mb-2">
+                                      <DroppableZone id="workspaces-container" className="flex flex-col mt-[1px] mb-2">
                                           {displayWorkspaces.map(workspace => (
                                             <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
                                           ))}

@@ -117,6 +117,67 @@ const findAndRemoveBlock = (list: EditorBlock[], id: string): { list: EditorBloc
   return { list: newList, removed };
 };
 
+const moveBlocksRecursive = (
+  list: EditorBlock[],
+  activeIds: string[],
+  overId: string,
+  edge: 'top' | 'bottom' | 'left' | 'right'
+): EditorBlock[] => {
+  let removedBlocks: EditorBlock[] = [];
+  
+  const removeBlocks = (blocks: EditorBlock[]): EditorBlock[] => {
+    return blocks.flatMap(b => {
+      if (activeIds.includes(b.id)) {
+        removedBlocks.push(b);
+        return [];
+      }
+      if (b.children) {
+        return [{
+          ...b,
+          children: removeBlocks(b.children)
+        }];
+      }
+      return [b];
+    });
+  };
+
+  const cleanList = removeBlocks(list);
+  if (removedBlocks.length === 0) return list;
+
+  const insertBlocks = (blocks: EditorBlock[]): EditorBlock[] => {
+    const idx = blocks.findIndex(b => b.id === overId);
+    if (idx !== -1) {
+      const newList = [...blocks];
+      const targetBlock = newList[idx];
+
+      const isMovingColumns = removedBlocks.some(b => b.type === 'column');
+      if (targetBlock.type === 'column' && !isMovingColumns) {
+        const targetChildren = targetBlock.children ? [...targetBlock.children] : [];
+        targetChildren.push(...removedBlocks);
+        newList[idx] = { ...targetBlock, children: targetChildren };
+        return newList;
+      }
+
+      const insertIdx = (edge === 'bottom' || edge === 'right') ? idx + 1 : idx;
+      newList.splice(insertIdx, 0, ...removedBlocks);
+      return newList;
+    }
+
+    return blocks.map(b => {
+      if (b.children && b.children.length > 0) {
+        return {
+          ...b,
+          children: insertBlocks(b.children)
+        };
+      }
+      return b;
+    });
+  };
+
+  return insertBlocks(cleanList);
+};
+
+
 
 
 const getTagColors = (tag: string) => {
@@ -619,19 +680,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             ? Array.from(selectedBlockIdsRef.current)
             : [activeId_val];
 
-          const movingBlocks = prev.filter(b => movingIds.includes(b.id));
-          const remainingBlocks = prev.filter(b => !movingIds.includes(b.id));
-
-          let overIdx = remainingBlocks.findIndex(b => b.id === overId);
-          if (overIdx === -1) return prev;
-
-          if (edge === 'bottom') {
-            overIdx += 1;
-          }
-
-          const newBlocks = [...remainingBlocks];
-          newBlocks.splice(overIdx, 0, ...movingBlocks);
-
+          const newBlocks = moveBlocksRecursive(prev, movingIds, overId, edge as any);
           setTimeout(() => persistBlocks(newBlocks, true), 0);
           return newBlocks;
         });

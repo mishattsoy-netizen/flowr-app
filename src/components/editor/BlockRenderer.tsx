@@ -69,11 +69,11 @@ export function BlockRenderer({
     return draggable({
       element: el,
       dragHandle: dragHandle,
-      getInitialData: () => ({ type: 'note-block', blockId: block.id }),
+      getInitialData: () => ({ type: 'note-block', blockId: block.id, blockType: block.type }),
       onDragStart: () => setIsDraggingLocal(true),
       onDrop: () => setIsDraggingLocal(false),
     });
-  }, [block.id, isDragOverlay]);
+  }, [block.id, block.type, isDragOverlay]);
 
   useEffect(() => {
     const el = elementRef.current;
@@ -83,15 +83,65 @@ export function BlockRenderer({
       element: el,
       canDrop: ({ source }) => source.data.type === 'note-block' && source.data.blockId !== block.id,
       getData: ({ input, element }) => attachClosestEdge(
-        { type: 'note-block', blockId: block.id },
-        { input, element, allowedEdges: ['top', 'bottom'] }
+        { type: 'note-block', blockId: block.id, blockType: block.type },
+        { input, element, allowedEdges: block.type === 'column' ? ['left', 'right'] : ['top', 'bottom'] }
       ),
-      onDragEnter: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
-      onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+      onDragEnter: ({ self, source }) => {
+        const edge = extractClosestEdge(self.data);
+        setClosestEdge(edge);
+
+        if (source.data.type === 'note-block') {
+          const draggedEl = document.querySelector(`[data-block-id="${source.data.blockId}"]`) as HTMLElement;
+          const targetEl = elementRef.current;
+          if (draggedEl && targetEl && draggedEl !== targetEl) {
+            const parent = targetEl.parentNode;
+            if (parent) {
+              const isColDrag = source.data.blockType === 'column' && block.type === 'column';
+              const isVertDrag = source.data.blockType !== 'column' && block.type !== 'column';
+
+              if (isColDrag || isVertDrag) {
+                if (edge === 'top' || edge === 'left') {
+                  parent.insertBefore(draggedEl, targetEl);
+                } else if (edge === 'bottom' || edge === 'right') {
+                  parent.insertBefore(draggedEl, targetEl.nextSibling);
+                }
+              }
+            }
+          }
+        }
+      },
+      onDrag: ({ self, source }) => {
+        const edge = extractClosestEdge(self.data);
+        setClosestEdge(edge);
+
+        if (source.data.type === 'note-block') {
+          const draggedEl = document.querySelector(`[data-block-id="${source.data.blockId}"]`) as HTMLElement;
+          const targetEl = elementRef.current;
+          if (draggedEl && targetEl && draggedEl !== targetEl) {
+            const parent = targetEl.parentNode;
+            if (parent) {
+              const isColDrag = source.data.blockType === 'column' && block.type === 'column';
+              const isVertDrag = source.data.blockType !== 'column' && block.type !== 'column';
+
+              if (isColDrag || isVertDrag) {
+                if (edge === 'top' || edge === 'left') {
+                  if (targetEl.previousSibling !== draggedEl) {
+                    parent.insertBefore(draggedEl, targetEl);
+                  }
+                } else if (edge === 'bottom' || edge === 'right') {
+                  if (targetEl.nextSibling !== draggedEl) {
+                    parent.insertBefore(draggedEl, targetEl.nextSibling);
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       onDragLeave: () => setClosestEdge(null),
       onDrop: () => setClosestEdge(null),
     });
-  }, [block.id, isDragOverlay]);
+  }, [block.id, block.type, isDragOverlay]);
 
   const isDragging = isDraggingLocal;
 
@@ -284,7 +334,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={style}
-        className={cn("editor-block group flex flex-col items-start relative px-1 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group flex flex-col items-start relative px-1 before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="2px" />
         <div className={cn(
@@ -313,7 +363,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
@@ -341,7 +391,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
@@ -386,7 +436,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         className={cn(
-          "editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
+          "editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']",
           alignVariant === 'center' && "items-center",
           alignVariant === 'right' && "items-end",
           alignVariant === 'left' && "items-start"
@@ -432,7 +482,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-2 relative before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group py-2 relative before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
@@ -472,7 +522,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="6px" />
         <div className="flex items-center gap-3 group/link ml-4 relative z-10">
@@ -532,12 +582,12 @@ export function BlockRenderer({
         data-block-id={block.id}
         style={style}
         className={cn(
-          "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group/column group-hover:bg-hover/10 group-focus-within:bg-hover/10 transition-colors duration-0",
+          "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group group/column group-hover:bg-hover/10 group-focus-within:bg-hover/10 transition-colors duration-0",
           isSelected && "bg-[var(--app-dark)]",
           !block.children?.length && "empty"
         )}
       >
-        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" />
+        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" dragHandleRef={dragHandleRef} />
         <div className={cn("flex flex-col gap-2 relative z-10")}>
           {(block.children || []).map((subBlock: EditorBlock, sIdx: number) => (
             <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
@@ -546,8 +596,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              "absolute top-0 bottom-0 w-[4px] bg-accent rounded-full pointer-events-none z-50",
+              closestEdge === 'left' ? 'left-0' : 'right-0'
             )}
           />
         )}
@@ -561,7 +611,7 @@ export function BlockRenderer({
         ref={elementRef}
         data-block-id={block.id}
         style={{ ...style, ...colorStyle }}
-        className={cn("editor-block py-2 relative flex flex-col transition-colors duration-0 before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']")}
+        className={cn("editor-block group py-2 relative flex flex-col transition-colors duration-0 before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn("flex gap-4 w-full h-full relative z-10 group")}>
@@ -592,7 +642,7 @@ export function BlockRenderer({
         data-block-id={block.id}
         className={cn(
           "editor-block group flex flex-col relative overflow-visible transition-all duration-0 py-0.5",
-          "before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
+          "before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']",
           isFocused && "focused",
           isSelected && "selected-block",
         )}
@@ -601,7 +651,7 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
           "flex-1 flex items-start w-full relative rounded-[var(--radius-medium)] pl-3 pr-1 py-1 transition-all duration-0",
-          isSelected ? "bg-[var(--app-dark)]" : "group-hover:bg-white/[0.01]"
+          isSelected ? "bg-[var(--app-dark)]" : "group-hover:bg-[var(--bone-2)]"
         )}>
           <ListBlock
             block={block}
@@ -639,7 +689,7 @@ export function BlockRenderer({
       className={cn(
         "editor-block group flex flex-col relative overflow-visible transition-all duration-0",
         effectiveStyle === 'mono' ? "py-2" : "py-0.5",
-        "before:absolute before:right-full before:top-0 before:bottom-0 before:w-16 before:content-['']",
+        "before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']",
         isFocused && "focused",
         isSelected && "selected-block",
         isInsideColumn && "rounded-[var(--radius-medium)] break-words min-h-[100px] column-container hover:bg-hover/10",
@@ -654,7 +704,7 @@ export function BlockRenderer({
           effectiveStyle === 'mono'
             ? "relative w-full rounded-3xl transition-colors duration-0"
             : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] pl-3 pr-1 py-1",
-          (!isSelected && effectiveStyle !== 'mono') && (isFocused ? "bg-white/[0.01]" : "group-hover:bg-white/[0.01]"),
+          (!isSelected && effectiveStyle !== 'mono') && (isFocused ? "bg-[var(--bone-2)]" : "group-hover:bg-[var(--bone-2)]"),
           block.bgColor && "border px-[16px] py-[8px]"
         )}
         style={{ ... (block.bgColor ? colorStyle : {}) }}
@@ -663,7 +713,7 @@ export function BlockRenderer({
           {block.foldingEnabled && (
             <div
               className={cn(
-                "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded transition-colors text-muted-foreground/40 hover:text-foreground",
+                "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-[var(--bone-10)] rounded transition-colors text-muted-foreground/40 hover:text-foreground",
                 getLineHeightClass(effectiveStyle)
               )}
               style={{ width: '20px' }}
@@ -834,7 +884,7 @@ function BlockControls({
   topOffset,
   dragHandleRef
 }: BlockControlsProps) {
-  const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-white/10 text-muted-foreground/40 hover:text-foreground transition-none";
+  const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bone-10)] text-muted-foreground/40 hover:text-[var(--bone-100)] transition-none";
 
   const handleGripClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -852,7 +902,7 @@ function BlockControls({
       className={cn(
         "absolute right-full pr-[8px] flex items-start justify-center gap-1",
         heightClass,
-        (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 invisible group-hover:opacity-100 group-hover:visible has-[:active]:opacity-100 has-[:active]:visible"
+        (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 group-hover:opacity-100 hover:opacity-100 has-[:active]:opacity-100 transition-none"
       )}
       style={{
         width: 'auto',
