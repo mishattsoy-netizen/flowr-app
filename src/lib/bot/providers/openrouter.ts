@@ -50,7 +50,7 @@ export async function runOpenRouter(
       }
 
       const isAnthropic = modelId.startsWith('anthropic/')
-      const messages: { role: string; content: any; cache_control?: any }[] = []
+      const messages: { role: string; content: any; cache_control?: any; tool_call_id?: string; tool_calls?: any }[] = []
       if (systemPrompt) {
         messages.push({
           role: 'system',
