@@ -4,6 +4,7 @@ import { logger } from '../../logger'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
+import { toGeminiThinkingBudget } from '../reasoning'
 
 // Per-key concurrency semaphore: serializes API calls per key to avoid rate-limit storms
 const keyQueues = new Map<string, Array<() => void>>()
@@ -60,7 +61,7 @@ export async function runGoogle(
   prompt: string,
   systemPrompt?: string,
   imageBuffers?: Buffer | Buffer[],
-  context?: { chatId?: number; userId?: string; aiApiKey?: string; platform?: string; useTools?: boolean; useGrounding?: boolean; temperature?: number; max_tokens?: number; usedKeyIndex?: number },
+  context?: { chatId?: number; userId?: string; aiApiKey?: string; platform?: string; useTools?: boolean; useGrounding?: boolean; temperature?: number; max_tokens?: number; usedKeyIndex?: number; thinkingBudget?: string | number },
   history: any[] = []
 ): Promise<string | { content: string; citations?: string[]; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }; reasoning?: string; capturedToolCalls?: any[] } | null> {
   let keys = context?.aiApiKey ? [context.aiApiKey] : []
@@ -128,13 +129,21 @@ export async function runGoogle(
             : {}
 
         const lockResult = await withKeyLock(key!, async () => {
+          const generationConfig: any = {
+            temperature: temperature,
+            maxOutputTokens: context?.max_tokens || 4096,
+          }
+          const geminiBudget = toGeminiThinkingBudget(context?.thinkingBudget)
+          if (typeof geminiBudget === 'number' && geminiBudget > 0) {
+            generationConfig.thinkingConfig = {
+              thinkingBudget: geminiBudget,
+            }
+          }
+
           const m = genAI.getGenerativeModel({
             model: sanitizedId,
             systemInstruction: useSystemInstruction ? systemPrompt : undefined,
-            generationConfig: {
-              temperature: temperature,
-              maxOutputTokens: context?.max_tokens || 4096,
-            },
+            generationConfig,
             ...toolsConfig,
           }, {
             apiVersion: forceLegacy ? 'v1' : 'v1beta',

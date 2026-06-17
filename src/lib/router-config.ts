@@ -19,7 +19,6 @@ export type IntentCategory =
   | 'AUDIO'
   | 'TOOLS'
   | 'IMAGE_GEN'
-  | 'IMAGE_UPSCALE'
   | 'WEB_SEARCH'
   | 'CLASSIFIER'
   | 'VISION'
@@ -33,23 +32,31 @@ export type Platform = 'telegram'
 
 export async function getRouterChain(
   category: IntentCategory
-): Promise<{ chain: RouterModel[], system_prompt?: string; temperature?: number }> {
+): Promise<{ chain: RouterModel[], system_prompt?: string; temperature?: number; thinking_budget?: string | number }> {
   let retryCount = 0
   const maxRetries = 2
 
   while (retryCount <= maxRetries) {
     try {
-      const [chainResult, tempsResult, modelsResult] = await Promise.all([
+      const [chainResult, tempsResult, budgetsResult, modelsResult] = await Promise.all([
         supabase
           .from('router_chains')
           .select('model_list, system_prompt')
           .eq('category', category)
           .eq('platform', 'telegram')
+          .limit(1)
           .maybeSingle(),
         supabase
           .from('settings')
           .select('value')
           .eq('key', 'router_temperatures')
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'router_thinking_budgets')
+          .limit(1)
           .maybeSingle(),
         supabase
           .from('models')
@@ -59,7 +66,7 @@ export async function getRouterChain(
       if (chainResult.error) throw new Error(chainResult.error.message)
       if (!chainResult.data) {
         // Self-healing: if the category is missing, attempt to create a default entry
-        if (category === 'IMAGE_UPSCALE' || category === 'VISION' || category === 'CODING' || category === 'IMAGE_GEN') {
+        if (category === 'VISION' || category === 'CODING' || category === 'IMAGE_GEN') {
           try {
             await supabase.from('router_chains').insert({
               category,
@@ -78,6 +85,9 @@ export async function getRouterChain(
 
       const temps = (tempsResult.data?.value as Record<string, number>) ?? {}
       const customTemp = typeof temps[category] === 'number' ? temps[category] : 0.7
+
+      const budgets = (budgetsResult.data?.value as Record<string, string | number>) ?? {}
+      const customBudget = budgets[category]
 
       const pricingMap = new Map<string, { is_paid?: boolean, prompt_cost?: number, completion_cost?: number }>()
       if (modelsResult.data) {
@@ -106,7 +116,8 @@ export async function getRouterChain(
       const result = {
         chain: enrichedChain,
         system_prompt: (chainResult.data as any).system_prompt || undefined,
-        temperature: customTemp
+        temperature: customTemp,
+        thinking_budget: customBudget
       }
 
       // Background save to cache for future resiliency
@@ -170,6 +181,7 @@ export async function getFallbackModes(): Promise<Record<string, 'model_first' |
     .from('settings')
     .select('value')
     .eq('key', 'router_fallback_modes')
+    .limit(1)
     .maybeSingle()
 
   if (error || !data?.value) return {}

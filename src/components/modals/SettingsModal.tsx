@@ -1,12 +1,13 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck } from 'lucide-react';
+import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
 import { useAuth } from '@/components/AuthProvider';
 import { Toggle } from '@/components/ui/Toggle';
+import UpdatesSection from '@/components/settings/UpdatesSection';
 
 
 
@@ -62,6 +63,7 @@ export function SettingsModal() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
+    { id: 'updates', label: "What's New", icon: Sparkles },
     ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
   ];
 
@@ -120,7 +122,7 @@ export function SettingsModal() {
 
           {/* Version Info */}
           <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta 1.4.2 - Build 2306</p>
+            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta 1.4.3 - Build 2312</p>
           </div>
         </div>
 
@@ -140,8 +142,8 @@ export function SettingsModal() {
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-8 scrollbar-none">
-            <div className="max-w-2xl mx-auto">
+          <div className={cn("flex-1 scrollbar-none", activeTab === 'updates' ? "flex flex-col min-h-0 px-8 py-0" : "overflow-y-auto p-8")}>
+            <div className={cn("max-w-2xl mx-auto w-full", activeTab === 'updates' && "flex-1 flex flex-col min-h-0")}>
               {activeTab === 'interface' && (
                 <div className="space-y-10">
                   {/* Theme Section */}
@@ -269,6 +271,7 @@ export function SettingsModal() {
                   </button>
                 </div>
               )}
+              {activeTab === 'updates' && <UpdatesSection />}
             </div>
           </div>
         </div>

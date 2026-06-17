@@ -184,18 +184,21 @@ export async function classifyIntentWithModel(
           .select('is_active')
           .eq('category', 'classifier_keywords_enabled')
           .eq('mode', 'global')
+          .limit(1)
           .maybeSingle(),
         supabaseAdmin
           .from('bot_settings')
           .select('content')
           .eq('category', 'classifier_prompt')
           .eq('mode', mode)
+          .limit(1)
           .maybeSingle(),
         supabaseAdmin
           .from('bot_settings')
           .select('content')
           .eq('category', 'classifier_keywords')
           .eq('mode', 'global')
+          .limit(1)
           .maybeSingle(),
       ])
 

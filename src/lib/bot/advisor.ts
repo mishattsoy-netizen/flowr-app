@@ -81,8 +81,10 @@ function buildAdvisorPrompt(
 
   const constraintsBlock = formatConstraintsList(constraints)
 
-  return `${dateContext}\n[CURRENT SESSION STATE]\n${sessionState}\n\n[ADVISOR CONVERSATION HISTORY]\n${conversationBlock}\n\n[CURRENTLY GATHERED CONSTRAINTS]\n${constraintsBlock}\n\n[CURRENT ROUND]\nRound ${round}\n\n[USER MESSAGE]\n${message}`
+  return `${dateContext}\n[CURRENT SESSION STATE]\n${sessionState}\n\n[ADVISOR CONVERSATION HISTORY]\n${conversationBlock}\n\n[CURRENTLY GATHERED CONSTRAINTS]\n${constraintsBlock}\n\n[CURRENT ROUND]\nRound ${round}`
 }
+
+export const MAX_ROUNDS = 6
 
 function parseAdvisorResponse(raw: string, currentRound: number, currentConstraints: string[]): AdvisorResult {
   const trimmed = raw.trim()
@@ -108,23 +110,47 @@ function parseAdvisorResponse(raw: string, currentRound: number, currentConstrai
   }
 
   // Extract ADVISOR_STATE JSON block
-  const stateRegex = /---ADVISOR_STATE---\n([\s\S]*?)\n---END_ADVISOR_STATE---/
+  const stateRegex = /---ADVISOR_STATE---([\s\S]*?)---END_ADVISOR_STATE---/
   const stateMatch = trimmed.match(stateRegex)
   logger.info(`[Advisor parse] stateMatch=${!!stateMatch}`)
+  
   let parsedState: AdvisorState | null = null
+  let extractedJsonStr = ''
 
   if (stateMatch) {
+    extractedJsonStr = stateMatch[1].trim()
+  } else {
+    // Fallback: search for a JSON block containing "phase"
+    const braceIndex = trimmed.indexOf('{')
+    if (braceIndex !== -1) {
+      const lastBraceIndex = trimmed.lastIndexOf('}')
+      if (lastBraceIndex > braceIndex) {
+        const potentialJson = trimmed.slice(braceIndex, lastBraceIndex + 1)
+        if (potentialJson.includes('"phase"') || potentialJson.includes("'phase'")) {
+          extractedJsonStr = potentialJson.trim()
+        }
+      }
+    }
+  }
+
+  if (extractedJsonStr) {
+    // Strip markdown wrappers if any, e.g. ```json ... ``` or ``` ... ```
+    let cleanJsonStr = extractedJsonStr
+    if (cleanJsonStr.startsWith('```')) {
+      cleanJsonStr = cleanJsonStr.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '')
+    }
+    cleanJsonStr = cleanJsonStr.trim()
     try {
-      const stateJson = JSON.parse(stateMatch[1])
+      const stateJson = JSON.parse(cleanJsonStr)
       logger.info(`[Advisor parse] extracted state: phase=${stateJson.phase} ready=${stateJson.ready} round=${stateJson.round}`)
       parsedState = {
         phase: stateJson.phase === 'ready' ? 'ready' : 'planning',
         round: stateJson.round ?? currentRound,
         conversation: [],
-        gatheredConstraints: stateJson.gathered_constraints ?? currentConstraints,
+        gatheredConstraints: stateJson.gathered_constraints ?? stateJson.gatheredConstraints ?? currentConstraints,
         ready: stateJson.ready ?? false,
-        finalBrief: stateJson.final_brief,
-        approvedPlan: stateJson.approved_plan,
+        finalBrief: stateJson.final_brief ?? stateJson.finalBrief,
+        approvedPlan: stateJson.approved_plan ?? stateJson.approvedPlan,
         originalPrompt: '',
       }
     } catch (e) {
@@ -132,12 +158,51 @@ function parseAdvisorResponse(raw: string, currentRound: number, currentConstrai
     }
   }
 
-  // Remove state block to get clean display output
-  const cleanOutput = trimmed.replace(stateRegex, '').replace(/---ADVISOR_STATE---[\s\S]*?---END_ADVISOR_STATE---/g, '').trim()
+  // If parsing failed or yielded no state, create fallback state keeping prior constraints
+  if (!parsedState) {
+    logger.warn('[Advisor parse] Failed to parse any state, creating fallback state with previous constraints')
+    parsedState = {
+      phase: 'planning',
+      round: currentRound,
+      conversation: [],
+      gatheredConstraints: currentConstraints,
+      ready: false,
+      originalPrompt: '',
+    }
+  }
+
+  // Enforce Hard Round Cap
+  if (parsedState.round >= MAX_ROUNDS) {
+    logger.info(`[Advisor parse] Round cap reached (${parsedState.round} >= ${MAX_ROUNDS}). Forcing phase=ready.`)
+    parsedState.ready = true
+    parsedState.phase = 'ready'
+    
+    // Synthesize finalBrief and approvedPlan from gathered constraints if not present
+    if (!parsedState.finalBrief) {
+      parsedState.finalBrief = `Automatically finalized due to reaching maximum discussion rounds (${MAX_ROUNDS}). Constraints gathered:\n` + 
+        parsedState.gatheredConstraints.map((c, i) => `- ${c}`).join('\n')
+    }
+    if (!parsedState.approvedPlan) {
+      parsedState.approvedPlan = `Round limit of ${MAX_ROUNDS} reached. Proceeding with planning. Gathered constraints:\n` + 
+        parsedState.gatheredConstraints.map((c, i) => `- ${c}`).join('\n')
+    }
+  }
+
+  // Remove state block / JSON block to get clean display output
+  let cleanOutput = trimmed
+  if (stateMatch) {
+    cleanOutput = cleanOutput.replace(stateRegex, '').replace(/---ADVISOR_STATE---[\s\S]*?---END_ADVISOR_STATE---/g, '').trim()
+  } else if (extractedJsonStr) {
+    const braceIndex = cleanOutput.indexOf('{')
+    const lastBraceIndex = cleanOutput.lastIndexOf('}')
+    if (braceIndex !== -1 && lastBraceIndex !== -1 && lastBraceIndex > braceIndex) {
+      cleanOutput = (cleanOutput.slice(0, braceIndex) + cleanOutput.slice(lastBraceIndex + 1)).trim()
+    }
+  }
 
   // Determine phase
   let phase: 'planning' | 'ready' | 'pass' = 'planning'
-  if (parsedState?.ready || parsedState?.phase === 'ready') {
+  if (parsedState.ready || parsedState.phase === 'ready') {
     phase = 'ready'
   }
   logger.info(`[Advisor parse] final phase=${phase} cleanPreview="${cleanOutput.slice(0, 200).replace(/\n/g, '\\n')}"`)
@@ -146,9 +211,9 @@ function parseAdvisorResponse(raw: string, currentRound: number, currentConstrai
     phase,
     questions: cleanOutput || null,
     state: parsedState,
-    finalizedBrief: parsedState?.finalBrief,
-    approvedPlan: parsedState?.approvedPlan,
-    gatheredConstraintsList: parsedState?.gatheredConstraints?.length ? parsedState.gatheredConstraints : undefined,
+    finalizedBrief: parsedState.finalBrief,
+    approvedPlan: parsedState.approvedPlan,
+    gatheredConstraintsList: parsedState.gatheredConstraints.length ? parsedState.gatheredConstraints : undefined,
   }
 }
 
@@ -192,7 +257,7 @@ export async function runAdvisor(
       const provider = modelConfig.provider.toLowerCase()
       let response: any = null
 
-      if (provider === 'google') {
+      if (provider === 'google' || provider === 'gemini') {
         const { runGoogle } = await import('./providers/google')
         response = await runGoogle(modelConfig.id, advisorPrompt, systemPrompt, undefined, context, history)
       } else if (provider === 'groq') {

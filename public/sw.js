@@ -40,7 +40,12 @@ function isStaticAsset(url) {
 }
 
 function isApiOrSupabase(url) {
-  return url.pathname.startsWith('/api/') || url.hostname.endsWith('.supabase.co');
+  return url.pathname.startsWith('/api/') 
+    || url.pathname.startsWith('/auth/v1/')
+    || url.pathname.startsWith('/rest/v1/')
+    || url.pathname.startsWith('/storage/v1/')
+    || url.hostname.endsWith('.supabase.co')
+    || url.hostname.endsWith('flowr.website');
 }
 
 self.addEventListener('fetch', (event) => {

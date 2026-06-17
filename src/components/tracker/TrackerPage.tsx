@@ -608,7 +608,7 @@ export function TrackerPage() {
   return (
     <div
       ref={boardRef}
-      className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative px-8 py-5"
+      className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative py-5"
       onClick={(e) => {
         // Click on empty board space (not on a card) clears the selection.
         if (
@@ -619,7 +619,7 @@ export function TrackerPage() {
         }
       }}
     >
-      <header className="flex items-end justify-between mb-3 px-[6px] shrink-0">
+      <header className="flex items-end justify-between mb-3 px-8 shrink-0">
         <div>
           <h1 className="text-2xl font-display font-medium text-foreground mb-1">Tasks</h1>
           <p className="text-muted-foreground text-sm font-medium">
@@ -630,6 +630,7 @@ export function TrackerPage() {
 
         <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin min-h-0">
           <div className="flex gap-3 h-full min-w-max">
+            <div className="w-4 shrink-0" />
             {COLUMN_KEYS.map((id) => {
               let title = '';
               switch (id) {
@@ -656,6 +657,7 @@ export function TrackerPage() {
                 />
               );
             })}
+            <div className="w-4 shrink-0" />
           </div>
         </div>
       <TaskContextMenu onMoveToColumn={moveTasksToColumn} onMoveByOne={moveTaskByOne} />

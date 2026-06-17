@@ -37,7 +37,6 @@ const CHAIN_COLORS: Record<string, string> = {
   RESEARCH: 'text-lime-300 bg-lime-500/10 border-lime-500/20',
   VISION: 'text-purple-300 bg-purple-500/10 border-purple-500/20',
   IMAGE_GEN: 'text-pink-300 bg-pink-500/10 border-pink-500/20',
-  IMAGE_UPSCALE: 'text-rose-300 bg-rose-500/10 border-rose-500/20',
   PROMPT_EXPANSION: 'text-green-300 bg-green-500/10 border-green-500/20',
   IMAGE_NARRATION: 'text-purple-300 bg-purple-500/10 border-purple-500/20',
   TOOLS: 'text-orange-300 bg-orange-500/10 border-orange-500/20',

@@ -22,6 +22,7 @@ import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '@/components/layout/Tooltip';
+import { Toggle } from '@/components/ui/Toggle';
 
 const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: number; limit: number, threshold?: number, size?: number }) => {
   const percentage = Math.round((usage / limit) * 100);
@@ -1034,12 +1035,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               <span className="tracking-wide">Thinking</span>
                               <span className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">{thinkingEnabled ? 'On' : 'Off'}</span>
                             </div>
-                            <div className={cn(
-                              'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
-                              thinkingEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
-                            )}>
-                              <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
-                            </div>
+                            <Toggle
+                              size="sm"
+                              checked={thinkingEnabled}
+                              onChange={setThinkingEnabled}
+                              className="ml-auto pointer-events-none"
+                            />
                           </button>
                           <button
                             onClick={() => setAdvisorEnabled(!advisorEnabled)}
@@ -1053,12 +1054,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               <span className="tracking-wide">Advisor</span>
                               <span className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
                             </div>
-                            <div className={cn(
-                              'ml-auto w-7 h-4 rounded-full flex items-center transition-none',
-                              advisorEnabled ? 'bg-[var(--brand-blue)] justify-end' : 'bg-white/10 justify-start'
-                            )}>
-                              <div className="w-3 h-3 rounded-full bg-white mx-0.5" />
-                            </div>
+                            <Toggle
+                              size="sm"
+                              checked={advisorEnabled}
+                              onChange={setAdvisorEnabled}
+                              className="ml-auto pointer-events-none"
+                            />
                           </button>
                           {aiSessionContext?.distilled_summary && (
                             <>

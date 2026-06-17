@@ -974,6 +974,7 @@ export const useStore = create<AppState>()(
                 });
               };
 
+              let isStreamDone = false;
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -989,7 +990,10 @@ export const useStore = create<AppState>()(
                 for (const line of lines) {
                   if (line.startsWith('data: ')) {
                     const data = line.slice(6).trim();
-                    if (data === '[DONE]') break;
+                    if (data === '[DONE]') {
+                      isStreamDone = true;
+                      break;
+                    }
                     try {
                       const parsed = JSON.parse(data);
                       if (parsed.content) {
@@ -1040,6 +1044,7 @@ export const useStore = create<AppState>()(
                     }
                   }
                 }
+                if (isStreamDone) break;
               }
               // Final flush: ensure all accumulated content is rendered
               if (flushTimer) clearTimeout(flushTimer);
@@ -1306,6 +1311,7 @@ export const useStore = create<AppState>()(
                 }));
               };
 
+              let isStreamDone = false;
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -1318,7 +1324,10 @@ export const useStore = create<AppState>()(
                 for (const line of lines) {
                   if (line.startsWith('data: ')) {
                     const data = line.slice(6).trim();
-                    if (data === '[DONE]') break;
+                    if (data === '[DONE]') {
+                      isStreamDone = true;
+                      break;
+                    }
                     try {
                       const parsed = JSON.parse(data);
                       if (parsed.content !== undefined) {
@@ -1333,6 +1342,7 @@ export const useStore = create<AppState>()(
                     } catch { /* ignore parse errors */ }
                   }
                 }
+                if (isStreamDone) break;
               }
               if (flushTimer !== null) { clearTimeout(flushTimer); flushUpdate(); }
               await get().finishAILoading();

@@ -4,6 +4,7 @@ import { detectMimeType } from '../image-utils'
 import { parseSSEStream } from './stream-utils'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
+import { toOpenRouterReasoning } from '../reasoning'
 
 export async function runOpenRouter(
   modelId: string,
@@ -119,6 +120,14 @@ export async function runOpenRouter(
             max_tokens: normContext.max_tokens || 5000,
           }
 
+          if (typeof normContext.temperature === 'number') {
+            toolRequestBody.temperature = normContext.temperature
+          }
+          const orReasoning = toOpenRouterReasoning(normContext.thinkingBudget)
+          if (orReasoning) {
+            Object.assign(toolRequestBody, orReasoning)
+          }
+
           if (resolvedSessionId) {
             toolRequestBody.session_id = String(resolvedSessionId)
           }
@@ -164,6 +173,13 @@ export async function runOpenRouter(
 
           if (!response.ok) {
             const err = await response.json().catch(() => ({}))
+            const errBody = JSON.stringify(err.error || err)
+            if (normContext.openrouterProvider && (response.status === 400 || response.status === 404 || response.status === 422 || response.status === 403) && (errBody.toLowerCase().includes('provider') || errBody.toLowerCase().includes('allow'))) {
+              logger.warn(`OpenRouter: Forced provider "${normContext.openrouterProvider}" failed in tool-calling path — retrying without provider constraint`)
+              const retryContext = { ...normContext }
+              delete retryContext.openrouterProvider
+              return runOpenRouter(modelId, prompt, systemPrompt, history, key, retryContext, imageBuffers)
+            }
             throw new Error(err.error?.message || `OpenRouter API Error: ${response.status}`)
           }
 
@@ -224,6 +240,14 @@ export async function runOpenRouter(
         messages,
         max_tokens: normContext.max_tokens || 5000,
         stream: shouldStream || undefined,
+      }
+
+      if (typeof normContext.temperature === 'number') {
+        requestBody.temperature = normContext.temperature
+      }
+      const orReasoning = toOpenRouterReasoning(normContext.thinkingBudget)
+      if (orReasoning) {
+        Object.assign(requestBody, orReasoning)
       }
 
       if (resolvedSessionId) {
@@ -287,6 +311,14 @@ export async function runOpenRouter(
           errBody = JSON.stringify(errData.error || errData)
         } catch {
           errBody = await response.text()
+        }
+
+        // Forced provider not allowed/available — retry without provider constraint
+        if (normContext.openrouterProvider && (response.status === 400 || response.status === 404 || response.status === 422 || response.status === 403) && (errBody.toLowerCase().includes('provider') || errBody.toLowerCase().includes('allow'))) {
+          logger.warn(`OpenRouter: Forced provider "${normContext.openrouterProvider}" failed — retrying without provider constraint`)
+          const retryContext = { ...normContext }
+          delete retryContext.openrouterProvider
+          return runOpenRouter(modelId, prompt, systemPrompt, history, key, retryContext, imageBuffers)
         }
 
         // Streaming not supported by model — retry without streaming on same key

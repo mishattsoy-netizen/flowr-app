@@ -29,6 +29,46 @@ if (typeof window !== 'undefined') {
   }, { passive: true });
 }
 
+/** Small spacer rendered after a folder's children list. When hovered during a
+ *  tree-item drag it shows an edge line at the folder's depth to signal
+ *  "insert after this folder at the parent level." The Sidebar's onDrop
+ *  recognizes the isAfterFolder flag and forces edge='bottom' on the folder. */
+function AfterFolderSpacer({ folderId, depth }: { folderId: string; depth: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isOver, setIsOver] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'tree-item' && source.data.id !== folderId,
+      getData: () => ({ type: 'tree-item', id: folderId, isAfterFolder: true }),
+      onDragEnter: () => setIsOver(true),
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
+    });
+  }, [folderId]);
+
+  return (
+    <div
+      ref={ref}
+      className="relative w-full"
+      style={{ height: isOver ? '6px' : '2px' }}
+    >
+      {isOver && (
+        <div
+          className="absolute h-px bg-[var(--bone-30)] pointer-events-none z-10 top-0"
+          style={{
+            left: `${8 + depth * 18}px`,
+            right: '3px',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 interface TreeItemProps {
   entity: Entity;
   depth: number;
@@ -57,6 +97,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const contextMenu = useStore(state => state.contextMenu);
 
   const elementRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isOver, setIsOver] = useState(false);
@@ -124,8 +165,11 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     };
   }, [myId, entity.parentId, entity.workspaceId, idOverride, isDragOverlay]);
 
+  // Drop target is on the row div only (not the wrapper that includes children),
+  // so the gap below an item's children doesn't get caught by the parent's drop
+  // target — hover must be on a specific item's row to see edge zone lines.
   useEffect(() => {
-    const el = elementRef.current;
+    const el = rowRef.current;
     if (!el || isDragOverlay) return;
 
     return dropTargetForElements({
@@ -137,34 +181,56 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       ),
       onDragEnter: ({ location }) => {
         setIsOver(true);
-        if (!isFolder) {
-          const rect = elementRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          // Always use the globally-tracked cursor (updated by window
-          // pointermove AND the source draggable's onDrag). Safari's drop
-          // target callbacks can return stale/missing clientY from
-          // location.current.input, so we bypass it entirely.
-          if (!dragCursor.ready) return;
-          const clientY = dragCursor.y;
-          const edge: Edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
-          if (edge !== edgeRef.current) {
-            edgeRef.current = edge;
-            setClosestEdge(edge);
+        const rect = rowRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        // Always use the globally-tracked cursor (updated by window
+        // pointermove AND the source draggable's onDrag). Safari's drop
+        // target callbacks can return stale/missing clientY from
+        // location.current.input, so we bypass it entirely.
+        if (!dragCursor.ready) return;
+        const clientY = dragCursor.y;
+        let edge: Edge | null;
+        if (isFolder) {
+          // Folders/collections/workspaces: top 25%=reorder above,
+          // middle 50%=nest inside (null), bottom 25%=reorder below.
+          const threshold = rect.height * 0.25;
+          if (clientY < rect.top + threshold) {
+            edge = 'top';
+          } else if (clientY > rect.bottom - threshold) {
+            edge = 'bottom';
+          } else {
+            edge = null;
           }
+        } else {
+          edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+        }
+        if (edge !== edgeRef.current) {
+          edgeRef.current = edge;
+          setClosestEdge(edge);
         }
       },
       onDrag: ({ location }) => {
         // isOver is already true from onDragEnter — no need to setState on every frame
-        if (!isFolder) {
-          const rect = elementRef.current?.getBoundingClientRect();
-          if (!rect) return;
-          if (!dragCursor.ready) return;
-          const clientY = dragCursor.y;
-          const edge: Edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
-          if (edge !== edgeRef.current) {
-            edgeRef.current = edge;
-            setClosestEdge(edge);
+        const rect = rowRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        if (!dragCursor.ready) return;
+        const clientY = dragCursor.y;
+        let edge: Edge | null;
+        if (isFolder) {
+          const threshold = rect.height * 0.25;
+          if (clientY < rect.top + threshold) {
+            edge = 'top';
+          } else if (clientY > rect.bottom - threshold) {
+            edge = 'bottom';
+          } else {
+            edge = null;
           }
+        } else {
+          edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+        }
+        if (edge !== edgeRef.current) {
+          edgeRef.current = edge;
+          setClosestEdge(edge);
         }
       },
       onDragLeave: () => {
@@ -353,6 +419,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       )}
     >
       <div
+        ref={rowRef}
         onClick={handleClick}
         data-selected={isActive || undefined}
         className={cn(
@@ -431,16 +498,20 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
 
-      {isOver && !isFolder && closestEdge && (
-        <div
-          className={cn(
-            "absolute left-3 right-3 h-px bg-[var(--bone-30)] pointer-events-none z-10",
-            closestEdge === 'top' ? 'top-0' : '-bottom-px'
-          )}
-        />
-      )}
+        {isOver && closestEdge && (
+          <div
+            className={cn(
+              "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
+              closestEdge === 'top' ? 'top-0' : '-bottom-px'
+            )}
+            style={{
+              left: `${8 + depth * 18}px`,
+              right: '3px'
+            }}
+          />
+        )}
+      </div>
 
       {/* Overlay-clone only: dragging a pinned item outside the pinned section
           will unpin it on drop (it never moves the real entity). Surface that. */}
@@ -485,6 +556,9 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             </div>
           </div>
         </div>
+      )}
+      {isFolder && children.length > 0 && !!isExpanded && (
+        <AfterFolderSpacer folderId={entity.id} depth={depth} />
       )}
       {plusPopupPos && (
         <>

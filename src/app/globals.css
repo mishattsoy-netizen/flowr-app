@@ -1017,8 +1017,8 @@ html {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: var(--color-panel);
-  border: 1px solid var(--bone-15);
+  background-color: var(--bone-15);
+  border: 1px solid transparent;
   border-radius: 34px;
   cursor: pointer;
   transition: none;

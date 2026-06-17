@@ -90,6 +90,7 @@ export async function getCompiledPrompt(mode: BotMode = 'default'): Promise<stri
       .from('bot_compiled_prompt')
       .select('content, global_enabled')
       .eq('mode', mode)
+      .limit(1)
       .single()
 
     if (!error && data && data.global_enabled && data.content?.trim()) {
@@ -130,6 +131,7 @@ export async function getInternalPrompt(chainType: string, mode: BotMode = 'defa
       .from('settings')
       .select('value')
       .eq('key', 'pipeline_internal_prompts')
+      .limit(1)
       .maybeSingle()
 
     if (!error && data) {

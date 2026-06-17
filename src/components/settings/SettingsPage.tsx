@@ -1,13 +1,14 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, LucideIcon, ShieldCheck, Zap, Sun, Moon } from 'lucide-react';
+import { User, Monitor, Settings as SettingsIcon, LucideIcon, ShieldCheck, Zap, Sun, Moon, Sparkles } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
 import { useAuth } from '@/components/AuthProvider';
 import { Toggle } from '@/components/ui/Toggle';
 import { useTheme } from '@/components/ThemeProvider';
+import UpdatesSection from '@/components/settings/UpdatesSection';
 
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader } = useStore();
@@ -29,6 +30,7 @@ export function SettingsPage() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
+    { id: 'updates', label: "What's New", icon: Sparkles },
     ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
   ];
 
@@ -82,23 +84,24 @@ export function SettingsPage() {
 
         {/* Version Info */}
         <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.4.2 - Build 2306</p>
+          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.4.3 - Build 2312</p>
         </div>
       </div>
 
       {/* Main Settings Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-transparent overflow-y-auto">
-        <div className="flex-1 max-w-4xl w-full mx-auto px-8 md:px-12 py-10">
-          <div className="mb-8 pb-4 border-b border-[var(--bone-6)]">
+      <div className={cn("flex-1 flex flex-col min-w-0 bg-transparent", activeTab !== 'updates' && "overflow-y-auto")}>
+        <div className={cn("flex-1 max-w-4xl w-full mx-auto px-8 md:px-12", activeTab === 'updates' ? "pt-10 pb-0 flex flex-col min-h-0 h-full" : "py-10")}>
+          <div className="mb-8 pb-4 border-b border-[var(--bone-6)] shrink-0">
             <h3 className="font-display text-2xl font-bold tracking-tight text-[var(--bone-100)] capitalize">{activeTab}</h3>
             <p className="text-sm text-[var(--bone-70)] mt-1">
               {activeTab === 'profile' && "Manage your visual presentation and account identity."}
               {activeTab === 'interface' && "Customize visual theme, scale, and layout preferences."}
               {activeTab === 'account' && "Manage your workspace and credentials settings."}
+              {activeTab === 'updates' && "Stay up to date with the latest additions, improvements, and fixes."}
             </p>
           </div>
 
-          <div className="space-y-10">
+          <div className={cn(activeTab === 'updates' ? "flex-1 min-h-0" : "space-y-10")}>
             {activeTab === 'interface' && (
               <div className="space-y-10">
                 {/* Appearance/Theme Section */}
@@ -231,6 +234,7 @@ export function SettingsPage() {
                 </button>
               </div>
             )}
+            {activeTab === 'updates' && <UpdatesSection />}
           </div>
         </div>
       </div>

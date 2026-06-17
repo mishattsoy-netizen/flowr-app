@@ -29,7 +29,7 @@ Direction for final output: [specific instruction for the answer chain]
 Confidence: [high / medium / low] — [one sentence reason]`
 
 function parseThinkOutput(raw: string): ThinkResult {
-  const direction = raw.match(/Direction for final output:\s*(.+)/i)?.[1]?.trim() || raw
+  const direction = raw.match(/Direction for final output:\s*(.+)/i)?.[1]?.trim() || ''
   const correctionMatch = raw.match(/Correction needed:\s*([A-Z_]+)/i)?.[1]?.trim()
   const confidenceMatch = raw.match(/Confidence:\s*(high|medium|low)/i)?.[1] as 'high' | 'medium' | 'low' | undefined
 
@@ -150,50 +150,6 @@ export async function runThinkChain(
 
   const result = parseThinkOutput(raw)
   const allSteps: PipelineStep[] = []
-
-  if (result.correctionChain) {
-    logger.info(`Think chain requesting correction: ${result.correctionChain}`)
-    thinkStep.status = 'done'
-    allSteps.push({ ...thinkStep })
-    onStatus({ ...thinkStep })
-
-    const correctedContext = accumulatedContext
-
-    // Second think pass — no more corrections
-    const thinkStep2: PipelineStep = { 
-      chain: 'THINKING', 
-      goal: 'Final review after correction', 
-      status: 'running', 
-      label 
-    }
-    onStatus(thinkStep2)
-
-    const thinkPrompt2 = buildThinkPrompt(correctedContext)
-    const raw2 = await runThinkModel(thinkPrompt2, systemPrompt, history.slice(-20), context, tracer)
-
-    if (raw2) {
-      const result2 = parseThinkOutput(raw2)
-      thinkStep2.status = 'done'
-      allSteps.push({ ...thinkStep2 })
-      onStatus({ ...thinkStep2 })
-      return {
-        thinkSummary: raw2,
-        direction: result2.direction,
-        correctedContext,
-        steps: allSteps,
-      }
-    }
-
-    thinkStep2.status = 'failed'
-    allSteps.push({ ...thinkStep2 })
-    onStatus({ ...thinkStep2 })
-    return {
-      thinkSummary: raw,
-      direction: result.direction,
-      correctedContext,
-      steps: allSteps,
-    }
-  }
 
   thinkStep.status = 'done'
   allSteps.push({ ...thinkStep })

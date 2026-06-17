@@ -66,6 +66,7 @@ export async function getCompiledPromptMeta(mode: BotMode = 'default'): Promise<
     .from('bot_compiled_prompt')
     .select('*')
     .eq('mode', mode)
+    .limit(1)
     .single()
   if (error || !data) return { content: '', compiled_at: '', entry_count: 0 }
   return data as { content: string; compiled_at: string; entry_count: number }
@@ -75,6 +76,7 @@ export async function setGlobalPromptEnabled(enabled: boolean): Promise<void> {
   const { error } = await supabase
     .from('bot_compiled_prompt')
     .update({ global_enabled: enabled })
+    .eq('mode', 'default')
   if (error) throw error
   await logAdminAction('prompt_synced', `Global prompt ${enabled ? 'enabled' : 'disabled'}`, { enabled })
   revalidatePath('/admin/bot/global')
@@ -85,6 +87,7 @@ export async function getGlobalEnabled(): Promise<boolean> {
     .from('bot_compiled_prompt')
     .select('global_enabled')
     .eq('mode', 'default')
+    .limit(1)
     .single()
   return data?.global_enabled ?? true
 }
@@ -94,6 +97,7 @@ export async function getOllamaEnabled(): Promise<boolean> {
     .from('bot_compiled_prompt')
     .select('ollama_enabled')
     .eq('mode', 'default')
+    .limit(1)
     .single()
   return data?.ollama_enabled ?? false
 }
@@ -102,6 +106,7 @@ export async function setOllamaEnabled(enabled: boolean): Promise<void> {
   const { error } = await supabase
     .from('bot_compiled_prompt')
     .update({ ollama_enabled: enabled })
+    .eq('mode', 'default')
   if (error) throw error
   revalidatePath('/admin/bot/global')
 }
@@ -111,6 +116,7 @@ export async function getBackendModel(): Promise<string> {
     .from('bot_compiled_prompt')
     .select('backend_model')
     .eq('mode', 'default')
+    .limit(1)
     .single()
   return data?.backend_model ?? 'gemini-2.0-flash'
 }
@@ -119,6 +125,7 @@ export async function setBackendModel(model: string): Promise<void> {
   const { error } = await supabase
     .from('bot_compiled_prompt')
     .update({ backend_model: model })
+    .eq('mode', 'default')
   if (error) throw error
   revalidatePath('/admin/bot/global')
 }

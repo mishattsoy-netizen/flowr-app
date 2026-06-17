@@ -65,6 +65,7 @@ DO NOT include markdown code fences or any conversational wrapper in the output.
       .from('bot_compiled_prompt')
       .select('backend_model')
       .eq('mode', 'default')
+      .limit(1)
       .single()
     const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
 

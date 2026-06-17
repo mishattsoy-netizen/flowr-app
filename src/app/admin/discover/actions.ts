@@ -85,17 +85,12 @@ function getModalities(id: string, customInput?: string[], customOutput?: string
   const idLower = id.toLowerCase()
   const isImageGen = idLower.includes('flux') || idLower.includes('diffusion') || idLower.includes('sdxl') || idLower.includes('stable-diffusion') || idLower.includes('dreamshaper') || idLower.includes('dall-e') || idLower.includes('dalle') || idLower.includes('midjourney') || idLower.includes('imagen') || idLower.includes('playground') || idLower.includes('animagine') || idLower.includes('illustrious')
   
-  const isUpscale = idLower.includes('upscale') || idLower.includes('esrgan') || idLower.includes('swinir') || idLower.includes('real-esrgan')
-  
   const isAudio = idLower.includes('whisper') || idLower.includes('tts') || idLower.includes('audio') || idLower.includes('speech') || idLower.includes('voice')
 
   let input = customInput ?? ['text']
   let output = customOutput ?? ['text']
 
-  if (isUpscale) {
-    input = ['image']
-    output = ['image-upscale']
-  } else if (isImageGen) {
+  if (isImageGen) {
     if (!input.includes('text')) input.push('text')
     output = ['image']
   } else if (isAudio) {

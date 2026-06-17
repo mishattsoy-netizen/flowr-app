@@ -17,7 +17,6 @@ const CATEGORY_ICONS: Record<string, any> = {
   CLASSIFIER: Brain,
   THINKING: Sparkles,
   ADVISOR: Brain,
-  IMAGE_UPSCALE: Maximize2,
   COMPACTION: FileText,
   // Legacy  — still displayed with fallback icon
 }
@@ -83,9 +82,7 @@ export async function RouterPageContent({ platform }: { platform: 'app' | 'teleg
         {!routers.some((r: any) => r.category === 'ADVISOR') && (
           <AddCategoryButton platform={platform} category="ADVISOR" />
         )}
-        {!routers.some((r: any) => r.category === 'IMAGE_UPSCALE') && (
-          <AddCategoryButton platform={platform} category="IMAGE_UPSCALE" />
-        )}
+
         {!routers.some((r: any) => r.category === 'COMPACTION') && (
           <AddCategoryButton platform={platform} category="COMPACTION" />
         )}

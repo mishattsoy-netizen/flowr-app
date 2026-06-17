@@ -19,8 +19,6 @@ import { runCloudflare } from './providers/cloudflare'
 import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
 import { runNvidia } from './providers/nvidia'
-import { getImageDimensions } from './image-utils'
-import { runHuggingFaceUpscale } from './providers/huggingface'
 import { getConversationMemory, getWebConversationMemory } from './memory'
 import { supabaseAdmin } from '../supabase'
 import { getCompiledPrompt, getInternalPrompt } from './compilePrompt'
@@ -715,42 +713,12 @@ export async function runChain(
 
   const routingTrace: RoutingTrace[] = []
 
-  // Explicit ADVISOR intent override — if classified as advisor, force execution
-  if (category === 'ADVISOR' && context?.advisorEnabled) {
-    const availableTools = ['web_search', 'deep_research', 'image_gen', 'tool_calling']
-    const advisorResult = await runAdvisor(prompt, context?.mode ?? 'default', context?.thinkingEnabled ?? false, availableTools, context, [], context?.pendingAdvisorState ?? null)
-    if (advisorResult.phase === 'planning') {
-      const advisorStateJson = advisorResult.state ? JSON.stringify(advisorResult.state) : undefined
-      return {
-        type: 'text',
-        content: advisorResult.questions || '',
-        usage_type: 'chat',
-        model_chain: 'classifier → advisor → (awaiting user response)',
-        status: 'success',
-        advisor_questions: advisorResult.questions || '',
-        advisor_state: advisorStateJson,
-      }
-    }
-    if (advisorResult.phase === 'ready' && advisorResult.state) {
-      const readyBlocks: string[] = []
-      if (advisorResult.finalizedBrief) {
-        readyBlocks.push(`[FINALIZED BRIEF]\n${advisorResult.finalizedBrief}`)
-      }
-      if (advisorResult.gatheredConstraintsList && advisorResult.gatheredConstraintsList.length > 0) {
-        readyBlocks.push(`[GATHERED CONSTRAINTS]\n${advisorResult.gatheredConstraintsList.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
-      }
-      if (advisorResult.approvedPlan) {
-        readyBlocks.push(`[APPROVED PLAN]\n${advisorResult.approvedPlan}`)
-      }
-      if (readyBlocks.length > 0) {
-        dateContext = `[ADVISOR PREPARATION]\n${readyBlocks.join('\n\n')}\n\n` + dateContext
-      }
-    }
-    // If PASS or ready, fallback to complex thinking to actually process the user query
+  // If classified as ADVISOR, fallback to COMPLEX to actually process the query
+  if (category === 'ADVISOR') {
     category = 'COMPLEX'
   }
 
-  let { chain, system_prompt: routerOverridePrompt, temperature } = await getRouterChain(category)
+  let { chain, system_prompt: routerOverridePrompt, temperature, thinking_budget } = await getRouterChain(category)
 
   // Fetch internal pipeline prompt if available (from Admin > Bot > Global)
   const internalPipelinePrompt = await getInternalPrompt(category, context?.mode ?? 'default')
@@ -1043,6 +1011,7 @@ export async function runChain(
             aiApiKey: activeKey || undefined,
             usedKeyIndex: k + 1,
             temperature: typeof temperature === 'number' ? temperature : undefined,
+            thinkingBudget: thinking_budget,
             setSynthesisModel: (m: string) => { usedSynthesisModel = m }
           }
 
@@ -1366,30 +1335,7 @@ export async function runChain(
                   }
                 }
                 if (processingBuffer) {
-                  try {
-                    logger.info(`Checking if upscale is needed for generated image...`)
-                    const upscaleT0 = Date.now()
-                    const { buffer, modelChain: upscaleChain, failedModels: upscaleFailed } = await runUpscaleChain(processingBuffer)
-                    for (const failed of upscaleFailed ?? []) {
-                      routingTrace.push({ model: failed.id, category: 'IMAGE_UPSCALE', key: 'HF', success: false })
-                      tracer.recordFailed({ chain: 'IMAGE_UPSCALE', model: failed.id, provider: failed.provider, error: failed.error })
-                    }
-                    if (upscaleChain) {
-                      logger.info(`[Upscale] Chain complete: ${upscaleChain}`)
-                      processingBuffer = buffer
-                      if (Buffer.isBuffer(finalContent)) finalContent = buffer
-                      const upscalePart = upscaleChain.split(' → ')[1] || 'upscaler'
-                      const upscaleModelId = upscalePart.split('|')[0]
-                      routingTrace.push({ model: upscaleModelId, category: 'IMAGE_UPSCALE', key: 'HF', success: true })
-                      tracer.recordSuccess({
-                        chain: 'IMAGE_UPSCALE',
-                        model: upscaleModelId,
-                        provider: 'huggingface',
-                      }, Date.now() - upscaleT0)
-                    }
-                  } catch (e: any) {
-                    logger.warn(`Auto-upscale in runChain failed: ${e.message}`)
-                  }
+
                   try {
                     const { narrateGeneratedImage } = await import('./image-narration')
                     const { getSubchainConfig } = await import('../subchain-config')
@@ -1618,60 +1564,3 @@ export async function runChain(
   }
 }
 
-/**
- * Executes the IMAGE_UPSCALE chain on a provided image buffer.
- * Only upscales if dimensions are below 2000px.
- */
-export async function runUpscaleChain(
-  imageBuffer: Buffer,
-  context?: { aiApiKey?: string }
-): Promise<{ buffer: Buffer; modelChain?: string; failedModels?: Array<{ id: string; provider: string; error: string }> }> {
-  // 1. Check dimensions
-  const dims = getImageDimensions(imageBuffer)
-  logger.info(`[Upscale] Checking image dimensions: ${dims ? `${dims.width}x${dims.height}` : 'unknown'}`)
-  if (dims && dims.width >= 2000 && dims.height >= 2000) {
-    logger.info(`[Upscale] Skipping: Image already large enough.`)
-    return { buffer: imageBuffer }
-  }
-
-  // 2. Fetch the chain
-  const { chain } = await getRouterChain('IMAGE_UPSCALE')
-  logger.info(`[Upscale] Chain fetched: ${chain?.length || 0} models found.`)
-  if (!chain || chain.length === 0) {
-    logger.info('[Upscale] No models configured. Skipping.')
-    return { buffer: imageBuffer }
-  }
-
-  const failedModels: Array<{ id: string; provider: string; error: string }> = []
-
-  // 3. Iterate models
-  for (const modelConfig of chain) {
-    if (!modelConfig.is_enabled) {
-      logger.info(`[Upscale] Skipping disabled model: ${modelConfig.id}`)
-      continue
-    }
-
-    try {
-      logger.info(`[Upscale] Attempting with: ${modelConfig.id} (${modelConfig.provider})`)
-      let upscaled: Buffer | null = null
-
-      const provider = modelConfig.provider.toLowerCase()
-      if (provider === 'huggingface') {
-        upscaled = await runHuggingFaceUpscale(modelConfig.id, imageBuffer, context?.aiApiKey)
-      }
-
-      if (upscaled) {
-        logger.info(`[Upscale] SUCCESS with ${modelConfig.id}`)
-        return { buffer: upscaled, modelChain: `IMAGE_UPSCALE → ${modelConfig.id}`, failedModels }
-      } else {
-        logger.warn(`[Upscale] Model ${modelConfig.id} returned no data.`)
-        failedModels.push({ id: modelConfig.id, provider: modelConfig.provider, error: 'empty response' })
-      }
-    } catch (err: any) {
-      logger.warn(`[Upscale] Failed for ${modelConfig.id}: ${err.message}`)
-      failedModels.push({ id: modelConfig.id, provider: modelConfig.provider, error: err.message })
-    }
-  }
-
-  return { buffer: imageBuffer, failedModels }
-}

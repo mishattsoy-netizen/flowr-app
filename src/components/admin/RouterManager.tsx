@@ -188,7 +188,6 @@ const CATEGORY_ICONS: Record<string, any> = {
   RESEARCH: GraduationCap,
   VISION: Eye,
   ADVISOR: ShieldCheck,
-  IMAGE_UPSCALE: Maximize,
   PROMPT_EXPANSION: ArrowUpRight,
   IMAGE_NARRATION: Mic
 }
@@ -218,7 +217,7 @@ export default function RouterManager({
   const hasSubchains = category ? SUBCHAIN_PARENTS[category] === true : false
   const ALL_CATEGORIES: IntentCategory[] = [
     'REGULAR', 'COMPLEX', 'CLASSIFIER',
-    'VISION', 'IMAGE_GEN', 'IMAGE_UPSCALE', 'WEB_SEARCH', 'RESEARCH',
+    'VISION', 'IMAGE_GEN', 'WEB_SEARCH', 'RESEARCH',
     'TOOLS', 'CODING', 'THINKING', 'ADVISOR',
   ]
   const [isSubchainView, setIsSubchainView] = useState(false)

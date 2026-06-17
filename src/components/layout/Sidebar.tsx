@@ -296,7 +296,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         if (!target) return;
 
         const activeId = source.data.id as string;
-        const overId = target.data.id as string;
+        let overId = target.data.id as string;
         if (!activeId || !overId) return;
 
         const isPinnedDrag = source.data.isPinned as boolean;
@@ -304,15 +304,57 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         const entity = entities.find(e => e.id === entityId);
         if (!entity) return;
 
+        // Look up overEntity early so the edge calculation can check the target type.
+        let overEntity = entities.find(e => e.id === overId);
+
         // Calculate edge directly from cursor position vs element rect
         // to avoid cached data from the library's getData.
+        // For folders/collections/workspaces: top 25%=reorder above,
+        // middle 50%=nest inside (edge=null), bottom 25%=reorder below.
+        // For other items: 50/50 split for reorder only.
         let edge: string | null = null;
         const targetEl = target.element;
         const input = location.current.input;
         const clientY = input?.clientY;
         if (targetEl instanceof HTMLElement && clientY != null) {
           const rect = targetEl.getBoundingClientRect();
-          edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+          if (overEntity && (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace')) {
+            const threshold = rect.height * 0.25;
+            if (clientY < rect.top + threshold) {
+              edge = 'top';
+            } else if (clientY > rect.bottom - threshold) {
+              edge = 'bottom';
+            } // else edge stays null → nest inside
+          } else {
+            edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+          }
+        }
+
+        // After-folder spacer: treat as bottom-edge drop on the folder so the
+        // item is inserted after it at the parent level.
+        if (target.data.isAfterFolder === true) {
+          edge = 'bottom';
+        }
+
+        // Top-edge redirect: if the sibling above (at the same parent level) has
+        // expanded children, redirect the top edge to "nest inside that sibling"
+        // (at the end of its children) — same visual logic as the gap after its
+        // expanded children.
+        if (edge === 'top' && overEntity) {
+          const collapsedIds = useStore.getState().collapsedIds;
+          const siblings = entities
+            .filter(e => e.parentId === overEntity.parentId && (e.workspaceId || 'ws-personal') === (overEntity.workspaceId || 'ws-personal'))
+            .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+          const idx = siblings.findIndex(e => e.id === overEntity.id);
+          if (idx > 0) {
+            const prev = siblings[idx - 1];
+            const hasChildren = entities.some(e => e.parentId === prev.id);
+            if (hasChildren && !collapsedIds.includes(prev.id)) {
+              overId = prev.id;
+              overEntity = prev;
+              edge = null;
+            }
+          }
         }
 
         // Dropping in pinned section
@@ -343,7 +385,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           return;
         }
 
-        const overEntity = entities.find(e => e.id === overId);
         const moveEntityAction = useStore.getState().moveEntity;
 
         let newParentId: string | null = entity.parentId;
@@ -596,7 +637,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide",
                       isActive
                         ? "text-[var(--bone-100)]"
-                        : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
+                        : "text-[var(--bone-60)] hover:text-[var(--bone-100)]"
                     )}
                   >
                     <tab.icon className="w-3.5 h-3.5" strokeWidth={2} />

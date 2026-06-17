@@ -1,7 +1,7 @@
 {
   "orchestratorEnabled": true,
   "maxPipelineSteps": 7,
-  "historyLimit": 14,
+  "historyLimit": 30,
   "imageGenAutoLast": true,
   "thinkingToggleDefault": false,
   "thinkingSummaryVisible": "collapsible",
@@ -12,7 +12,7 @@
     },
     "TOOLS": {
       "emoji": "",
-      "label": "Tooling..."
+      "label": "Using tools..."
     },
     "CODING": {
       "emoji": "",
@@ -48,7 +48,7 @@
     },
     "CLASSIFIER": {
       "emoji": "",
-      "label": "Classifying..."
+      "label": "Analyzing..."
     },
     "COMPACTION": {
       "emoji": "",
@@ -109,10 +109,11 @@
     "REGULAR",
     "WEB_SEARCH",
     "RESEARCH",
-    "VISION"
+    "VISION",
+    "TOOLS"
   ],
   "inputTokenLimit": 64000,
-  "outputTokenLimit": 0,
+  "outputTokenLimit": 32000,
   "tokenLimitEnabledCategories": [
     "IMAGE_GEN",
     "REGULAR",

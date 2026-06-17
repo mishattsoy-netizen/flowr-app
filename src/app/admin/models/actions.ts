@@ -76,14 +76,15 @@ export async function updateModel(id: string, updates: {
     const { data: botPrompt } = await supabaseAdmin
       .from('bot_compiled_prompt')
       .select('backend_model')
-      .eq('id', 1)
+      .eq('mode', 'default')
+      .limit(1)
       .single()
 
     if (botPrompt?.backend_model === id) {
       await supabaseAdmin
         .from('bot_compiled_prompt')
         .update({ backend_model: updates.id })
-        .eq('id', 1)
+        .eq('mode', 'default')
     }
   }
 

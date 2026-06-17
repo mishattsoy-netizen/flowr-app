@@ -5,6 +5,12 @@ import { revalidatePath } from 'next/cache'
 import { logAdminAction } from '@/lib/admin/logAction'
 
 export async function getRouterChains(platform: 'app' | 'telegram') {
+  // Purge any legacy IMAGE_UPSCALE rows from the database
+  await supabase
+    .from('router_chains')
+    .delete()
+    .eq('category', 'IMAGE_UPSCALE')
+
   const { data, error } = await supabase
     .from('router_chains')
     .select('*')
@@ -12,10 +18,12 @@ export async function getRouterChains(platform: 'app' | 'telegram') {
 
   if (error) throw error
 
+  const filtered = (data ?? []).filter((r: any) => r.category !== 'IMAGE_UPSCALE')
+
   // Try to get custom order
   const order = await getRouterOrder(platform)
   if (order && order.length > 0) {
-    return data.sort((a: any, b: any) => {
+    return filtered.sort((a: any, b: any) => {
       const indexA = order.indexOf(a.id)
       const indexB = order.indexOf(b.id)
       if (indexA === -1 && indexB === -1) return 0
@@ -26,7 +34,7 @@ export async function getRouterChains(platform: 'app' | 'telegram') {
   }
 
   // Fallback to category alphabetical order
-  return data.sort((a: any, b: any) => a.category.localeCompare(b.category))
+  return filtered.sort((a: any, b: any) => a.category.localeCompare(b.category))
 }
 
 export async function getRouterOrder(platform: 'app' | 'telegram'): Promise<string[]> {
@@ -34,6 +42,7 @@ export async function getRouterOrder(platform: 'app' | 'telegram'): Promise<stri
     .from('settings')
     .select('value')
     .eq('key', `router_chains_order_${platform}`)
+    .limit(1)
     .maybeSingle()
   return (data?.value as string[]) ?? []
 }
@@ -107,6 +116,7 @@ export async function getFallbackModes(): Promise<Record<string, 'model_first' |
     .from('settings')
     .select('value')
     .eq('key', 'router_fallback_modes')
+    .limit(1)
     .maybeSingle()
 
   if (error || !data?.value) return {}
@@ -136,6 +146,7 @@ export async function getRouterTemperatures(): Promise<Record<string, number>> {
     .from('settings')
     .select('value')
     .eq('key', 'router_temperatures')
+    .limit(1)
     .maybeSingle()
 
   if (error || !data?.value) return {}
@@ -165,6 +176,7 @@ export async function getInternalPrompts(): Promise<Record<string, string>> {
     .from('settings')
     .select('value')
     .eq('key', 'pipeline_internal_prompts')
+    .limit(1)
     .maybeSingle()
   return (data?.value as Record<string, string>) ?? {}
 }
@@ -211,6 +223,7 @@ export async function syncInternalPromptsFromFiles(): Promise<{ synced: string[]
     .from('settings')
     .select('value')
     .eq('key', 'pipeline_internal_prompts')
+    .limit(1)
     .maybeSingle()
   const current: Record<string, string> = (data?.value as Record<string, string>) ?? {}
 
@@ -248,6 +261,7 @@ export async function getInternalPromptsFull() {
     .from('settings')
     .select('value, updated_at')
     .eq('key', 'pipeline_internal_prompts')
+    .limit(1)
     .maybeSingle()
   return {
     value: (data?.value as Record<string, string>) ?? {},
@@ -260,6 +274,7 @@ export async function getStatusMessages(): Promise<Record<string, { label: strin
     .from('settings')
     .select('value')
     .eq('key', 'pipeline_status_messages')
+    .limit(1)
     .maybeSingle()
   return (data?.value as Record<string, { label: string; emoji: string }>) ?? {}
 }
@@ -281,6 +296,7 @@ export async function getPipelineSettings() {
     .from('settings')
     .select('value')
     .eq('key', 'pipeline_settings')
+    .limit(1)
     .maybeSingle()
   return (data?.value as any) ?? {}
 }
@@ -334,4 +350,3 @@ export async function getLayeredPromptPreview(category: string, mode: 'default' 
     ]
   }
 }
-

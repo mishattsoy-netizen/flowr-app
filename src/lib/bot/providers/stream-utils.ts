@@ -45,10 +45,14 @@ export function parseSSEStream(
         const parts = sseBuffer.split('\n')
         sseBuffer = parts.pop() || ''
 
+        let isDone = false
         for (const line of parts) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6).trim()
-          if (data === '[DONE]') continue
+          if (data === '[DONE]') {
+            isDone = true
+            break
+          }
           try {
             const parsed = JSON.parse(data)
             const delta = parsed.choices?.[0]?.delta
@@ -67,6 +71,13 @@ export function parseSSEStream(
           } catch {
             // Skip malformed SSE lines
           }
+        }
+
+        if (isDone) {
+          clearStallTimer()
+          reader.cancel().catch(() => {})
+          resolve({ content: fullContent, citations, reasoning: fullReasoning || undefined })
+          return
         }
 
         pump()

@@ -205,6 +205,7 @@ Each item must have exactly these fields: topic (string), title (string), reason
           .from('bot_compiled_prompt')
           .select('backend_model')
           .eq('mode', 'default')
+          .limit(1)
           .single()
         const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
 
