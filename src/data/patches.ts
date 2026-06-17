@@ -18,35 +18,34 @@ export const PATCHES: Patch[] = [
     version: '1.4.3',
     build: '2312',
     date: '2026-06-18',
-    title: 'Clean Proxy Auth & AI Improvements',
+    title: 'Branding & AI Stability Updates',
     sections: [
       {
         type: 'added',
         items: [
-          'Added a dedicated "What\'s New" updates feed in settings with scroll-fade overlays and interactive release history card listings.',
-          'Added clean authentication domain rewrites (/auth/v1, /rest/v1, /storage/v1) mapping directly to Supabase endpoints, completely removing raw Supabase URLs from app transitions.'
+          'Added a dedicated "What\'s New" updates feed in settings with release history and visual logs.',
+          'Added fully branded authentication routing, keeping the URL clean and matching your custom domain throughout login transitions.'
         ]
       },
       {
         type: 'improved',
         items: [
-          'Unified toggle switches across all settings modals, sidebars, and panels using a standard central Toggle component.',
-          'Standardized toggle track colors for consistent visibility across both light and dark themes.'
+          'Unified the design of toggle switches across all settings modals, sidebars, and panels for a consistent interface.',
+          'Polished toggle switch visibility in light and dark themes.'
         ]
       },
       {
         type: 'changed',
         items: [
-          'Removed legacy image upscaling models, database columns, and associated cache stores.'
+          'Cleaned up legacy image models and database configurations to optimize performance.'
         ]
       },
       {
         type: 'fixed',
         items: [
-          'Fixed chat completion stream termination hangs.',
-          'Fixed Gemini provider routing configurations and self-healing OpenRouter fallbacks.',
-          'Resolved database config cardinality violations and compiled prompt schema errors.',
-          'Fixed TypeScript compiler errors related to the custom WebSocket transport injection and Sidebar drag-and-drop sibling check types.'
+          'Fixed connection hangs and improved response stability for the AI assistant.',
+          'Resolved layout anomalies when dragging and dropping nested items in the sidebar.',
+          'Fixed real-time synchronization connection drops.'
         ]
       }
     ]
