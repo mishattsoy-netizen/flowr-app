@@ -45,6 +45,14 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isInternalNavRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
   const [storeHydrated, setStoreHydrated] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Strip ?guest from URL after guest entry bypass
   useEffect(() => {
@@ -176,6 +184,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
     }
   }, [activeEntityId, hasHydrated]);
 
+  // Auto-collapse sidebar on mobile when activeEntityId changes
+  useEffect(() => {
+    if (isMobile && !isSidebarCollapsed) {
+      toggleSidebar();
+    }
+  }, [activeEntityId, isMobile]);
+
   const sidebarWidth = useStore(state => state.sidebarWidth);
   const setSidebarWidth = useStore(state => state.setSidebarWidth);
   const aiSidebarWidth = useStore(state => state.aiSidebarWidth);
@@ -280,26 +295,27 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         (isResizingLeft || isResizingRight) && "resizing-active"
       )}
       style={{
-        gridTemplateColumns: 'var(--sidebar-w, 280px) 1fr',
         transition: 'none'
       } as React.CSSProperties}
     >
       <SmoothScroll />
+      {/* Mobile Sidebar Backdrop */}
+      {!currentSidebarCollapsed && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
+      )}
+
       {/* 1. Left Sidebar Section */}
       <div
         className={cn(
           "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
           (!currentSidebarCollapsed || !isTabsHeaderVisible) && "border-r border-[var(--bone-10)]",
-          currentSidebarCollapsed ? "flex" : "fixed inset-0 z-50 md:relative md:inset-auto md:flex"
+          currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:flex"
         )}
         style={{
-          width: 'var(--sidebar-w, 280px)',
+          width: isMobile ? (currentSidebarCollapsed ? '0px' : '280px') : 'var(--sidebar-w, 280px)',
           transition: 'none'
         }}
       >
-        {!currentSidebarCollapsed && (
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm md:hidden cursor-pointer" onClick={toggleSidebar} />
-        )}
         <div className="relative h-full w-full overflow-hidden">
           <div className="h-full">
             <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} />
@@ -338,8 +354,16 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           </main>
         </div>
 
+        {/* Right AI Sidebar Backdrop */}
+        {isMobile && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat' && (
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" 
+            onClick={() => useStore.getState().setAIAssistantOpen(false)} 
+          />
+        )}
+
         {/* Right Resizer Handle */}
-        {isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat' && (
+        {!isMobile && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat' && (
           <div
             onMouseDown={() => {
               isResizingRightRef.current = true;
@@ -366,15 +390,18 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         {/* Right AI Sidebar Wrapper */}
         <div
           className={cn(
-            "h-full bg-sidebar shrink-0 overflow-hidden relative z-40 transition-colors duration-200",
-            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-10)]"
+            "h-full bg-sidebar shrink-0 overflow-hidden transition-colors duration-200",
+            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-10)]",
+            isMobile 
+              ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col" : "hidden")
+              : "relative z-40"
           )}
           style={{
-            width: (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') ? `${currentAiSidebarWidth}px` : '0px',
+            width: isMobile ? undefined : ((isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') ? `${currentAiSidebarWidth}px` : '0px'),
             transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          <div className="h-full shrink-0" style={{ width: `${currentAiSidebarWidth}px` }}>
+          <div className="h-full shrink-0 w-full" style={{ width: isMobile ? '100%' : `${currentAiSidebarWidth}px` }}>
             {hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat' && <AIAssistant />}
           </div>
         </div>

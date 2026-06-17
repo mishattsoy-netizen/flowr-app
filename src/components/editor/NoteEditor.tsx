@@ -1203,7 +1203,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         <div 
             className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
-              isFullWidth ? "w-full px-20" : "max-w-[850px] px-4",
+              isFullWidth ? "w-full md:px-20 px-4" : "max-w-[850px] px-4",
               isDragging && "dragging-active-content"
             )}
             dir="ltr"

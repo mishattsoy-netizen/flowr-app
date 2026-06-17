@@ -21,6 +21,8 @@ import {
   Minus,
   X,
   ChevronRight,
+  ChevronLeft,
+  MoreHorizontal,
   Plus,
   Database,
   History,
@@ -167,9 +169,13 @@ export const HeaderBar = memo(function HeaderBar() {
       <div className="flex items-center gap-1.5 shrink-0">
         <button 
           onClick={toggleSidebar}
-          className="md:hidden p-1.5 rounded-[var(--radius-small)] hover:bg-hover text-muted-foreground hover:text-foreground"
+          className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-70)] hover:text-[var(--bone-100)]"
         >
-          <Menu strokeWidth={2} className="w-5 h-5" />
+          {isDashboard ? (
+            <Menu strokeWidth={2} className="w-5 h-5" />
+          ) : (
+            <ChevronLeft strokeWidth={2} className="w-5 h-5" />
+          )}
         </button>
 
         <Tooltip content="Go Back">
@@ -204,8 +210,16 @@ export const HeaderBar = memo(function HeaderBar() {
       {/* Divider (only if not dashboard or if we want it always) */}
       <div className="w-px h-5 bg-[var(--bone-6)] mx-2" />
 
+      {/* Mobile Title View */}
+      <div className="flex md:hidden flex-1 items-center px-1 min-w-0 font-semibold text-sm text-[var(--bone-100)] truncate">
+        {isDashboard ? 'Home' : 
+         activeEntityId === 'tracker' ? 'Tasks' :
+         activeEntityId === 'chat' ? 'Chat' : 
+         stripHtml(entities.find(e => e.id === activeEntityId)?.title || '')}
+      </div>
+
       {/* Tabs */}
-      <div className="flex-1 flex items-center gap-1 h-full px-2 min-w-0">
+      <div className="hidden md:flex flex-1 items-center gap-1 h-full px-2 min-w-0">
         {openTabIds.map((tabId) => {
           const entity = entities.find(e => e.id === tabId);
           const isActive = activeTabId === tabId;
@@ -368,46 +382,63 @@ export const HeaderBar = memo(function HeaderBar() {
         const isContentPage = activeEntity && ['note', 'mixed', 'canvas'].includes(activeEntity.type);
         if (!isContentPage) return null;
         return (
-          <div className="ml-auto flex items-center gap-0.5">
-            {ACTIONS.map(action => {
-              const isNoteOrMixed = activeEntity.type === 'note' || activeEntity.type === 'mixed';
-              if (action.id === 'layout' && !isNoteOrMixed) return null;
+          <>
+            {/* Mobile Dropdown Trigger */}
+            <div className="ml-auto flex md:hidden items-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  openContextMenu(activeEntityId, rect.left - 120, rect.bottom + 4, 'sidebar');
+                }}
+                className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+              >
+                <MoreHorizontal strokeWidth={2} className="w-4 h-4" />
+              </button>
+            </div>
 
-              return (
-                <Tooltip 
-                  key={action.id} 
-                  content={action.label}
-                  disabled={!!modal || (contextMenu?.entityId === activeEntityId)}
-                >
-                  <button
-                    onClick={(e) => handleAction(action.id, e)}
-                    className={cn(
-                      "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)]  group",
-                      action.color,
-                      action.id === 'layout' && isFullWidth && "bg-accent/10"
-                    )}
+            {/* Desktop Actions */}
+            <div className="hidden md:flex ml-auto items-center gap-0.5">
+              {ACTIONS.map(action => {
+                const isNoteOrMixed = activeEntity.type === 'note' || activeEntity.type === 'mixed';
+                if (action.id === 'layout' && !isNoteOrMixed) return null;
+
+                return (
+                  <Tooltip 
+                    key={action.id} 
+                    content={action.label}
+                    disabled={!!modal || (contextMenu?.entityId === activeEntityId)}
                   >
-                      {action.id === 'layout' ? (
-                        isFullWidth ? (
-                          <div className="flex items-center justify-center -space-x-1.5 ">
-                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center -space-x-0.5 ">
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                          <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                        </div>
-                        )
-                      ) : (
-                        <action.icon strokeWidth={2} className="w-4 h-4" />
+                    <button
+                      onClick={(e) => handleAction(action.id, e)}
+                      className={cn(
+                        "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)]  group",
+                        action.color,
+                        action.id === 'layout' && isFullWidth && "bg-accent/10"
                       )}
-                  </button>
-                </Tooltip>
-              );
-            })}
-          </div>
+                    >
+                        {action.id === 'layout' ? (
+                          isFullWidth ? (
+                            <div className="flex items-center justify-center -space-x-1.5 ">
+                              <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
+                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center -space-x-0.5 ">
+                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                          </div>
+                          )
+                        ) : (
+                          <action.icon strokeWidth={2} className="w-4 h-4" />
+                        )}
+                    </button>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </>
         );
       })()}
     </div>

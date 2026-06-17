@@ -86,7 +86,6 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
     const cleanup = draggable({
       element: el,
-      effectAllowed: 'move',
       getInitialData: () => ({
         type: 'tree-item',
         id: myId,

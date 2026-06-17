@@ -59,6 +59,15 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   } = useBentoLayout(contextId);
 
   const [reallyLoading, setReallyLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const [hoveredWidgetId, setHoveredWidgetId] = useState<string | null>(null);
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const hoverClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -313,6 +322,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
   // ─── Find Dividers ────────────────────────────────────────────────────────
 
   const dividers = useMemo(() => {
+    if (isMobile) return [];
     if (!editMode || dragState) return [];
     const divs: any[] = [];
     
@@ -359,9 +369,10 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       });
     });
     return divs;
-  }, [layout, positions, editMode, dragState]);
+  }, [layout, positions, editMode, dragState, isMobile]);
   
   const verticalDividers = useMemo(() => {
+    if (isMobile) return [];
     if (!editMode || dragState) return [];
     const divs: { topId: string; bottomId: string; yPct: number; xPct: number; wPct: number; xOffset: number }[] = [];
     
@@ -407,7 +418,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
       });
     });
     return divs;
-  }, [layout, positions, editMode, dragState]);
+  }, [layout, positions, editMode, dragState, isMobile]);
   
   // ─── Render Helpers ───────────────────────────────────────────────────────
 
@@ -443,7 +454,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 mr-1">
+              <div className="hidden md:flex items-center gap-2 mr-1">
                 {editMode && (
                   <>
                     <label className="flex items-center gap-2 mr-3 cursor-pointer select-none text-xs text-bone-70">
@@ -502,7 +513,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
             </div>
           </header>
 
-          {editMode && (
+          {editMode && !isMobile && (
             <div className="mb-4 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground text-center">
               Drag widgets to rearrange · Divider gaps to resize · Ctrl+Z to undo
             </div>
@@ -510,7 +521,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
 
           <div
             ref={gridRef}
-            className={cn('relative w-full', reallyLoading && 'bento-no-transitions')}
+            className={cn('relative w-full', reallyLoading && 'bento-no-transitions', isMobile ? 'flex flex-col gap-3 overflow-y-auto h-full pr-1 pb-8' : '')}
             style={{ flex: 1, minHeight: 0 }}
           >
             {layout.map((item, idx) => {
@@ -523,51 +534,56 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
 
               const style = getStyle(pos);
 
+              let mobileHeight = '200px';
+              if (item.h === 1) mobileHeight = '150px';
+              if (item.h === 2) mobileHeight = '220px';
+              if (item.h >= 3) mobileHeight = '320px';
+
               return (
-                <div key={item.i}>
+                <div key={item.i} className={isMobile ? 'w-full shrink-0' : ''}>
                   {/* The actual widget */}
                   <div
                     className={cn(
-                      'absolute bento-widget-cell',
+                      isMobile ? 'relative w-full shrink-0' : 'absolute bento-widget-cell',
                       isDragged && 'opacity-0 pointer-events-none', // hide original while dragging
                       editMode && 'cursor-grab active:cursor-grabbing hover:z-10 overflow-visible',
                       isSwapTarget && 'ring-2 ring-primary ring-offset-2 ring-offset-background rounded-[var(--radius-big)]',
                       isStackTarget && 'ring-2 ring-accent ring-offset-2 ring-offset-background rounded-[var(--radius-big)] bg-accent/5 z-20 scale-105 transition-all duration-300'
                     )}
-                     style={{ ...style, transition: (isDragged || !!verticalDividerDrag || !!dividerDrag) ? 'none' : 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+                    style={isMobile ? { height: mobileHeight, marginBottom: '4px' } : { ...style, transition: (isDragged || !!verticalDividerDrag || !!dividerDrag) ? 'none' : 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
                     onPointerEnter={() => editMode && !dragState && setHovered(item.i)}
                     onPointerLeave={() => setHovered(null)}
                     onPointerDown={(e) => onWidgetPointerDown(e, item.i)}
-
-              >
-              <BentoWidget
-              item={item}
-              contextId={contextId}
-              editMode={editMode}
-              isLoading={isLoading}
-              onUpdateData={(newData) => updateWidgetData(item.i, newData)}
-              onRemove={() => removeWidget(item.i)}
-              isSwapTarget={isSwapTarget}
-              isStackTarget={isStackTarget}
-              staggerIndex={idx}
-              /></div>
-
-                    {/* Placeholder shows where it will drop */}
-                    {isDragged && dragState && (
-                      <div
-                        className="absolute rounded-[var(--radius-big)] bg-muted/50 border-2 border-dashed border-primary/30 z-0"
-                        style={{ 
-                          left: `calc(${(pos.x / 6) * 100}% + ${GAP/2}px)`,
-                          top: `calc(${(pos.y / MAX_ROWS) * 100}% + ${GAP/2}px)`,
-                          width: `calc(${(pos.w / 6) * 100}% - ${GAP}px)`,
-                          height: `calc(${(pos.h / MAX_ROWS) * 100}% - ${GAP}px)`,
-                          transition: 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' 
-                        }}
-                      />
-                    )}
+                  >
+                    <BentoWidget
+                      item={item}
+                      contextId={contextId}
+                      editMode={editMode && !isMobile}
+                      isLoading={isLoading}
+                      onUpdateData={(newData) => updateWidgetData(item.i, newData)}
+                      onRemove={() => removeWidget(item.i)}
+                      isSwapTarget={isSwapTarget}
+                      isStackTarget={isStackTarget}
+                      staggerIndex={idx}
+                    />
                   </div>
-                );
-              })}
+
+                  {/* Placeholder shows where it will drop */}
+                  {!isMobile && isDragged && dragState && (
+                    <div
+                      className="absolute rounded-[var(--radius-big)] bg-muted/50 border-2 border-dashed border-primary/30 z-0"
+                      style={{ 
+                        left: `calc(${(pos.x / 6) * 100}% + ${GAP/2}px)`,
+                        top: `calc(${(pos.y / MAX_ROWS) * 100}% + ${GAP/2}px)`,
+                        width: `calc(${(pos.w / 6) * 100}% - ${GAP}px)`,
+                        height: `calc(${(pos.h / MAX_ROWS) * 100}% - ${GAP}px)`,
+                        transition: 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
 
             {/* Ghost follows the pointer - Rendered outside the map to avoid cell layout interference */}
             {/* Ghost follows the pointer */}

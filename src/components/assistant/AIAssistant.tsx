@@ -581,7 +581,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             ? "relative w-full h-auto"
             : actualExtended
               ? "relative w-full h-full"
-              : "fixed bottom-6 right-6 w-[380px] h-[680px] max-h-[calc(100vh-3rem)] z-[100] rounded-[var(--radius-big)] border border-[var(--bone-10)] overflow-hidden zoom-in-95 slide-in-from-bottom-4"
+              : "fixed inset-0 w-full h-full max-h-screen z-[100] rounded-none border-none overflow-hidden zoom-in-95 md:inset-auto md:bottom-6 md:right-6 md:w-[380px] md:h-[680px] md:max-h-[calc(100vh-3rem)] md:rounded-[var(--radius-big)] md:border md:border-[var(--bone-10)]"
         )}
         style={{ display: (isAIAssistantOpen || chatPageMode) ? 'flex' : 'none' }}
       >
