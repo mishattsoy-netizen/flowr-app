@@ -342,10 +342,13 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         // expanded children.
         if (edge === 'top' && overEntity) {
           const collapsedIds = useStore.getState().collapsedIds;
+          const targetParentId = overEntity.parentId;
+          const targetWorkspaceId = overEntity.workspaceId;
+          const targetId = overEntity.id;
           const siblings = entities
-            .filter(e => e.parentId === overEntity.parentId && (e.workspaceId || 'ws-personal') === (overEntity.workspaceId || 'ws-personal'))
+            .filter(e => e.parentId === targetParentId && (e.workspaceId || 'ws-personal') === (targetWorkspaceId || 'ws-personal'))
             .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
-          const idx = siblings.findIndex(e => e.id === overEntity.id);
+          const idx = siblings.findIndex(e => e.id === targetId);
           if (idx > 0) {
             const prev = siblings[idx - 1];
             const hasChildren = entities.some(e => e.parentId === prev.id);

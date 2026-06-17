@@ -36,7 +36,8 @@ function isStaticAsset(url) {
   return url.pathname.startsWith('/_next/static/')
     || url.pathname.startsWith('/icons/')
     || url.pathname === '/manifest.webmanifest'
-    || url.pathname === '/favicon.svg';
+    || url.pathname === '/favicon.svg'
+    || url.pathname === '/favicon.ico';
 }
 
 function isApiOrSupabase(url) {

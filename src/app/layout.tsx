@@ -39,9 +39,12 @@ export const metadata: Metadata = {
   description: "Visual-first productivity and knowledge workspace",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icons/icon-192.png",
   },
 };
 
