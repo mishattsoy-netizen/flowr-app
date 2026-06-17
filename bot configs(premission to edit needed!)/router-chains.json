@@ -68,36 +68,19 @@
   "CLASSIFIER": {
     "chain": [
       {
+        "id": "deepseek/deepseek-v4-flash",
+        "_key": "exbx8vvmd",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "deepseek",
+        "is_paid": true,
+        "prompt_cost": 1.4e-7,
+        "completion_cost": 2.8e-7
+      },
+      {
         "id": "llama-3.3-70b-versatile",
         "_key": "ratlb71mw",
         "provider": "groq",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "llama-3.1-8b-instant",
-        "_key": "2e1skx6n3",
-        "provider": "groq",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "gemini-3.1-flash-lite",
-        "_key": "exbx8vvmd",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "openai-fast",
-        "_key": "hphsa4ev0",
-        "provider": "pollinations",
         "is_enabled": true,
         "is_paid": false,
         "prompt_cost": null,
@@ -159,6 +142,16 @@
         "completion_cost": null
       },
       {
+        "id": "deepseek/deepseek-v4-flash",
+        "_key": "5kest5kfo",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "deepseek",
+        "is_paid": true,
+        "prompt_cost": 1.4e-7,
+        "completion_cost": 2.8e-7
+      },
+      {
         "id": "gemini-3.1-flash-lite",
         "_key": "is5n1pw9r",
         "provider": "gemini",
@@ -166,16 +159,6 @@
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null
-      },
-      {
-        "id": "deepseek/deepseek-v4-flash",
-        "_key": "5kest5kfo",
-        "provider": "openrouter",
-        "is_enabled": true,
-        "openrouter_provider": "google-ai-studio",
-        "is_paid": true,
-        "prompt_cost": 1.4e-7,
-        "completion_cost": 2.8e-7
       },
       {
         "id": "duckduckgo-search",

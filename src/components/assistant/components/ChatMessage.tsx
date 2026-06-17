@@ -937,7 +937,7 @@ export const ChatMessage = memo(({
     if (msg.role === 'assistant') {
       if (isAILoading && isLast) {
         if (!timerStartRef.current) {
-          timerStartRef.current = Date.now();
+          timerStartRef.current = msg.timestamp || Date.now();
         }
         const timer = setInterval(() => {
           if (timerStartRef.current) {
@@ -957,7 +957,7 @@ export const ChatMessage = memo(({
         }
       }
     }
-  }, [msg.role, isLast, isAILoading, completionTime, msg.logId, elapsed]);
+  }, [msg.role, isLast, isAILoading, completionTime, msg.logId, elapsed, msg.timestamp]);
 
   const markdownComponents = useMemo(() => {
     return {

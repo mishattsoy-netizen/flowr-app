@@ -73,6 +73,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const aiApiKey = useStore(state => state.aiApiKey);
   const aiSessionContext = useStore(state => state.aiSessionContext);
   const fetchAISessionContext = useStore(state => state.fetchAISessionContext);
+  const setAISessionContext = useStore(state => state.setAISessionContext);
+  const sessionContextsMap = useStore(state => state.sessionContextsMap);
   const compactAIChat = useStore(state => state.compactAIChat);
 
   const activeMode = useStore(state => state.activeMode)
@@ -168,31 +170,31 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   // the vision digital twin (image_description) fully counted since it's re-injected
   // into history on every follow-up turn.
   // Server-side token_usage_total only updates on compaction, so it stays at 0 until then.
-  const localTokenEstimate = (() => {
-    let chars = 0
-    const filteredMsgs = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant')
+  const displayedTokens = (() => {
+    const summary = aiSessionContext?.distilled_summary;
+    const summaryTokens = summary ? Math.ceil(summary.length / 4) : 0;
     
-    // If distilled summary exists, we only count the last 5 messages (redundant ones are trimmed by chainRouter)
-    const messagesToCount = (aiSessionContext?.distilled_summary)
-      ? filteredMsgs.slice(-5)
-      : filteredMsgs
+    let chars = 0;
+    let imageTokens = 0;
+    const filteredMsgs = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant');
+    const messagesToCount = summary ? filteredMsgs.slice(-5) : filteredMsgs;
 
     for (const m of messagesToCount) {
       let text = (m.content || '').includes('data:image/')
         ? (m.content || '').replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, m.image_description ? `[Image: ${m.image_description}]` : '[Image: (visual content generated)]')
-        : (m.content || '')
+        : (m.content || '');
       if (m.role === 'user' && m.image_description) {
-        text = `${text}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${m.image_description}`.trim()
+        text = `${text}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${m.image_description}`;
       } else if (m.role === 'user' && !m.image_description && m.attachments?.some(a => a.type === 'image' || a.type === 'pdf')) {
-        text = `${text}\n[Image attached]`.trim()
+        text = `${text}\n[Image attached]`;
       }
-      chars += text.length
+      
+      const imageCount = m.attachments?.filter(a => a.type === 'image' || a.type === 'pdf').length || 0;
+      imageTokens += imageCount * 258;
+      chars += text.length;
     }
-    return Math.ceil(chars / 4)
+    return summaryTokens + Math.ceil(chars / 4) + imageTokens;
   })();
-  const displayedTokens = aiSessionContext?.distilled_summary
-    ? (aiSessionContext.token_usage_total ?? 0) + localTokenEstimate
-    : localTokenEstimate;
 
   useEffect(() => {
     setIsMounted(true);
@@ -200,9 +202,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
   useEffect(() => {
     if (isAIAssistantOpen) {
+      const savedContext = sessionContextsMap[sessionId];
+      setAISessionContext(savedContext || null);
       fetchAISessionContext(sessionId);
     }
-  }, [isAIAssistantOpen, sessionId, fetchAISessionContext]);
+  }, [isAIAssistantOpen, sessionId, fetchAISessionContext, sessionContextsMap, setAISessionContext]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });

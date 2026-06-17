@@ -330,6 +330,11 @@ export const useStore = create<AppState>()(
       showPaidModels: false,
       pendingCompaction: false,
       isCompacting: false,
+      chatInputs: {},
+      loadingStatesMap: {},
+      abortControllersMap: {},
+      chatMessagesMap: {},
+      sessionContextsMap: {},
 
       // ─── Actions ─────────────────────────────────────────
       setDashboardLayout: (layout) => set({ dashboardLayout: layout }),
@@ -337,11 +342,19 @@ export const useStore = create<AppState>()(
       resetDashboardLayout: () => set((s) => ({ dashboardLayout: s.defaultDashboardLayout })),
 
       stopAIGeneration: () => {
-        const { aiAbortController } = get();
-        if (aiAbortController) {
-          aiAbortController.abort();
-          set({ aiAbortController: null, isAILoading: false, aiCursor: null });
+        const { activeChatId, activeEntityId, isTempChat, abortControllersMap } = get();
+        const sid = activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        const controller = abortControllersMap[sid];
+        if (controller) {
+          controller.abort();
         }
+        set(s => ({
+          isAILoading: false,
+          aiAbortController: null,
+          loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
+          abortControllersMap: { ...s.abortControllersMap, [sid]: null },
+          aiCursor: null
+        }));
       },
 
       add_note: (title, content, parentId = null) => {
@@ -447,7 +460,12 @@ export const useStore = create<AppState>()(
         } catch (err) {
           console.error('Failed to fetch compaction config:', err);
         }
-        if (sessionData) set({ aiSessionContext: sessionData });
+        if (sessionData) {
+          set(s => ({
+            aiSessionContext: sessionData,
+            sessionContextsMap: { ...s.sessionContextsMap, [chatId]: sessionData }
+          }));
+        }
       },
 
       clearAIChat: async () => {
@@ -478,14 +496,20 @@ export const useStore = create<AppState>()(
       setIsTempChat: (temp) => set({ isTempChat: temp }),
       setChatHistoryOpen: (open) => set({ chatHistoryOpen: open }),
 
-      startTempChat: () => set({
-        activeChatId: null,
-        isTempChat: true,
-        tempChatMessages: [],
-        aiMessages: [],
-        aiSessionContext: null,
-        pendingAdvisorState: null,
-      }),
+      startTempChat: () => {
+        const sid = 'temp';
+        set(s => ({
+          activeChatId: null,
+          isTempChat: true,
+          tempChatMessages: [],
+          aiMessages: s.chatMessagesMap[sid] || [],
+          aiSessionContext: s.sessionContextsMap[sid] || null,
+          pendingAdvisorState: null,
+          assistantInput: s.chatInputs[sid] || '',
+          isAILoading: s.loadingStatesMap[sid] || false,
+          aiAbortController: s.abortControllersMap[sid] || null,
+        }));
+      },
 
       startNewChat: async () => {
         try {
@@ -498,6 +522,9 @@ export const useStore = create<AppState>()(
               aiMessages: [],
               aiSessionContext: null,
               pendingAdvisorState: null,
+              assistantInput: '',
+              isAILoading: false,
+              aiAbortController: null,
               chatConversations: [conv, ...get().chatConversations],
             });
           } else {
@@ -510,6 +537,24 @@ export const useStore = create<AppState>()(
       },
 
       loadConversation: async (id: string) => {
+        // If the chat is currently generating, DO NOT fetch/overwrite messages from database.
+        // This preserves the active streaming status.
+        const isGenerating = get().loadingStatesMap[id] || false;
+        if (isGenerating) {
+          set({
+            activeChatId: id,
+            isTempChat: false,
+            tempChatMessages: [],
+            aiMessages: get().chatMessagesMap[id] || [],
+            aiSessionContext: get().sessionContextsMap[id] || null,
+            pendingAdvisorState: null,
+            assistantInput: get().chatInputs[id] || '',
+            isAILoading: true,
+            aiAbortController: get().abortControllersMap[id] || null,
+          });
+          return;
+        }
+
         try {
           const msgs = await fetchMessages(id);
           const aiMsgs = msgs.map(m => ({
@@ -523,15 +568,18 @@ export const useStore = create<AppState>()(
             image_prompt: m.image_prompt,
             attachments: m.attachments,
           }));
-          set({
+          set(s => ({
             activeChatId: id,
             isTempChat: false,
             tempChatMessages: [],
             aiMessages: aiMsgs,
-            aiSessionContext: null,
+            chatMessagesMap: { ...s.chatMessagesMap, [id]: aiMsgs },
+            aiSessionContext: s.sessionContextsMap[id] || null,
             pendingAdvisorState: null,
-          });
-          // Fetch fresh context for the loaded chat
+            assistantInput: s.chatInputs[id] || '',
+            isAILoading: false,
+            aiAbortController: null,
+          }));
           get().fetchAISessionContext(id);
         } catch (e) {
           console.error('Failed to load conversation', e);
@@ -647,8 +695,15 @@ export const useStore = create<AppState>()(
         }
       },
 
-      finishAILoading: async () => {
-        set({ isAILoading: false, aiAbortController: null });
+      finishAILoading: async (chatId) => {
+        const { activeChatId, activeEntityId, isTempChat } = get();
+        const sid = chatId || activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        set(s => ({
+          isAILoading: s.activeChatId === sid || (!s.activeChatId && sid === 'temp' && s.isTempChat) ? false : s.isAILoading,
+          aiAbortController: s.activeChatId === sid || (!s.activeChatId && sid === 'temp' && s.isTempChat) ? null : s.aiAbortController,
+          loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
+          abortControllersMap: { ...s.abortControllersMap, [sid]: null }
+        }));
         const { pendingCompaction, compactAIChat } = get();
         if (pendingCompaction) {
           set({ pendingCompaction: false });
@@ -681,10 +736,29 @@ export const useStore = create<AppState>()(
       setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
       setReplyMessage: (msg) => set({ activeReplyMessage: msg }),
       setShowPaidModels: (show) => set({ showPaidModels: show }),
-      setAssistantInput: (input) => set({ assistantInput: input }),
+      setAssistantInput: (input) => {
+        const { activeChatId, activeEntityId, isTempChat } = get();
+        const sid = activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        set(s => ({
+          assistantInput: input,
+          chatInputs: { ...s.chatInputs, [sid]: input }
+        }));
+      },
 
       sendAIMessage: async (content, attachments = []) => {
         const { aiMessages, activeReplyMessage } = get();
+        const isTemp = get().isTempChat;
+        const activeChatId = get().activeChatId;
+        const activeEntityId = get().activeEntityId;
+        const activeWorkspaceId = get().activeWorkspaceId;
+        const aiApiKey = get().aiApiKey;
+        const aiClassificationModelId = get().aiClassificationModelId;
+        const activeMode = get().activeMode;
+        const activeIntentTag = get().activeIntentTag;
+        const pendingState = get().pendingAdvisorState;
+        const thinkingEnabled = get().thinkingEnabled;
+        const advisorEnabled = get().advisorEnabled;
+        const targetChatId = activeChatId || activeEntityId || (isTemp ? 'temp' : 'global');
 
         let replyContext: any = null;
         if (activeReplyMessage) {
@@ -730,17 +804,25 @@ export const useStore = create<AppState>()(
           timestamp: Date.now(),
         };
 
-        const isTemp = get().isTempChat;
-        set({
-          aiMessages: [...aiMessages, userMessage, placeholderMessage],
-          ...(isTemp ? { tempChatMessages: [...aiMessages, userMessage, placeholderMessage] } : {}),
-          activeReplyMessage: null,
-          isAILoading: true,
+        set(s => {
+          const updated = [...(s.chatMessagesMap[targetChatId] || s.aiMessages), userMessage, placeholderMessage];
+          const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+          const isActive = currentActiveId === targetChatId;
+          return {
+            chatMessagesMap: {
+              ...s.chatMessagesMap,
+              [targetChatId]: updated
+            },
+            ...(isActive ? { aiMessages: updated } : {}),
+            ...(isTemp ? { tempChatMessages: updated } : {}),
+            activeReplyMessage: null,
+            isAILoading: true,
+            loadingStatesMap: { ...s.loadingStatesMap, [targetChatId]: true }
+          };
         });
 
         // Persist user message if in a named conversation
-        const activeChatId = get().activeChatId;
-        if (activeChatId && !get().isTempChat) {
+        if (activeChatId && !isTemp) {
           insertMessage(activeChatId, 'user', content, undefined, undefined, undefined, undefined, attachments).catch(e => console.warn('[Store] Failed to persist user message:', e));
         }
 
@@ -785,9 +867,11 @@ export const useStore = create<AppState>()(
             })
 
           const controller = new AbortController();
-          set({ aiAbortController: controller });
+          set(s => ({
+            aiAbortController: s.activeChatId === targetChatId || (!s.activeChatId && targetChatId === 'temp' && s.isTempChat) ? controller : s.aiAbortController,
+            abortControllersMap: { ...s.abortControllersMap, [targetChatId]: controller }
+          }));
 
-          const pendingState = get().pendingAdvisorState;
           const res = await fetch('/api/ai/chat', {
             method: 'POST',
             headers,
@@ -796,31 +880,38 @@ export const useStore = create<AppState>()(
               prompt: content,
               buffer: imageBuffer,
               images: imagesArray,
-              activeEntityId: get().activeEntityId,
-              activeChatId: get().activeChatId,
-              aiApiKey: get().aiApiKey,
-              activeWorkspaceId: get().activeWorkspaceId,
-              classificationModelId: get().aiClassificationModelId,
-              mode: get().activeMode,
-              intentTag: get().activeIntentTag ?? null,
+              activeEntityId,
+              activeChatId,
+              aiApiKey,
+              activeWorkspaceId,
+              classificationModelId: aiClassificationModelId,
+              mode: activeMode,
+              intentTag: activeIntentTag ?? null,
               replyContext,
-              thinkingEnabled: get().thinkingEnabled,
-              advisorEnabled: get().advisorEnabled,
+              thinkingEnabled,
+              advisorEnabled,
               pendingAdvisorState: pendingState,
-              isTempChat: get().isTempChat,
+              isTempChat: isTemp,
               clientHistory: historyMessages,
             }),
           });
 
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: 'Request failed' }));
-            set(s => ({
-              aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
+            set(s => {
+              const updated = (s.chatMessagesMap[targetChatId] || []).map(m => m.id === placeholderMessage.id
                 ? { ...m, content: err.error || 'Something went wrong.', model: err.model || 'system' }
                 : m
-              ),
-            }));
-            await get().finishAILoading();
+              );
+              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const isActive = currentActiveId === targetChatId;
+              return {
+                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                ...(isActive ? { aiMessages: updated } : {}),
+                ...(isTemp ? { tempChatMessages: updated } : {})
+              };
+            });
+            await get().finishAILoading(targetChatId);
             return;
           }
 
@@ -850,8 +941,8 @@ export const useStore = create<AppState>()(
               const flushUpdate = () => {
                 flushTimer = null;
                 const contentToSet = pendingContent;
-                set((s) => ({
-                  aiMessages: s.aiMessages.map((m) =>
+                set((s) => {
+                  const updatedMessages = (s.chatMessagesMap[targetChatId] || []).map((m) =>
                     m.id === placeholderMessage.id
                   ? {
                       ...m,
@@ -872,15 +963,15 @@ export const useStore = create<AppState>()(
                       advisor_state: lastAdvisorState ?? (m as any).advisor_state,
                     }
                       : m
-                  ),
-                  ...(get().isTempChat ? {
-                    tempChatMessages: s.aiMessages.map((m) =>
-                      m.id === placeholderMessage.id
-                        ? { ...m, content: contentToSet, model: lastModel || m.model }
-                        : m
-                    )
-                  } : {}),
-                }));
+                  );
+                  const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                  const isActive = currentActiveId === targetChatId;
+                  return {
+                    chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updatedMessages },
+                    ...(isActive ? { aiMessages: updatedMessages } : {}),
+                    ...(isTemp ? { tempChatMessages: updatedMessages } : {}),
+                  };
+                });
               };
 
               while (true) {
@@ -929,13 +1020,20 @@ export const useStore = create<AppState>()(
                         if ((parsed as any).advisor_questions) lastAdvisorQuestions = (parsed as any).advisor_questions;
                         if ((parsed as any).advisor_state) lastAdvisorState = (parsed as any).advisor_state;
                       } else if (parsed.status) {
-                        set((s) => ({
-                          aiMessages: s.aiMessages.map((m) =>
+                        set((s) => {
+                          const updated = (s.chatMessagesMap[targetChatId] || []).map((m) =>
                             m.id === placeholderMessage.id
                               ? { ...m, status: parsed.status }
                               : m
-                          ),
-                        }));
+                          );
+                          const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                          const isActive = currentActiveId === targetChatId;
+                          return {
+                            chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                            ...(isActive ? { aiMessages: updated } : {}),
+                            ...(isTemp ? { tempChatMessages: updated } : {}),
+                          };
+                        });
                       }
                     } catch (e) {
                       // ignore parse errors
@@ -961,15 +1059,22 @@ export const useStore = create<AppState>()(
                 set({ pendingAdvisorState: null });
               }
             }
-            await get().finishAILoading();
+            await get().finishAILoading(targetChatId);
             // Backfill image_description onto the user message so future history
             // turns can reference what was in the image, even for non-vision chains
             if (lastImageDescription) {
-              set(s => ({
-                aiMessages: s.aiMessages.map(m =>
+              set(s => {
+                const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
                   m.id === userMessage.id ? { ...m, image_description: lastImageDescription } : m
-                )
-              }))
+                );
+                const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                const isActive = currentActiveId === targetChatId;
+                return {
+                  chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                  ...(isActive ? { aiMessages: updated } : {}),
+                  ...(isTemp ? { tempChatMessages: updated } : {}),
+                };
+              });
             }
             // Skip persistence for advisor planning messages (not final content)
             if (lastAdvisorQuestions && lastAdvisorState) {
@@ -979,22 +1084,21 @@ export const useStore = create<AppState>()(
               } catch (e) { /* ignore parse errors */ }
             }
             // Persist assistant reply
-            const chatId = get().activeChatId;
-            if (chatId && !get().isTempChat && accumulatedContent) {
-              insertMessage(chatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
+            if (activeChatId && !isTemp && accumulatedContent) {
+              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
               // Auto-set title from first message if still default
-              const conv = get().chatConversations.find(c => c.id === chatId);
+              const conv = get().chatConversations.find(c => c.id === activeChatId);
               if (conv && conv.title === 'New Chat' && content) {
                 const title = content.slice(0, 60);
-                get().renameChatConversation(chatId, title);
+                get().renameChatConversation(activeChatId, title);
               }
             }
             return;
           }
 
           const data = await res.json();
-          set(s => ({
-            aiMessages: s.aiMessages.map(m => {
+          set(s => {
+            const updated = (s.chatMessagesMap[targetChatId] || []).map(m => {
               if (m.id === placeholderMessage.id) return {
                 ...m,
                 content: data.content,
@@ -1011,51 +1115,63 @@ export const useStore = create<AppState>()(
               // Backfill image_description onto the user message for future history context
               if (m.id === userMessage.id && data.image_description) return { ...m, image_description: data.image_description }
               return m
-            }),
-          }));
-          await get().finishAILoading();
+            });
+            const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+            const isActive = currentActiveId === targetChatId;
+            return {
+              chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+              ...(isActive ? { aiMessages: updated } : {}),
+              ...(isTemp ? { tempChatMessages: updated } : {}),
+            };
+          });
+          await get().finishAILoading(targetChatId);
 
           // Persist non-streaming assistant reply
-          const cid = get().activeChatId;
-          if (cid && !get().isTempChat && data.content) {
-            insertMessage(cid, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
+          if (activeChatId && !isTemp && data.content) {
+            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
             // Auto-set title from first message if still default
-            const conv = get().chatConversations.find(c => c.id === cid);
+            const conv = get().chatConversations.find(c => c.id === activeChatId);
             if (conv && conv.title === 'New Chat' && content) {
               const title = content.slice(0, 60);
-              get().renameChatConversation(cid, title);
+              get().renameChatConversation(activeChatId, title);
             }
           }
         } catch (e: any) {
           if (e?.name === 'AbortError') {
-            const { activeChatId, isTempChat } = get();
             const interruptedContent = 'Generation stopped by user.';
-            set({
-              aiMessages: get().aiMessages.map(m =>
+            set(s => {
+              const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
                 m.id === placeholderMessage.id
                   ? { ...m, content: interruptedContent, interrupted: true }
                   : m
-              ),
-              ...(isTempChat ? {
-                tempChatMessages: get().aiMessages.map(m =>
-                  m.id === placeholderMessage.id
-                    ? { ...m, content: interruptedContent, interrupted: true }
-                    : m
-                )
-              } : {}),
+              );
+              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const isActive = currentActiveId === targetChatId;
+              return {
+                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                ...(isActive ? { aiMessages: updated } : {}),
+                ...(isTemp ? { tempChatMessages: updated } : {}),
+              };
             });
-            await get().finishAILoading();
-            if (activeChatId && !isTempChat) {
+            await get().finishAILoading(targetChatId);
+            if (activeChatId && !isTemp) {
               insertMessage(activeChatId, 'assistant', interruptedContent).catch(e => console.warn('[Store] Failed to persist interrupted message:', e));
             }
           } else {
-            set(s => ({
-              aiMessages: s.aiMessages.map(m => m.id === placeholderMessage.id
+            set(s => {
+              const updated = (s.chatMessagesMap[targetChatId] || []).map(m => m.id === placeholderMessage.id
                 ? { ...m, content: 'Connection error. Please try again.' }
                 : m
-              ),
-            }));
-            await get().finishAILoading();
+              );
+              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const isActive = currentActiveId === targetChatId;
+              return {
+                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                ...(isActive ? { aiMessages: updated } : {}),
+                ...(isTemp ? { tempChatMessages: updated } : {}),
+              };
+            });
+            await get().finishAILoading(targetChatId);
           }
         }
       },
@@ -1937,6 +2053,9 @@ export const useStore = create<AppState>()(
         activeIntentTag: state.activeIntentTag,
         activeChatId: state.activeChatId,
         chatHistoryOpen: state.chatHistoryOpen,
+        chatInputs: state.chatInputs,
+        chatMessagesMap: state.chatMessagesMap,
+        sessionContextsMap: state.sessionContextsMap,
       }),
     }
   )

@@ -458,6 +458,11 @@ export interface AppState {
   isInitialSync: boolean;
   pendingCompaction: boolean;
   isCompacting: boolean;
+  chatInputs: Record<string, string>;
+  loadingStatesMap: Record<string, boolean>;
+  abortControllersMap: Record<string, AbortController | null>;
+  chatMessagesMap: Record<string, AIMessage[]>;
+  sessionContextsMap: Record<string, any>;
 
   // Chat page state
   activeChatId: string | null;
@@ -513,7 +518,7 @@ export interface AppState {
   setAssistantInput: (input: string) => void;
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
-  finishAILoading: () => Promise<void>;
+  finishAILoading: (chatId?: string) => Promise<void>;
   sendAIMessage: (content: string, attachments?: AIAttachment[]) => Promise<void>;
   regenerateAIMessage: (messageId: string, userContent: string, userAttachments?: AIAttachment[]) => Promise<void>;
   setVariantIndex: (messageId: string, index: number) => void;

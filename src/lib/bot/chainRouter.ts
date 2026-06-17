@@ -212,6 +212,7 @@ export interface ChainResponse {
   trace?: any[]
   step_traces?: import('./tracing').StepTrace[]
   transcript_md?: string
+  captured_tool_calls?: any[]
 }
 
 export async function runChain(
@@ -1436,8 +1437,35 @@ export async function runChain(
             // Update token usage
             if (typeof finalContent === 'string') {
               const sid = sessionId
-              const newTokens = estimateTokens(prompt + (finalContent || '') + (system_prompt || ''))
-              const totalUsage = (sessionState?.token_usage_total || 0) + newTokens
+              
+              const historyWithResponse = [
+                ...history,
+                { role: 'model', parts: [{ text: finalContent || '' }] }
+              ];
+              
+              let activeHistoryText = prompt || '';
+              let activeImageCount = 0;
+              
+              if (inputBuffer) {
+                activeImageCount += Array.isArray(inputBuffer) ? inputBuffer.length : 1;
+              }
+              
+              const limitHistory = currentSummary ? historyWithResponse.slice(-5) : historyWithResponse;
+              for (const h of limitHistory) {
+                const partText = h.parts?.[0]?.text || h.content || '';
+                activeHistoryText += partText;
+                
+                if (partText) {
+                  const matches1 = partText.match(/\[Image:/g)?.length || 0;
+                  const matches2 = partText.match(/\[Image attached\]/g)?.length || 0;
+                  const matches3 = partText.match(/\[VISION CONTEXT - DIGITAL TWIN\]/g)?.length || 0;
+                  activeImageCount += (matches1 + matches2 + matches3);
+                }
+              }
+              
+              const summaryTokens = currentSummary ? estimateTokens(currentSummary) : 0;
+              const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
+              
               const limit = sessionState?.context_limit ?? 32000
               const threshold = sessionState?.compaction_threshold ?? 0.8
               if (totalUsage > limit * threshold) {
