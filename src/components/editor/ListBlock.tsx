@@ -68,6 +68,9 @@ interface ListBlockProps {
   onExitBottom: () => void;
   onExitTop: () => void;
   onFocus?: (id: string) => void;
+  isDraggingGlobal?: boolean;
+  onMouseMove?: (e: React.MouseEvent) => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
 }
 
 function RowEl({
@@ -80,6 +83,9 @@ function RowEl({
   onKeyDown,
   onFocusBlock,
   registerRef,
+  isDraggingGlobal = false,
+  onMouseMove,
+  onMouseLeave,
 }: {
   row: ListRow;
   rowIndex: number;
@@ -90,6 +96,9 @@ function RowEl({
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>, rowIndex: number) => void;
   onFocusBlock: () => void;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
+  isDraggingGlobal?: boolean;
+  onMouseMove?: (e: React.MouseEvent) => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const lastContent = useRef<string | null>(null);
@@ -145,8 +154,11 @@ function RowEl({
         }}
       >
         {blockType === 'checklist' ? (
-          <div className="w-[16px] h-[16px] shrink-0 rounded-[4px] border flex items-center justify-center cursor-pointer border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--app-dark)]"
-            onClick={() => onRowUpdate(row.id, '__toggle_checked__')}
+          <div className={cn(
+            "w-[16px] h-[16px] shrink-0 rounded-[4px] border flex items-center justify-center cursor-pointer border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--app-dark)]",
+            isDraggingGlobal && "pointer-events-none"
+          )}
+            onClick={isDraggingGlobal ? undefined : () => onRowUpdate(row.id, '__toggle_checked__')}
           >
             {row.checked && <Check className="w-[10px] h-[10px] text-[var(--bone-100)]" strokeWidth={3} />}
           </div>
@@ -181,12 +193,14 @@ function RowEl({
           const text = e.clipboardData.getData('text/plain');
           document.execCommand('insertText', false, text);
         }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
       />
     </div>
   );
 }
 
-export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus }: ListBlockProps) {
+export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus, isDraggingGlobal = false, onMouseMove, onMouseLeave }: ListBlockProps) {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
   // Keep a stable ref to current rows so keyboard handlers don't go stale
@@ -438,6 +452,9 @@ export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop
           onKeyDown={handleKeyDown}
           onFocusBlock={() => onFocus?.(block.id)}
           registerRef={registerRef}
+          isDraggingGlobal={isDraggingGlobal}
+          onMouseMove={onMouseMove}
+          onMouseLeave={onMouseLeave}
         />
       ))}
     </div>

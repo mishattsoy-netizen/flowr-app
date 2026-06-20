@@ -845,9 +845,29 @@ export const ChatMessage = memo(({
     const cleanContent = sanitizeContent(msg.content || '', false, false);
     const blocks = parseMarkdownToBlocks(cleanContent);
     
-    // Append citations as inline capsule buttons if they exist
-    if (msg.citations && msg.citations.length > 0) {
-      const sourceButtonsHtml = msg.citations.map(url => {
+    // Scan the parsed blocks to check which URLs have already been rendered as inline links
+    const seenUrls = new Set<string>();
+    const scanBlockForUrls = (b: EditorBlock) => {
+      if (b.content) {
+        const urlRegex = /href="([^"]+)"/g;
+        let match;
+        while ((match = urlRegex.exec(b.content)) !== null) {
+          const matchedUrl = match[1].replace(/&amp;/g, '&');
+          seenUrls.add(matchedUrl);
+          seenUrls.add(match[1]);
+        }
+      }
+      if (b.children) {
+        b.children.forEach(scanBlockForUrls);
+      }
+    };
+    blocks.forEach(scanBlockForUrls);
+
+    // Append any citation sources that weren't already rendered inline
+    const remainingCitations = (msg.citations || []).filter(url => !seenUrls.has(url));
+
+    if (remainingCitations.length > 0) {
+      const sourceButtonsHtml = remainingCitations.map(url => {
         let domain = 'Source';
         try { domain = new URL(url).hostname.replace('www.', ''); } catch {}
         
@@ -860,7 +880,7 @@ export const ChatMessage = memo(({
           ? `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span>`
           : `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
 
-        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${domain}">${faviconHtml}<span class="font-medium pointer-events-none">${domain}</span></a>`;
+        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${domain}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${domain}</span></a>`;
       }).join(' ');
       
       blocks.push({
@@ -1077,7 +1097,55 @@ export const ChatMessage = memo(({
           );
         }
 
-        return <LinkWithPopup href={href}>{children}</LinkWithPopup>;
+        let isPill = false;
+        let displayChildren = children;
+
+        const checkAndStripPillPrefix = (node: any): { isPill: boolean; node: any } => {
+          if (typeof node === 'string') {
+            if (node.startsWith('pill:')) {
+              return { isPill: true, node: node.slice(5) };
+            }
+            return { isPill: false, node };
+          }
+          if (Array.isArray(node)) {
+            if (node.length > 0) {
+              const firstResult = checkAndStripPillPrefix(node[0]);
+              if (firstResult.isPill) {
+                return { isPill: true, node: [firstResult.node, ...node.slice(1)] };
+              }
+            }
+            return { isPill: false, node };
+          }
+          if (node && typeof node === 'object' && 'props' in node && node.props?.children) {
+            const childResult = checkAndStripPillPrefix(node.props.children);
+            if (childResult.isPill) {
+              return {
+                isPill: true,
+                node: React.cloneElement(node, { ...node.props, children: childResult.node })
+              };
+            }
+          }
+          return { isPill: false, node };
+        };
+
+        const res = checkAndStripPillPrefix(children);
+        isPill = res.isPill;
+        displayChildren = res.node;
+
+        if (isPill) {
+          return <LinkWithPopup href={href}>{displayChildren}</LinkWithPopup>;
+        }
+
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:underline"
+          >
+            {displayChildren}
+          </a>
+        );
       },
       strong({ children }: any) {
         const inTable = !!useContext(InTableContext);

@@ -453,6 +453,13 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
 
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{
     startX: number;
@@ -662,6 +669,10 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         });
         setActiveBlockId(id);
         setIsDragging(true);
+        setActiveOptionsMenu(null);
+        setSlashMenu(null);
+        setEditingTagIndex(null);
+        window.getSelection()?.removeAllRanges();
       },
       onDrop: ({ source, location }) => {
         setIsDragging(false);
@@ -1223,6 +1234,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           listNumber={block.type === 'numberedList' ? getListCounter(block.id, list) : undefined}
           slashMenuOpen={slashMenu?.blockId === block.id}
           menuOpen={activeOptionsMenu?.blockId === block.id}
+          isDraggingGlobal={isDragging}
         />
       ];
       const isListBlock = ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(block.type);

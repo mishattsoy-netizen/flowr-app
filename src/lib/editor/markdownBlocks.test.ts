@@ -194,9 +194,19 @@ describe('parseMarkdownToBlocks', () => {
     expect(blocks[0].content).toBe('<code>snippet</code>');
   });
 
-  it('converts [text](url) to <a>', () => {
+  it('converts standard [text](url) to <a>', () => {
     const blocks = parseMarkdownToBlocks('- [click](https://example.com)');
-    expect(blocks[0].content).toBe('<a href="https://example.com">click</a>');
+    expect(blocks[0].content).toBe('<a href="https://example.com" target="_blank" rel="noopener noreferrer">click</a>');
+  });
+
+  it('converts [pill:text](url) to inline-link-btn pill and round-trips correctly', () => {
+    const blocks = parseMarkdownToBlocks('- [pill:click](https://example.com)');
+    expect(blocks[0].content).toContain('class="inline-link-btn');
+    expect(blocks[0].content).toContain('data-label="click"');
+    
+    // Test serialization back to markdown
+    const md = blocksToMarkdown(blocks);
+    expect(md).toBe('- [pill:click](https://example.com)');
   });
 
   it('assigns unique ids to all blocks', () => {

@@ -15,7 +15,7 @@ CONFLICTS: [any contradictions between sources — or "none"]
 [ANSWER MODE — when no downstream chain follows, or when you're the final response]
 You ARE the final chain. Write directly to the user.
 - Lead with the answer, support with evidence
-- Place [title](url) pill at the end of each paragraph, list item, or info block each source supports
+- Place [pill:title](url) pill at the end of each paragraph, list item, or info block each source supports
 - Use the mode's formatting guidelines
 - Detect and match the user's language
 - If search returned nothing useful, say so clearly — don't fabricate

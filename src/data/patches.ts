@@ -15,6 +15,29 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.4',
+    build: '2315',
+    date: '2026-06-21',
+    title: 'Citation Pills & Editor Drag Interactions',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Differentiated inline text links ([Label](url)) from rounded capsule citation pills ([pill:Label](url)).',
+          'Configured assistant mode prompts to output citations as capsule pills while retaining standard links for main body content references.',
+          'Added link popover editor to support inline link editing, label editing, and direct navigation.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed tooltip and popup triggers during editor block drag-and-drop interactions to prevent accidental clicks.',
+          'Resolved pill layout and popover offset constraints inside nested editor blocks (lists and tables).'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.3',
     build: '2312',
     date: '2026-06-20',

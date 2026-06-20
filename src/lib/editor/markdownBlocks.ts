@@ -53,7 +53,28 @@ function inlineToHtml(text: string): string {
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
   // links
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+    const cleanUrl = url.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    const isPill = label.startsWith('pill:');
+    const displayLabel = isPill ? label.slice(5) : label;
+
+    if (isPill) {
+      let faviconUrl = '';
+      try {
+        if (cleanUrl.startsWith('http')) {
+          faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(cleanUrl).hostname}&sz=32`;
+        }
+      } catch (e) {}
+
+      const faviconHtml = faviconUrl 
+        ? `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span>`
+        : `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
+
+      return `<a href="${cleanUrl}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${cleanUrl}" data-label="${displayLabel}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${displayLabel}</span></a>`;
+    } else {
+      return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer">${displayLabel}</a>`;
+    }
+  });
   // plain URLs
   s = s.replace(/(?<!href=")(?<!">)\b(https?:\/\/[^\s<>'")]+?)(?=[.,?!]?(?:\s|$))/gi, '<a href="$1">$1</a>');
   return s;
@@ -216,10 +237,10 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
 function htmlToText(html: string): string {
   let s = html;
   
-  // Convert custom inline-link-btn tags back to standard markdown link syntax
-  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*data-url="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[$2]($1)');
-  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[$2]($1)');
-  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*>.*?<span[^>]*>([^<]*)<\/span><\/a>/g, '[$2]($1)');
+  // Convert custom inline-link-btn tags back to standard markdown link syntax with 'pill:' prefix
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*data-url="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[pill:$2]($1)');
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[pill:$2]($1)');
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*>.*?<span[^>]*>([^<]*)<\/span><\/a>/g, '[pill:$2]($1)');
 
   return s
     .replace(/<strong>(.*?)<\/strong>/g, '**$1**')

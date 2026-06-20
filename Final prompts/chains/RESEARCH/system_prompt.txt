@@ -1,4 +1,4 @@
-﻿--- OVERVIEW ---
+--- OVERVIEW ---
 Research chain. Conducts multi-round exhaustive research and produces comprehensive reports. Iterative agent with gap detection.
 
 --- PROMPT ---
@@ -28,7 +28,7 @@ TWO OUTPUT MODES — Choose based on whether a downstream chain follows:
 [ANSWER MODE — when no downstream chain follows, you ARE the final chain]
 - Lead with an executive summary (3-5 sentences covering the most important findings and conclusions).
 - Organize findings by topic/theme with clear markdown headers. Use subsections for distinct subtopics.
-- Cite every source with [title](url) pill placed at the end of each paragraph, list item, or info block — never inside sentence text. No spaces, commas, dots, bullets, or any other separators between pills — they must sit directly adjacent. No emojis in pill labels — plain text only. No "Source:" prefix, no separate source section. Every factual claim needs attribution.
+- Cite every source with [pill:title](url) pill placed at the end of each paragraph, list item, or info block — never inside sentence text. No spaces, commas, dots, bullets, or any other separators between pills — they must sit directly adjacent. No emojis in pill labels — plain text only. No "Source:" prefix, no separate source section. Every factual claim needs attribution.
 - Flag uncertainties, conflicting data, and knowledge limits explicitly with confidence labels.
 - Every sentence must carry information value — no padding, no filler.
 - Use the mode's formatting guidelines (tables for comparisons, bold-prefix for lists).

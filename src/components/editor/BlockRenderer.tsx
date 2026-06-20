@@ -56,6 +56,7 @@ export function BlockRenderer({
   onDragStart,
   isDragOverlay = false,
   depth = 0,
+  isDraggingGlobal = false,
 }: any) {
   const elementRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +186,13 @@ export function BlockRenderer({
     }
   }, [activeInlineBtn]);
 
+  useEffect(() => {
+    if (isDraggingGlobal) {
+      setActiveInlineBtn(null);
+      setPopoverOpen(false);
+    }
+  }, [isDraggingGlobal]);
+
   const handleInlineMouseEnter = () => {
     if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
   };
@@ -299,16 +307,16 @@ export function BlockRenderer({
               range.deleteContents();
 
               const a = document.createElement('a');
-              const url = 'https://flowr.website';
-              const label = 'flowr.website';
-              a.href = url;
+              const url = '';
+              const label = '';
+              a.href = '#';
               a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
               a.setAttribute('contenteditable', 'false');
               a.setAttribute('data-url', url);
               a.setAttribute('data-label', label);
 
-              const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
-              a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
+              const faviconHtml = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
+              a.innerHTML = `${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${label}</span>`;
 
               range.insertNode(a);
 
@@ -404,16 +412,16 @@ export function BlockRenderer({
             range.deleteContents();
 
             const a = document.createElement('a');
-            const url = 'https://flowr.website';
-            const label = 'flowr.website';
-            a.href = url;
+            const url = '';
+            const label = '';
+            a.href = '#';
             a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
             a.setAttribute('contenteditable', 'false');
             a.setAttribute('data-url', url);
             a.setAttribute('data-label', label);
 
-            const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
-            a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
+            const faviconHtml = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
+            a.innerHTML = `${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${label}</span>`;
 
             range.insertNode(a);
 
@@ -483,6 +491,11 @@ export function BlockRenderer({
   }, [block.id, block.type, block.children, index, depth, isList, isChecklist, onInsertAfter, onDelete, onUpdate, onSlash, onIndent, onUnindent, slashMenuOpen]);
 
   const handleContentClick = useCallback((e: React.MouseEvent) => {
+    if (isDraggingGlobal) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const target = e.target as HTMLElement;
     const anchor = target.closest('a');
     if (anchor) {
@@ -490,7 +503,7 @@ export function BlockRenderer({
       e.stopPropagation();
       window.open(anchor.href, '_blank', 'noopener,noreferrer');
     }
-  }, []);
+  }, [isDraggingGlobal]);
 
   const saveInlineLabel = useCallback((newLabel: string) => {
     if (!activeInlineBtn) return;
@@ -552,12 +565,277 @@ export function BlockRenderer({
     if (!activeInlineBtn) return;
     activeInlineBtn.element.remove();
     if (contentRef.current) {
-      const html = contentRef.current.innerHTML;
-      lastTypedContent.current = html;
       onUpdate(block.id, { content: html });
     }
     setActiveInlineBtn(null);
   }, [activeInlineBtn, block.id, onUpdate]);
+
+  const renderInlineLinkPopover = () => {
+    if (!activeInlineBtn) return null;
+    const blockRect = elementRef.current?.getBoundingClientRect();
+    const triggerLeft = blockRect ? activeInlineBtn.rect.left - blockRect.left : 0;
+    const triggerTop = blockRect ? activeInlineBtn.rect.top - blockRect.top : 0;
+
+    return (
+      <Popover 
+        open={!!activeInlineBtn} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveInlineBtn(null);
+          }
+        }}
+      >
+        <PopoverTrigger asChild>
+          <div
+            style={{
+              position: 'absolute',
+              left: triggerLeft,
+              top: triggerTop,
+              width: activeInlineBtn.rect.width,
+              height: activeInlineBtn.rect.height,
+              pointerEvents: 'none',
+              zIndex: -1,
+            }}
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="z-[500] w-[260px] p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl"
+          onMouseEnter={handleInlineMouseEnter}
+          onMouseLeave={handleInlineMouseLeave}
+        >
+          <div className="flex flex-col gap-2">
+            {/* Section 1: Icon and Label */}
+            {isEditingInlineLabel ? (
+              <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                    {activeInlineBtn.url ? (
+                      <img 
+                        src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                        alt="" 
+                        className="w-3.5 h-3.5 object-contain"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          img.style.display = 'none';
+                          const fallback = img.parentElement?.querySelector('svg');
+                          if (fallback) fallback.style.display = 'block';
+                        }}
+                      />
+                    ) : null}
+                    <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Link Label"
+                    className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
+                    value={inlineLabelInput}
+                    onChange={(e) => setInlineLabelInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        saveInlineLabel(inlineLabelInput);
+                        setIsEditingInlineLabel(false);
+                      } else if (e.key === 'Escape') {
+                        setInlineLabelInput(activeInlineBtn.label);
+                        setIsEditingInlineLabel(false);
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => {
+                      saveInlineLabel(inlineLabelInput);
+                      setIsEditingInlineLabel(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                    title="Save"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setInlineLabelInput(activeInlineBtn.label);
+                      setIsEditingInlineLabel(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                    title="Cancel"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full px-1.5 py-1 group/inline-label">
+                <div 
+                  onClick={() => {
+                    setIsEditingInlineLabel(true);
+                    setIsEditingInlineUrl(false);
+                  }}
+                  className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                >
+                  <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                    {activeInlineBtn.url ? (
+                      <img 
+                        src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                        alt="" 
+                        className="w-3.5 h-3.5 object-contain"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          img.style.display = 'none';
+                          const fallback = img.parentElement?.querySelector('svg');
+                          if (fallback) fallback.style.display = 'block';
+                        }}
+                      />
+                    ) : null}
+                    <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                  </span>
+                  <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
+                    {activeInlineBtn.label || 'Link Label'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsEditingInlineLabel(true);
+                    setIsEditingInlineUrl(false);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                  title="Edit Label"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            {/* Section 2: URL Edit */}
+            {isEditingInlineUrl ? (
+              <div className="flex items-center justify-between w-full px-1.5 py-0.5 gap-2">
+                <input
+                  type="text"
+                  placeholder="Paste URL here..."
+                  className="flex-1 bg-[var(--bone-5)] border border-[var(--bone-12)] focus:border-[var(--bone-30)] outline-none rounded-[6px] px-2 py-1 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] font-sans"
+                  value={inlineUrlInput}
+                  onChange={(e) => setInlineUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      saveInlineUrl(inlineUrlInput);
+                      setIsEditingInlineUrl(false);
+                    } else if (e.key === 'Escape') {
+                      setInlineUrlInput(activeInlineBtn.url);
+                      setIsEditingInlineUrl(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => {
+                      saveInlineUrl(inlineUrlInput);
+                      setIsEditingInlineUrl(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                    title="Save"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setInlineUrlInput(activeInlineBtn.url);
+                      setIsEditingInlineUrl(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                    title="Cancel"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full px-1.5 py-0.5 group/inline-url">
+                <span 
+                  onClick={() => {
+                    setIsEditingInlineUrl(true);
+                    setIsEditingInlineLabel(false);
+                  }}
+                  className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-80)] cursor-pointer font-sans truncate max-w-[200px] transition-colors"
+                >
+                  {activeInlineBtn.url || 'No URL set'}
+                </span>
+                <button
+                  onClick={() => {
+                    setIsEditingInlineUrl(true);
+                    setIsEditingInlineLabel(false);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                  title="Edit URL"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            {/* Section 3: Copy, Open, and Delete buttons */}
+            <div className="flex items-center gap-1 border-t border-[var(--bone-6)] pt-1.5 mt-0.5">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (activeInlineBtn.url) {
+                    navigator.clipboard.writeText(activeInlineBtn.url).then(() => {
+                      setInlineCopied(true);
+                      setTimeout(() => setInlineCopied(false), 2000);
+                    });
+                  }
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] transition-colors cursor-pointer",
+                  inlineCopied ? "opacity-100" : "opacity-35 hover:opacity-100"
+                )}
+              >
+                {inlineCopied ? (
+                  <Check className="w-3 h-3 text-green-500" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  {inlineCopied ? "COPIED" : "COPY"}
+                </span>
+              </button>
+              <div className="w-px h-3 bg-[var(--bone-6)]" />
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (activeInlineBtn.url) {
+                    window.open(activeInlineBtn.url, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-35 hover:opacity-100 transition-colors cursor-pointer"
+              >
+                <ExternalLink className="w-3 h-3 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
+              </button>
+              <div className="w-px h-3 bg-[var(--bone-6)]" />
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deleteInlineButton();
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 opacity-60 hover:opacity-100 transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Delete</span>
+              </button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   const isQuote = block.type === 'quote';
   const effectiveStyle = (isList || isChecklist) ? 'body' : block.style;
@@ -572,7 +850,8 @@ export function BlockRenderer({
     hasBgColor: !!block.bgColor,
     isFocused,
     isSelected,
-    dragHandleRef
+    dragHandleRef,
+    isDraggingGlobal
   };
 
   // ─── Divider ──────────────────────────────────────────
@@ -656,6 +935,7 @@ export function BlockRenderer({
             )}
           />
         )}
+        {renderInlineLinkPopover()}
       </div>
     );
   }
@@ -1038,10 +1318,10 @@ export function BlockRenderer({
           !block.children?.length && "empty"
         )}
       >
-        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" dragHandleRef={dragHandleRef} />
+        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" dragHandleRef={dragHandleRef} isDraggingGlobal={isDraggingGlobal} />
         <div className={cn("flex flex-col gap-2 relative z-10")}>
           {(block.children || []).map((subBlock: EditorBlock, sIdx: number) => (
-            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
+            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} />
           ))}
         </div>
         {closestEdge && (
@@ -1069,7 +1349,7 @@ export function BlockRenderer({
           <div className="flex gap-4 w-full h-full">
             {(block.children || []).map((colBlock: EditorBlock, cIdx: number) => (
               <div key={colBlock.id} className="relative flex-1 basis-0 min-w-0 flex flex-col">
-                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} />
+                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} />
               </div>
             ))}
           </div>
@@ -1117,6 +1397,9 @@ export function BlockRenderer({
                 onUpdate(block.id, { type: 'text', content: '', children: undefined });
               }
             }}
+            isDraggingGlobal={isDraggingGlobal}
+            onMouseMove={handleContentMouseMove}
+            onMouseLeave={handleInlineMouseLeave}
           />
         </div>
         {closestEdge && (
@@ -1127,9 +1410,14 @@ export function BlockRenderer({
             )}
           />
         )}
+        {renderInlineLinkPopover()}
       </div>
     );
   }
+
+  const blockRect = elementRef.current?.getBoundingClientRect();
+  const triggerLeft = blockRect && activeInlineBtn ? activeInlineBtn.rect.left - blockRect.left : 0;
+  const triggerTop = blockRect && activeInlineBtn ? activeInlineBtn.rect.top - blockRect.top : 0;
 
   const textTopOffset = effectiveStyle === 'mono' ? '20px' : (block.bgColor ? '10px' : '6px');
 
@@ -1165,11 +1453,13 @@ export function BlockRenderer({
             <div
               className={cn(
                 "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-[var(--bone-10)] rounded transition-colors text-muted-foreground/40 hover:text-foreground",
-                getLineHeightClass(effectiveStyle)
+                getLineHeightClass(effectiveStyle),
+                isDraggingGlobal && "pointer-events-none"
               )}
               style={{ width: '20px' }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (isDraggingGlobal) return;
                 onUpdate(block.id, { isFolded: !block.isFolded });
               }}
             >
@@ -1241,262 +1531,7 @@ export function BlockRenderer({
       )}
 
       {/* Dynamic Popover for Inline Link Buttons */}
-      {activeInlineBtn && (
-        <Popover 
-          open={!!activeInlineBtn} 
-          onOpenChange={(open) => {
-            if (!open) {
-              setActiveInlineBtn(null);
-            }
-          }}
-        >
-          <PopoverTrigger asChild>
-            <div
-              style={{
-                position: 'fixed',
-                left: activeInlineBtn.rect.left,
-                top: activeInlineBtn.rect.top,
-                width: activeInlineBtn.rect.width,
-                height: activeInlineBtn.rect.height,
-                pointerEvents: 'none',
-                zIndex: -1,
-              }}
-            />
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            sideOffset={8}
-            className="z-[500] w-[260px] p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl"
-            onMouseEnter={handleInlineMouseEnter}
-            onMouseLeave={handleInlineMouseLeave}
-          >
-            <div className="flex flex-col gap-2">
-              {/* Section 1: Icon and Label */}
-              {isEditingInlineLabel ? (
-                <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
-                      {activeInlineBtn.url ? (
-                        <img 
-                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
-                          alt="" 
-                          className="w-3.5 h-3.5 object-contain"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            img.style.display = 'none';
-                            const fallback = img.parentElement?.querySelector('svg');
-                            if (fallback) fallback.style.display = 'block';
-                          }}
-                        />
-                      ) : null}
-                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Link Label"
-                      className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
-                      value={inlineLabelInput}
-                      onChange={(e) => setInlineLabelInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          saveInlineLabel(inlineLabelInput);
-                          setIsEditingInlineLabel(false);
-                        } else if (e.key === 'Escape') {
-                          setInlineLabelInput(activeInlineBtn.label);
-                          setIsEditingInlineLabel(false);
-                        }
-                      }}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => {
-                        saveInlineLabel(inlineLabelInput);
-                        setIsEditingInlineLabel(false);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                      title="Save"
-                    >
-                      <Check className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setInlineLabelInput(activeInlineBtn.label);
-                        setIsEditingInlineLabel(false);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                      title="Cancel"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between w-full px-1.5 py-1 group/inline-label">
-                  <div 
-                    onClick={() => {
-                      setIsEditingInlineLabel(true);
-                      setIsEditingInlineUrl(false);
-                    }}
-                    className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
-                  >
-                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
-                      {activeInlineBtn.url ? (
-                        <img 
-                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
-                          alt="" 
-                          className="w-3.5 h-3.5 object-contain"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            img.style.display = 'none';
-                            const fallback = img.parentElement?.querySelector('svg');
-                            if (fallback) fallback.style.display = 'block';
-                          }}
-                        />
-                      ) : null}
-                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
-                    </span>
-                    <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
-                      {activeInlineBtn.label || 'Link Label'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setIsEditingInlineLabel(true);
-                      setIsEditingInlineUrl(false);
-                    }}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                    title="Edit Label"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* Section 2: URL Edit */}
-              {isEditingInlineUrl ? (
-                <div className="flex items-center justify-between w-full px-1.5 py-0.5 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Paste URL here..."
-                    className="flex-1 bg-[var(--bone-5)] border border-[var(--bone-12)] focus:border-[var(--bone-30)] outline-none rounded-none px-2 py-1 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] font-sans"
-                    value={inlineUrlInput}
-                    onChange={(e) => setInlineUrlInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        saveInlineUrl(inlineUrlInput);
-                        setIsEditingInlineUrl(false);
-                      } else if (e.key === 'Escape') {
-                        setInlineUrlInput(activeInlineBtn.url);
-                        setIsEditingInlineUrl(false);
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => {
-                        saveInlineUrl(inlineUrlInput);
-                        setIsEditingInlineUrl(false);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                      title="Save"
-                    >
-                      <Check className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setInlineUrlInput(activeInlineBtn.url);
-                        setIsEditingInlineUrl(false);
-                      }}
-                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                      title="Cancel"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between w-full px-1.5 py-0.5 group/inline-url">
-                  <span 
-                    onClick={() => {
-                      setIsEditingInlineUrl(true);
-                      setIsEditingInlineLabel(false);
-                    }}
-                    className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-80)] cursor-pointer font-sans truncate max-w-[200px] transition-colors"
-                  >
-                    {activeInlineBtn.url || 'No URL set'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setIsEditingInlineUrl(true);
-                      setIsEditingInlineLabel(false);
-                    }}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                    title="Edit URL"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* Section 3: Copy, Open, and Delete buttons */}
-              <div className="flex items-center gap-1 border-t border-[var(--bone-6)] pt-1.5 mt-0.5">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (activeInlineBtn.url) {
-                      navigator.clipboard.writeText(activeInlineBtn.url).then(() => {
-                        setInlineCopied(true);
-                        setTimeout(() => setInlineCopied(false), 2000);
-                      });
-                    }
-                  }}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] transition-all cursor-pointer",
-                    inlineCopied ? "opacity-100" : "opacity-35 hover:opacity-100"
-                  )}
-                >
-                  {inlineCopied ? (
-                    <Check className="w-3 h-3 text-green-500" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                  <span className="text-[10px] font-bold uppercase tracking-wider">
-                    {inlineCopied ? "COPIED" : "COPY"}
-                  </span>
-                </button>
-                <div className="w-px h-3 bg-[var(--bone-6)]" />
-                <a
-                  href={activeInlineBtn.url || '#'}
-                  onClick={(e) => { if (!activeInlineBtn.url) e.preventDefault(); }}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-35 hover:opacity-100 transition-all cursor-pointer no-underline"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
-                </a>
-                <div className="w-px h-3 bg-[var(--bone-6)]" />
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    deleteInlineButton();
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 opacity-60 hover:opacity-100 transition-all cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Delete</span>
-                </button>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      )}
+      {renderInlineLinkPopover()}
     </div>
   );
 }
@@ -1573,6 +1608,7 @@ interface ControlsProps {
   hasBgColor?: boolean;
   isFocused?: boolean;
   isSelected?: boolean;
+  isDraggingGlobal?: boolean;
 }
 
 interface BlockControlsProps extends ControlsProps {
@@ -1593,13 +1629,15 @@ function BlockControls({
   isFocused,
   isSelected,
   topOffset,
-  dragHandleRef
+  dragHandleRef,
+  isDraggingGlobal = false
 }: BlockControlsProps) {
   const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bone-10)] text-muted-foreground/40 hover:text-[var(--bone-100)] transition-none";
 
   const handleGripClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isDraggingGlobal) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // User requested left side popup. Setting X to left edge - estimate menu width (approx 210px). 
     // BlockOptionsMenu has internal bounding logic to keep it safe inside screen width.
@@ -1613,7 +1651,8 @@ function BlockControls({
       className={cn(
         "absolute right-full pr-[8px] flex items-start justify-center gap-1",
         heightClass,
-        (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 group-hover:opacity-100 hover:opacity-100 has-[:active]:opacity-100 transition-none"
+        (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 group-hover:opacity-100 hover:opacity-100 has-[:active]:opacity-100 transition-none",
+        isDraggingGlobal && "pointer-events-none opacity-0 invisible"
       )}
       style={{
         width: 'auto',
@@ -1623,13 +1662,13 @@ function BlockControls({
         height: heightClass ? undefined : '1.5em'
       }}
     >
-      <Tooltip content="Add below">
-        <button onClick={() => onInsertAfter(blockId)} className={markerBtnClass}>
+      <Tooltip content="Add below" disabled={isDraggingGlobal}>
+        <button onClick={() => onInsertAfter(blockId)} className={markerBtnClass} disabled={isDraggingGlobal}>
           <Plus strokeWidth={2} className="w-4 h-4" />
         </button>
       </Tooltip>
 
-      <Tooltip content="Drag / Options">
+      <Tooltip content="Drag / Options" disabled={isDraggingGlobal}>
         <div
           ref={dragHandleRef}
           onClick={handleGripClick}

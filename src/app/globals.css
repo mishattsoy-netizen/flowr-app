@@ -1536,3 +1536,10 @@ table:not(.rdp-table) tr:last-child td {
   background-color: var(--bone-10);
   color: var(--bone-100) !important;
 }
+
+.inline-link-btn > span:last-child {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
