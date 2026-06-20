@@ -54,6 +54,8 @@ function inlineToHtml(text: string): string {
   s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
   // links
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  // plain URLs
+  s = s.replace(/(?<!href=")(?<!">)\b(https?:\/\/[^\s<>'")]+?)(?=[.,?!]?(?:\s|$))/gi, '<a href="$1">$1</a>');
   return s;
 }
 
@@ -212,7 +214,14 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
 }
 
 function htmlToText(html: string): string {
-  return html
+  let s = html;
+  
+  // Convert custom inline-link-btn tags back to standard markdown link syntax
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*data-url="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[$2]($1)');
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[$2]($1)');
+  s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*href="([^"]*)"[^>]*>.*?<span[^>]*>([^<]*)<\/span><\/a>/g, '[$2]($1)');
+
+  return s
     .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
     .replace(/<em>(.*?)<\/em>/g, '*$1*')
     .replace(/<code>(.*?)<\/code>/g, '`$1`')

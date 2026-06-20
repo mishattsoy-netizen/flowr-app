@@ -887,6 +887,58 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   const insertBlock = useCallback((type: BlockType, extra?: Record<string, unknown>) => {
     if (!slashMenu) return;
 
+    if (type === 'link') {
+      const blockId = slashMenu.blockId;
+      const el = document.querySelector(`[data-block-id="${blockId}"] [contenteditable]`) as HTMLElement;
+      if (el) {
+        el.focus();
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const node = range.startContainer;
+          const offset = range.startOffset;
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent || "";
+            const lastSlashIdx = text.lastIndexOf('/', offset);
+            if (lastSlashIdx !== -1) {
+              range.setStart(node, lastSlashIdx);
+              range.setEnd(node, offset);
+              range.deleteContents();
+            }
+          }
+          
+          const a = document.createElement('a');
+          const url = 'https://flowr.website';
+          const label = 'flowr.website';
+          a.href = url;
+          a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+          a.setAttribute('contenteditable', 'false');
+          a.setAttribute('data-url', url);
+          a.setAttribute('data-label', label);
+          
+          const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
+          a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
+          
+          range.insertNode(a);
+          
+          const space = document.createTextNode('\u00A0');
+          range.setStartAfter(a);
+          range.collapse(true);
+          range.insertNode(space);
+          
+          range.setStartAfter(space);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        
+        // Save the updated HTML block content
+        updateBlock(blockId, { content: el.innerHTML });
+      }
+      setSlashMenu(null);
+      return;
+    }
+
     const replaceRecursive = (list: EditorBlock[]): EditorBlock[] => {
       return list.map(b => {
         if (b.id === slashMenu.blockId) {
@@ -902,7 +954,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     const newBlocks = replaceRecursive(blocks);
     persistBlocks(newBlocks);
     setSlashMenu(null);
-  }, [blocks, slashMenu, persistBlocks]);
+  }, [blocks, slashMenu, persistBlocks, updateBlock]);
 
   const duplicateBlock = useCallback((id: string) => {
     const idx = blocks.findIndex(b => b.id === id);

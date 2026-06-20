@@ -17,21 +17,26 @@ export const PATCHES: Patch[] = [
   {
     version: '1.4.3',
     build: '2312',
-    date: '2026-06-18',
-    title: 'Branding & AI Stability Updates',
+    date: '2026-06-20',
+    title: 'Branding, Drag-and-Drop & Editor Updates',
     sections: [
       {
         type: 'added',
         items: [
           'Added a dedicated "What\'s New" updates feed in settings with release history and visual logs.',
-          'Added fully branded authentication routing, keeping the URL clean and matching your custom domain throughout login transitions.'
+          'Added fully branded authentication routing, keeping the URL clean and matching your custom domain throughout login transitions.',
+          'Added support for "/button" command to insert inline interactive capsule buttons inside editor text blocks.',
+          'Added an interactive hover popover for editor links and buttons, supporting instant inline label editing, URL editing, and direct navigation.'
         ]
       },
       {
         type: 'improved',
         items: [
           'Unified the design of toggle switches across all settings modals, sidebars, and panels for a consistent interface.',
-          'Polished toggle switch visibility in light and dark themes.'
+          'Polished toggle switch visibility in light and dark themes.',
+          'Refined message copy-to-note behavior, preserving citations as capsule buttons and body links as standard underlined text links.',
+          'Improved drag-and-drop hierarchy handling in the sidebar, refining folder outdenting, hit target bounds, and parent drop detection.',
+          'Added automatic linkification of plain URLs in markdown parsing when inserting/saving to notes.'
         ]
       },
       {
@@ -45,7 +50,8 @@ export const PATCHES: Patch[] = [
         items: [
           'Fixed connection hangs and improved response stability for the AI assistant.',
           'Resolved layout anomalies when dragging and dropping nested items in the sidebar.',
-          'Fixed real-time synchronization connection drops.'
+          'Fixed real-time synchronization connection drops.',
+          'Fixed visual stacked border and stroke artifacts on link icon badges in the editor.'
         ]
       }
     ]

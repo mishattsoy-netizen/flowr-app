@@ -292,176 +292,330 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         setActiveDragId(null);
         setShowUnpinHint(false);
         document.body.style.cursor = '';
-        const target = location.current.dropTargets[0];
-        if (!target) return;
+        try {
+          const target = location.current.dropTargets[0];
+          if (!target) return;
 
-        const activeId = source.data.id as string;
-        let overId = target.data.id as string;
-        if (!activeId || !overId) return;
+          const activeId = source.data.id as string;
+          let overId = target.data.id as string;
+          if (!activeId || !overId) return;
 
-        const isPinnedDrag = source.data.isPinned as boolean;
-        const entityId = isPinnedDrag ? activeId.replace('pinned-', '') : activeId;
-        const entity = entities.find(e => e.id === entityId);
-        if (!entity) return;
+          const isPinnedDrag = source.data.isPinned as boolean;
+          const entityId = isPinnedDrag ? activeId.replace('pinned-', '') : activeId;
+          const entity = entities.find(e => e.id === entityId);
+          if (!entity) return;
 
-        // Look up overEntity early so the edge calculation can check the target type.
-        let overEntity = entities.find(e => e.id === overId);
+          const isDraggingWorkspace = entity.type === 'workspace' || entity.type === 'collection';
 
-        // Calculate edge directly from cursor position vs element rect
-        // to avoid cached data from the library's getData.
-        // For folders/collections/workspaces: top 25%=reorder above,
-        // middle 50%=nest inside (edge=null), bottom 25%=reorder below.
-        // For other items: 50/50 split for reorder only.
-        let edge: string | null = null;
-        const targetEl = target.element;
-        const input = location.current.input;
-        const clientY = input?.clientY;
-        if (targetEl instanceof HTMLElement && clientY != null) {
-          const rect = targetEl.getBoundingClientRect();
-          if (overEntity && (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace')) {
-            const threshold = rect.height * 0.25;
-            if (clientY < rect.top + threshold) {
-              edge = 'top';
-            } else if (clientY > rect.bottom - threshold) {
+          // Look up overEntity early so the edge calculation can check the target type.
+          let overEntity = entities.find(e => e.id === overId);
+
+          // Helper to get visually sorted siblings matching the target entity's section sort mode
+          const getSortedSiblings = (targetEntity: Entity) => {
+            const freshEntities = useStore.getState().entities;
+            const hiddenEntityIds = useStore.getState().hiddenEntityIds;
+            const isWorkspaceOrCollection = (type: EntityType) => type === 'workspace' || type === 'collection';
+            
+            const getSectionId = (): 'workspaces' | 'unsorted' | null => {
+              if (targetEntity.parentId && freshEntities.some(p => p.id === targetEntity.parentId)) return null;
+              return isWorkspaceOrCollection(targetEntity.type) ? 'workspaces' : 'unsorted';
+            };
+
+            const getSectionSiblings = () => {
+              const sectionId = getSectionId();
+              if (sectionId === 'workspaces') {
+                return freshEntities.filter(e => 
+                  (e.type === 'workspace' || e.type === 'collection') && 
+                  (!e.parentId || !freshEntities.some(p => p.id === e.parentId)) &&
+                  (e.workspaceId || 'ws-personal') === (targetEntity.workspaceId || 'ws-personal') &&
+                  !hiddenEntityIds.includes(e.id)
+                );
+              }
+              if (sectionId === 'unsorted') {
+                return freshEntities.filter(e => 
+                  (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') && 
+                  (!e.parentId || !freshEntities.some(p => p.id === e.parentId)) &&
+                  (e.workspaceId || 'ws-personal') === (targetEntity.workspaceId || 'ws-personal') &&
+                  !hiddenEntityIds.includes(e.id)
+                );
+              }
+              return freshEntities.filter(e => e.parentId === targetEntity.parentId && !hiddenEntityIds.includes(e.id));
+            };
+
+            const sortSiblings = (items: Entity[]) => {
+              const sectionId = getSectionId();
+              if (!sectionId) {
+                return [...items].sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+              }
+              const settings = useStore.getState().sidebarSectionSettings;
+              const mode = settings?.[sectionId]?.sortMode || 'lastModified';
+              if (mode === 'alphabetical') {
+                return [...items].sort((a, b) => a.title.localeCompare(b.title));
+              }
+              if (mode === 'lastModified') {
+                return [...items].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+              }
+              return [...items].sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+            };
+
+            return sortSiblings(getSectionSiblings());
+          };
+
+          // Retrieve edge directly from target data to ensure it aligns with the
+          // visual indicator zone, bypassing coordinate retrieval which can be
+          // missing/stale on final drop.
+          let edge = target.data.edge as string | null | undefined;
+          let isInsertInsideBottom = target.data.isInsertInsideBottom === true;
+          if (target.data.isAfterFolder === true) {
+            if (entity.parentId === overId) {
+              // Dragged item is already inside this folder — reorder to last
+              // position within the folder instead of moving outside.
+              edge = null;
+              isInsertInsideBottom = true;
+            } else {
               edge = 'bottom';
-            } // else edge stays null → nest inside
-          } else {
-            edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+            }
           }
-        }
+          if (isInsertInsideBottom) {
+            edge = null;
+          }
+          if (edge === undefined) {
+            edge = null;
+          }
 
-        // After-folder spacer: treat as bottom-edge drop on the folder so the
-        // item is inserted after it at the parent level.
-        if (target.data.isAfterFolder === true) {
-          edge = 'bottom';
-        }
-
-        // Top-edge redirect: if the sibling above (at the same parent level) has
-        // expanded children, redirect the top edge to "nest inside that sibling"
-        // (at the end of its children) — same visual logic as the gap after its
-        // expanded children.
-        if (edge === 'top' && overEntity) {
+          // Bottom-edge redirect: if the target is an expanded folder, redirect bottom edge
+          // to top edge of its first child (if it has children) to match visual insertion line.
           const collapsedIds = useStore.getState().collapsedIds;
-          const targetParentId = overEntity.parentId;
-          const targetWorkspaceId = overEntity.workspaceId;
-          const targetId = overEntity.id;
-          const siblings = entities
-            .filter(e => e.parentId === targetParentId && (e.workspaceId || 'ws-personal') === (targetWorkspaceId || 'ws-personal'))
-            .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
-          const idx = siblings.findIndex(e => e.id === targetId);
-          if (idx > 0) {
-            const prev = siblings[idx - 1];
-            const hasChildren = entities.some(e => e.parentId === prev.id);
-            if (hasChildren && !collapsedIds.includes(prev.id)) {
-              overId = prev.id;
-              overEntity = prev;
+          const isOverFolder = overEntity && (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace');
+          const isOverExpanded = isOverFolder && !collapsedIds.includes(overId);
+          if (edge === 'bottom' && isOverExpanded) {
+            const folderChildren = entities
+              .filter(e => e.parentId === overId && !hiddenEntityIds.includes(e.id))
+              .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+            if (folderChildren.length > 0) {
+              overId = folderChildren[0].id;
+              overEntity = folderChildren[0];
+              edge = 'top';
+            } else {
               edge = null;
             }
           }
-        }
 
-        // Dropping in pinned section
-        if (overId === 'pinned-container' || overId.startsWith('pinned-')) {
-          if (!favoriteIds.includes(entityId)) {
+          // Top-edge redirect: if the sibling above (at the same parent level) has
+          // expanded children, redirect the top edge to "nest inside that sibling"
+          // (at the end of its children) — same visual logic as the gap after its
+          // expanded children.
+          if (edge === 'top' && overEntity && !isDraggingWorkspace) {
+            const siblings = getSortedSiblings(overEntity);
+            const idx = siblings.findIndex(e => e.id === overEntity!.id);
+            if (idx > 0) {
+              const prev = siblings[idx - 1];
+              const hasChildren = entities.some(e => e.parentId === prev.id);
+              if (hasChildren && !collapsedIds.includes(prev.id)) {
+                overId = prev.id;
+                overEntity = prev;
+                edge = null;
+              }
+            }
+          }
+
+          // Early return on no-op drops (dragging on itself or adjacent no-op edges)
+          if (activeId === overId) return;
+
+          if (edge !== null && overEntity) {
+            if ((entity.parentId || null) === (overEntity.parentId || null) && (entity.workspaceId || null) === (overEntity.workspaceId || null)) {
+              const isWorkspaceOrCollection = (type: EntityType) => type === 'workspace' || type === 'collection';
+              const isDragWS = isWorkspaceOrCollection(entity.type);
+              const isTargetWS = isWorkspaceOrCollection(overEntity.type);
+
+              if (isDragWS === isTargetWS) {
+                const siblings = getSortedSiblings(overEntity);
+                const dragIdx = siblings.findIndex(e => e.id === entityId);
+                const targetIdx = siblings.findIndex(e => e.id === overEntity.id);
+                if (dragIdx !== -1 && targetIdx !== -1) {
+                  if (targetIdx === dragIdx - 1 && edge === 'bottom') {
+                    return; // No-op drop
+                  }
+                  if (targetIdx === dragIdx + 1 && edge === 'top') {
+                    return; // No-op drop
+                  }
+                }
+              }
+            }
+          }
+
+          // Dropping in pinned section
+          if (overId === 'pinned-container' || overId.startsWith('pinned-')) {
+            const overEntityId = overId.startsWith('pinned-') ? overId.replace('pinned-', '') : overId;
+            const oldIndex = favoriteEntitiesBase.findIndex(e => e.id === entityId);
+            let newIndex = favoriteEntitiesBase.findIndex(e => e.id === overEntityId);
+            if (edge === 'bottom') newIndex += 1;
+
+            // Early return on adjacent no-op pinned drops
+            if (oldIndex !== -1 && newIndex !== -1) {
+              if (newIndex === oldIndex || newIndex === oldIndex + 1) {
+                return;
+              }
+            }
+
+            if (!favoriteIds.includes(entityId)) {
+              toggleFavorite(entityId);
+            }
+
+            if (oldIndex !== -1 && newIndex !== -1) {
+              const insertAt = oldIndex < newIndex ? newIndex - 1 : newIndex;
+              if (oldIndex !== insertAt) {
+                const reordered = arrayMove(favoriteEntitiesBase, oldIndex, insertAt);
+                reorderEntities(reordered.map(e => e.id));
+                setSectionSortMode('pinned', 'manual');
+              }
+            }
+            return;
+          }
+
+          // A pinned item is just a shortcut to the real entity. Dragging it OUT of
+          // the pinned section unpins it only — it must never move or reorder the
+          // underlying entity in workspaces/unsorted.
+          if (isPinnedDrag) {
             toggleFavorite(entityId);
+            return;
           }
-          const oldIndex = favoriteEntitiesBase.findIndex(e => e.id === entityId);
-          const overEntityId = overId.startsWith('pinned-') ? overId.replace('pinned-', '') : overId;
-          let newIndex = favoriteEntitiesBase.findIndex(e => e.id === overEntityId);
-          if (edge === 'bottom') newIndex += 1;
 
-          if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            // When dragging downwards, removing the source shifts elements left by 1
-            const insertAt = oldIndex < newIndex ? newIndex - 1 : newIndex;
-            const reordered = arrayMove(favoriteEntitiesBase, oldIndex, insertAt);
-            reorderEntities(reordered.map(e => e.id));
-            setSectionSortMode('pinned', 'manual');
-          }
-          return;
-        }
+          const moveEntityAction = useStore.getState().moveEntity;
 
-        // A pinned item is just a shortcut to the real entity. Dragging it OUT of
-        // the pinned section unpins it only — it must never move or reorder the
-        // underlying entity in workspaces/unsorted.
-        if (isPinnedDrag) {
-          toggleFavorite(entityId);
-          return;
-        }
+          let newParentId: string | null = entity.parentId;
+          let newWorkspaceId = entity.workspaceId;
 
-        const moveEntityAction = useStore.getState().moveEntity;
-
-        let newParentId: string | null = entity.parentId;
-        let newWorkspaceId = entity.workspaceId;
-
-        if (overId === 'unsorted-container') {
-          newParentId = null;
-          newWorkspaceId = 'ws-personal';
-        } else if (overId === 'workspaces-container') {
-          newParentId = null;
-          newWorkspaceId = activeWorkspaceId;
-        } else if (overEntity) {
-          if (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace') {
-            if (edge === null) {
-              newParentId = overEntity.id;
-              newWorkspaceId = overEntity.workspaceId;
+          if (overId === 'unsorted-container') {
+            newParentId = null;
+            newWorkspaceId = 'ws-personal';
+          } else if (overId === 'workspaces-container') {
+            newParentId = null;
+            newWorkspaceId = activeWorkspaceId;
+          } else if (overEntity) {
+            if (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace') {
+              if (edge === null) {
+                newParentId = overEntity.id;
+                newWorkspaceId = overEntity.workspaceId;
+              } else {
+                newParentId = overEntity.parentId;
+                newWorkspaceId = overEntity.workspaceId;
+              }
             } else {
               newParentId = overEntity.parentId;
               newWorkspaceId = overEntity.workspaceId;
             }
-          } else {
-            newParentId = overEntity.parentId;
-            newWorkspaceId = overEntity.workspaceId;
           }
-        }
 
-        if (newParentId === entityId) return;
-        const descendantIds = getDescendantIds(entities, entityId);
-        if (newParentId && descendantIds.includes(newParentId)) return;
+          // Enforce depth constraint: only allow outdenting by at most 1 level per drag within the same workspace and same folder tree
+          if (newWorkspaceId === entity.workspaceId && newParentId) {
+            const getRootAncestorId = (id: string): string => {
+              let cur = entities.find(e => e.id === id);
+              while (cur && cur.parentId) {
+                const pId = cur.parentId;
+                const parent = entities.find(p => p.id === pId);
+                if (!parent) break;
+                cur = parent;
+              }
+              return cur ? cur.id : id;
+            };
 
-        if (newParentId !== entity.parentId || newWorkspaceId !== entity.workspaceId) {
-          moveEntityAction(entityId, newParentId, newWorkspaceId);
-        }
+            const dragRootId = getRootAncestorId(entityId);
+            const targetRootId = getRootAncestorId(newParentId);
 
-        const freshEntities = useStore.getState().entities;
-        const movedEntity = freshEntities.find(e => e.id === entityId);
-        const effectiveParentId = movedEntity?.parentId ?? null;
-        const effectiveWorkspaceId = movedEntity?.workspaceId ?? null;
+            if (dragRootId === targetRootId) {
+              const getEntityDepth = (entId: string | null): number => {
+                if (!entId) return 0;
+                let d = 0;
+                let cur = entities.find(e => e.id === entId);
+                while (cur && cur.parentId) {
+                  d++;
+                  const pId = cur.parentId;
+                  cur = entities.find(e => e.id === pId);
+                }
+                return d;
+              };
 
-        const currentSiblings = freshEntities
-          .filter(e => e.parentId === effectiveParentId && (e.workspaceId || 'ws-personal') === (effectiveWorkspaceId || 'ws-personal'))
-          .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+              const dragDepth = getEntityDepth(entity.parentId) + 1;
+              const newDepth = getEntityDepth(newParentId) + 1;
 
-        const fromIdx = currentSiblings.findIndex(e => e.id === entityId);
-        let toIdx = currentSiblings.findIndex(e => e.id === overId);
-        if (toIdx === -1) {
-          toIdx = currentSiblings.length - 1;
-        } else if (edge === 'bottom') {
-          toIdx += 1;
-        }
-
-        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-          // When dragging downwards, removing the source shifts elements left by 1
-          const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
-          const reordered = arrayMove(currentSiblings, fromIdx, insertAt);
-          reorderEntities(reordered.map(e => e.id));
-
-          if (favoriteIds.includes(entityId)) {
-            setSectionSortMode('pinned', 'manual');
-          } else if (entity.type === 'workspace' || entity.type === 'collection') {
-            setSectionSortMode('workspaces', 'manual');
-          } else {
-            setSectionSortMode('unsorted', 'manual');
+              if (newDepth < dragDepth - 1) {
+                const getAncestorAtDepth = (entId: string, targetD: number): string => {
+                  let cur = entities.find(e => e.id === entId);
+                  const path: string[] = [];
+                  while (cur) {
+                    path.unshift(cur.id);
+                    const pId = cur.parentId;
+                    cur = pId ? entities.find(e => e.id === pId) : undefined;
+                  }
+                  return path[targetD] || entId;
+                };
+                newParentId = getAncestorAtDepth(entityId, dragDepth - 2);
+              }
+            }
           }
-        }
-        // Safari latches :hover onto whichever element lands under the stationary
-        // cursor after a drop reorders the DOM — clear it by briefly disabling
-        // pointer-events so the browser recalculates. (No-op in Chrome.)
-        const sb = sidebarRef.current;
-        if (sb) {
-          sb.style.pointerEvents = 'none';
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => { sb.style.pointerEvents = ''; });
-          });
+
+          const normParent = (id: string | null | undefined) => id || null;
+          const normWS = (id: string | null | undefined) => id || 'ws-personal';
+          if (normParent(newParentId) === normParent(entity.parentId) && normWS(newWorkspaceId) === normWS(entity.workspaceId) && edge === null && !isInsertInsideBottom) {
+            return; // No-op: dropped inside its current parent container
+          }
+
+          if (newParentId === entityId) return;
+          const descendantIds = getDescendantIds(entities, entityId);
+          if (newParentId && descendantIds.includes(newParentId)) return;
+
+          // Guard: folders must always have a parent — a folder with parentId: null
+          // is invisible in the sidebar (it matches neither the workspaces section
+          // nor the unsorted section). Block the move entirely.
+          const isRootOnlyType = entity.type === 'workspace' || entity.type === 'collection';
+          if (!newParentId && !isRootOnlyType && entity.type === 'folder') return;
+
+          if (newParentId !== entity.parentId || newWorkspaceId !== entity.workspaceId) {
+            moveEntityAction(entityId, newParentId, newWorkspaceId);
+          }
+
+          const freshEntities = useStore.getState().entities;
+          const movedEntity = freshEntities.find(e => e.id === entityId);
+          
+          // Retrieve visual siblings sorted according to current section/active settings
+          const visualSiblings = getSortedSiblings(movedEntity || entity);
+
+          const fromIdx = visualSiblings.findIndex(e => e.id === entityId);
+          let toIdx = visualSiblings.findIndex(e => e.id === overId);
+          if (toIdx === -1) {
+            toIdx = visualSiblings.length;
+          } else if (edge === 'bottom') {
+            toIdx += 1;
+          }
+
+          if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+            // When dragging downwards, removing the source shifts elements left by 1
+            const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+            if (fromIdx !== insertAt) {
+              const reordered = arrayMove(visualSiblings, fromIdx, insertAt);
+              reorderEntities(reordered.map(e => e.id));
+
+              if (favoriteIds.includes(entityId)) {
+                setSectionSortMode('pinned', 'manual');
+              } else if (entity.type === 'workspace' || entity.type === 'collection') {
+                setSectionSortMode('workspaces', 'manual');
+              } else {
+                setSectionSortMode('unsorted', 'manual');
+              }
+            }
+          }
+        } finally {
+          // Safari latches :hover onto whichever element lands under the stationary
+          // cursor after a drop reorders the DOM — clear it by briefly disabling
+          // pointer-events so the browser recalculates. (No-op in Chrome.)
+          const sb = sidebarRef.current;
+          if (sb) {
+            sb.style.pointerEvents = 'none';
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => { sb.style.pointerEvents = ''; });
+            });
+          }
         }
       }
     });

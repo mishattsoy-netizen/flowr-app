@@ -540,21 +540,21 @@ a {
   cursor: pointer;
 }
 
-.editor-block a {
-  color: var(--bone-100);
+.editor-block a:not(.link-block-btn):not(.inline-link-btn) {
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
-  text-decoration-color: rgba(233, 232, 226, 0.2);
-  transition: none;
-  padding: 4px 2px;
-  margin: -4px -2px;
+  text-decoration-color: var(--bone-30);
+  transition: all 0.15s ease;
+  padding: 2px 2px;
+  margin: -2px -2px;
   border-radius: 4px;
 }
 
-.editor-block a:hover {
-  text-decoration-color: var(--bone-100);
-  background-color: rgba(233, 232, 226, 0.1);
+.editor-block a:not(.link-block-btn):not(.inline-link-btn):hover {
+  text-decoration-color: var(--accent);
+  background-color: var(--bone-5);
 }
 
 html {
@@ -1102,6 +1102,14 @@ html {
   cursor: grabbing !important;
 }
 
+/* Sidebar spacer hit target drag-active override */
+.sidebar-spacer-hit-target {
+  pointer-events: none;
+}
+.is-dragging .sidebar-spacer-hit-target {
+  pointer-events: auto;
+}
+
 /* The pointer is held down throughout a drag, so `:active` stays true. The
    active scale-down compounds with dnd-kit's translate transform and makes the
    dragged row jitter — suppress it while dragging. */
@@ -1502,4 +1510,29 @@ table:not(.rdp-table) tr:last-child td {
 
 .mono-pill svg {
   stroke-width: 1.5px !important;
+}
+
+/* Inline Link Button Styling */
+.inline-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 0 4px;
+  background-color: var(--bone-5);
+  border: 1px solid var(--bone-10);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  color: var(--bone-70) !important;
+  text-decoration: none !important;
+  user-select: none;
+  transition: all 0.2s ease-in-out;
+  vertical-align: middle;
+}
+
+.inline-link-btn:hover {
+  background-color: var(--bone-10);
+  color: var(--bone-100) !important;
 }

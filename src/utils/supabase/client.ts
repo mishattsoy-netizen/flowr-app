@@ -13,8 +13,14 @@ const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
   : undefined) as any;
 
 export function createClient() {
+  const isServer = typeof window === 'undefined';
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = isServer && rawUrl && rawUrl.includes('flowr.website')
+    ? 'https://qmufalwubepttjxehvit.supabase.co'
+    : rawUrl;
+
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    url,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       realtime: {

@@ -4,7 +4,7 @@ import React, { memo, useState, useRef, useEffect, useMemo, createContext, useCo
 import { useTheme } from '@/components/ThemeProvider';
 import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
-import { useStore } from '@/data/store';
+import { useStore, generateId } from '@/data/store';
 import type { AIMessage, AIAttachment, EditorBlock } from '@/data/store';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -844,6 +844,33 @@ export const ChatMessage = memo(({
   const handleCopyToNote = (asNew: boolean = false) => {
     const cleanContent = sanitizeContent(msg.content || '', false, false);
     const blocks = parseMarkdownToBlocks(cleanContent);
+    
+    // Append citations as inline capsule buttons if they exist
+    if (msg.citations && msg.citations.length > 0) {
+      const sourceButtonsHtml = msg.citations.map(url => {
+        let domain = 'Source';
+        try { domain = new URL(url).hostname.replace('www.', ''); } catch {}
+        
+        let faviconUrl = '';
+        try {
+          faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+        } catch (e) {}
+
+        const faviconHtml = faviconUrl 
+          ? `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span>`
+          : `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
+
+        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${domain}">${faviconHtml}<span class="font-medium pointer-events-none">${domain}</span></a>`;
+      }).join(' ');
+      
+      blocks.push({
+        id: generateId(),
+        type: 'text',
+        content: sourceButtonsHtml,
+        style: 'body'
+      });
+    }
+
     if (isNoteActive && !asNew && activeNote) {
       const existingContent = activeNote.content || [];
       const newBlocks = [...existingContent, ...blocks];

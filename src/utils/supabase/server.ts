@@ -4,8 +4,13 @@ import { cookies } from 'next/headers'
 export async function createClient() {
   const cookieStore = await cookies()
 
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = rawUrl && rawUrl.includes('flowr.website')
+    ? 'https://qmufalwubepttjxehvit.supabase.co'
+    : rawUrl;
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    url,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

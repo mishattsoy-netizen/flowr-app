@@ -4,8 +4,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function createClient(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const url = rawUrl && rawUrl.includes('flowr.website')
+    ? 'https://qmufalwubepttjxehvit.supabase.co'
+    : rawUrl;
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    url,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

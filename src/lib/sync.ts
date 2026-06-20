@@ -119,6 +119,7 @@ function rowToEntity(row: Record<string, any>): Entity {
     content:      row.content ?? [],
     widgetLayout: row.widget_layout ?? undefined,
     workspaceId:  row.workspace_id ?? null,
+    sortOrder:    row.sort_order ?? undefined,
   };
 }
 
@@ -132,6 +133,7 @@ function entityToRow(e: Entity): Record<string, any> {
     icon:          e.icon ?? null,
     tags:          e.tags ?? [],
     content:       e.content ?? [],
+    sort_order:    e.sortOrder ?? null,
   };
   if (e.widgetLayout)  row.widget_layout  = e.widgetLayout;
   if (e.workspaceId)   row.workspace_id   = e.workspaceId;

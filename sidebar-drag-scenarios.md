@@ -44,13 +44,13 @@ Rendered as a 2px spacer after every expanded folder/workspace/collection that h
 
 ## 4. Top-edge redirect — item directly below an expanded parent
 
-When an item's previous sibling (same parent level) has expanded children, its top edge redirects to: ?
+When an item's previous sibling (same parent level) has expanded children, its top edge redirects to: **nest inside the previous sibling as its last child**.
 
-| Scenario | Behavior (?) |
+| Scenario | Behavior |
 |----------|-------------|
-| Top edge of Item Y (below expanded Folder A) | ? |
-| Top edge of WS2 (below expanded WS1) | ? |
-| Top edge of WS3 (below collapsed WS2) | No redirect — normal top-edge reorder |
+| Top edge of Item Y (below expanded Folder A) | Nest inside Folder A (as its last child). Visual drop line rendered at depth 2 (Folder A's child depth). |
+| Top edge of WS2 (below expanded WS1) | Nest inside WS1 (as its last child). Visual drop line rendered at depth 1 (WS1's child depth). |
+| Top edge of WS3 (below collapsed WS2) | No redirect — normal top-edge reorder. Visual drop line rendered at parent level (depth 0). |
 
 ---
 

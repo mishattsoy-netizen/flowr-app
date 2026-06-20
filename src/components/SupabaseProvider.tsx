@@ -5,10 +5,70 @@ import { useStore, Entity } from '@/data/store';
 import { loadFromSupabase, subscribeRealtime, upsertWorkspace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
 
+const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+
+/**
+ * Merge cloud data into the store, dropping synced items that no longer exist in the cloud.
+ * Entities/workspaces with cloudSyncEnabled=true (or undefined) that are absent from
+ * the cloud were deleted on another device — remove them. Only keep items explicitly
+ * marked cloudSyncEnabled=false (local-only).
+ */
+function mergeCloudData(data: {
+  entities: Entity[];
+  tasks: unknown[];
+  workspaces: unknown[];
+}) {
+  const store = useStore.getState;
+
+  // ── Entities ──
+  if (data.entities.length > 0) {
+    const localEntities = store().entities;
+    const byId = new Map<string, Entity>();
+    for (const ce of data.entities) byId.set(ce.id, ce);
+    for (const le of localEntities) {
+      const ce = byId.get(le.id);
+      if (!ce) {
+        if (le.cloudSyncEnabled !== false) continue; // deleted on another device — drop
+        byId.set(le.id, le);
+        continue;
+      }
+      const localTs = le.lastModified ?? 0;
+      const cloudTs = ce.lastModified ?? 0;
+      if (localTs > cloudTs) byId.set(le.id, le);
+    }
+    store().setEntities(Array.from(byId.values()));
+  }
+
+  // ── Tasks ──
+  if (data.tasks.length > 0) {
+    const localTasks = store().tasks;
+    const merged = [...data.tasks];
+    for (const lt of localTasks) {
+      if (!merged.find((mt: any) => mt.id === lt.id)) merged.push(lt);
+    }
+    store().setTasks(merged);
+  }
+
+  // ── Workspaces ──
+  if (data.workspaces.length > 0) {
+    const localWorkspaces = store().workspaces;
+    const merged = [...data.workspaces];
+    for (const lw of localWorkspaces) {
+      if (!merged.find((mw: any) => mw.id === lw.id)) {
+        if ((lw as any).cloudSyncEnabled !== false) continue; // deleted on another device — drop
+        merged.push(lw);
+      }
+    }
+    store().setWorkspaces(merged);
+  }
+}
+
 /**
  * Mounts once at app root.
  * - Loads initial data from Supabase on boot (overrides localStorage if Supabase is configured).
  * - Subscribes to realtime changes so edits from other devices appear instantly.
+ * - Periodically reconciles with the cloud to catch missed realtime events.
+ * - Reconciles on visibilitychange (tab refocus) for cross-browser consistency.
  */
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const setEntities = useStore(s => s.setEntities);
@@ -44,6 +104,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   };
 
   const loaded = useRef(false);
+  const reconcilerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!isSupabaseEnabled || loaded.current) {
@@ -60,7 +121,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
 
       // Ensure the personal workspace exists in the DB if it's missing.
-      // This prevents foreign key violations when seeding or creating entities.
       const hasPersonalWs = data.workspaces.some(w => w.id === 'ws-personal');
       if (!hasPersonalWs && supabase) {
         const { data: { user } } = await supabase!.auth.getUser();
@@ -69,54 +129,19 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
           const personalWs = s.workspaces.find(w => w.id === 'ws-personal');
           if (personalWs) {
             try {
-              // Update ownerId to current user and sync to DB
               const updatedWs = { ...personalWs, ownerId: user.id };
-              // Pre-emptively add to store so it's available for other setters
               setWorkspaces([...data.workspaces, updatedWs]);
               await upsertWorkspace(updatedWs);
             } catch (err: any) {
               console.warn('[Flowr sync] Could not sync personal workspace (likely RLS collision):', err.message);
-              // Fallback: Continue with local data for this session
               setWorkspaces([...data.workspaces, personalWs]);
             }
           }
         }
       }
 
-      // 3. Populate Store. Merge cloud + local; for overlapping IDs, keep whichever
-      // has the newer lastModified — prevents cloud-stale data from overwriting
-      // unsynced local edits (e.g. rename/icon on entities with cloudSyncEnabled=false).
-      if (data.entities.length > 0) {
-        const localEntities = getEntities();
-        const byId = new Map<string, Entity>();
-        for (const ce of data.entities) byId.set(ce.id, ce);
-        for (const le of localEntities) {
-          const ce = byId.get(le.id);
-          if (!ce) { byId.set(le.id, le); continue; }
-          const localTs = le.lastModified ?? 0;
-          const cloudTs = ce.lastModified ?? 0;
-          if (localTs > cloudTs) byId.set(le.id, le);
-        }
-        setEntities(Array.from(byId.values()));
-      }
-
-      if (data.tasks.length > 0) {
-        const localTasks = getTasks();
-        const merged = [...data.tasks];
-        localTasks.forEach(lt => {
-          if (!merged.find(mt => mt.id === lt.id)) merged.push(lt);
-        });
-        setTasks(merged);
-      }
-
-      if (data.workspaces.length > 0) {
-        const localWorkspaces = getWorkspaces();
-        const merged = [...data.workspaces];
-        localWorkspaces.forEach(lw => {
-          if (!merged.find(mw => mw.id === lw.id)) merged.push(lw);
-        });
-        setWorkspaces(merged);
-      }
+      // 3. Merge cloud + local data
+      mergeCloudData(data);
 
       useStore.getState().setInitialSync(false);
     });
@@ -128,12 +153,30 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       setWorkspaces, getWorkspaces,
     });
 
+    // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
+    //    deleted items while this tab was closed or offline).
+    const reconcile = () => {
+      loadFromSupabase().then(data => {
+        if (data) mergeCloudData(data);
+      });
+    };
+
+    reconcilerRef.current = setInterval(reconcile, RECONCILE_INTERVAL_MS);
+
+    // 4. Reconcile on tab refocus — when the user switches back to this tab,
+    //    catch up on any changes made on other devices while it was backgrounded.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') reconcile();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       unsubscribeCore();
+      if (reconcilerRef.current) clearInterval(reconcilerRef.current);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <>{children}</>;
 }
-

@@ -19,6 +19,7 @@ create table if not exists entities (
   icon         text,
   tags         text[]      default '{}',
   content      jsonb       default '[]',       -- EditorBlock[]
+  sort_order   integer     default 0,
   created_at   timestamptz not null default now()
 );
 

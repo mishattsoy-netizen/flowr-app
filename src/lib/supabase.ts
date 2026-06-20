@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const isServer = typeof window === 'undefined';
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const url = isServer && rawUrl && rawUrl.includes('flowr.website')
+  ? 'https://qmufalwubepttjxehvit.supabase.co'
+  : rawUrl;
 
 const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
   ? class extends WebSocket {

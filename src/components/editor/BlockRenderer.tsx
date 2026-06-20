@@ -1,13 +1,14 @@
 "use client";
 
 import {
-  GripVertical, Plus, ChevronRight, ChevronDown, Copy, Link as LinkIcon, ExternalLink
+  GripVertical, Plus, ChevronRight, ChevronDown, Copy, Link as LinkIcon, ExternalLink, Check, Pencil, X
 } from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
 import { cn } from '@/lib/utils';
 import { EditorBlock, BlockStyle, BlockType, Entity, generateId } from '@/data/store';
 import { ListBlock } from './ListBlock';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { useStore } from '@/data/store';
 import { DatabaseBlock } from './DatabaseBlock';
 import { TableBlock } from './TableBlock';
@@ -154,6 +155,98 @@ export function BlockRenderer({
   const contentRef = useRef<HTMLDivElement>(null);
   const lastTypedContent = useRef<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Inline link button Popover states
+  const [activeInlineBtn, setActiveInlineBtn] = useState<{
+    element: HTMLAnchorElement;
+    rect: DOMRect;
+    url: string;
+    label: string;
+  } | null>(null);
+
+  const [isEditingInlineLabel, setIsEditingInlineLabel] = useState(false);
+  const [isEditingInlineUrl, setIsEditingInlineUrl] = useState(false);
+  const [inlineLabelInput, setInlineLabelInput] = useState('');
+  const [inlineUrlInput, setInlineUrlInput] = useState('');
+  const [inlineCopied, setInlineCopied] = useState(false);
+
+  const inlineHoverTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (activeInlineBtn) {
+      setInlineLabelInput(activeInlineBtn.label);
+      setInlineUrlInput(activeInlineBtn.url);
+      setIsEditingInlineLabel(false);
+      setIsEditingInlineUrl(false);
+      setInlineCopied(false);
+    }
+  }, [activeInlineBtn]);
+
+  const handleInlineMouseEnter = () => {
+    if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
+  };
+
+  const handleInlineMouseLeave = () => {
+    inlineHoverTimeout.current = setTimeout(() => {
+      setActiveInlineBtn(null);
+    }, 300);
+  };
+
+  const handleContentMouseMove = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const inlineBtn = target.closest('.inline-link-btn') as HTMLAnchorElement;
+    if (inlineBtn) {
+      if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
+      const rect = inlineBtn.getBoundingClientRect();
+      const url = inlineBtn.getAttribute('data-url') || inlineBtn.getAttribute('href') || '';
+      const label = inlineBtn.getAttribute('data-label') || inlineBtn.textContent || '';
+      
+      if (!activeInlineBtn || activeInlineBtn.element !== inlineBtn) {
+        setActiveInlineBtn({
+          element: inlineBtn,
+          rect,
+          url,
+          label
+        });
+      }
+    } else if (activeInlineBtn) {
+      if (!inlineHoverTimeout.current) {
+        inlineHoverTimeout.current = setTimeout(() => {
+          setActiveInlineBtn(null);
+          inlineHoverTimeout.current = null;
+        }, 300);
+      }
+    }
+  };
+
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [labelInput, setLabelInput] = useState(block.content || '');
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [urlInput, setUrlInput] = useState(block.linkUrl || '');
+
+  useEffect(() => {
+    if (popoverOpen) {
+      setLabelInput(block.content || '');
+      setIsEditingLabel(false);
+      setUrlInput(block.linkUrl || '');
+      setIsEditingUrl(false);
+    }
+  }, [popoverOpen, block.content, block.linkUrl]);
+
+  const handleLinkMouseEnter = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setPopoverOpen(true);
+  };
+
+  const handleLinkMouseLeave = () => {
+    hoverTimerRef.current = setTimeout(() => {
+      setPopoverOpen(false);
+    }, 200);
+  };
+
   const entities = useStore(s => s.entities);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
 
@@ -184,8 +277,57 @@ export function BlockRenderer({
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashMenuOpen && (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
     if (e.key === 'Enter') {
-      // Shift+Enter = soft line break within block (browser default <br>)
       if (e.shiftKey) return;
+
+      // Check for inline button shortcuts first
+      if (contentRef.current) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const node = range.startContainer;
+          const offset = range.startOffset;
+          if (node.nodeType === Node.TEXT_NODE) {
+            const txt = node.textContent || "";
+            const before = txt.substring(0, offset);
+            if (before.endsWith('/button') || before.endsWith('/link')) {
+              const trigLength = before.endsWith('/button') ? 7 : 5;
+              e.preventDefault();
+              range.setStart(node, offset - trigLength);
+              range.setEnd(node, offset);
+              sel.removeAllRanges();
+              sel.addRange(range);
+              range.deleteContents();
+
+              const a = document.createElement('a');
+              const url = 'https://flowr.website';
+              const label = 'flowr.website';
+              a.href = url;
+              a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+              a.setAttribute('contenteditable', 'false');
+              a.setAttribute('data-url', url);
+              a.setAttribute('data-label', label);
+
+              const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
+              a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
+
+              range.insertNode(a);
+
+              const space = document.createTextNode('\u00A0');
+              range.setStartAfter(a);
+              range.collapse(true);
+              range.insertNode(space);
+
+              range.setStartAfter(space);
+              range.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(range);
+
+              onUpdate(block.id, { content: contentRef.current.innerHTML });
+              return;
+            }
+          }
+        }
+      }
 
       // Plain Enter = new item / new block below
       e.preventDefault();
@@ -250,6 +392,45 @@ export function BlockRenderer({
         if (node.nodeType === Node.TEXT_NODE) {
           const txt = node.textContent || "";
           const before = txt.substring(0, offset);
+
+          // Check for inline button shortcut on Space press
+          if (before.endsWith('/button') || before.endsWith('/link')) {
+            const trigLength = before.endsWith('/button') ? 7 : 5;
+            e.preventDefault();
+            range.setStart(node, offset - trigLength);
+            range.setEnd(node, offset);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            range.deleteContents();
+
+            const a = document.createElement('a');
+            const url = 'https://flowr.website';
+            const label = 'flowr.website';
+            a.href = url;
+            a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+            a.setAttribute('contenteditable', 'false');
+            a.setAttribute('data-url', url);
+            a.setAttribute('data-label', label);
+
+            const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
+            a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
+
+            range.insertNode(a);
+
+            const space = document.createTextNode('\u00A0');
+            range.setStartAfter(a);
+            range.collapse(true);
+            range.insertNode(space);
+
+            range.setStartAfter(space);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            onUpdate(block.id, { content: contentRef.current.innerHTML });
+            return;
+          }
+
           const shortcuts: Record<string, string> = {
             '-->': '⟶', '->': '→', '==>': '⇒',
             '<--': '⟵', '<-': '←', '<==': '⇐',
@@ -310,6 +491,73 @@ export function BlockRenderer({
       window.open(anchor.href, '_blank', 'noopener,noreferrer');
     }
   }, []);
+
+  const saveInlineLabel = useCallback((newLabel: string) => {
+    if (!activeInlineBtn) return;
+    const el = activeInlineBtn.element;
+    el.setAttribute('data-label', newLabel);
+    
+    const labelSpan = el.querySelector('span:last-child');
+    if (labelSpan) {
+      labelSpan.textContent = newLabel;
+    } else {
+      el.textContent = newLabel;
+    }
+    
+    if (contentRef.current) {
+      const html = contentRef.current.innerHTML;
+      lastTypedContent.current = html;
+      onUpdate(block.id, { content: html });
+    }
+    
+    setActiveInlineBtn(prev => prev ? { ...prev, label: newLabel } : null);
+  }, [activeInlineBtn, block.id, onUpdate]);
+
+  const saveInlineUrl = useCallback((newUrl: string) => {
+    if (!activeInlineBtn) return;
+    const el = activeInlineBtn.element;
+    
+    let formattedUrl = newUrl;
+    if (newUrl && !newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+      formattedUrl = 'https://' + newUrl;
+    }
+    
+    el.setAttribute('href', formattedUrl);
+    el.setAttribute('data-url', formattedUrl);
+    
+    let faviconUrl = '';
+    try {
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(formattedUrl).hostname}&sz=32`;
+    } catch (e) {}
+    
+    const iconSpan = el.querySelector('span:first-child');
+    if (iconSpan) {
+      if (faviconUrl) {
+        iconSpan.innerHTML = `<img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" />`;
+      } else {
+        iconSpan.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
+      }
+    }
+    
+    if (contentRef.current) {
+      const html = contentRef.current.innerHTML;
+      lastTypedContent.current = html;
+      onUpdate(block.id, { content: html });
+    }
+    
+    setActiveInlineBtn(prev => prev ? { ...prev, url: formattedUrl } : null);
+  }, [activeInlineBtn, block.id, onUpdate]);
+
+  const deleteInlineButton = useCallback(() => {
+    if (!activeInlineBtn) return;
+    activeInlineBtn.element.remove();
+    if (contentRef.current) {
+      const html = contentRef.current.innerHTML;
+      lastTypedContent.current = html;
+      onUpdate(block.id, { content: html });
+    }
+    setActiveInlineBtn(null);
+  }, [activeInlineBtn, block.id, onUpdate]);
 
   const isQuote = block.type === 'quote';
   const effectiveStyle = (isList || isChecklist) ? 'body' : block.style;
@@ -525,42 +773,245 @@ export function BlockRenderer({
         className={cn("editor-block group py-1.5 relative flex flex-col items-start before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
         <BlockControls {...controlsProps} topOffset="6px" />
-        <div className="flex items-center gap-3 group/link ml-4 relative z-10">
-          <a
-            href={block.linkUrl || '#'}
-            onClick={(e) => { if (!block.linkUrl) e.preventDefault(); }}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 rounded-lg text-[14px] font-medium text-accent border border-accent/20 transition-all duration-200 select-none"
-          >
-            {faviconUrl ? (
-              <img src={faviconUrl} className="w-3.5 h-3.5 object-contain rounded-sm shrink-0" alt="" />
-            ) : (
-              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
-            )}
-            <span
-              contentEditable
-              suppressContentEditableWarning
-              onBlur={(e) => onUpdate(block.id, { content: e.currentTarget.textContent || '' })}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-              className="min-w-[40px] outline-none border-b border-transparent focus:border-accent/40"
-              onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        <div className="flex items-center ml-4 relative z-10">
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <a
+                href={block.linkUrl || '#'}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (block.linkUrl) {
+                    window.open(block.linkUrl, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                target="_blank"
+                rel="noopener noreferrer"
+                onMouseEnter={handleLinkMouseEnter}
+                onMouseLeave={handleLinkMouseLeave}
+                className="link-block-btn inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline transition-all duration-200 select-none border border-[var(--bone-10)]"
+              >
+                {faviconUrl ? (
+                  <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px]">
+                    <img src={faviconUrl} className="w-3 h-3 object-contain select-none opacity-80" alt="" />
+                  </span>
+                ) : (
+                  <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden">
+                    <LinkIcon className="w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0" />
+                  </span>
+                )}
+                <span className="min-w-[40px] font-medium truncate max-w-[120px]">
+                  {block.content || 'Link Label'}
+                </span>
+              </a>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              sideOffset={8}
+              className="z-[500] w-[260px] p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl"
+              onMouseEnter={handleLinkMouseEnter}
+              onMouseLeave={handleLinkMouseLeave}
             >
-              {block.content || 'Link Label'}
-            </span>
-            <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
-          </a>
+              <div className="flex flex-col gap-2">
+                {/* Section 1: Icon and Label */}
+                {isEditingLabel ? (
+                  <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {faviconUrl ? (
+                        <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                          <img src={faviconUrl} alt="" className="w-3.5 h-3.5 object-contain" />
+                        </span>
+                      ) : (
+                        <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                          <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" />
+                        </span>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Link Label"
+                        className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
+                        value={labelInput}
+                        onChange={(e) => setLabelInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            onUpdate(block.id, { content: labelInput });
+                            setIsEditingLabel(false);
+                          } else if (e.key === 'Escape') {
+                            setLabelInput(block.content || '');
+                            setIsEditingLabel(false);
+                          }
+                        }}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          onUpdate(block.id, { content: labelInput });
+                          setIsEditingLabel(false);
+                        }}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                        title="Save"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLabelInput(block.content || '');
+                          setIsEditingLabel(false);
+                        }}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between w-full px-1.5 py-1 group/label">
+                    <div 
+                      onClick={() => {
+                        setIsEditingLabel(true);
+                        setIsEditingUrl(false);
+                      }}
+                      className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      {faviconUrl ? (
+                        <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                          <img src={faviconUrl} alt="" className="w-3.5 h-3.5 object-contain" />
+                        </span>
+                      ) : (
+                        <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                          <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" />
+                        </span>
+                      )}
+                      <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
+                        {block.content || 'Link Label'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsEditingLabel(true);
+                        setIsEditingUrl(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                      title="Edit Label"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
 
-          <div className="opacity-0 group-hover/link:opacity-100 transition-opacity duration-200 flex items-center bg-[#151515]/80 backdrop-blur border border-white/5 rounded-md px-2 py-1 relative z-20">
-            <input
-              type="text"
-              placeholder="Paste URL here..."
-              className="bg-transparent border-none outline-none text-[11px] w-[180px] text-bone-70 focus:text-bone-90 font-sans"
-              defaultValue={block.linkUrl || ''}
-              onBlur={(e) => onUpdate(block.id, { linkUrl: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-            />
-          </div>
+                {/* Section 2: Input box to paste and edit URL */}
+                {isEditingUrl ? (
+                  <div className="flex items-center justify-between w-full px-1.5 py-0.5 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste URL here..."
+                      className="flex-1 bg-[var(--bone-5)] border border-[var(--bone-12)] focus:border-[var(--bone-30)] outline-none rounded-none px-2 py-1 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] font-sans"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          onUpdate(block.id, { linkUrl: urlInput });
+                          setIsEditingUrl(false);
+                        } else if (e.key === 'Escape') {
+                          setUrlInput(block.linkUrl || '');
+                          setIsEditingUrl(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          onUpdate(block.id, { linkUrl: urlInput });
+                          setIsEditingUrl(false);
+                        }}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                        title="Save"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUrlInput(block.linkUrl || '');
+                          setIsEditingUrl(false);
+                        }}
+                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between w-full px-1.5 py-0.5 group/url">
+                    <span 
+                      onClick={() => {
+                        setIsEditingUrl(true);
+                        setIsEditingLabel(false);
+                      }}
+                      className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-80)] cursor-pointer font-sans truncate max-w-[200px] transition-colors"
+                    >
+                      {block.linkUrl || 'No URL set'}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setIsEditingUrl(true);
+                        setIsEditingLabel(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                      title="Edit URL"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Section 3: Copy and Open buttons */}
+                <div className="flex items-center gap-1 border-t border-[var(--bone-6)] pt-1.5 mt-0.5">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (block.linkUrl) {
+                        navigator.clipboard.writeText(block.linkUrl).then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        });
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] transition-all cursor-pointer",
+                      copied ? "opacity-100" : "opacity-35 hover:opacity-100"
+                    )}
+                  >
+                    {copied ? (
+                      <Check className="w-3 h-3 text-green-500" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                      {copied ? "COPIED" : "COPY"}
+                    </span>
+                  </button>
+                  <div className="w-px h-3 bg-[var(--bone-6)]" />
+                  <a
+                    href={block.linkUrl || '#'}
+                    onClick={(e) => { if (!block.linkUrl) e.preventDefault(); }}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-35 hover:opacity-100 transition-all cursor-pointer no-underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
+                  </a>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         {closestEdge && (
           <div
@@ -754,6 +1205,8 @@ export function BlockRenderer({
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onClick={handleContentClick}
+            onMouseMove={handleContentMouseMove}
+            onMouseLeave={handleInlineMouseLeave}
             onPaste={(e) => {
               // Clean paste for mono code blocks always, and enforce text only for normal blocks to strip external styling
               e.preventDefault();
@@ -785,6 +1238,264 @@ export function BlockRenderer({
             closestEdge === 'top' ? 'top-0' : 'bottom-0'
           )}
         />
+      )}
+
+      {/* Dynamic Popover for Inline Link Buttons */}
+      {activeInlineBtn && (
+        <Popover 
+          open={!!activeInlineBtn} 
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveInlineBtn(null);
+            }
+          }}
+        >
+          <PopoverTrigger asChild>
+            <div
+              style={{
+                position: 'fixed',
+                left: activeInlineBtn.rect.left,
+                top: activeInlineBtn.rect.top,
+                width: activeInlineBtn.rect.width,
+                height: activeInlineBtn.rect.height,
+                pointerEvents: 'none',
+                zIndex: -1,
+              }}
+            />
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="z-[500] w-[260px] p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl"
+            onMouseEnter={handleInlineMouseEnter}
+            onMouseLeave={handleInlineMouseLeave}
+          >
+            <div className="flex flex-col gap-2">
+              {/* Section 1: Icon and Label */}
+              {isEditingInlineLabel ? (
+                <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                      {activeInlineBtn.url ? (
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          alt="" 
+                          className="w-3.5 h-3.5 object-contain"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            img.style.display = 'none';
+                            const fallback = img.parentElement?.querySelector('svg');
+                            if (fallback) fallback.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Link Label"
+                      className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
+                      value={inlineLabelInput}
+                      onChange={(e) => setInlineLabelInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveInlineLabel(inlineLabelInput);
+                          setIsEditingInlineLabel(false);
+                        } else if (e.key === 'Escape') {
+                          setInlineLabelInput(activeInlineBtn.label);
+                          setIsEditingInlineLabel(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        saveInlineLabel(inlineLabelInput);
+                        setIsEditingInlineLabel(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                      title="Save"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInlineLabelInput(activeInlineBtn.label);
+                        setIsEditingInlineLabel(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full px-1.5 py-1 group/inline-label">
+                  <div 
+                    onClick={() => {
+                      setIsEditingInlineLabel(true);
+                      setIsEditingInlineUrl(false);
+                    }}
+                    className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                      {activeInlineBtn.url ? (
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          alt="" 
+                          className="w-3.5 h-3.5 object-contain"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            img.style.display = 'none';
+                            const fallback = img.parentElement?.querySelector('svg');
+                            if (fallback) fallback.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                    </span>
+                    <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
+                      {activeInlineBtn.label || 'Link Label'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsEditingInlineLabel(true);
+                      setIsEditingInlineUrl(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                    title="Edit Label"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {/* Section 2: URL Edit */}
+              {isEditingInlineUrl ? (
+                <div className="flex items-center justify-between w-full px-1.5 py-0.5 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Paste URL here..."
+                    className="flex-1 bg-[var(--bone-5)] border border-[var(--bone-12)] focus:border-[var(--bone-30)] outline-none rounded-none px-2 py-1 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] font-sans"
+                    value={inlineUrlInput}
+                    onChange={(e) => setInlineUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        saveInlineUrl(inlineUrlInput);
+                        setIsEditingInlineUrl(false);
+                      } else if (e.key === 'Escape') {
+                        setInlineUrlInput(activeInlineBtn.url);
+                        setIsEditingInlineUrl(false);
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        saveInlineUrl(inlineUrlInput);
+                        setIsEditingInlineUrl(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                      title="Save"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInlineUrlInput(activeInlineBtn.url);
+                        setIsEditingInlineUrl(false);
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full px-1.5 py-0.5 group/inline-url">
+                  <span 
+                    onClick={() => {
+                      setIsEditingInlineUrl(true);
+                      setIsEditingInlineLabel(false);
+                    }}
+                    className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-80)] cursor-pointer font-sans truncate max-w-[200px] transition-colors"
+                  >
+                    {activeInlineBtn.url || 'No URL set'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setIsEditingInlineUrl(true);
+                      setIsEditingInlineLabel(false);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                    title="Edit URL"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {/* Section 3: Copy, Open, and Delete buttons */}
+              <div className="flex items-center gap-1 border-t border-[var(--bone-6)] pt-1.5 mt-0.5">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (activeInlineBtn.url) {
+                      navigator.clipboard.writeText(activeInlineBtn.url).then(() => {
+                        setInlineCopied(true);
+                        setTimeout(() => setInlineCopied(false), 2000);
+                      });
+                    }
+                  }}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] transition-all cursor-pointer",
+                    inlineCopied ? "opacity-100" : "opacity-35 hover:opacity-100"
+                  )}
+                >
+                  {inlineCopied ? (
+                    <Check className="w-3 h-3 text-green-500" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-wider">
+                    {inlineCopied ? "COPIED" : "COPY"}
+                  </span>
+                </button>
+                <div className="w-px h-3 bg-[var(--bone-6)]" />
+                <a
+                  href={activeInlineBtn.url || '#'}
+                  onClick={(e) => { if (!activeInlineBtn.url) e.preventDefault(); }}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-35 hover:opacity-100 transition-all cursor-pointer no-underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Open</span>
+                </a>
+                <div className="w-px h-3 bg-[var(--bone-6)]" />
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteInlineButton();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 opacity-60 hover:opacity-100 transition-all cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Delete</span>
+                </button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );

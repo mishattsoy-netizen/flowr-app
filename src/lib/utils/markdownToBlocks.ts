@@ -8,7 +8,7 @@ export function inlineMarkdownToHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  return escaped
+  let s = escaped
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/__(.*?)__/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -16,6 +16,11 @@ export function inlineMarkdownToHtml(text: string): string {
     .replace(/~~(.*?)~~/g, '<s>$1</s>')
     .replace(/`(.*?)`/g, '<code class="font-mono bg-white/10 px-1 rounded text-[0.9em]">$1</code>')
     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-accent hover:underline" target="_blank">$1</a>');
+
+  // plain URLs
+  s = s.replace(/(?<!href=")(?<!">)\b(https?:\/\/[^\s<>'")]+?)(?=[.,?!]?(?:\s|$))/gi, '<a href="$1" class="text-accent hover:underline" target="_blank">$1</a>');
+
+  return s;
 }
 
 export function parseMarkdownToBlocks(markdown: string): EditorBlock[] {

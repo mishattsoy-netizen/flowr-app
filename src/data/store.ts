@@ -1560,9 +1560,16 @@ export const useStore = create<AppState>()(
           entities: state.entities.map(e => {
             const idx = orderedIds.indexOf(e.id);
             if (idx === -1) return e;
-            return { ...e, sortOrder: idx };
+            return { ...e, sortOrder: idx, lastModified: Date.now() };
           }),
         }));
+        const freshEntities = get().entities;
+        orderedIds.forEach(id => {
+          const updated = freshEntities.find(e => e.id === id);
+          if (updated && updated.cloudSyncEnabled) {
+            upsertEntity(updated);
+          }
+        });
       },
 
       renameEntity: (id, newTitle) => {
