@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useStore, Entity } from '@/data/store';
+import { useStore, Entity, AppTask, Workspace } from '@/data/store';
 import { loadFromSupabase, subscribeRealtime, upsertWorkspace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
 
@@ -15,8 +15,8 @@ const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
  */
 function mergeCloudData(data: {
   entities: Entity[];
-  tasks: unknown[];
-  workspaces: unknown[];
+  tasks: AppTask[];
+  workspaces: Workspace[];
 }) {
   const store = useStore.getState;
 
