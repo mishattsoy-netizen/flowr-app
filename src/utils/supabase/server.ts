@@ -25,6 +25,9 @@ export async function createClient() {
           } catch {}
         },
       },
+      cookieOptions: {
+        name: 'sb-flowr-auth',
+      },
     }
   )
 }

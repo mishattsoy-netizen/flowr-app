@@ -36,6 +36,9 @@ export function createClient() {
       realtime: {
         transport: ProxyWebSocket,
       },
+      cookieOptions: {
+        name: 'sb-flowr-auth',
+      },
     }
   )
 }

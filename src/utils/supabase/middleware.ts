@@ -25,6 +25,9 @@ export async function createClient(request: NextRequest) {
           )
         },
       },
+      cookieOptions: {
+        name: 'sb-flowr-auth',
+      },
     }
   )
 

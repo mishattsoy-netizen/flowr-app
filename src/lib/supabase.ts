@@ -43,6 +43,9 @@ export const supabase = url && key
       realtime: {
         transport: ProxyWebSocket,
       },
+      cookieOptions: {
+        name: 'sb-flowr-auth',
+      },
     })
   : (null as any);
 
