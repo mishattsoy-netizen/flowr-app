@@ -541,7 +541,7 @@ a {
 }
 
 .editor-block a:not(.link-block-btn):not(.inline-link-btn) {
-  color: var(--accent);
+  color: var(--bone-100);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
@@ -553,7 +553,8 @@ a {
 }
 
 .editor-block a:not(.link-block-btn):not(.inline-link-btn):hover {
-  text-decoration-color: var(--accent);
+  color: var(--bone-100);
+  text-decoration-color: var(--bone-100);
   background-color: var(--bone-5);
 }
 
