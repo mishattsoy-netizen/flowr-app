@@ -144,6 +144,9 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       mergeCloudData(data);
 
       useStore.getState().setInitialSync(false);
+    }).catch(err => {
+      console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);
+      useStore.getState().setInitialSync(false);
     });
 
     // 2. Realtime subscription

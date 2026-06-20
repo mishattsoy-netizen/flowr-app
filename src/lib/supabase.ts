@@ -5,9 +5,26 @@ const isServer = typeof window === 'undefined';
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const url = isServer && rawUrl && rawUrl.includes('flowr.website')
-  ? 'https://qmufalwubepttjxehvit.supabase.co'
-  : rawUrl;
+const getSupabaseUrl = () => {
+  if (!rawUrl) return '';
+  if (isServer) {
+    return rawUrl.includes('flowr.website')
+      ? 'https://qmufalwubepttjxehvit.supabase.co'
+      : rawUrl;
+  }
+  // Client-side: dynamically match active browser origin to bypass CORS preflight redirect blocks
+  if (rawUrl.includes('flowr.website')) {
+    try {
+      const parsed = new URL(rawUrl);
+      return `${window.location.origin}${parsed.pathname}`;
+    } catch {
+      return `${window.location.origin}`;
+    }
+  }
+  return rawUrl;
+};
+
+const url = getSupabaseUrl();
 
 const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
   ? class extends WebSocket {

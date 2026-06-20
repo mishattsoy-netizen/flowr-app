@@ -15,9 +15,19 @@ const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
 export function createClient() {
   const isServer = typeof window === 'undefined';
   const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const url = isServer && rawUrl && rawUrl.includes('flowr.website')
-    ? 'https://qmufalwubepttjxehvit.supabase.co'
-    : rawUrl;
+  let url = rawUrl;
+  if (isServer) {
+    url = rawUrl && rawUrl.includes('flowr.website')
+      ? 'https://qmufalwubepttjxehvit.supabase.co'
+      : rawUrl;
+  } else if (rawUrl && rawUrl.includes('flowr.website')) {
+    try {
+      const parsed = new URL(rawUrl);
+      url = `${window.location.origin}${parsed.pathname}`;
+    } catch {
+      url = `${window.location.origin}`;
+    }
+  }
 
   return createBrowserClient(
     url,
