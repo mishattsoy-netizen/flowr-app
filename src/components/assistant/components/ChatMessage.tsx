@@ -1141,7 +1141,7 @@ export const ChatMessage = memo(({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-emerald-400 hover:underline"
+            className="text-accent hover:underline"
           >
             {displayChildren}
           </a>
@@ -1636,7 +1636,7 @@ export const ChatMessage = memo(({
                         <div className={cn(
                           "prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-[14px]",
                           "prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100",
-                          "prose-a:text-emerald-400 prose-a:no-underline hover:prose-a:underline",
+                          "prose-a:text-accent prose-a:no-underline hover:prose-a:underline",
                           "prose-code:text-emerald-300 prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none",
                           "prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg",
                           "w-full overflow-hidden relative [&_p]:my-0 break-words",
