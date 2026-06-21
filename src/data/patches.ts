@@ -15,6 +15,28 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.5',
+    build: '2316',
+    date: '2026-06-21',
+    title: 'Tooltip Overlay Suppression & Link Style Unification',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Centralized tooltip overlay suppression system to hide tooltips during modals, context menus, drag states, and link popovers.',
+          'Unified standard link styles across notes and chat to always be bone-100 with bone-30 underline on idle, and bone-100 on hover.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed URL parsing crash in editor link popover when entering relative domains or plain hostnames.',
+          'Resolved missing underline issue on standard links inside chat messages and advisor cards.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.4',
     build: '2315',
     date: '2026-06-21',
