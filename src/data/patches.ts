@@ -24,7 +24,7 @@ export const PATCHES: Patch[] = [
         type: 'added',
         items: [
           'Centralized tooltip overlay suppression system to hide tooltips during modals, context menus, drag states, and link popovers.',
-          'Unified standard link styles across notes and chat to always be bone-100 with bone-30 underline on idle, and bone-100 on hover.'
+          'Unified standard link styles across notes and chat to have consistent text and underline colors.'
         ]
       },
       {
@@ -45,7 +45,7 @@ export const PATCHES: Patch[] = [
       {
         type: 'added',
         items: [
-          'Differentiated inline text links ([Label](url)) from rounded capsule citation pills ([pill:Label](url)).',
+          'Differentiated standard inline text links from rounded capsule citation pills.',
           'Configured assistant mode prompts to output citations as capsule pills while retaining standard links for main body content references.',
           'Added link popover editor to support inline link editing, label editing, and direct navigation.'
         ]
