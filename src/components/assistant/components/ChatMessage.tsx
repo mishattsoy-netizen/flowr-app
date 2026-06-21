@@ -713,14 +713,14 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
           rel="noopener noreferrer"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className="inline-flex items-center gap-1.5 px-2 py-1 mt-1 mr-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline transition-all duration-200 select-none border border-[var(--bone-10)]"
+          className="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline"
         >
           {faviconUrl && (
-            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px]">
+            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none">
               <img src={faviconUrl} alt="" className="w-3 h-3 object-contain select-none opacity-80" />
             </span>
           )}
-          <span className="max-w-[120px] truncate font-medium">{label}</span>
+          <span className="max-w-[120px] truncate font-medium pointer-events-none">{label}</span>
         </a>
       </PopoverTrigger>
       <PopoverContent
