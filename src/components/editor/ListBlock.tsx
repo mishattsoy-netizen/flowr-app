@@ -71,6 +71,7 @@ interface ListBlockProps {
   isDraggingGlobal?: boolean;
   onMouseMove?: (e: React.MouseEvent) => void;
   onMouseLeave?: (e: React.MouseEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function RowEl({
@@ -86,6 +87,7 @@ function RowEl({
   isDraggingGlobal = false,
   onMouseMove,
   onMouseLeave,
+  onContextMenu,
 }: {
   row: ListRow;
   rowIndex: number;
@@ -99,6 +101,7 @@ function RowEl({
   isDraggingGlobal?: boolean;
   onMouseMove?: (e: React.MouseEvent) => void;
   onMouseLeave?: (e: React.MouseEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const lastContent = useRef<string | null>(null);
@@ -195,12 +198,13 @@ function RowEl({
         }}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
+        onContextMenu={onContextMenu}
       />
     </div>
   );
 }
 
-export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus, isDraggingGlobal = false, onMouseMove, onMouseLeave }: ListBlockProps) {
+export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus, isDraggingGlobal = false, onMouseMove, onMouseLeave, onContextMenu }: ListBlockProps) {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
   // Keep a stable ref to current rows so keyboard handlers don't go stale
@@ -455,6 +459,7 @@ export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop
           isDraggingGlobal={isDraggingGlobal}
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}
+          onContextMenu={onContextMenu}
         />
       ))}
     </div>

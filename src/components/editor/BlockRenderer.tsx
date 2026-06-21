@@ -227,8 +227,30 @@ export function BlockRenderer({
           inlineHoverTimeout.current = null;
         }, 300);
       }
-    }
   };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isDraggingGlobal) return;
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    
+    if (anchor && !anchor.classList.contains('inline-link-btn') && contentRef.current?.contains(anchor)) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const rect = anchor.getBoundingClientRect();
+      const url = anchor.getAttribute('href') || '';
+      const label = anchor.textContent || '';
+      
+      setActiveInlineBtn({
+        element: anchor,
+        rect,
+        url,
+        label,
+        isStandardLink: true
+      });
+    }
+  }, [isDraggingGlobal]);
 
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [labelInput, setLabelInput] = useState(block.content || '');
@@ -563,8 +585,22 @@ export function BlockRenderer({
 
   const deleteInlineButton = useCallback(() => {
     if (!activeInlineBtn) return;
-    activeInlineBtn.element.remove();
+    const el = activeInlineBtn.element;
+    if (activeInlineBtn.isStandardLink) {
+      // Unlink: replace anchor with its children text nodes
+      const parent = el.parentNode;
+      if (parent) {
+        while (el.firstChild) {
+          parent.insertBefore(el.firstChild, el);
+        }
+        el.remove();
+      }
+    } else {
+      el.remove();
+    }
     if (contentRef.current) {
+      const html = contentRef.current.innerHTML;
+      lastTypedContent.current = html;
       onUpdate(block.id, { content: html });
     }
     setActiveInlineBtn(null);
@@ -608,106 +644,108 @@ export function BlockRenderer({
         >
           <div className="flex flex-col gap-2">
             {/* Section 1: Icon and Label */}
-            {isEditingInlineLabel ? (
-              <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
-                    {activeInlineBtn.url ? (
-                      <img 
-                        src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
-                        alt="" 
-                        className="w-3.5 h-3.5 object-contain"
-                        onError={(e) => {
-                          const img = e.currentTarget;
-                          img.style.display = 'none';
-                          const fallback = img.parentElement?.querySelector('svg');
-                          if (fallback) fallback.style.display = 'block';
-                        }}
-                      />
-                    ) : null}
-                    <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Link Label"
-                    className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
-                    value={inlineLabelInput}
-                    onChange={(e) => setInlineLabelInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+            {!activeInlineBtn.isStandardLink && (
+              isEditingInlineLabel ? (
+                <div className="flex items-center justify-between w-full px-1.5 py-1 gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                      {activeInlineBtn.url ? (
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          alt="" 
+                          className="w-3.5 h-3.5 object-contain"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            img.style.display = 'none';
+                            const fallback = img.parentElement?.querySelector('svg');
+                            if (fallback) fallback.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Link Label"
+                      className="bg-transparent border-none outline-none text-[11px] font-bold text-[var(--bone-100)] w-full p-0 border-b border-[var(--bone-12)] focus:border-[var(--bone-30)] font-sans"
+                      value={inlineLabelInput}
+                      onChange={(e) => setInlineLabelInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveInlineLabel(inlineLabelInput);
+                          setIsEditingInlineLabel(false);
+                        } else if (e.key === 'Escape') {
+                          setInlineLabelInput(activeInlineBtn.label);
+                          setIsEditingInlineLabel(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
                         saveInlineLabel(inlineLabelInput);
                         setIsEditingInlineLabel(false);
-                      } else if (e.key === 'Escape') {
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
+                      title="Save"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => {
                         setInlineLabelInput(activeInlineBtn.label);
                         setIsEditingInlineLabel(false);
-                      }
-                    }}
-                    autoFocus
-                  />
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+              ) : (
+                <div className="flex items-center justify-between w-full px-1.5 py-1 group/inline-label">
+                  <div 
+                    onClick={() => {
+                      setIsEditingInlineLabel(true);
+                      setIsEditingInlineUrl(false);
+                    }}
+                    className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
+                      {activeInlineBtn.url ? (
+                        <img 
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          alt="" 
+                          className="w-3.5 h-3.5 object-contain"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            img.style.display = 'none';
+                            const fallback = img.parentElement?.querySelector('svg');
+                            if (fallback) fallback.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
+                    </span>
+                    <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
+                      {activeInlineBtn.label || 'Link Label'}
+                    </span>
+                  </div>
                   <button
                     onClick={() => {
-                      saveInlineLabel(inlineLabelInput);
-                      setIsEditingInlineLabel(false);
+                      setIsEditingInlineLabel(true);
+                      setIsEditingInlineUrl(false);
                     }}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                    title="Save"
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
+                    title="Edit Label"
                   >
-                    <Check className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setInlineLabelInput(activeInlineBtn.label);
-                      setIsEditingInlineLabel(false);
-                    }}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                    title="Cancel"
-                  >
-                    <X className="w-3 h-3" />
+                    <Pencil className="w-3 h-3" />
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between w-full px-1.5 py-1 group/inline-label">
-                <div 
-                  onClick={() => {
-                    setIsEditingInlineLabel(true);
-                    setIsEditingInlineUrl(false);
-                  }}
-                  className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
-                    {activeInlineBtn.url ? (
-                      <img 
-                        src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
-                        alt="" 
-                        className="w-3.5 h-3.5 object-contain"
-                        onError={(e) => {
-                          const img = e.currentTarget;
-                          img.style.display = 'none';
-                          const fallback = img.parentElement?.querySelector('svg');
-                          if (fallback) fallback.style.display = 'block';
-                        }}
-                      />
-                    ) : null}
-                    <LinkIcon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" style={{ display: activeInlineBtn.url ? 'none' : 'block' }} />
-                  </span>
-                  <span className="text-[11px] font-bold text-[var(--bone-100)] truncate max-w-[140px]">
-                    {activeInlineBtn.label || 'Link Label'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsEditingInlineLabel(true);
-                    setIsEditingInlineUrl(false);
-                  }}
-                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                  title="Edit Label"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              </div>
+              )
             )}
 
             {/* Section 2: URL Edit */}
@@ -925,7 +963,7 @@ export function BlockRenderer({
           "relative w-full rounded-3xl transition-colors duration-0 group/table",
           isSelected && "bg-[var(--app-dark)]"
         )}>
-          <TableBlock block={block} onUpdate={onUpdate} />
+          <TableBlock block={block} onUpdate={onUpdate} onContextMenu={handleContextMenu} />
         </div>
         {closestEdge && (
           <div
@@ -1400,6 +1438,7 @@ export function BlockRenderer({
             isDraggingGlobal={isDraggingGlobal}
             onMouseMove={handleContentMouseMove}
             onMouseLeave={handleInlineMouseLeave}
+            onContextMenu={handleContextMenu}
           />
         </div>
         {closestEdge && (
@@ -1496,6 +1535,7 @@ export function BlockRenderer({
             onKeyDown={handleKeyDown}
             onClick={handleContentClick}
             onMouseMove={handleContentMouseMove}
+            onContextMenu={handleContextMenu}
             onMouseLeave={handleInlineMouseLeave}
             onPaste={(e) => {
               // Clean paste for mono code blocks always, and enforce text only for normal blocks to strip external styling

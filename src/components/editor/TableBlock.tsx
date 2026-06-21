@@ -11,6 +11,7 @@ import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/prag
 interface TableBlockProps {
   block: EditorBlock;
   onUpdate: (id: string, updates: Partial<EditorBlock>) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
@@ -63,6 +64,7 @@ function SortableRow({
   colCount,
   onMoveColumn,
   blockId,
+  onLinkContextMenu,
 }: {
   id: string;
   row: string[];
@@ -77,6 +79,7 @@ function SortableRow({
   colCount: number;
   onMoveColumn?: (ci: number, direction: 'left' | 'right') => void;
   blockId: string;
+  onLinkContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const elementRef = useRef<HTMLTableRowElement | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -151,6 +154,7 @@ function SortableRow({
               suppressContentEditableWarning
               className="outline-none"
               onBlur={(e) => onCellUpdate(ri, ci, (e.target as HTMLElement).innerHTML ?? '')}
+              onContextMenu={onLinkContextMenu}
               dangerouslySetInnerHTML={{ __html: cell }}
             />
             {onMoveColumn && (
@@ -185,6 +189,7 @@ function SortableRow({
               selectedCol === ci && "bg-[var(--bone-3)]"
             )}
             onBlur={(e) => onCellUpdate(ri, ci, (e.target as HTMLElement).innerHTML ?? '')}
+            onContextMenu={onLinkContextMenu}
             dangerouslySetInnerHTML={{ __html: cell }}
           />
         ))
@@ -193,7 +198,7 @@ function SortableRow({
   );
 }
 
-export function TableBlock({ block, onUpdate }: TableBlockProps) {
+export function TableBlock({ block, onUpdate, onContextMenu }: TableBlockProps) {
   const tableData = block.tableData ?? [['', '', ''], ['', '', ''], ['', '', '']];
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [selectedCol, setSelectedCol] = useState<number | null>(null);
@@ -356,6 +361,7 @@ export function TableBlock({ block, onUpdate }: TableBlockProps) {
                 colCount={rowCount}
                 onMoveColumn={handleMoveColumn}
                 blockId={block.id}
+                onLinkContextMenu={onContextMenu}
               />
             ))}
           </tbody>
