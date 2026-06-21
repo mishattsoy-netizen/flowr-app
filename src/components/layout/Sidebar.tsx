@@ -15,6 +15,7 @@ import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { TreeItem } from './TreeItem';
 import { ScrollArea } from './ScrollArea';
 import { Tooltip } from './Tooltip';
+import { useTooltipSuppression } from './TooltipOverlayContext';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import InstallButton from '@/components/pwa/InstallButton';
 import { SidebarSkeleton } from './SidebarSkeleton';
@@ -107,6 +108,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [isMounted, setIsMounted] = useState(false);
   const [storeHydrated, setStoreHydrated] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  // Suppress tooltips while any sidebar item is being dragged
+  useTooltipSuppression(activeDragId !== null);
   const lastClickedRef = useRef<string | null>(null);
   const theme = isMounted ? resolvedTheme : currentTheme;
 

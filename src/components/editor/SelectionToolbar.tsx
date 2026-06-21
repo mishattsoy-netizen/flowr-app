@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bold, Italic, Underline, Strikethrough, Highlighter, Link, Check, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '../layout/Tooltip';
+import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 import { Portal } from '../layout/Portal';
 
 const HIGHLIGHT_COLORS = [
@@ -22,6 +23,9 @@ export function SelectionToolbar({ editorRef }: { editorRef: React.RefObject<HTM
   const [showLinkPopover, setShowLinkPopover] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+
+  // Suppress tooltips when the link popover or highlight picker is open
+  useTooltipSuppression(Boolean(showLinkPopover || showHighlightPicker));
   const [storedRange, setStoredRange] = useState<Range | null>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);

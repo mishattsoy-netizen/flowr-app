@@ -33,12 +33,12 @@ export function inlineMarkdownToHtml(text: string): string {
 
         return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${displayLabel}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${displayLabel}</span></a>`;
       } else {
-        return `<a href="${url}" class="text-accent hover:underline" target="_blank">${displayLabel}</a>`;
+        return `<a href="${url}" class="chat-standard-link" target="_blank">${displayLabel}</a>`;
       }
     });
 
   // plain URLs
-  s = s.replace(/(?<!href=")(?<!">)\b(https?:\/\/[^\s<>'")]+?)(?=[.,?!]?(?:\s|$))/gi, '<a href="$1" class="text-accent hover:underline" target="_blank">$1</a>');
+  s = s.replace(/(?<!href=")(?<!">)\b(https?:\/\/[^\s<>'")]+?)(?=[.,?!]?(?:\s|$))/gi, '<a href="$1" class="chat-standard-link" target="_blank">$1</a>');
 
   return s;
 }

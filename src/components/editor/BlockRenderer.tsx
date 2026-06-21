@@ -4,6 +4,7 @@ import {
   GripVertical, Plus, ChevronRight, ChevronDown, Copy, Link as LinkIcon, ExternalLink, Check, Pencil, X
 } from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
+import { useTooltipSuppression } from '@/components/layout/TooltipOverlayContext';
 import { cn } from '@/lib/utils';
 import { EditorBlock, BlockStyle, BlockType, Entity, generateId } from '@/data/store';
 import { ListBlock } from './ListBlock';
@@ -35,6 +36,19 @@ interface BlockViewProps {
   depth?: number;
 }
 
+function getHostname(urlStr: string): string {
+  if (!urlStr) return '';
+  try {
+    let cleanUrl = urlStr.trim();
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = 'https://' + cleanUrl;
+    }
+    return new URL(cleanUrl).hostname;
+  } catch (e) {
+    return '';
+  }
+}
+
 // Consolidated BlockRenderer logic below.
 
 export function BlockRenderer({
@@ -62,6 +76,9 @@ export function BlockRenderer({
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+
+  // Suppress tooltips during a global block drag
+  useTooltipSuppression(isDraggingGlobal);
 
   useEffect(() => {
     const el = elementRef.current;
@@ -166,6 +183,7 @@ export function BlockRenderer({
     rect: DOMRect;
     url: string;
     label: string;
+    isStandardLink?: boolean;
   } | null>(null);
 
   const [isEditingInlineLabel, setIsEditingInlineLabel] = useState(false);
@@ -563,7 +581,7 @@ export function BlockRenderer({
     
     let faviconUrl = '';
     try {
-      faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(formattedUrl).hostname}&sz=32`;
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${getHostname(formattedUrl)}&sz=32`;
     } catch (e) {}
     
     const iconSpan = el.querySelector('span:first-child');
@@ -652,7 +670,7 @@ export function BlockRenderer({
                     <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
                       {activeInlineBtn.url ? (
                         <img 
-                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          src={`https://www.google.com/s2/favicons?domain=${getHostname(activeInlineBtn.url)}&sz=32`} 
                           alt="" 
                           className="w-3.5 h-3.5 object-contain"
                           onError={(e) => {
@@ -690,8 +708,7 @@ export function BlockRenderer({
                         setIsEditingInlineLabel(false);
                       }}
                       className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                      title="Save"
-                    >
+                                          >
                       <Check className="w-3 h-3" />
                     </button>
                     <button
@@ -700,8 +717,7 @@ export function BlockRenderer({
                         setIsEditingInlineLabel(false);
                       }}
                       className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                      title="Cancel"
-                    >
+                                          >
                       <X className="w-3 h-3" />
                     </button>
                   </div>
@@ -718,7 +734,7 @@ export function BlockRenderer({
                     <span className="w-5 h-5 flex items-center justify-center shrink-0 rounded-md bg-[var(--bone-5)]">
                       {activeInlineBtn.url ? (
                         <img 
-                          src={`https://www.google.com/s2/favicons?domain=${new URL(activeInlineBtn.url).hostname}&sz=32`} 
+                          src={`https://www.google.com/s2/favicons?domain=${getHostname(activeInlineBtn.url)}&sz=32`} 
                           alt="" 
                           className="w-3.5 h-3.5 object-contain"
                           onError={(e) => {
@@ -741,8 +757,7 @@ export function BlockRenderer({
                       setIsEditingInlineUrl(false);
                     }}
                     className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                    title="Edit Label"
-                  >
+                                      >
                     <Pencil className="w-3 h-3" />
                   </button>
                 </div>
@@ -776,8 +791,7 @@ export function BlockRenderer({
                       setIsEditingInlineUrl(false);
                     }}
                     className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                    title="Save"
-                  >
+                                      >
                     <Check className="w-3 h-3" />
                   </button>
                   <button
@@ -786,8 +800,7 @@ export function BlockRenderer({
                       setIsEditingInlineUrl(false);
                     }}
                     className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                    title="Cancel"
-                  >
+                                      >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -809,8 +822,7 @@ export function BlockRenderer({
                     setIsEditingInlineLabel(false);
                   }}
                   className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/inline-url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                  title="Edit URL"
-                >
+                                  >
                   <Pencil className="w-3 h-3" />
                 </button>
               </div>
@@ -1081,7 +1093,7 @@ export function BlockRenderer({
   if (block.type === 'link') {
     let faviconUrl = '';
     try {
-      if (block.linkUrl) faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(block.linkUrl).hostname}&sz=32`;
+      if (block.linkUrl) faviconUrl = `https://www.google.com/s2/favicons?domain=${getHostname(block.linkUrl)}&sz=32`;
     } catch (e) { }
 
     return (
@@ -1171,8 +1183,7 @@ export function BlockRenderer({
                           setIsEditingLabel(false);
                         }}
                         className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                        title="Save"
-                      >
+                                              >
                         <Check className="w-3 h-3" />
                       </button>
                       <button
@@ -1181,8 +1192,7 @@ export function BlockRenderer({
                           setIsEditingLabel(false);
                         }}
                         className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                        title="Cancel"
-                      >
+                                              >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
@@ -1215,8 +1225,7 @@ export function BlockRenderer({
                         setIsEditingUrl(false);
                       }}
                       className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/label:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                      title="Edit Label"
-                    >
+                                          >
                       <Pencil className="w-3 h-3" />
                     </button>
                   </div>
@@ -1249,8 +1258,7 @@ export function BlockRenderer({
                           setIsEditingUrl(false);
                         }}
                         className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer"
-                        title="Save"
-                      >
+                                              >
                         <Check className="w-3 h-3" />
                       </button>
                       <button
@@ -1259,8 +1267,7 @@ export function BlockRenderer({
                           setIsEditingUrl(false);
                         }}
                         className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer"
-                        title="Cancel"
-                      >
+                                              >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
@@ -1282,8 +1289,7 @@ export function BlockRenderer({
                         setIsEditingLabel(false);
                       }}
                       className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-[var(--bone-100)] opacity-0 group-hover/url:opacity-30 hover:!opacity-100 transition-all duration-150 cursor-pointer"
-                      title="Edit URL"
-                    >
+                                          >
                       <Pencil className="w-3 h-3" />
                     </button>
                   </div>

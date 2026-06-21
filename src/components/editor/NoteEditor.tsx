@@ -9,6 +9,7 @@ import { SlashCommandMenu } from './SlashCommandMenu';
 import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
+import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -460,6 +461,9 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, []);
+
+  // Suppress tooltips when a popup menu is open or a block drag is in progress
+  useTooltipSuppression(Boolean(activeOptionsMenu || slashMenu || isDragging));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectionBox, setSelectionBox] = useState<{
     startX: number;

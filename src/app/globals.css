@@ -540,22 +540,29 @@ a {
   cursor: pointer;
 }
 
-.editor-block a:not(.link-block-btn):not(.inline-link-btn) {
-  color: var(--bone-100);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
-  text-decoration-color: var(--bone-30);
-  transition: all 0.15s ease;
-  padding: 2px 2px;
-  margin: -2px -2px;
-  border-radius: 4px;
+.editor-block a:not(.link-block-btn):not(.inline-link-btn),
+.chat-standard-link,
+.prose a.chat-standard-link,
+.prose a:not(.inline-link-btn):not(.link-block-btn) {
+  color: var(--bone-100) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-thickness: 1px !important;
+  text-decoration-color: var(--bone-30) !important;
+  transition: all 0.15s ease !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
 }
 
-.editor-block a:not(.link-block-btn):not(.inline-link-btn):hover {
-  color: var(--bone-100);
-  text-decoration-color: var(--bone-100);
-  background-color: var(--bone-5);
+.editor-block a:not(.link-block-btn):not(.inline-link-btn):hover,
+.chat-standard-link:hover,
+.prose a.chat-standard-link:hover,
+.prose a:not(.inline-link-btn):not(.link-block-btn):hover {
+  color: var(--bone-100) !important;
+  text-decoration-color: var(--bone-100) !important;
+  background-color: transparent !important;
 }
 
 html {

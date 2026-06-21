@@ -69,15 +69,13 @@ export function LinkPreview({ url, rect, onRemove, onMouseEnter, onMouseLeave }:
         <div className="flex gap-0.5 border-l border-border/50 pl-1.5">
           <button
             onClick={handleCopy}
-            title="Copy Link"
-            className="p-1.5 rounded-lg hover:bg-hover text-muted-foreground hover:text-foreground"
+                        className="p-1.5 rounded-lg hover:bg-hover text-muted-foreground hover:text-foreground"
           >
             {copied ? <Check strokeWidth={2} className="w-3.5 h-3.5 text-green-500" /> : <Copy strokeWidth={2} className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={onRemove}
-            title="Remove Link"
-            className="p-1.5 rounded-lg hover:bg-danger/10 text-muted-foreground hover:text-danger"
+                        className="p-1.5 rounded-lg hover:bg-danger/10 text-muted-foreground hover:text-danger"
           >
             <Trash strokeWidth={2} className="w-3.5 h-3.5" />
           </button>

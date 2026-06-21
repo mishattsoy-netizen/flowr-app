@@ -131,22 +131,19 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
                       <button
                         onClick={() => moveColumn(col.id, 'left')}
                         className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-foreground"
-                        title="Move left"
-                      >
+                                              >
                         <ChevronLeft strokeWidth={2} className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => moveColumn(col.id, 'right')}
                         className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-foreground"
-                        title="Move right"
-                      >
+                                              >
                         <ChevronRight strokeWidth={2} className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => deleteColumn(col.id)}
                         className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-red-400"
-                        title="Delete column"
-                      >
+                                              >
                         <Trash2 strokeWidth={2} className="w-3 h-3" />
                       </button>
                     </div>
@@ -203,22 +200,19 @@ export function DatabaseBlock({ block, onUpdate }: DatabaseBlockProps) {
                   <button
                     onClick={() => moveRow(row.id, 'up')}
                     className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-foreground"
-                    title="Move up"
-                  >
+                                      >
                     <ChevronUp strokeWidth={2} className="w-3 h-3" />
                   </button>
                   <button
                     onClick={() => moveRow(row.id, 'down')}
                     className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-foreground"
-                    title="Move down"
-                  >
+                                      >
                     <ChevronDown strokeWidth={2} className="w-3 h-3" />
                   </button>
                   <button
                     onClick={() => deleteRow(row.id)}
                     className="p-0.5 rounded hover:bg-hover text-muted-foreground hover:text-red-400"
-                    title="Delete row"
-                  >
+                                      >
                     <Trash2 strokeWidth={2} className="w-3 h-3" />
                   </button>
                 </div>

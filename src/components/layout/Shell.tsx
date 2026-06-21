@@ -22,6 +22,7 @@ import { CommandPalette } from './CommandPalette';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { SmoothScroll } from './SmoothScroll';
+import { TooltipOverlayProvider } from './TooltipOverlayContext';
 
 export function Shell({ children, initialEntityId }: { children: React.ReactNode, initialEntityId?: string }) {
   const theme = useStore(state => state.theme);
@@ -286,6 +287,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const currentSidebarCollapsed = isSidebarCollapsed;
 
   return (
+    <TooltipOverlayProvider>
     <div
       className={cn(
         shellClass,
@@ -429,6 +431,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       )}
 
     </div>
+    </TooltipOverlayProvider>
   );
 }
 

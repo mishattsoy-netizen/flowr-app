@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, ReactNode, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
+import { useTooltipOverlay } from './TooltipOverlayContext';
 
 interface TooltipProps {
   children: ReactNode;
@@ -22,11 +23,21 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const { isSuppressed } = useTooltipOverlay();
+
+  // Hide immediately when any overlay becomes active
+  useEffect(() => {
+    if (isSuppressed && isVisible) {
+      setIsVisible(false);
+      setHasCalculated(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
+  }, [isSuppressed, isVisible]);
 
   const handleMouseEnter = () => {
-    if (disabled || !content) return;
+    if (disabled || !content || isSuppressed) return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    
+
     if (delay > 0) {
       timerRef.current = setTimeout(() => {
         setIsVisible(true);
@@ -43,6 +54,12 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
   };
 
   const handleClick = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setIsVisible(false);
+    setHasCalculated(false);
+  };
+
+  const handlePointerDown = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setIsVisible(false);
     setHasCalculated(false);
@@ -146,6 +163,7 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClickCapture={handleClick}
+        onPointerDown={handlePointerDown}
       >
         {children}
         {tooltipBody}
@@ -181,7 +199,11 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
         onClick: (e: React.MouseEvent) => {
           child.props.onClick?.(e);
           handleClick();
-        }
+        },
+        onPointerDown: (e: React.PointerEvent) => {
+          child.props.onPointerDown?.(e);
+          handlePointerDown();
+        },
       })}
       {tooltipBody}
     </>

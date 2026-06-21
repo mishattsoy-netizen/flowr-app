@@ -1141,7 +1141,7 @@ export const ChatMessage = memo(({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[var(--bone-100)] underline decoration-[var(--bone-30)] underline-offset-[3px] hover:decoration-[var(--bone-100)] transition-colors"
+            className="chat-standard-link"
           >
             {displayChildren}
           </a>
