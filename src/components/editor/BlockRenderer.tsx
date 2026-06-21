@@ -227,6 +227,7 @@ export function BlockRenderer({
           inlineHoverTimeout.current = null;
         }, 300);
       }
+    }
   };
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
