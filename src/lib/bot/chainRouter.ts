@@ -1426,6 +1426,19 @@ export async function runChain(
               finalContent = sanitizeOutput(finalContent)
             }
 
+            // If citations are missing or empty, extract them from the [SEARCH DATA] in system_prompt
+            if (!citations || citations.length === 0) {
+              const extractedCitations: string[] = [];
+              const urlRegex = /URL:\s*(https?:\/\/[^\s\n]+)/g;
+              let match;
+              while ((match = urlRegex.exec(system_prompt || '')) !== null) {
+                extractedCitations.push(match[1]);
+              }
+              if (extractedCitations.length > 0) {
+                citations = Array.from(new Set(extractedCitations));
+              }
+            }
+
             const transcript_md = buildTranscript({
               prompt,
               history: history,
