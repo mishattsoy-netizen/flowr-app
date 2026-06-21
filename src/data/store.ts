@@ -60,6 +60,20 @@ const DEFAULT_DASHBOARD_LAYOUT: WidgetConfig[] = [
   { id: 'w-recent', type: 'recent', size: 'L' },
 ];
 
+const SYSTEM_ROUTES = ['chat', 'dashboard', 'tracker', 'settings'];
+
+const getChatSessionId = (
+  activeChatId: string | null,
+  activeEntityId: string | null,
+  fallback: string
+) => {
+  if (activeChatId) return activeChatId;
+  if (activeEntityId && !SYSTEM_ROUTES.includes(activeEntityId)) {
+    return activeEntityId;
+  }
+  return fallback;
+};
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -343,7 +357,7 @@ export const useStore = create<AppState>()(
 
       stopAIGeneration: () => {
         const { activeChatId, activeEntityId, isTempChat, abortControllersMap } = get();
-        const sid = activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
         const controller = abortControllersMap[sid];
         if (controller) {
           controller.abort();
@@ -479,7 +493,7 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
-          const sid = activeChatId || activeEntityId || 'global';
+          const sid = getChatSessionId(activeChatId, activeEntityId, 'global');
           await fetch('/api/ai/memory/clear', { 
             method: 'POST', 
             headers,
@@ -679,7 +693,7 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
-          const sid = activeChatId || activeEntityId || 'global';
+          const sid = getChatSessionId(activeChatId, activeEntityId, 'global');
           const res = await fetch('/api/ai/memory/compact', { 
             method: 'POST', 
             headers,
@@ -697,10 +711,12 @@ export const useStore = create<AppState>()(
 
       finishAILoading: async (chatId) => {
         const { activeChatId, activeEntityId, isTempChat } = get();
-        const sid = chatId || activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        const sid = chatId || getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const currentActiveId = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const isActive = !chatId || chatId === currentActiveId;
         set(s => ({
-          isAILoading: s.activeChatId === sid || (!s.activeChatId && sid === 'temp' && s.isTempChat) ? false : s.isAILoading,
-          aiAbortController: s.activeChatId === sid || (!s.activeChatId && sid === 'temp' && s.isTempChat) ? null : s.aiAbortController,
+          isAILoading: isActive ? false : s.isAILoading,
+          aiAbortController: isActive ? null : s.aiAbortController,
           loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
           abortControllersMap: { ...s.abortControllersMap, [sid]: null }
         }));
@@ -738,7 +754,7 @@ export const useStore = create<AppState>()(
       setShowPaidModels: (show) => set({ showPaidModels: show }),
       setAssistantInput: (input) => {
         const { activeChatId, activeEntityId, isTempChat } = get();
-        const sid = activeChatId || activeEntityId || (isTempChat ? 'temp' : 'global');
+        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
         set(s => ({
           assistantInput: input,
           chatInputs: { ...s.chatInputs, [sid]: input }
@@ -758,7 +774,7 @@ export const useStore = create<AppState>()(
         const pendingState = get().pendingAdvisorState;
         const thinkingEnabled = get().thinkingEnabled;
         const advisorEnabled = get().advisorEnabled;
-        const targetChatId = activeChatId || activeEntityId || (isTemp ? 'temp' : 'global');
+        const targetChatId = getChatSessionId(activeChatId, activeEntityId, isTemp ? 'temp' : 'global');
 
         let replyContext: any = null;
         if (activeReplyMessage) {
@@ -806,7 +822,7 @@ export const useStore = create<AppState>()(
 
         set(s => {
           const updated = [...(s.chatMessagesMap[targetChatId] || s.aiMessages), userMessage, placeholderMessage];
-          const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
           const isActive = currentActiveId === targetChatId;
           return {
             chatMessagesMap: {
@@ -903,7 +919,7 @@ export const useStore = create<AppState>()(
                 ? { ...m, content: err.error || 'Something went wrong.', model: err.model || 'system' }
                 : m
               );
-              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -964,7 +980,7 @@ export const useStore = create<AppState>()(
                     }
                       : m
                   );
-                  const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                  const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
                   const isActive = currentActiveId === targetChatId;
                   return {
                     chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updatedMessages },
@@ -1030,7 +1046,7 @@ export const useStore = create<AppState>()(
                               ? { ...m, status: parsed.status }
                               : m
                           );
-                          const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
                           const isActive = currentActiveId === targetChatId;
                           return {
                             chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1072,7 +1088,7 @@ export const useStore = create<AppState>()(
                 const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
                   m.id === userMessage.id ? { ...m, image_description: lastImageDescription } : m
                 );
-                const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+                const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
                 const isActive = currentActiveId === targetChatId;
                 return {
                   chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1121,7 +1137,7 @@ export const useStore = create<AppState>()(
               if (m.id === userMessage.id && data.image_description) return { ...m, image_description: data.image_description }
               return m
             });
-            const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+            const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
             const isActive = currentActiveId === targetChatId;
             return {
               chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1150,7 +1166,7 @@ export const useStore = create<AppState>()(
                   ? { ...m, content: interruptedContent, interrupted: true }
                   : m
               );
-              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1168,7 +1184,7 @@ export const useStore = create<AppState>()(
                 ? { ...m, content: 'Connection error. Please try again.' }
                 : m
               );
-              const currentActiveId = s.activeChatId || s.activeEntityId || (s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },

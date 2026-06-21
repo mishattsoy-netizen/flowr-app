@@ -31,7 +31,10 @@ export const PATCHES: Patch[] = [
         type: 'fixed',
         items: [
           'Fixed URL parsing crash in editor link popover when entering relative domains or plain hostnames.',
-          'Resolved missing underline issue on standard links inside chat messages and advisor cards.'
+          'Resolved missing underline issue on standard links inside chat messages and advisor cards.',
+          'Fixed typing box loading state and cursor not disappearing after message generation completes.',
+          'Fixed temporary chat session isolation to ensure clean independent session starts.',
+          'Corrected chat link styling to preserve standard text links in prose while rendering search citations as capsule pills.'
         ]
       }
     ]

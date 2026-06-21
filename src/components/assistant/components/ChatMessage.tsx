@@ -1132,7 +1132,21 @@ export const ChatMessage = memo(({
         isPill = res.isPill;
         displayChildren = res.node;
 
-        if (isPill) {
+        const getHostname = (urlStr: string): string => {
+          try {
+            return new URL(urlStr).hostname.replace('www.', '');
+          } catch {
+            return '';
+          }
+        };
+
+        const linkHost = getHostname(href);
+        const isSourceCitation = !!(msg.citations && msg.citations.some(citeUrl => {
+          const citeHost = getHostname(citeUrl);
+          return citeHost && linkHost && citeHost === linkHost;
+        }));
+
+        if (isPill || isSourceCitation) {
           return <LinkWithPopup href={href}>{displayChildren}</LinkWithPopup>;
         }
 
