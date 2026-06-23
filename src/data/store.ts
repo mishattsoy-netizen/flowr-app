@@ -707,7 +707,28 @@ export const useStore = create<AppState>()(
       loadChatConversations: async () => {
         try {
           const convs = await fetchConversations();
-          set({ chatConversations: convs });
+          const { activeChatId } = get();
+          const toDelete: string[] = [];
+          
+          const filtered = convs.filter(c => {
+            const hasMessages = c.messages && c.messages.length > 0;
+            const isActive = c.id === activeChatId;
+            if (!hasMessages && !isActive) {
+              toDelete.push(c.id);
+              return false;
+            }
+            return true;
+          });
+
+          const cleanConvs = filtered.map(({ messages, ...rest }) => rest);
+          set({ chatConversations: cleanConvs });
+
+          if (toDelete.length > 0) {
+            console.log(`[Store] Background cleaning up ${toDelete.length} empty conversations:`, toDelete);
+            Promise.all(toDelete.map(id => deleteConversationFromDB(id))).catch(err => {
+              console.error('Failed background cleanup of empty conversations:', err);
+            });
+          }
         } catch (e) {
           console.error('Failed to load conversations', e);
         }

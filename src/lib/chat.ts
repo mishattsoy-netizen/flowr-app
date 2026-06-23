@@ -7,6 +7,7 @@ export interface ChatConversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  messages?: { id: string }[];
 }
 
 export interface ChatMessage {
@@ -27,15 +28,16 @@ export async function fetchConversations(): Promise<ChatConversation[]> {
   try {
     const { data, error } = await supabase
       .from('conversations')
-      .select('*')
+      .select('*, messages:messages(id)')
       .eq('is_archived', false)
+      .limit(1, { foreignTable: 'messages' })
       .order('updated_at', { ascending: false });
     
     if (error) {
       console.error('[ChatLib] fetchConversations error:', error);
       return [];
     }
-    return data ?? [];
+    return (data ?? []) as ChatConversation[];
   } catch (err) {
     console.error('[ChatLib] fetchConversations exception:', err);
     return [];

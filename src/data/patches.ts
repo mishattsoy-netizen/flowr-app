@@ -15,10 +15,10 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
-    version: '1.4.6',
+    version: '1.4.6.1',
     build: '2317',
     date: '2026-06-23',
-    title: 'Temp Chat Isolation, Auto-Cleanup & Link Safety',
+    title: 'Temp Chat Isolation, Auto-Cleanup & Sidebar Empty Session Fixes',
     sections: [
       {
         type: 'added',
@@ -39,6 +39,8 @@ export const PATCHES: Patch[] = [
       {
         type: 'fixed',
         items: [
+          'Fixed a bug where empty chat sessions from previous runs or closed tabs continued to persist in the sidebar.',
+          'Added automatic load-time database querying and filtering to delete and prune empty chat conversations in the background.',
           'Filtered out raw [SEARCH] queries from displaying in message blocks and sanitized them in output guard.'
         ]
       }
