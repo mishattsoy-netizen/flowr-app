@@ -124,6 +124,8 @@
 @layer base {
   body {
     font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -433,7 +435,7 @@ html[data-interface-size="big"] {
 /* Sidebar item rows active scale and styles are defined in the consolidated block below */
 
 @utility btn-sidebar-utility {
-  @apply w-[22px] h-[22px] flex items-center justify-center rounded-[var(--radius-tiny)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none;
+  @apply w-[22px] h-[22px] flex items-center justify-center rounded-[var(--radius-tiny)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-none;
 }
 
 @utility popup-glass-big {
@@ -1555,4 +1557,14 @@ table:not(.rdp-table) tr:last-child td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Suppress focus rings on click/programmatic focus, but preserve them for keyboard navigation */
+:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+[tabindex]:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
 }

@@ -915,7 +915,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                           ? "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
                                           : activeChatId === conv.id
                                             ? "bg-dark text-[var(--bone-100)] font-normal"
-                                            : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+                                            : "text-[var(--bone-70)] hover:text-[var(--bone-100)]"
                                       )}
                                       onClick={(e) => {
                                         if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -943,20 +943,25 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       ) : (
                                         <span className="flex-1 text-[14px] tracking-wide truncate">{stripHtml(conv.title)}</span>
                                       )}
-                                      <button
-                                        onClick={e => {
-                                          e.stopPropagation();
-                                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                          setChatMenuPos({ x: rect.right + 4, y: rect.top });
-                                          setChatMenuOpenId(chatMenuOpenId === conv.id ? null : conv.id);
-                                        }}
-                                        className={cn(
-                                          "btn-sidebar-utility opacity-0 group-hover:opacity-100",
-                                          chatMenuOpenId === conv.id && "!opacity-100 !bg-dark !text-[var(--bone-100)]"
-                                        )}
-                                      >
-                                        <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
-                                      </button>
+                                      <div className={cn(
+                                        "sidebar-actions flex items-center gap-[1px] shrink-0",
+                                        chatMenuOpenId === conv.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                      )}>
+                                        <button
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                            setChatMenuPos({ x: rect.right + 4, y: rect.top });
+                                            setChatMenuOpenId(chatMenuOpenId === conv.id ? null : conv.id);
+                                          }}
+                                          className={cn(
+                                            "btn-sidebar-utility",
+                                            chatMenuOpenId === conv.id && "!bg-dark !text-[var(--bone-100)]"
+                                          )}
+                                        >
+                                          <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1354,7 +1359,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               className={cn(
                 contextMenu?.source === 'spaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100",
                 effectiveCollapsed
-                  ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+                  ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-colors border border-transparent"
                   : "btn-sidebar-utility hover:!bg-[var(--app-dark)]"
               )}
             >
@@ -1368,7 +1373,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 toggleTheme();
               }}
               className={effectiveCollapsed
-                ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+                ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-colors border border-transparent"
                 : "btn-sidebar-utility hover:!bg-[var(--app-dark)]"
               }
             >

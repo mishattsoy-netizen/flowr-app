@@ -424,6 +424,7 @@ export const useStore = create<AppState>()(
           icon: input.icon,
           color: input.color,
           settings: input.settings,
+          cloudSyncEnabled: input.cloudSyncEnabled ?? true,
         };
         set(s => ({ workspaces: [...s.workspaces, workspace] }));
         upsertWorkspace(workspace);
@@ -1632,13 +1633,28 @@ export const useStore = create<AppState>()(
         const isRootOnly = entity.type === 'workspace' || entity.type === 'collection';
         const finalParentId = isRootOnly ? null : (entity.parentId ?? null);
 
+        // Inherit cloudSyncEnabled default from parent or active space config
+        const parentEntity = entity.parentId ? get().entities.find(e => e.id === entity.parentId) : null;
+        let defaultCloudSync = true;
+        if (parentEntity) {
+          if (parentEntity.cloudSyncEnabled === false) {
+            defaultCloudSync = false;
+          }
+        } else {
+          const wsId = entity.workspaceId || activeWorkspaceId;
+          const ws = get().workspaces.find(w => w.id === wsId);
+          if (ws && ws.cloudSyncEnabled === false) {
+            defaultCloudSync = false;
+          }
+        }
+
         const finalEntity = {
           ...entity,
           id: entity.id || generateId(),
           parentId: finalParentId,
           workspaceId: entity.workspaceId || activeWorkspaceId,
           sortOrder: entity.sortOrder ?? (maxSortOrder + 1),
-          cloudSyncEnabled: entity.cloudSyncEnabled ?? true,
+          cloudSyncEnabled: entity.cloudSyncEnabled ?? defaultCloudSync,
           lastModified: entity.lastModified || Date.now()
         } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));

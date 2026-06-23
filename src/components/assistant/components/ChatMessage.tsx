@@ -733,6 +733,8 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
         className="z-[500] w-fit max-w-[320px] p-2 bg-[var(--app-panel)] border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl border"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2.5 px-1.5 py-1">
@@ -1741,13 +1743,15 @@ export const ChatMessage = memo(({
                                   href={url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[var(--bone-70)] hover:text-bone-100 transition-all duration-200 max-w-[160px] truncate"
+                                  className="flex items-center gap-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[var(--bone-70)] hover:text-bone-100 transition-none max-w-[160px] shrink-0"
                                 >
                                   <span className="w-3.5 h-3.5 flex items-center justify-center bg-white/5 rounded text-[8px] font-bold shrink-0 opacity-40">{i + 1}</span>
                                   {faviconUrl && (
-                                    <img src={faviconUrl} alt="" className="w-3 h-3 object-contain opacity-60" />
+                                    <span className="w-3 h-3 flex items-center justify-center shrink-0 overflow-hidden">
+                                      <img src={faviconUrl} alt="" className="w-3 h-3 object-contain opacity-60" />
+                                    </span>
                                   )}
-                                  <span className="truncate">{domain || 'Source'}</span>
+                                  <span className="flex-1 min-w-0 truncate">{domain || 'Source'}</span>
                                 </a>
                               );
                             })}
@@ -1845,45 +1849,48 @@ export const ChatMessage = memo(({
                                   </DropdownMenu.Trigger>
                                   <DropdownMenu.Portal>
                                     <DropdownMenu.Content
-                                      className="z-50 min-w-[160px] bg-[#0e0e0e] border border-white/10 p-1 rounded-md animate-in fade-in-80 zoom-in-95 duration-100"
+                                      className="z-50 min-w-[160px] popup-glass-small p-1.5 flex flex-col gap-[3px]"
                                       align="end"
                                       sideOffset={5}
                                     >
                                       <DropdownMenu.Item
                                         onSelect={() => handleCopyToNote(true)}
-                                        className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-medium text-bone-80 hover:text-bone-100 hover:bg-white/5 rounded cursor-pointer select-none outline-none"
+                                        className="popup-item select-none outline-none"
                                       >
-                                        <ClipboardCopy className="w-3.5 h-3.5" />
+                                        <ClipboardCopy className="w-4 h-4" />
                                         <span>Create New Note</span>
                                       </DropdownMenu.Item>
                                     </DropdownMenu.Content>
                                   </DropdownMenu.Portal>
                                 </DropdownMenu.Root>
                               </div>
-                              {(msg as any).transcript_md ? (
-                                <>
-                                  <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
-                                  <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
-                                    <Tooltip content="Copy full transcript (request, all chain inputs/outputs, reasoning, traces)">
-                                      <button
-                                        onClick={() => navigator.clipboard.writeText((msg as any).transcript_md)}
-                                        className="h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
-                                      >
+                              {/* Copy Transcript - only in dev/localhost */}
+                              {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) && (
+                                (msg as any).transcript_md ? (
+                                  <>
+                                    <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
+                                    <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
+                                      <Tooltip content="Copy full transcript (request, all chain inputs/outputs, reasoning, traces)">
+                                        <button
+                                          onClick={() => navigator.clipboard.writeText((msg as any).transcript_md)}
+                                          className="h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
+                                        >
+                                          <ClipboardCopy strokeWidth={2} className="w-2.5 h-2.5" />
+                                          <span>Transcript</span>
+                                        </button>
+                                      </Tooltip>
+                                    </div>
+                                  </>
+                                ) : !isAILoading && (
+                                  <Tooltip content="Transcript not available (requires new AI request)">
+                                    <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden opacity-30 cursor-not-allowed">
+                                      <button disabled className="h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)]">
                                         <ClipboardCopy strokeWidth={2} className="w-2.5 h-2.5" />
                                         <span>Transcript</span>
                                       </button>
-                                    </Tooltip>
-                                  </div>
-                                </>
-                              ) : !isAILoading && (
-                                <Tooltip content="Transcript not available (requires new AI request)">
-                                  <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden opacity-30 cursor-not-allowed">
-                                    <button disabled className="h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)]">
-                                      <ClipboardCopy strokeWidth={2} className="w-2.5 h-2.5" />
-                                      <span>Transcript</span>
-                                    </button>
-                                  </div>
-                                </Tooltip>
+                                    </div>
+                                  </Tooltip>
+                                )
                               )}
                             </>
                           )}

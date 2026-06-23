@@ -15,6 +15,40 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.7',
+    build: '2318',
+    date: '2026-06-24',
+    title: 'Chat Bar Polish & Sidebar Button Refinement',
+    sections: [
+      {
+        type: 'changed',
+        items: [
+          'Renamed Default mode to Regular and Pro to Professional.',
+          'Increased mode name, mic, and send icon sizes for better visibility.',
+          'Replaced send icon with upward arrow for a cleaner look.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Cleaned up mode popup by removing icons and uppercase styling from descriptions and toggle labels.',
+          'Replaced On/Off labels under Thinking and Advisor toggles with hover tooltip descriptions.',
+          'Unified styling of plus menu popup, header actions, and sidebar buttons across the app.',
+          'Suppressed focus rings on mouse clicks for a smoother interaction feel.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed sidebar rows highlighting entirely when clicking utility buttons on non-selected items.',
+          'Fixed plus button missing highlight state when its popup is open.',
+          'Fixed new items not inheriting sync settings from their parent workspace.',
+          'Fixed source pill spacing in chat messages.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.6.2',
     build: '2317',
     date: '2026-06-23',

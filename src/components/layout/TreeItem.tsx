@@ -981,7 +981,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             ? isDraggingLocal
               ? "bg-[var(--app-dark)] text-[var(--bone-70)]"
               : "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
-            : (isActive || contextMenu?.entityId === entity.id)
+            : isActive
               ? "!bg-dark text-[var(--bone-100)] font-normal"
               : isDraggingLocal
                 ? "text-[var(--bone-70)] bg-transparent"
@@ -1042,7 +1042,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           {(entity.type === 'workspace' || entity.type === 'collection' || entity.type === 'folder') && (
             <button
               onClick={handlePlusClick}
-              className="btn-sidebar-utility"
+              className={cn(
+                "btn-sidebar-utility",
+                plusPopupPos && isActive && "!bg-[var(--app-dark)] !text-[var(--bone-100)] !opacity-100"
+              )}
             >
               <Plus strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
@@ -1109,7 +1112,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
               ))}
               {/* Hierarchy Line */}
               <div
-                className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-15)] group-hover/treeitem:bg-[var(--bone-30)] transition-colors duration-200 pointer-events-none"
+                className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-15)] pointer-events-none"
                 style={{ left: `${8 + depth * 18 + 6}px` }}
               />
             </div>

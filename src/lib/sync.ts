@@ -76,6 +76,7 @@ function rowToWorkspace(row: Record<string, any>): Workspace {
     icon:         row.icon ?? undefined,
     color:        row.color ?? undefined,
     settings:     row.settings ?? undefined,
+    cloudSyncEnabled: true,
   };
 }
 
@@ -120,6 +121,7 @@ function rowToEntity(row: Record<string, any>): Entity {
     widgetLayout: row.widget_layout ?? undefined,
     workspaceId:  row.workspace_id ?? null,
     sortOrder:    row.sort_order ?? undefined,
+    cloudSyncEnabled: true,
   };
 }
 

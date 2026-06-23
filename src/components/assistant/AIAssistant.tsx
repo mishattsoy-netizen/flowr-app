@@ -6,7 +6,7 @@ import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, Send, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
+import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
@@ -34,7 +34,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
       <svg width={size} height={size} className="rotate-[-90deg]">
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth="2.5" className="text-bone-6/30" />
+        <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth="2.5" className="text-bone-12" />
         <circle
           cx={center}
           cy={center}
@@ -157,8 +157,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const showSkeleton = useDeferredLoading(isAILoading, 200);
 
   const MODE_OPTIONS: { key: BotMode; label: string; description: string }[] = [
-    { key: 'default', label: 'Default', description: 'Fast, universal' },
-    { key: 'pro', label: 'Pro', description: 'Max precision' },
+    { key: 'default', label: 'Regular', description: 'Fast, universal' },
+    { key: 'pro', label: 'Professional', description: 'Max precision' },
   ]
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
@@ -634,7 +634,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 onClick={startTempChat}
                 className={cn(
                   "btn-sidebar-utility",
-                  isTempChat && "text-[var(--bone-100)] bg-[var(--app-dark)]"
+                  isTempChat && "text-[var(--bone-100)] bg-[var(--app-dark)] !opacity-100"
                 )}
                 title="Temporary chat"
               >
@@ -936,7 +936,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                         fileInputRef.current?.click();
                       }
                     }}
-                    className="p-1.5 rounded-[8px] text-bone-70 hover:text-foreground hover:bg-dark "
+                    className={cn(
+                      "p-1.5 rounded-[8px]",
+                      showPlusMenu
+                        ? "bg-dark text-foreground"
+                        : "text-bone-70 hover:text-foreground hover:bg-dark"
+                    )}
                   >
                     <Plus strokeWidth={2} className="w-4 h-4" />
                   </button>
@@ -996,7 +1001,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           : "text-bone-70 hover:text-foreground hover:bg-dark"
                       )}
                     >
-                      <span className="hidden sm:inline text-[11px] font-semibold uppercase tracking-widest pt-0.5">{MODE_OPTIONS.find(m => m.key === activeMode)?.label}</span>
+                      <span className="hidden sm:inline text-[15px] font-normal tracking-widest pt-0.5">{MODE_OPTIONS.find(m => m.key === activeMode)?.label}</span>
                       <ChevronUp strokeWidth={2} className={cn("w-3 h-3 transition-transform duration-300", showModeMenu ? "rotate-180 opacity-100" : "opacity-40")} />
                     </button>
                   </Tooltip>
@@ -1023,7 +1028,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                             >
                               <div className="flex flex-col">
                                 <p className="tracking-wide">{opt.label}</p>
-                                <p className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">{opt.description}</p>
+                                <p className="text-[12px] tracking-[0.06em] opacity-30 leading-none mt-0.5">{opt.description}</p>
                               </div>
                             </button>
                           ))}
@@ -1037,10 +1042,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               thinkingEnabled && 'text-bone-100'
                             )}
                           >
-                            <Brain className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
                             <div className="flex flex-col items-start">
-                              <span className="tracking-wide">Thinking</span>
-                              <span className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">{thinkingEnabled ? 'On' : 'Off'}</span>
+                              <Tooltip content="Enables step-by-step reasoning">
+                                <span className="tracking-wide">Thinking</span>
+                              </Tooltip>
                             </div>
                             <Toggle
                               size="sm"
@@ -1056,10 +1061,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                               advisorEnabled && 'text-bone-100'
                             )}
                           >
-                            <Sparkles className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
                             <div className="flex flex-col items-start">
-                              <span className="tracking-wide">Advisor</span>
-                              <span className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">{advisorEnabled ? 'On — asks clarifying questions' : 'Off'}</span>
+                              <Tooltip content="Asks clarifying questions to refine your request">
+                                <span className="tracking-wide">Advisor</span>
+                              </Tooltip>
                             </div>
                             <Toggle
                               size="sm"
@@ -1081,7 +1086,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                                 <Brain className="w-4 h-4 shrink-0 opacity-60 text-accent animate-pulse" strokeWidth={2} />
                                 <div className="flex flex-col items-start">
                                   <span className="tracking-wide text-accent font-semibold">View Memory Summary</span>
-                                  <span className="text-[10px] uppercase tracking-[0.06em] opacity-30 leading-none mt-0.5">Preview condensed history</span>
+                                  <span className="text-[12px] tracking-[0.06em] opacity-30 leading-none mt-0.5">Preview condensed history</span>
                                 </div>
                               </button>
                             </>
@@ -1248,7 +1253,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           : cn("text-bone-70 hover:text-foreground hover:bg-dark", showMicSettings && "!bg-[var(--bone-15)] !text-[var(--bone-100)] !opacity-100")
                       )}
                     >
-                      <Mic strokeWidth={2} className={cn("w-3.5 h-3.5", isRecording && "animate-pulse")} />
+                      <Mic strokeWidth={2} className={cn("w-[18px] h-[18px]", isRecording && "animate-pulse")} />
                       {isRecording && (
                         <div className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-ping" />
                       )}
@@ -1260,7 +1265,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       onClick={() => handleSend()}
                       className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20  active:scale-90"
                     >
-                      <Send strokeWidth={2} className="w-3.5 h-3.5" />
+                      <ArrowUp strokeWidth={2} className="w-[18px] h-[18px]" />
                     </button>
                   </Tooltip>
                 )}

@@ -106,13 +106,13 @@ export const HeaderBar = memo(function HeaderBar() {
   const isFavorite = activeEntityId ? favoriteIds.includes(activeEntityId) : false;
 
   const ACTIONS = [
-    { id: 'favorite', icon: Star, label: isFavorite ? 'Unpin' : 'Pin', color: isFavorite ? 'text-accent fill-accent' : 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'layout', icon: Minus, label: isFullWidth ? 'Compact Layout' : 'Full Width Layout', color: isFullWidth ? 'text-accent' : 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'copy', icon: Link, label: 'Copy link', color: 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'move', icon: FolderInput, label: 'Move to...', color: 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'duplicate', icon: Copy, label: 'Duplicate', color: 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'rename', icon: Pencil, label: 'Rename', color: 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
-    { id: 'toolbar', icon: Type, label: isToolbarVisible ? 'Hide Toolbar' : 'Show Toolbar', color: isToolbarVisible ? 'text-accent' : 'text-[var(--bone-70)] hover:text-[var(--bone-100)]' },
+    { id: 'favorite', icon: Star, label: isFavorite ? 'Unpin' : 'Pin', color: isFavorite ? 'text-accent fill-accent' : 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'layout', icon: Minus, label: isFullWidth ? 'Compact Layout' : 'Full Width Layout', color: isFullWidth ? 'text-accent' : 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'copy', icon: Link, label: 'Copy link', color: 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'move', icon: FolderInput, label: 'Move to...', color: 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'duplicate', icon: Copy, label: 'Duplicate', color: 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'rename', icon: Pencil, label: 'Rename', color: 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
+    { id: 'toolbar', icon: Type, label: isToolbarVisible ? 'Hide Toolbar' : 'Show Toolbar', color: isToolbarVisible ? 'text-accent' : 'text-[var(--bone-100)] opacity-70 hover:opacity-100' },
     { id: 'delete', icon: Trash2, label: 'Delete', color: 'text-danger hover:text-danger' },
   ];
 
@@ -156,9 +156,9 @@ export const HeaderBar = memo(function HeaderBar() {
   };
 
   const btnClass = (enabled: boolean) =>
-    `w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] ${enabled
-      ? 'text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] cursor-pointer'
-      : 'text-border cursor-default'
+    `w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-0 ${enabled
+      ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] cursor-pointer'
+      : 'text-border opacity-30 cursor-default'
     }`;
 
   if (!isTabsHeaderVisible) return null;
@@ -169,7 +169,7 @@ export const HeaderBar = memo(function HeaderBar() {
       <div className="flex items-center gap-1.5 shrink-0">
         <button 
           onClick={toggleSidebar}
-          className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+          className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-100)] opacity-70 hover:opacity-100"
         >
           {isDashboard ? (
             <Menu strokeWidth={2} className="w-5 h-5" />
@@ -273,7 +273,7 @@ export const HeaderBar = memo(function HeaderBar() {
                   "group"
                 )}
               >
-                {Icon && <Icon strokeWidth={2} className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />}
+                {Icon && <Icon strokeWidth={2} className={cn("w-3.5 h-3.5 shrink-0 text-[var(--bone-100)]", isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100")} />}
                 <span className="text-[13px] font-normal truncate flex-1 min-w-0 overflow-hidden whitespace-nowrap">{stripHtml(title || '')}</span>
                 
                 {openTabIds.length > 1 && (
@@ -314,24 +314,23 @@ export const HeaderBar = memo(function HeaderBar() {
               left: Math.max(8, hoveredTab.rect.left)
             }}
           >
-            <div className="bg-panel/95 backdrop-blur-xl border border-[var(--bone-12)] rounded-xl shadow-2xl p-1.5 min-w-[180px]">
+            <div className="popup-glass-small backdrop-blur-xl p-1.5 min-w-[180px] flex flex-col gap-[3px]">
               <div className="flex flex-col gap-0.5">
                 {hoveredTab.path.length > 1 && hoveredTab.path.slice(0, -1).map((p) => (
                   <button 
                     key={p.id} 
                     onClick={() => { setActiveEntityId(p.id); setHoveredTab(null); }}
-                    className="flex items-center gap-2 text-[11px] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] px-2 py-1.5 rounded-md group/item"
+                    className="popup-item"
                   >
-                    {p.icon && (() => { const PIcon = getEntityIcon(p.icon); return <PIcon strokeWidth={2} className="w-3.5 h-3.5 opacity-60 group-hover/item:opacity-100" />; })()}
-                    <span className="text-fade">{stripHtml(p.title || '')}</span>
-                    <ChevronRight strokeWidth={2} className="w-3 h-3 ml-auto opacity-20 group-hover/item:opacity-40" />
+                    {p.icon && (() => { const PIcon = getEntityIcon(p.icon); return <PIcon strokeWidth={2} className="w-4 h-4 shrink-0" />; })()}
+                    <span className="text-fade flex-1 text-left">{stripHtml(p.title || '')}</span>
+                    <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 ml-auto opacity-30 group-hover:opacity-60" />
                   </button>
                 ))}
                 
-                {hoveredTab.path.length > 1 && <div className="h-px bg-[var(--bone-12)] my-1 mx-1" />}
+                {hoveredTab.path.length > 1 && <div className="popup-divider" />}
 
-                
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-[var(--bone-100)] px-2 py-1.5">
+                <div className="flex items-center gap-3 px-3 py-1.5 text-[13.5px] font-semibold text-[var(--bone-100)]">
                   {(() => { 
                     const last = hoveredTab.path[hoveredTab.path.length - 1];
                     let LastIcon: any = FileText;
@@ -345,11 +344,11 @@ export const HeaderBar = memo(function HeaderBar() {
                       else if (entity?.type === 'mixed') LastIcon = Layers;
                     }
                     
-                    return <LastIcon strokeWidth={2} className="w-3.5 h-3.5" />;
+                    return <LastIcon strokeWidth={2} className="w-4 h-4 shrink-0" />;
                   })()}
-                  <span className="text-fade">{stripHtml(hoveredTab.path[hoveredTab.path.length - 1].title || '')}</span>
+                  <span className="text-fade flex-1 text-left">{stripHtml(hoveredTab.path[hoveredTab.path.length - 1].title || '')}</span>
                   {hoveredTab.path.length <= 1 && (
-                    <span className="ml-auto text-[10px] font-normal opacity-40">
+                    <span className="ml-auto text-[10px] font-normal opacity-40 uppercase tracking-widest font-sans">
                       {hoveredTab.id === 'dashboard' ? 'Dashboard' : 'Page'}
                     </span>
                   )}
