@@ -910,11 +910,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <div
                                       key={conv.id}
                                       className={cn(
-                                        "sidebar-item-row group flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 border border-transparent transition-all",
+                                        "sidebar-item-row group flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 border border-transparent",
                                         isSelected
                                           ? "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
                                           : activeChatId === conv.id
-                                            ? "bg-dark text-[var(--bone-100)] font-normal tracking-wide"
+                                            ? "bg-dark text-[var(--bone-100)] font-normal"
                                             : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
                                       )}
                                       onClick={(e) => {
@@ -976,7 +976,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
                       onClick={() => openModal({ kind: 'newTask' })}
-                      className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all"
+                      className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
                         <Plus strokeWidth={2} className="w-3.5 h-3.5" />
@@ -986,7 +986,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     <button
                       onClick={() => setTrackerFilterWorkspace(null)}
                       className={cn(
-                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all",
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
                         trackerFilterWorkspace === null && "!bg-dark !text-[var(--bone-100)]"
                       )}
                     >
@@ -1011,7 +1011,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                             key={ws.id}
                             onClick={() => setTrackerFilterWorkspace(ws.id)}
                             className={cn(
-                              "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all",
+                              "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
                               trackerFilterWorkspace === ws.id && "!bg-dark !text-[var(--bone-100)]"
                             )}
                           >
@@ -1046,7 +1046,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         setNewPagePopupPos({ x: rect.right + 4, y: rect.top });
                       }}
                       className={cn(
-                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent transition-all",
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent",
                         newPagePopupPos
                           ? "bg-[var(--app-dark)] text-[var(--bone-100)] font-normal"
                           : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
@@ -1063,7 +1063,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         clearSelectedSidebarIds();
                       }}
                       className={cn(
-                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-all",
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
                         activeEntityId === 'dashboard' && "!bg-dark !text-[var(--bone-100)]"
                       )}
                     >

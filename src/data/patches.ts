@@ -15,10 +15,10 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
-    version: '1.4.6.1',
+    version: '1.4.6.2',
     build: '2317',
     date: '2026-06-23',
-    title: 'Temp Chat Isolation, Auto-Cleanup & Sidebar Empty Session Fixes',
+    title: 'Temp Chat Isolation, Auto-Cleanup, Sidebar Empty Session & Layout Shifting Fixes',
     sections: [
       {
         type: 'added',
@@ -41,7 +41,8 @@ export const PATCHES: Patch[] = [
         items: [
           'Fixed a bug where empty chat sessions from previous runs or closed tabs continued to persist in the sidebar.',
           'Added automatic load-time database querying and filtering to delete and prune empty chat conversations in the background.',
-          'Filtered out raw [SEARCH] queries from displaying in message blocks and sanitized them in output guard.'
+          'Filtered out raw [SEARCH] queries from displaying in message blocks and sanitized them in output guard.',
+          'Fixed subpixel layout shifting and alignment jitters on sidebar row items (workspaces, folders, tasks, sessions) during hover and click states.'
         ]
       }
     ]

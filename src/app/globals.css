@@ -430,10 +430,7 @@ html[data-interface-size="big"] {
     @apply bg-[var(--bone-10)] text-[var(--bone-100)];
   }
 }
-
-.sidebar-item-row {
-  @apply active:scale-[0.995];
-}
+/* Sidebar item rows active scale and styles are defined in the consolidated block below */
 
 @utility btn-sidebar-utility {
   @apply w-[22px] h-[22px] flex items-center justify-center rounded-[var(--radius-tiny)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none;
@@ -514,7 +511,15 @@ html[data-interface-size="big"] {
 /* === Sidebar Item Styles === */
 .sidebar-item-row {
   position: relative;
+  transform-origin: center center;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
   transition: none;
+}
+
+.sidebar-item-row:active {
+  transform: scale(0.995) translate3d(0, 0, 0);
 }
 
 

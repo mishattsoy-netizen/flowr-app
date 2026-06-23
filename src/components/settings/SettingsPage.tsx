@@ -84,7 +84,7 @@ export function SettingsPage() {
 
         {/* Version Info */}
         <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.4.6.1 - Build 2317</p>
+          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.4.6.2 - Build 2317</p>
         </div>
       </div>
 

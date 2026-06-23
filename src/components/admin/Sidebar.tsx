@@ -104,7 +104,7 @@ function NavLink({ href, icon: Icon, children }: { href: string; icon: any; chil
       className={cn(
         "sidebar-item-row group relative flex items-center w-full cursor-pointer select-none transition-all duration-0 px-3 rounded-[var(--radius-8)] h-7 text-[14px]",
         isActive
-          ? "!bg-dark text-[var(--bone-100)] font-medium tracking-wide"
+          ? "!bg-dark text-[var(--bone-100)] font-normal"
           : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
       )}
     >

@@ -976,13 +976,13 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           "sidebar-item-row group relative flex w-full select-none",
           isEditing ? "items-start pt-[5px]" : "items-center h-7",
           "px-3 rounded-[var(--radius-small)]",
-          "border-t border-solid border-transparent bg-clip-padding",
+          "border-t border-x border-solid border-transparent bg-clip-padding",
           effectiveMultiSelected
             ? isDraggingLocal
               ? "bg-[var(--app-dark)] text-[var(--bone-70)]"
               : "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
             : (isActive || contextMenu?.entityId === entity.id)
-              ? "!bg-dark text-[var(--bone-100)] font-normal tracking-wide"
+              ? "!bg-dark text-[var(--bone-100)] font-normal"
               : isDraggingLocal
                 ? "text-[var(--bone-70)] bg-transparent"
                 : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
