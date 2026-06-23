@@ -298,6 +298,13 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
     if ((!finalContent && finalAttachments.length === 0) || isAILoading || isSubmitting) return;
 
+    if (finalContent.toLowerCase() === '/clear') {
+      clearAIChat();
+      setAssistantInput('');
+      setAttachments([]);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const isSad = ['bad', 'error', 'stop', 'stupid', 'hate'].some(w => finalContent.toLowerCase().includes(w));

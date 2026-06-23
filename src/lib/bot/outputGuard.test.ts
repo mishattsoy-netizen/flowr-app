@@ -12,6 +12,11 @@ describe('sanitizeOutput', () => {
     expect(sanitizeOutput(clean)).toBe(clean)
   })
 
+  it('strips [SEARCH] query prefixes', () => {
+    const input = '[SEARCH] hottest AI news June 21 2026\n\nHere is the actual answer.'
+    expect(sanitizeOutput(input)).toBe('Here is the actual answer.')
+  })
+
   it('strips [THINK CHAIN DIRECTION] blocks', () => {
     const input = '[THINK CHAIN DIRECTION]\nReviewed: search, vision\nGap found: none\nDirection: Answer directly\n\nHere is the actual answer.'
     expect(sanitizeOutput(input)).toBe('Here is the actual answer.')

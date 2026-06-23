@@ -175,8 +175,12 @@ export async function POST(req: NextRequest) {
         }
 
         const finalStatus = clientDisconnected ? 'interrupted' : (result.status || 'success')
-        logWebInteraction(logUserId, prompt, 'user', usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => {})
-        const messageLogId = await logModelWebMessage(logUserId, loggedContent, usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => null)
+        let messageLogId: number | undefined = undefined
+        if (!isTempChat) {
+          logWebInteraction(logUserId, prompt, 'user', usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => {})
+          const loggedId = await logModelWebMessage(logUserId, loggedContent, usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => null)
+          if (loggedId) messageLogId = loggedId
+        }
 
         send({
           content,

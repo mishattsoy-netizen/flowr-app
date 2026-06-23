@@ -184,6 +184,9 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   // Remove leading "PASS" label emitted by the advisor when it decides to skip
   text = text.replace(/^\s*PASS\s*/i, '');
 
+  // Remove search queries
+  text = text.replace(/\[SEARCH\]\s*[^\n]*(?:\n+|$)/gi, '');
+
   text = text.replace(ALL_TOOLS_FULL_REGEX, "");
 
   // Filter out internal reasoning patterns
@@ -1084,10 +1087,27 @@ export const ChatMessage = memo(({
       a: ({ href, children }: any) => {
         const isCitation = typeof children === 'string' && /^\[\d+\]$/.test(children);
 
+        const ensureAbsoluteUrl = (urlStr: string): string => {
+          if (!urlStr) return '';
+          if (
+            urlStr.startsWith('http://') ||
+            urlStr.startsWith('https://') ||
+            urlStr.startsWith('mailto:') ||
+            urlStr.startsWith('tel:') ||
+            urlStr.startsWith('/') ||
+            urlStr.startsWith('#')
+          ) {
+            return urlStr;
+          }
+          return `https://${urlStr}`;
+        };
+
+        const absoluteHref = ensureAbsoluteUrl(href);
+
         if (isCitation) {
           return (
             <a
-              href={href}
+              href={absoluteHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center w-3.5 h-3.5 -mt-2.5 ml-0.5 bg-white/10 hover:bg-white/20 rounded-full text-[8.5px] font-bold text-bone-100 no-underline align-super transition-all duration-200 select-none border border-white/5"
@@ -1133,26 +1153,30 @@ export const ChatMessage = memo(({
         displayChildren = res.node;
 
         const getHostname = (urlStr: string): string => {
+          if (!urlStr) return '';
           try {
-            return new URL(urlStr).hostname.replace('www.', '');
+            const cleanUrl = urlStr.startsWith('http://') || urlStr.startsWith('https://')
+              ? urlStr
+              : `https://${urlStr}`;
+            return new URL(cleanUrl).hostname.replace('www.', '');
           } catch {
             return '';
           }
         };
 
-        const linkHost = getHostname(href);
+        const linkHost = getHostname(absoluteHref);
         const isSourceCitation = !!(msg.citations && msg.citations.some(citeUrl => {
           const citeHost = getHostname(citeUrl);
           return citeHost && linkHost && citeHost === linkHost;
         }));
 
         if (isPill || isSourceCitation) {
-          return <LinkWithPopup href={href}>{displayChildren}</LinkWithPopup>;
+          return <LinkWithPopup href={absoluteHref}>{displayChildren}</LinkWithPopup>;
         }
 
         return (
           <a
-            href={href}
+            href={absoluteHref}
             target="_blank"
             rel="noopener noreferrer"
             className="chat-standard-link"

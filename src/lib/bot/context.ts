@@ -23,15 +23,28 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
   const { getCompactionConfig } = await import('./compaction')
   const { getPipelineSettings } = await import('../router-config')
 
-  const [config, settings, sessionResult] = await Promise.all([
+  const [config, settings] = await Promise.all([
     getCompactionConfig(),
     getPipelineSettings(),
-    supabase
-      .from('bot_session_states')
-      .select('*')
-      .eq('chat_id', chatId)
-      .maybeSingle()
   ])
+
+  if (chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp')) {
+    return {
+      chat_id: chatId,
+      distilled_summary: null,
+      token_usage_total: 0,
+      context_limit: config.context_limit,
+      compaction_threshold: config.compaction_threshold,
+      last_summarized_at: new Date(0).toISOString(),
+      status_messages: settings.statusMessages
+    }
+  }
+
+  const sessionResult = await supabase
+    .from('bot_session_states')
+    .select('*')
+    .eq('chat_id', chatId)
+    .maybeSingle()
 
   if (sessionResult.error) {
     logger.error(`Failed to fetch session state for ${chatId}:`, sessionResult.error)
@@ -54,6 +67,9 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
 }
 
 export async function updateSessionState(chatId: string, updates: Partial<SessionState>): Promise<void> {
+  if (chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp')) {
+    return
+  }
   const { context_limit, compaction_threshold, ...dbUpdates } = updates as any
   const { error } = await supabase
     .from('bot_session_states')
@@ -62,6 +78,9 @@ export async function updateSessionState(chatId: string, updates: Partial<Sessio
 }
 
 export async function clearSessionState(chatId: string): Promise<void> {
+  if (chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp')) {
+    return
+  }
   const { error } = await supabase
     .from('bot_session_states')
     .delete()
@@ -77,11 +96,13 @@ export async function summarizeSession(
   try {
     const newSummary = await compactSession(chatId, history, currentSummary)
     if (newSummary) {
-      await updateSessionState(chatId, {
-        distilled_summary: newSummary,
-        last_summarized_at: new Date().toISOString(),
-        token_usage_total: estimateTokens(newSummary),
-      })
+      if (!(chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp'))) {
+        await updateSessionState(chatId, {
+          distilled_summary: newSummary,
+          last_summarized_at: new Date().toISOString(),
+          token_usage_total: estimateTokens(newSummary),
+        })
+      }
       return newSummary
     }
   } catch (error) {

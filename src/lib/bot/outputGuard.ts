@@ -13,6 +13,7 @@ export const SANITIZE_PATTERNS: [RegExp, string][] = [
   [/\[INTERNAL\][\s\S]*?\[\/INTERNAL\]/gi, 'internal block'],
 
   // Bracketed blocks — content from [TAG] to double newline (or end of string)
+  [/\[SEARCH\]\s*[^\n]*(?:\n+|$)/gi, 'search query prefix'],
   [/\[THINK CHAIN DIRECTION\][\s\S]*?(?:\n\n|\n?$)/gi, 'think chain direction'],
   [/\[SESSION MEMORY SUMMARY\][\s\S]*?(?:\n\n|\n?$)/gi, 'session memory summary'],
   [/\[SEARCH DATA(?::\s*[^\]]+)?\][\s\S]*?(?:\n\n|\n?$)/gi, 'search data block'],

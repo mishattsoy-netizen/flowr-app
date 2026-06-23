@@ -17,13 +17,28 @@ export function inlineMarkdownToHtml(text: string): string {
     .replace(/~~(.*?)~~/g, '<s>$1</s>')
     .replace(/`(.*?)`/g, '<code class="font-mono bg-white/10 px-1 rounded text-[0.9em]">$1</code>')
     .replace(/\[(.*?)\]\((.*?)\)/g, (match, label, url) => {
+      const ensureAbsoluteUrl = (urlStr: string): string => {
+        if (!urlStr) return '';
+        if (
+          urlStr.startsWith('http://') ||
+          urlStr.startsWith('https://') ||
+          urlStr.startsWith('mailto:') ||
+          urlStr.startsWith('tel:') ||
+          urlStr.startsWith('/') ||
+          urlStr.startsWith('#')
+        ) {
+          return urlStr;
+        }
+        return `https://${urlStr}`;
+      };
+      const absoluteUrl = ensureAbsoluteUrl(url);
       const isPill = label.startsWith('pill:');
       const displayLabel = isPill ? label.slice(5) : label;
       if (isPill) {
         let faviconUrl = '';
         try {
-          if (url.startsWith('http')) {
-            faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+          if (absoluteUrl.startsWith('http')) {
+            faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(absoluteUrl).hostname}&sz=32`;
           }
         } catch (e) {}
 
@@ -31,9 +46,9 @@ export function inlineMarkdownToHtml(text: string): string {
           ? `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span>`
           : `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
 
-        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${displayLabel}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${displayLabel}</span></a>`;
+        return `<a href="${absoluteUrl}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${absoluteUrl}" data-label="${displayLabel}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${displayLabel}</span></a>`;
       } else {
-        return `<a href="${url}" class="chat-standard-link" target="_blank">${displayLabel}</a>`;
+        return `<a href="${absoluteUrl}" class="chat-standard-link" target="_blank">${displayLabel}</a>`;
       }
     });
 

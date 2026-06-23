@@ -619,8 +619,9 @@ export interface AppState {
   setActiveChatId: (id: string | null) => void;
   setIsTempChat: (temp: boolean) => void;
   setChatHistoryOpen: (open: boolean) => void;
-  startTempChat: () => void;
+  startTempChat: () => Promise<void>;
   startNewChat: () => Promise<void>;
+  cleanupActiveChatIfEmpty: () => Promise<void>;
   loadConversation: (id: string) => Promise<void>;
   deleteChatConversation: (id: string) => Promise<void>;
   renameChatConversation: (id: string, title: string) => Promise<void>;

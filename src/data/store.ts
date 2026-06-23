@@ -482,9 +482,48 @@ export const useStore = create<AppState>()(
         }
       },
 
+      cleanupActiveChatIfEmpty: async () => {
+        const { activeChatId, isTempChat, chatConversations } = get();
+        if (activeChatId && !isTempChat) {
+          const msgs = get().chatMessagesMap[activeChatId] || get().aiMessages;
+          const hasMessages = msgs && msgs.some(m => m.role === 'user' || m.role === 'assistant');
+          if (!hasMessages) {
+            console.log(`[Store] Cleaning up empty chat: ${activeChatId}`);
+            try {
+              await deleteConversationFromDB(activeChatId);
+            } catch (err: any) {
+              console.error('Failed to delete empty conversation from DB:', err?.message || err?.details || err);
+            }
+            set(s => ({
+              chatConversations: s.chatConversations.filter(c => c.id !== activeChatId),
+              activeChatId: null,
+              aiMessages: [],
+              tempChatMessages: [],
+              aiSessionContext: null,
+            }));
+          }
+        }
+      },
+
       clearAIChat: async () => {
-        const { activeEntityId, activeChatId, fetchAISessionContext } = get();
-        set({ aiMessages: [], aiSessionContext: null, activeMode: 'default', activeIntentTag: null, pendingAdvisorState: null });
+        const { activeEntityId, activeChatId, isTempChat, fetchAISessionContext } = get();
+        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        set(s => ({
+          aiMessages: [],
+          tempChatMessages: [],
+          aiSessionContext: null,
+          activeMode: 'default',
+          activeIntentTag: null,
+          pendingAdvisorState: null,
+          chatMessagesMap: {
+            ...s.chatMessagesMap,
+            [sid]: []
+          },
+          sessionContextsMap: {
+            ...s.sessionContextsMap,
+            [sid]: null
+          }
+        }));
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
           if (isSupabaseEnabled) {
@@ -493,7 +532,6 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
-          const sid = getChatSessionId(activeChatId, activeEntityId, 'global');
           await fetch('/api/ai/memory/clear', { 
             method: 'POST', 
             headers,
@@ -510,22 +548,60 @@ export const useStore = create<AppState>()(
       setIsTempChat: (temp) => set({ isTempChat: temp }),
       setChatHistoryOpen: (open) => set({ chatHistoryOpen: open }),
 
-      startTempChat: () => {
+      startTempChat: async () => {
+        await get().cleanupActiveChatIfEmpty();
         const sid = 'temp';
+        
+        // If already in temp chat, click should clear it
+        if (get().isTempChat && get().activeChatId === null && get().activeEntityId === 'chat') {
+          await get().clearAIChat();
+          return;
+        }
+
         set(s => ({
           activeChatId: null,
           isTempChat: true,
           tempChatMessages: [],
-          aiMessages: s.chatMessagesMap[sid] || [],
-          aiSessionContext: s.sessionContextsMap[sid] || null,
+          aiMessages: [],
+          aiSessionContext: null,
           pendingAdvisorState: null,
-          assistantInput: s.chatInputs[sid] || '',
-          isAILoading: s.loadingStatesMap[sid] || false,
-          aiAbortController: s.abortControllersMap[sid] || null,
+          assistantInput: '',
+          isAILoading: false,
+          aiAbortController: null,
+          chatMessagesMap: {
+            ...s.chatMessagesMap,
+            [sid]: []
+          },
+          sessionContextsMap: {
+            ...s.sessionContextsMap,
+            [sid]: null
+          },
+          chatInputs: {
+            ...s.chatInputs,
+            [sid]: ''
+          }
         }));
+
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (isSupabaseEnabled) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          }
+          await fetch('/api/ai/memory/clear', { 
+            method: 'POST', 
+            headers,
+            body: JSON.stringify({ activeEntityId: sid }) 
+          });
+        } catch (err) {
+          console.error('Failed to clear server-side memory for temp chat:', err);
+        }
       },
 
       startNewChat: async () => {
+        await get().cleanupActiveChatIfEmpty();
         try {
           const conv = await createConversation('New Chat');
           if (conv) {
@@ -542,15 +618,17 @@ export const useStore = create<AppState>()(
               chatConversations: [conv, ...get().chatConversations],
             });
           } else {
-            get().startTempChat();
+            await get().startTempChat();
           }
         } catch (e) {
           console.error('Failed to create conversation', e);
-          get().startTempChat();
+          await get().startTempChat();
         }
       },
 
       loadConversation: async (id: string) => {
+        await get().cleanupActiveChatIfEmpty();
+
         // If the chat is currently generating, DO NOT fetch/overwrite messages from database.
         // This preserves the active streaming status.
         const isGenerating = get().loadingStatesMap[id] || false;
@@ -608,8 +686,8 @@ export const useStore = create<AppState>()(
           if (get().activeChatId === id) {
             set({ activeChatId: null, isTempChat: true, aiMessages: [], tempChatMessages: [], aiSessionContext: null });
           }
-        } catch (e) {
-          console.error('Failed to delete conversation', e);
+        } catch (e: any) {
+          console.error('Failed to delete conversation:', e?.message || e?.details || e);
         }
       },
 
@@ -1400,6 +1478,11 @@ export const useStore = create<AppState>()(
         const state = get();
         if (id === state.activeEntityId && state.navigationHistory[state.historyIndex] === id) return;
 
+        // If we switch away from chat view, trigger empty chat cleanup
+        if (state.activeEntityId === 'chat' && id !== 'chat') {
+          get().cleanupActiveChatIfEmpty();
+        }
+
         // Tab management: Replace current tab ID with new ID instead of opening new tab
         const currentActiveId = state.activeTabId || state.activeEntityId || 'dashboard';
         const tabIndex = state.openTabIds.indexOf(currentActiveId);
@@ -1457,18 +1540,22 @@ export const useStore = create<AppState>()(
         });
       },
 
-      removeTab: (id) => set((s) => {
-        const nextTabs = s.openTabIds.filter(tid => tid !== id);
-        let nextActive = s.activeTabId;
-        if (s.activeTabId === id) {
+      removeTab: (id) => {
+        const state = get();
+        const nextTabs = state.openTabIds.filter(tid => tid !== id);
+        let nextActive = state.activeTabId;
+        if (state.activeTabId === id) {
           nextActive = nextTabs[nextTabs.length - 1] || 'dashboard';
         }
-        return {
+        if (state.activeEntityId === 'chat' && nextActive !== 'chat') {
+          state.cleanupActiveChatIfEmpty();
+        }
+        set({
           openTabIds: nextTabs,
           activeTabId: nextActive,
           activeEntityId: nextActive
-        };
-      }),
+        });
+      },
 
       setActiveTab: (id) => set({ activeTabId: id, activeEntityId: id }),
       setOpenTabs: (ids) => set({ openTabIds: ids }),

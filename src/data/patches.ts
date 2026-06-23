@@ -15,6 +15,36 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.6',
+    build: '2317',
+    date: '2026-06-23',
+    title: 'Temp Chat Isolation, Auto-Cleanup & Link Safety',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added automatic cleanup of empty chat conversations when switching views or starting new sessions.',
+          'Added custom "/clear" chat command to reset message history and inputs instantly.',
+          'Integrated automatic search citation extraction from system prompts when empty.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Isolated temporary chat state to prevent saving to or retrieving from database session states.',
+          'Aligned assistant chat pill styles with notes button pills for unified branding.',
+          'Implemented safe absolute URL parsing for citation URLs and standard links to prevent crashes on relative hostnames.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Filtered out raw [SEARCH] queries from displaying in message blocks and sanitized them in output guard.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.5',
     build: '2316',
     date: '2026-06-21',
