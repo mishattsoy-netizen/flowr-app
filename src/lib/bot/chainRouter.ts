@@ -29,6 +29,7 @@ import { getPipelineSettings } from '../router-config'
 import { expandImagePrompt } from './prompt-expansion'
 import { TraceCollector } from './tracing'
 import { buildTranscript } from './transcript'
+import { getAiUserDescription } from '@/app/settings/ai/actions'
 
 function logCost(cost: {
   model_id: string; provider: string; prompt_cost: number; completion_cost: number;
@@ -255,11 +256,12 @@ export async function runChain(
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
-  const [sessionState, globalPrompt, fallbackModes, pipelineSettings] = await Promise.all([
+  const [sessionState, globalPrompt, fallbackModes, pipelineSettings, userDescription] = await Promise.all([
     getSessionState(sessionId),
     getCompiledPrompt(context?.mode ?? 'default'),
     getFallbackModes(),
     getPipelineSettings(),
+    context?.userId ? getAiUserDescription(context.userId) : null,
   ])
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
@@ -735,6 +737,10 @@ export async function runChain(
     : true
 
   if (globalPrompt && isGlobalPromptEnabled) finalSysPrompt += "\n\n" + globalPrompt
+  // Inject user's personal description if available
+  if (userDescription) {
+    finalSysPrompt += `\n\n[ABOUT THE USER]\nThe following is what the user has shared about themselves. Use this information to personalize your responses and understand who they are:\n${userDescription}\n`
+  }
   // Skip internal pipeline prompt for chains that have their own router override —
   // the router prompt already contains [ANSWER MODE] instructions and mixing both
   // causes the model to default to PIPELINE structured output instead of user-facing answers.
