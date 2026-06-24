@@ -1,8 +1,8 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, LucideIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Bot } from 'lucide-react';
-import { useState, useCallback, useEffect } from 'react';
+import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles } from 'lucide-react';
+import { useState, useCallback, useEffect, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
 import { useAuth } from '@/components/AuthProvider';
@@ -10,6 +10,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { useTheme } from '@/components/ThemeProvider';
 import UpdatesSection from '@/components/settings/UpdatesSection';
 import AISettingsSection from '@/components/settings/AISettingsSection';
+import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader } = useStore();
@@ -27,11 +28,11 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
   const { isAdmin } = useAuth();
 
-  const tabs: { id: SettingsTab | 'admin'; label: string; icon: LucideIcon }[] = [
+  const tabs: { id: SettingsTab | 'admin'; label: string; icon: ComponentType<{ className?: string }> }[] = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
-    { id: 'ai', label: 'AI', icon: Bot },
+    { id: 'ai', label: 'AI', icon: AIAvatar },
     { id: 'updates', label: "What's New", icon: Sparkles },
     ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
   ];
@@ -77,7 +78,7 @@ export function SettingsPage() {
                     : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
                 )}
               >
-                <Icon strokeWidth={2} className={cn("w-4 h-4 transition-colors", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />
+                <Icon className={cn("w-4 h-4 transition-colors", "shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />
                 <span>{tab.label}</span>
               </button>
             );
