@@ -1,13 +1,14 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck, Sparkles } from 'lucide-react';
+import { X, User, Monitor, Zap, Settings as SettingsIcon, LucideIcon, ShieldCheck, Sparkles, Bot } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
 import { useAuth } from '@/components/AuthProvider';
 import { Toggle } from '@/components/ui/Toggle';
 import UpdatesSection from '@/components/settings/UpdatesSection';
+import AISettingsSection from '@/components/settings/AISettingsSection';
 
 
 
@@ -63,6 +64,7 @@ export function SettingsModal() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
+    { id: 'ai', label: 'AI', icon: Bot },
     { id: 'updates', label: "What's New", icon: Sparkles },
     ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
   ];
@@ -271,6 +273,7 @@ export function SettingsModal() {
                   </button>
                 </div>
               )}
+              {activeTab === 'ai' && <AISettingsSection />}
               {activeTab === 'updates' && <UpdatesSection />}
             </div>
           </div>
