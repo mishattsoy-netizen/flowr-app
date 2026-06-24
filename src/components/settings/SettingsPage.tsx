@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, LucideIcon, ShieldCheck, Zap, Sun, Moon, Sparkles } from 'lucide-react';
+import { User, Monitor, Settings as SettingsIcon, LucideIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Bot } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
@@ -9,6 +9,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { Toggle } from '@/components/ui/Toggle';
 import { useTheme } from '@/components/ThemeProvider';
 import UpdatesSection from '@/components/settings/UpdatesSection';
+import AISettingsSection from '@/components/settings/AISettingsSection';
 
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader } = useStore();
@@ -30,6 +31,7 @@ export function SettingsPage() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'interface', label: 'Interface', icon: Monitor },
     { id: 'account', label: 'Account', icon: SettingsIcon },
+    { id: 'ai', label: 'AI', icon: Bot },
     { id: 'updates', label: "What's New", icon: Sparkles },
     ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
   ];
@@ -97,6 +99,7 @@ export function SettingsPage() {
               {activeTab === 'profile' && "Manage your visual presentation and account identity."}
               {activeTab === 'interface' && "Customize visual theme, scale, and layout preferences."}
               {activeTab === 'account' && "Manage your workspace and credentials settings."}
+              {activeTab === 'ai' && "Configure AI behavior, personal preferences, and memory settings."}
               {activeTab === 'updates' && "Stay up to date with the latest additions, improvements, and fixes."}
             </p>
           </div>
@@ -234,6 +237,7 @@ export function SettingsPage() {
                 </button>
               </div>
             )}
+            {activeTab === 'ai' && <AISettingsSection />}
             {activeTab === 'updates' && <UpdatesSection />}
           </div>
         </div>
