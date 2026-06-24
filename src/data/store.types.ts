@@ -202,7 +202,7 @@ export interface AppTask {
   completedAt?: number;
 }
 
-export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates';
+export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai';
 
 export type ModalType =
   | null
