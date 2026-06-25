@@ -1,6 +1,5 @@
 "use client";
-import React, { useRef, useEffect, useMemo } from 'react';
-import gsap from 'gsap';
+import React, { useState, useMemo } from 'react';
 import { useStore, type EditorBlock } from '@/data/store';
 import { calculateCatmullRomPath, calculateAdvancedPath } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
@@ -12,6 +11,7 @@ interface VectorPathProps {
   selected: boolean;
   editing: boolean;
   activeTool?: string;
+  viewportScale?: number;
   onSelect: (id: string, addToSelection: boolean) => void;
   onPointDragStart?: (index: number, e: React.PointerEvent) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
@@ -20,9 +20,9 @@ interface VectorPathProps {
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
 }
 
-export function VectorPath({ block, selected, editing, activeTool, onSelect, onPointDragStart, onBindingDragStart, onDoubleClick, onDragStart }: VectorPathProps) {
-  const pathRef = useRef<SVGPathElement>(null);
+export function VectorPath({ block, selected, editing, activeTool, viewportScale, onSelect, onBindingDragStart, onDoubleClick, onDragStart }: VectorPathProps) {
   const allBlocks = useStore(s => s.blocks);
+  const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
 
   const resolvedPts = useMemo(() => resolvePoints(block, canvasBlocks), [block, canvasBlocks]);
@@ -51,14 +51,7 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
     tokens[len-2] = (px + dx * ratio).toFixed(1);
     tokens[len-1] = (py + dy * ratio).toFixed(1);
     return tokens.join(' ');
-  }, [edgePath]);
-
-  useEffect(() => {
-    if (pathRef.current) {
-      const len = pathRef.current.getTotalLength();
-      gsap.fromTo(pathRef.current, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" });
-    }
-  }, [block.id]);
+  }, [edgePath, block.endArrowhead?.size]);
 
   const style = block.canvasStyleExt ?? {};
   const strokeColor = selected ? 'var(--brand-blue)' : (style.stroke || 'var(--accent)');
@@ -87,18 +80,75 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
     return { x: minX, y: minY, w: Math.max(maxX - minX, 1), h: Math.max(maxY - minY, 1) };
   }, [resolvedPts]);
 
+  // Waypoint drag
+  const [draggingPt, setDraggingPt] = useState<number | null>(null);
+  const scale = viewportScale ?? 1;
+
+  const handleWaypointDown = (index: number, e: React.PointerEvent) => {
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const orig = (block.keyPoints ?? [])[index];
+    if (!orig) return;
+
+    setDraggingPt(index);
+
+    const handleMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      const newKp = [...(block.keyPoints ?? [])];
+      newKp[index] = [orig[0] + dx, orig[1] + dy];
+      updateCanvasBlock(block.id, { keyPoints: newKp as [number, number][] });
+    };
+
+    const handleUp = () => {
+      setDraggingPt(null);
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+    };
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+  };
+
   return (
     <g id={block.id}>
       <defs>
         <ArrowheadMarker id={markerIds.start} style={sHead} strokeColor={strokeColor} />
         <ArrowheadMarker id={markerIds.end} style={eHead} strokeColor={strokeColor} />
       </defs>
+
       {/* Selection frame */}
       {selected && bounds && (
-        <rect x={bounds.x - 6} y={bounds.y - 6} width={bounds.w + 12} height={bounds.h + 12}
-          fill="none" stroke="var(--brand-blue)" strokeWidth={1} strokeDasharray="4 4" rx={4}
-          style={{ pointerEvents: 'none' }} />
+        <>
+          <rect x={bounds.x - 6} y={bounds.y - 6} width={bounds.w + 12} height={bounds.h + 12}
+            fill="none" stroke="var(--brand-blue)" strokeWidth={1} strokeDasharray="4 4" rx={4}
+            style={{ pointerEvents: 'none' }} />
+          {/* 8 resize handles */}
+          {[
+            [bounds.x - 6, bounds.y - 6],
+            [bounds.x + bounds.w / 2, bounds.y - 6],
+            [bounds.x + bounds.w + 6, bounds.y - 6],
+            [bounds.x + bounds.w + 6, bounds.y + bounds.h / 2],
+            [bounds.x + bounds.w + 6, bounds.y + bounds.h + 6],
+            [bounds.x + bounds.w / 2, bounds.y + bounds.h + 6],
+            [bounds.x - 6, bounds.y + bounds.h + 6],
+            [bounds.x - 6, bounds.y + bounds.h / 2],
+          ].map(([cx, cy], i) => (
+            <rect key={`h-${i}`} x={cx - 4} y={cy - 4} width={8} height={8}
+              fill="white" stroke="var(--brand-blue)" strokeWidth={1.5} rx={1}
+              style={{ pointerEvents: 'none' }} />
+          ))}
+          {/* Rotation handle */}
+          <line x1={bounds.x + bounds.w / 2} y1={bounds.y - 6}
+            x2={bounds.x + bounds.w / 2} y2={bounds.y - 26}
+            stroke="var(--brand-blue)" strokeWidth={1} style={{ pointerEvents: 'none' }} />
+          <circle cx={bounds.x + bounds.w / 2} cy={bounds.y - 30} r={4}
+            fill="white" stroke="var(--brand-blue)" strokeWidth={1.5}
+            style={{ pointerEvents: 'none' }} />
+        </>
       )}
+
       <path
         d={path}
         fill="none" stroke="transparent" strokeWidth={22}
@@ -112,7 +162,7 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
         data-key-points={block.keyPoints ? JSON.stringify(block.keyPoints) : undefined}
       />
       <path
-        ref={pathRef} d={path}
+        d={path}
         fill="none" stroke={strokeColor} strokeWidth={strokeWidth}
         strokeDasharray={dasharray} opacity={style.opacity ?? 1}
         markerStart={sHead.type !== 'none' ? `url(#${markerIds.start})` : undefined}
@@ -124,13 +174,15 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
         data-end-binding={block.endBinding ? JSON.stringify(block.endBinding) : undefined}
         data-key-points={block.keyPoints ? JSON.stringify(block.keyPoints) : undefined}
       />
+
+      {/* Edit mode: draggable waypoint dots */}
       {editing && (
         <>
           {block.keyPoints?.map((pt, i) => (
             <circle key={`wp-${i}`} cx={pt[0]} cy={pt[1]} r={5}
               fill="white" stroke={strokeColor} strokeWidth={1.5}
-              style={{ cursor: 'grab', pointerEvents: 'auto' }}
-              onPointerDown={e => { e.stopPropagation(); onPointDragStart?.(i, e); }} />
+              style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
+              onPointerDown={e => handleWaypointDown(i, e)} />
           ))}
           {startPos && (
             <circle cx={startPos[0]} cy={startPos[1]} r={6}
@@ -146,7 +198,8 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
           )}
         </>
       )}
-      {/* Show binding/waypoint dots when selected (but not editing) */}
+
+      {/* Show waypoint/binding dots when selected */}
       {!editing && selected && (
         <>
           {block.keyPoints?.map((pt, i) => (

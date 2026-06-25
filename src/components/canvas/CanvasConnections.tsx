@@ -10,9 +10,10 @@ interface CanvasConnectionsProps {
   editingBlockId?: string | null;
   onDoubleClick?: (blockId: string) => void;
   activeTool?: string;
+  viewportScale?: number;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, onDoubleClick, activeTool }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, onDoubleClick, activeTool, viewportScale }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
@@ -31,6 +32,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
           selected={selectedIds.has(block.id)}
           editing={editingBlockId === block.id}
           activeTool={activeTool}
+          viewportScale={viewportScale}
           onSelect={onSelect}
           onDoubleClick={() => onDoubleClick?.(block.id)} />
       ))}

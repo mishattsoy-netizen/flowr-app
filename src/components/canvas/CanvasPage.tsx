@@ -13,6 +13,7 @@ import { MediaUploadPopover } from './MediaUploadPopover';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
 import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
+import { useDrag } from '@/hooks/useDrag';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFlowState } from '@/hooks/useFlowState';
 import { FlowPreview } from './FlowPreview';
@@ -82,6 +83,20 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const history = useCanvasHistory(pageBlocks);
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
+
+  const { startDrag } = useDrag({
+    viewportRef,
+    blocks: pageBlocks,
+    selectedIds,
+    snapWithObjects,
+    updateCanvasBlocks,
+    onCommit: () => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id)),
+  });
+
+  const handleArrowDrag = useCallback((e: React.PointerEvent, block: EditorBlock) => {
+    if (e.button !== 0) return;
+    startDrag(e, block);
+  }, [startDrag]);
 
   const flowState = useFlowState();
 
@@ -765,7 +780,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} activeTool={activeTool} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} activeTool={activeTool} viewportScale={viewport.scale} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -866,8 +881,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       selected={selectedIds.has(b.id)}
                       editing={editingBlockId === b.id}
                       activeTool={activeTool}
+                      viewportScale={viewport.scale}
                       onSelect={selectBlock}
-                      onDoubleClick={() => handleDoubleClickBlock(b.id)} />
+                      onDoubleClick={() => handleDoubleClickBlock(b.id)}
+                      onDragStart={(e) => handleArrowDrag(e, b)} />
                   ))}
                 </svg>
 
