@@ -3,6 +3,7 @@ import { useStore } from '@/data/store';
 import type { EditorBlock } from '@/data/store';
 import { calculateCatmullRomPath } from '@/lib/geometry/splines';
 import { activeDragOffsets } from '@/lib/canvasDragState';
+import { focusToPerimeter } from '@/lib/geometry/binding';
 
 interface DragOptions {
   viewportRef: React.MutableRefObject<{ x: number; y: number; scale: number }>;
@@ -99,13 +100,15 @@ export function useDrag({
     const dragIds = Array.from(dragIdsSet);
 
     // Capture initial positions of all dragged elements using the synchronous block state
-    const snapshot = new Map<string, { x: number; y: number; points?: [number, number][] }>();
+    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][] }>();
     dragIds.forEach(id => {
       const b = latestBlocks.find(x => x.id === id);
       if (b) {
         snapshot.set(b.id, {
           x: b.x ?? 0,
           y: b.y ?? 0,
+          w: b.width ?? 0,
+          h: b.height ?? 0,
           points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
         });
       }
@@ -120,19 +123,39 @@ export function useDrag({
     let currentDY = 0;
 
     // Cache all DOM nodes for the dragged IDs once at drag start (highly optimized)
-    const cachedDomElements: HTMLElement[] = [];
+    const cachedDomElements: { el: HTMLElement; id: string; rotation: number; flipH: boolean; flipV: boolean }[] = [];
     dragIds.forEach(id => {
       const nodes = document.querySelectorAll(`[id="${id}"]`);
-      nodes.forEach(node => cachedDomElements.push(node as HTMLElement));
+      const b = latestBlocks.find(x => x.id === id);
+      const rotation = b?.canvasStyleExt?.rotation ?? 0;
+      const flipH = !!b?.canvasStyleExt?.flipH;
+      const flipV = !!b?.canvasStyleExt?.flipV;
+      nodes.forEach(node => cachedDomElements.push({ el: node as HTMLElement, id, rotation, flipH, flipV }));
     });
 
     // Apply the current transform to all cached DOM nodes (O(1) style writes, zero query layout thrashing)
     const applyTransform = () => {
-      const transformValue = `translate3d(${currentDX}px, ${currentDY}px, 0)`;
-      cachedDomElements.forEach(el => {
-        el.style.transform = transformValue;
+      cachedDomElements.forEach(({ el, id, rotation, flipH, flipV }) => {
+        const translate = `translate3d(${currentDX}px, ${currentDY}px, 0)`;
+        const rot = rotation ? `rotate(${rotation}deg) ` : '';
+        const fH = flipH ? 'scaleX(-1) ' : '';
+        const fV = flipV ? 'scaleY(-1) ' : '';
+        el.style.transform = `${translate} ${rot}${fH}${fV}`;
+
+        // For SVG <g>: transform-origin must stay at the ORIGINAL (fixed) center.
+        // If we move it with currentDX/DY, the rotation pivot shifts every frame
+        // and the shape orbits instead of translating — that's the rotated shape desync bug.
+        if (el instanceof SVGElement) {
+          const snap = snapshot.get(id);
+          if (snap) {
+            const cx = snap.x + snap.w / 2; // fixed original center — no currentDX
+            const cy = snap.y + snap.h / 2; // fixed original center — no currentDY
+            el.style.transformOrigin = `${cx}px ${cy}px`;
+          }
+        }
       });
     };
+
 
     // Cache related connection paths once at drag start (highly optimized)
     const cachedPathElements: {
@@ -146,6 +169,9 @@ export function useDrag({
       initTx: number;
       initTy: number;
       points: [number, number][] | null;
+      startBinding: string | null;
+      endBinding: string | null;
+      keyPoints: [number, number][] | null;
     }[] = [];
 
     const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
@@ -171,6 +197,12 @@ export function useDrag({
           } catch {}
         }
 
+        let keyPoints: [number, number][] | null = null;
+        const keyPointsStr = pathEl.getAttribute('data-key-points');
+        if (keyPointsStr) {
+          try { keyPoints = JSON.parse(keyPointsStr); } catch {}
+        }
+
         cachedPathElements.push({
           el: pathEl,
           fromId,
@@ -182,6 +214,9 @@ export function useDrag({
           initTx,
           initTy,
           points,
+          startBinding: pathEl.getAttribute('data-start-binding') || null,
+          endBinding: pathEl.getAttribute('data-end-binding') || null,
+          keyPoints,
         });
       }
     });
@@ -243,7 +278,14 @@ export function useDrag({
 
       // Update active drag offsets for connection lines
       dragIds.forEach(id => {
-        activeDragOffsets.set(id, { dx: currentDX, dy: currentDY });
+        const snap = snapshot.get(id);
+        activeDragOffsets.set(id, {
+          dx: currentDX,
+          dy: currentDY,
+          startX: snap ? snap.x : undefined,
+          startY: snap ? snap.y : undefined,
+          startPoints: snap ? snap.points : undefined,
+        });
       });
 
       // Immediate DOM update of cached nodes
@@ -256,11 +298,48 @@ export function useDrag({
         let tx = item.initTx;
         let ty = item.initTy;
 
-        if (item.fromId && dragIds.includes(item.fromId)) {
+        if (item.startBinding && item.fromId && dragIds.includes(item.fromId)) {
+          try {
+            const binding = JSON.parse(item.startBinding);
+            const block = latestBlocks.find(b => b.id === binding.blockId);
+            if (block) {
+              const dx = dragIds.includes(block.id) ? currentDX : 0;
+              const dy = dragIds.includes(block.id) ? currentDY : 0;
+              const rect = {
+                x: (block.x ?? 0) + dx,
+                y: (block.y ?? 0) + dy,
+                width: block.width ?? 280,
+                height: block.height ?? 100,
+              };
+              const pos = focusToPerimeter(binding.focus ?? 0.5, rect, binding.gap ?? 0);
+              sx = pos[0];
+              sy = pos[1];
+            }
+          } catch {}
+        } else if (item.fromId && dragIds.includes(item.fromId)) {
           sx += currentDX;
           sy += currentDY;
         }
-        if (item.toId && dragIds.includes(item.toId)) {
+
+        if (item.endBinding && item.toId && dragIds.includes(item.toId)) {
+          try {
+            const binding = JSON.parse(item.endBinding);
+            const block = latestBlocks.find(b => b.id === binding.blockId);
+            if (block) {
+              const dx = dragIds.includes(block.id) ? currentDX : 0;
+              const dy = dragIds.includes(block.id) ? currentDY : 0;
+              const rect = {
+                x: (block.x ?? 0) + dx,
+                y: (block.y ?? 0) + dy,
+                width: block.width ?? 280,
+                height: block.height ?? 100,
+              };
+              const pos = focusToPerimeter(binding.focus ?? 0.5, rect, binding.gap ?? 0);
+              tx = pos[0];
+              ty = pos[1];
+            }
+          } catch {}
+        } else if (item.toId && dragIds.includes(item.toId)) {
           tx += currentDX;
           ty += currentDY;
         }
@@ -359,18 +438,61 @@ export function useDrag({
       });
 
       // Set final positions directly on DOM BEFORE clearing transforms
-      cachedDomElements.forEach(el => {
-        // For HTML elements (CanvasBlock divs), set left/top to final position
+      cachedDomElements.forEach(({ el, id, rotation, flipH, flipV }) => {
+        const snap = snapshot.get(id);
+        const rot = rotation ? `rotate(${rotation}deg)` : '';
+        const fH = flipH ? ' scaleX(-1)' : '';
+        const fV = flipV ? ' scaleY(-1)' : '';
+
         if (el instanceof HTMLElement && !(el instanceof SVGElement)) {
-          const id = el.id;
-          const snap = snapshot.get(id);
+          // HTML wrapper (CanvasBlock div): set left/top and clear translate
           if (snap) {
             el.style.left = `${snap.x + finalDX}px`;
             el.style.top = `${snap.y + finalDY}px`;
           }
+          el.style.transform = `${rot}${fH}${fV}`;
+        } else if (el instanceof SVGElement && snap) {
+          // SVG <g> element: update child attributes to final position THEN clear
+          // translate so there is zero visual flash (same pattern as resize).
+          const newX = snap.x + finalDX;
+          const newY = snap.y + finalDY;
+          const newW = snap.w;
+          const newH = snap.h;
+
+          if (snap.points) {
+            // Path-based shapes (line, arrow, freedraw): update path d attribute
+            const newPts = snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]);
+            const pathEl = el.querySelector<SVGPathElement>(':scope > path');
+            if (pathEl) {
+              const d = newPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
+              pathEl.setAttribute('d', d);
+            }
+          } else {
+            // Box shapes (rect, ellipse, diamond): update shape attributes
+            const rectEl = el.querySelector<SVGRectElement>('rect');
+            if (rectEl) {
+              rectEl.setAttribute('x', String(newX));
+              rectEl.setAttribute('y', String(newY));
+            }
+            const ellipseEl = el.querySelector<SVGEllipseElement>('ellipse');
+            if (ellipseEl) {
+              ellipseEl.setAttribute('cx', String(newX + newW / 2));
+              ellipseEl.setAttribute('cy', String(newY + newH / 2));
+            }
+            const polygonEl = el.querySelector<SVGPolygonElement>('polygon');
+            if (polygonEl) {
+              polygonEl.setAttribute('points',
+                `${newX + newW / 2},${newY} ${newX + newW},${newY + newH / 2} ${newX + newW / 2},${newY + newH} ${newX},${newY + newH / 2}`
+              );
+            }
+          }
+
+          // Clear translate AFTER attribute update — shape stays at correct position
+          el.style.transform = `${rot}${fH}${fV}`;
+          el.style.transformOrigin = `${newX + newW / 2}px ${newY + newH / 2}px`;
         }
-        el.style.transform = '';
       });
+
 
       dragIds.forEach(id => {
         activeDragOffsets.delete(id);
