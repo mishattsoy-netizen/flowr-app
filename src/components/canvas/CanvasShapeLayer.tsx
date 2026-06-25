@@ -17,6 +17,7 @@ interface Props {
   snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
   onDoubleClick?: (blockId: string) => void;
+  activeTool?: string;
 }
 
 function shapeStroke(style: CanvasStyleExt): string {
@@ -77,7 +78,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
   return null;
 }
 
-export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick }: Props) {
+export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick, activeTool }: Props) {
   const liveBlocks = useStore(s => s.blocks);
   const shapes = useMemo(() => {
     const initialIds = new Set(initialBlocks.map(b => b.id));
@@ -109,6 +110,11 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
     if (e.button !== 0) return;
 
     startDrag(e, clickedBlock);
+  };
+
+  const handleVectorDrag = (e: React.PointerEvent, block: EditorBlock) => {
+    if (e.button !== 0) return;
+    startDrag(e, block);
   };
 
   return (
@@ -152,8 +158,10 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
         <VectorPath key={b.id} block={b}
           selected={selectedIds.has(b.id)}
           editing={false}
+          activeTool={activeTool}
           onSelect={(id, add) => onSelect(id, add)}
-          onDoubleClick={() => onDoubleClick?.(b.id)} />
+          onDoubleClick={() => onDoubleClick?.(b.id)}
+          onDragStart={(e) => handleVectorDrag(e, b)} />
       ))}
     </svg>
   );

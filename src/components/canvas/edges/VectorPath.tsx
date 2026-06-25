@@ -11,14 +11,16 @@ interface VectorPathProps {
   block: EditorBlock;
   selected: boolean;
   editing: boolean;
+  activeTool?: string;
   onSelect: (id: string, addToSelection: boolean) => void;
   onPointDragStart?: (index: number, e: React.PointerEvent) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
   onPathClickForAdd?: (t: number, x: number, y: number) => void;
   onDoubleClick?: () => void;
+  onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
 }
 
-export function VectorPath({ block, selected, editing, onSelect, onPointDragStart, onBindingDragStart, onDoubleClick }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, activeTool, onSelect, onPointDragStart, onBindingDragStart, onDoubleClick, onDragStart }: VectorPathProps) {
   const pathRef = useRef<SVGPathElement>(null);
   const allBlocks = useStore(s => s.blocks);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -69,6 +71,8 @@ export function VectorPath({ block, selected, editing, onSelect, onPointDragStar
   const startPos = block.startBinding ? resolveBindingPosition(block.startBinding, canvasBlocks) : null;
   const endPos = block.endBinding ? resolveBindingPosition(block.endBinding, canvasBlocks) : null;
 
+  const isDrawingTool = activeTool === 'arrow' || activeTool === 'line';
+
   return (
     <g>
       <defs>
@@ -78,8 +82,8 @@ export function VectorPath({ block, selected, editing, onSelect, onPointDragStar
       <path
         d={path}
         fill="none" stroke="transparent" strokeWidth={22}
-        className="cursor-pointer" style={{ pointerEvents: 'auto' }}
-        onPointerDown={e => { e.stopPropagation(); onSelect?.(block.id, e.shiftKey); }}
+        className="cursor-pointer" style={{ pointerEvents: isDrawingTool ? 'none' : 'auto' }}
+        onPointerDown={e => { e.stopPropagation(); onSelect?.(block.id, e.shiftKey); onDragStart?.(e, block); }}
         onDoubleClick={e => { e.stopPropagation(); onDoubleClick?.(); }}
         data-connection-hitbox={block.id}
         data-block-id={block.id}
@@ -119,6 +123,26 @@ export function VectorPath({ block, selected, editing, onSelect, onPointDragStar
               fill="#d38f36" stroke="white" strokeWidth={1.5}
               style={{ cursor: 'grab', pointerEvents: 'auto' }}
               onPointerDown={e => { e.stopPropagation(); onBindingDragStart?.('end', e); }} />
+          )}
+        </>
+      )}
+      {/* Show binding/waypoint dots when selected (but not editing) */}
+      {!editing && selected && (
+        <>
+          {block.keyPoints?.map((pt, i) => (
+            <circle key={`wp-sel-${i}`} cx={pt[0]} cy={pt[1]} r={4}
+              fill="white" stroke={strokeColor} strokeWidth={1} opacity={0.6}
+              style={{ pointerEvents: 'none' }} />
+          ))}
+          {startPos && (
+            <circle cx={startPos[0]} cy={startPos[1]} r={5}
+              fill="#d38f36" stroke="white" strokeWidth={1.5} opacity={0.8}
+              style={{ pointerEvents: 'none' }} />
+          )}
+          {endPos && (
+            <circle cx={endPos[0]} cy={endPos[1]} r={5}
+              fill="#d38f36" stroke="white" strokeWidth={1.5} opacity={0.8}
+              style={{ pointerEvents: 'none' }} />
           )}
         </>
       )}

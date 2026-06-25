@@ -9,9 +9,10 @@ interface CanvasConnectionsProps {
   onSelect: (id: string, addToSelection: boolean) => void;
   editingBlockId?: string | null;
   onDoubleClick?: (blockId: string) => void;
+  activeTool?: string;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, onDoubleClick }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, onDoubleClick, activeTool }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
@@ -29,6 +30,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
         <VectorPath key={block.id} block={block}
           selected={selectedIds.has(block.id)}
           editing={editingBlockId === block.id}
+          activeTool={activeTool}
           onSelect={onSelect}
           onDoubleClick={() => onDoubleClick?.(block.id)} />
       ))}

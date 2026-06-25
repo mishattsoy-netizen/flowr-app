@@ -751,7 +751,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} activeTool={activeTool} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -763,6 +763,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                   onContextMenu={handleBlockContextMenu}
                   onDoubleClick={handleDoubleClickBlock}
+                  activeTool={activeTool}
                 />
 
                 {/* Snap Guides Overlay */}
