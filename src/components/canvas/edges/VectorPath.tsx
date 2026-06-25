@@ -76,7 +76,7 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
   const isDrawingTool = activeTool === 'arrow' || activeTool === 'line';
 
   return (
-    <g>
+    <g id={block.id}>
       <defs>
         <ArrowheadMarker id={markerIds.start} style={sHead} strokeColor={strokeColor} />
         <ArrowheadMarker id={markerIds.end} style={eHead} strokeColor={strokeColor} />

@@ -35,16 +35,15 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
       
       let bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 100, bh = b.height ?? 40;
 
-      // Account for precise bounding bounds of dynamic point lines/shapes
-      if (b.points && Array.isArray(b.points) && b.points.length > 0) {
+      const pointArray = b.keyPoints ?? b.points;
+      if (pointArray && Array.isArray(pointArray) && pointArray.length > 0) {
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        for (const p of b.points) {
+        for (const p of pointArray) {
           minX = Math.min(minX, p[0]);
           maxX = Math.max(maxX, p[0]);
           minY = Math.min(minY, p[1]);
           maxY = Math.max(maxY, p[1]);
         }
-        // Normalize into bounds check space
         bx = minX;
         by = minY;
         bw = Math.max(maxX - minX, 1);

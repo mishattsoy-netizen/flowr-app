@@ -159,11 +159,22 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     if (selectedBlocks.length === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     selectedBlocks.forEach(b => {
-      const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
-      if (bx < minX) minX = bx;
-      if (by < minY) minY = by;
-      if (bx + bw > maxX) maxX = bx + bw;
-      if (by + bh > maxY) maxY = by + bh;
+      const isArrow = b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw';
+      if (isArrow && (b.keyPoints?.length || b.points?.length)) {
+        const pts = b.keyPoints ?? b.points ?? [];
+        for (const p of pts) {
+          if (p[0] < minX) minX = p[0];
+          if (p[1] < minY) minY = p[1];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] > maxY) maxY = p[1];
+        }
+      } else {
+        const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+        if (bx < minX) minX = bx;
+        if (by < minY) minY = by;
+        if (bx + bw > maxX) maxX = bx + bw;
+        if (by + bh > maxY) maxY = by + bh;
+      }
     });
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }, [selectedBlocks]);
@@ -693,13 +704,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       <CanvasToolbar
         activeTool={activeTool}
         setActiveTool={setActiveTool}
-        canvasTitle={entity.title}
       />
 
-      <div className="flex-1 relative overflow-hidden" style={{ paddingTop: 40 }}>
+      <div className="flex-1 relative overflow-hidden">
         {showLayers && (
           <div
-            className="absolute left-4 top-[52px] z-[1500] flex flex-col select-none"
+            className="absolute left-4 top-3 z-[1500] flex flex-col select-none"
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -1029,7 +1039,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         {/* Floating Toolbar above the Right Sidebar */}
         <div 
-          className="absolute right-4 top-[52px] z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[11px] p-[5px] gap-[4px] select-none"
+          className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[11px] p-[5px] gap-[4px] select-none"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -1100,7 +1110,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         {showStylePanel && (
           <div
-            className="absolute right-4 top-[98px] z-[1500] flex flex-col select-none"
+            className="absolute right-4 top-[56px] z-[1500] flex flex-col select-none"
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
