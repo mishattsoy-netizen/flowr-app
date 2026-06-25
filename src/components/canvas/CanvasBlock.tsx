@@ -23,11 +23,8 @@ interface CanvasBlockProps {
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
 }
 
-export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu }: CanvasBlockProps) {
-  const liveBlock = useStore(useCallback(s => s.blocks.find(b => b.id === initialBlock.id), [initialBlock.id])) || initialBlock;
-  const block = liveBlock;
+export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu }: CanvasBlockProps) {
 
-  const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
@@ -35,16 +32,17 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
 
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [size, setSize] = useState({ width: block.width || 280, height: block.height || undefined as number | undefined });
+  const [isRotating, setIsRotating] = useState(false);
+  const [size, setSize] = useState(() => ({ width: block?.width || 280, height: block?.height || undefined as number | undefined }));
   const [showMenu, setShowMenu] = useState(false);
   const [isOverSection, setIsOverSection] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  const isNoteBlock = block.type !== 'section' && block.type !== 'comment' && block.type !== 'connection' && block.type !== 'shape';
+  const isNoteBlock = block?.type !== 'section' && block?.type !== 'comment' && block?.type !== 'connection' && block?.type !== 'shape';
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const finalPosRef = useRef({ x: block.x || 0, y: block.y || 0 });
-  const finalSizeRef = useRef({ w: block.width || 280, h: block.height || 150 });
+  const finalPosRef = useRef({ x: block?.x || 0, y: block?.y || 0 });
+  const finalSizeRef = useRef({ w: block?.width || 280, h: block?.height || 150 });
   const lastSectionCheckRef = useRef(0);
 
   const viewportRef = useRef(viewport);
@@ -58,19 +56,19 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
 
   // Sync from store when not interacting
   useEffect(() => {
-    if (!isDraggingLocal && !isResizing) {
+    if (!isDraggingLocal && !isResizing && block) {
       setSize({ width: block.width || 280, height: block.height || undefined });
     }
-  }, [block.width, block.height, isDraggingLocal, isResizing]);
+  }, [block?.width, block?.height, isDraggingLocal, isResizing]);
 
   // Report actual height for connections
-  const heightRef = useRef(block.height || 0);
+  const heightRef = useRef(block?.height || 0);
   useEffect(() => {
-    heightRef.current = block.height || 0;
-  }, [block.height]);
+    heightRef.current = block?.height || 0;
+  }, [block?.height]);
 
   useEffect(() => {
-    if (!containerRef.current || !isNoteBlock) return;
+    if (!containerRef.current || !isNoteBlock || !block) return;
     let timeoutId: NodeJS.Timeout;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -92,16 +90,17 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
       observer.disconnect();
       clearTimeout(timeoutId);
     };
-  }, [block.id, isDraggingLocal, isResizing, isEditing, updateCanvasBlock, isNoteBlock]);
+  }, [block?.id, isDraggingLocal, isResizing, isEditing, updateCanvasBlock, isNoteBlock]);
 
   const { startDrag } = useDrag({
     viewportRef,
-    blocks,
+    blocks: [],
     selectedIds: selectedIds || new Set(),
     snapWithObjects,
     updateCanvasBlocks,
     onCommit,
     onDragMove: (dx, dy, moveEvent) => {
+      if (!block) return;
       const now = Date.now();
       if (now - lastSectionCheckRef.current < 150) return;
       lastSectionCheckRef.current = now;
@@ -118,6 +117,7 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
     },
     onDragEnd: (dx, dy, upEvent) => {
       setIsDraggingLocal(false);
+      if (!block) return;
       const movedDist = Math.hypot(dx, dy);
 
       const isAlreadySelected = selectedIds?.has(block.id) ?? false;
@@ -133,6 +133,8 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
       setIsOverSection(null);
     }
   });
+
+  if (!block) return null;
 
   // --- DRAG ---
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -167,6 +169,7 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
     setIsResizing(true);
     onSelect?.(block.id, false);
 
+    let lastUpdate = 0;
     const startX = e.clientX;
     const startY = e.clientY;
     const startPos = { x: block.x || 0, y: block.y || 0 };
@@ -268,8 +271,9 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
         newH = snapResult.height;
       }
 
-      // Enforce aspect ratio lock (Shift-key corner resize)
-      if (isShiftPressed && isCorner) {
+      // Enforce aspect ratio lock (Shift-key corner resize or persistent lock)
+      const aspectRatioLocked = block.canvasStyleExt?.aspectRatioLocked ?? false;
+      if ((isShiftPressed && isCorner) || aspectRatioLocked) {
         const ratio = startSize.w / startSize.h;
         const rawDw = newW - startSize.w;
         const rawDh = newH - startSize.h;
@@ -295,14 +299,14 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
           targetW = targetH * ratio;
         }
 
-        if (handle === 'se') {
+        if (handle === 'se' || handle === 'e' || handle === 's') {
           newW = targetW;
           newH = targetH;
-        } else if (handle === 'sw') {
+        } else if (handle === 'sw' || handle === 'w') {
           newW = targetW;
           newH = targetH;
           newX = (startPos.x + startSize.w) - newW;
-        } else if (handle === 'ne') {
+        } else if (handle === 'ne' || handle === 'n') {
           newW = targetW;
           newH = targetH;
           newY = (startPos.y + startSize.h) - newH;
@@ -370,7 +374,16 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
       // Update active drag offsets for connection lines so they track resizing anchor points
       const currentDX = newX - startPos.x;
       const currentDY = newY - startPos.y;
-      activeDragOffsets.set(block.id, { dx: currentDX, dy: currentDY });
+      activeDragOffsets.set(block.id, {
+        dx: currentDX,
+        dy: currentDY,
+        startX: startPos.x,
+        startY: startPos.y,
+        resizeX: newX,
+        resizeY: newY,
+        resizeW: newW,
+        resizeH: newH,
+      });
 
       // Live update path elements
       cachedPathElements.forEach(item => {
@@ -447,6 +460,79 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
     document.addEventListener('pointerup', handlePointerUp);
   }, [block.id, block.x, block.y, block.width, block.height, viewport.scale, updateCanvasBlock, onSelect, onCommit]);
 
+  const handleRotateStart = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    setIsRotating(true);
+    let lastUpdate = 0;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const initialStyle = block.canvasStyleExt ?? {};
+    let currentDeg = initialStyle.rotation ?? 0;
+
+    requestAnimationFrame(() => {
+      const labelEl = containerRef.current?.querySelector('.rotation-label');
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const vx = moveEvent.clientX - centerX;
+        const vy = moveEvent.clientY - centerY;
+        const rad = Math.atan2(vy, vx) + Math.PI / 2;
+        let deg = (rad * 180) / Math.PI;
+        deg = (deg % 360 + 360) % 360;
+
+        if (moveEvent.shiftKey) {
+          deg = Math.round(deg / 45) * 45;
+        }
+        deg = (deg % 360 + 360) % 360;
+        if (deg > 180) deg -= 360;
+        const roundedDeg = Math.round(deg);
+        currentDeg = roundedDeg;
+
+        const nodes = document.querySelectorAll(`[id="${block.id}"]`);
+        nodes.forEach(node => {
+          if (node instanceof HTMLElement || node instanceof SVGElement) {
+            node.style.transform = `rotate(${roundedDeg}deg)`;
+          }
+        });
+
+        if (labelEl) {
+          labelEl.textContent = `${roundedDeg}°`;
+        }
+
+        activeDragOffsets.set(block.id, {
+          dx: 0,
+          dy: 0,
+          rotation: roundedDeg
+        });
+
+      };
+
+      const handlePointerUp = () => {
+        setIsRotating(false);
+        activeDragOffsets.delete(block.id);
+        document.removeEventListener('pointermove', handlePointerMove);
+        document.removeEventListener('pointerup', handlePointerUp);
+
+        updateCanvasBlock(block.id, {
+          canvasStyleExt: {
+            ...initialStyle,
+            rotation: currentDeg,
+          },
+        });
+        if (onCommit) onCommit();
+      };
+
+      document.addEventListener('pointermove', handlePointerMove);
+      document.addEventListener('pointerup', handlePointerUp);
+    });
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -468,7 +554,16 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
     }
   };
 
-  const connectionPoints = ['top', 'right', 'bottom', 'left'] as const;
+  const allConnectionPoints = [
+    { key: 'top',        type: 'edge',   css: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2' },
+    { key: 'right',      type: 'edge',   css: 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2' },
+    { key: 'bottom',     type: 'edge',   css: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2' },
+    { key: 'left',       type: 'edge',   css: 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2' },
+    { key: 'top-left',   type: 'corner', css: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2' },
+    { key: 'top-right',  type: 'corner', css: 'top-0 right-0 translate-x-1/2 -translate-y-1/2' },
+    { key: 'bottom-right', type: 'corner', css: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2' },
+    { key: 'bottom-left',  type: 'corner', css: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2' },
+  ];
   const HANDLES: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
 
@@ -493,11 +588,33 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
         width: size.width,
         height: size.height,
         zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'section' ? 2 : 10)),
+        transform: (() => {
+          // During drag, return undefined so React leaves useDrag's translate3d intact.
+          // During re-renders triggered by state changes (setIsOverSection etc.) this prevents the translate from being wiped.
+          if (isDraggingLocal) return undefined;
+          const rotation = block.canvasStyleExt?.rotation ?? 0;
+          const flipH = block.canvasStyleExt?.flipH ? ' scaleX(-1)' : '';
+          const flipV = block.canvasStyleExt?.flipV ? ' scaleY(-1)' : '';
+          // Return '' (not undefined) so React explicitly clears any residual translate after drop
+          return (rotation || flipH || flipV) ? `rotate(${rotation}deg)${flipH}${flipV}` : '';
+        })(),
+        transformOrigin: 'center',
       }}
       onPointerDown={handlePointerDown}
       onContextMenu={handleContextMenu}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Rotation handle */}
+      {isSelected && block.type !== 'connection' && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
+          <div
+            className="w-3 h-3 bg-brand-blue border-2 border-background rounded-full cursor-grab active:cursor-grabbing hover:scale-125 transition-transform"
+            onPointerDown={handleRotateStart}
+          />
+          <div className="w-[1px] h-3 bg-brand-blue" />
+        </div>
+      )}
+
       {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
       {(isSelected || isDraggingLocal || isResizing || showMenu) && (
         <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
@@ -511,23 +628,26 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 
-      {/* Dimension Label */}
-      {(isResizing || isDraggingLocal) && (
-        <div className="dimension-label absolute -bottom-8 left-1/2 -translate-x-1/2 bg-[var(--bone-100)] text-background text-[10px] font-bold px-1.5 py-0.5 rounded-sm z-[4000] whitespace-nowrap pointer-events-none ">
-          {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
+      {/* Dimension & Rotation Labels */}
+      {isSelected && (
+        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 z-[4000] pointer-events-none">
+          <div className="dimension-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
+            {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
+          </div>
+          <div className="rotation-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
+            {Math.round(block.canvasStyleExt?.rotation ?? 0)}°
+          </div>
         </div>
       )}
 
       {/* Connection Points */}
-      {(activeTool === 'arrow' || activeTool === 'line') && connectionPoints.map(side => (
+      {(activeTool === 'arrow' || activeTool === 'line') && allConnectionPoints.map(pt => (
         <div
-          key={side}
+          key={pt.key}
           className={cn(
-            "absolute w-3 h-3 bg-accent rounded-full border-2 border-background z-[100] cursor-crosshair",
-            side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
-            side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
-            side === 'bottom' && "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2",
-            side === 'left' && "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
+            "absolute rounded-full border-2 border-background z-[100] cursor-crosshair",
+            pt.type === 'corner' ? "w-2.5 h-2.5 bg-[#ec4899]" : "w-3 h-3 bg-accent",
+            pt.css
           )}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -535,7 +655,7 @@ export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConne
             const canvasRect = document.getElementById('canvas-bg')?.getBoundingClientRect();
             if (canvasRect && onConnectStart) {
               onConnectStart(
-                side,
+                pt.key,
                 (rect.left - canvasRect.left + rect.width / 2 - viewport.x) / viewport.scale,
                 (rect.top - canvasRect.top + rect.height / 2 - viewport.y) / viewport.scale
               );
