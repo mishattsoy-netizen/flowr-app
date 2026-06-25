@@ -13,9 +13,7 @@ interface VectorPathProps {
   activeTool?: string;
   viewportScale?: number;
   onSelect: (id: string, addToSelection: boolean) => void;
-  onPointDragStart?: (index: number, e: React.PointerEvent) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
-  onPathClickForAdd?: (t: number, x: number, y: number) => void;
   onDoubleClick?: () => void;
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
 }
@@ -80,6 +78,8 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     return { x: minX, y: minY, w: Math.max(maxX - minX, 1), h: Math.max(maxY - minY, 1) };
   }, [resolvedPts]);
 
+  const waypoints = block.points ?? [];
+
   // Waypoint drag
   const [draggingPt, setDraggingPt] = useState<number | null>(null);
   const scale = viewportScale ?? 1;
@@ -88,7 +88,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const orig = (block.keyPoints ?? [])[index];
+    const orig = waypoints[index];
     if (!orig) return;
 
     setDraggingPt(index);
@@ -96,9 +96,9 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
-      const newKp = [...(block.keyPoints ?? [])];
-      newKp[index] = [orig[0] + dx, orig[1] + dy];
-      updateCanvasBlock(block.id, { keyPoints: newKp as [number, number][] });
+      const newPts = [...waypoints];
+      newPts[index] = [orig[0] + dx, orig[1] + dy];
+      updateCanvasBlock(block.id, { points: newPts as [number, number][] });
     };
 
     const handleUp = () => {
@@ -159,7 +159,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         data-block-id={block.id}
         data-start-binding={block.startBinding ? JSON.stringify(block.startBinding) : undefined}
         data-end-binding={block.endBinding ? JSON.stringify(block.endBinding) : undefined}
-        data-key-points={block.keyPoints ? JSON.stringify(block.keyPoints) : undefined}
+        data-points={block.points ? JSON.stringify(block.points) : undefined}
       />
       <path
         d={path}
@@ -172,13 +172,13 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         data-block-id={block.id}
         data-start-binding={block.startBinding ? JSON.stringify(block.startBinding) : undefined}
         data-end-binding={block.endBinding ? JSON.stringify(block.endBinding) : undefined}
-        data-key-points={block.keyPoints ? JSON.stringify(block.keyPoints) : undefined}
+        data-points={block.points ? JSON.stringify(block.points) : undefined}
       />
 
       {/* Edit mode: draggable waypoint dots */}
       {editing && (
         <>
-          {block.keyPoints?.map((pt, i) => (
+          {waypoints.map((pt, i) => (
             <circle key={`wp-${i}`} cx={pt[0]} cy={pt[1]} r={5}
               fill="white" stroke={strokeColor} strokeWidth={1.5}
               style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
@@ -202,7 +202,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       {/* Show waypoint/binding dots when selected */}
       {!editing && selected && (
         <>
-          {block.keyPoints?.map((pt, i) => (
+          {waypoints.map((pt, i) => (
             <circle key={`wp-sel-${i}`} cx={pt[0]} cy={pt[1]} r={4}
               fill="white" stroke={strokeColor} strokeWidth={1} opacity={0.6}
               style={{ pointerEvents: 'none' }} />

@@ -35,7 +35,7 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
       
       let bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 100, bh = b.height ?? 40;
 
-      const pointArray = b.keyPoints ?? b.points;
+      const pointArray = b.points;
       if (pointArray && Array.isArray(pointArray) && pointArray.length > 0) {
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (const p of pointArray) {

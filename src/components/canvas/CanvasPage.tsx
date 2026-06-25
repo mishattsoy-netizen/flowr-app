@@ -147,7 +147,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       shapeKind: tool,
       startBinding: hasStart ? mkBinding(startSnap!) : undefined,
       endBinding: hasEnd ? mkBinding(endSnap!) : undefined,
-      keyPoints: currentPath.slice(hasStart ? 1 : 0, currentPath.length - (hasEnd ? 1 : 0)),
+      points: hasStart || hasEnd ? currentPath.slice(hasStart ? 1 : 0, currentPath.length - (hasEnd ? 1 : 0)) : currentPath,
       x: 0, y: 0, width: 0, height: 0,
       editMode: 'simple',
       startArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
@@ -176,9 +176,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     selectedBlocks.forEach(b => {
       const isArrow = b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw';
-      if (isArrow && (b.keyPoints?.length || b.points?.length)) {
-        const pts = b.keyPoints ?? b.points ?? [];
-        for (const p of pts) {
+      if (isArrow && b.points?.length) {
+        for (const p of b.points) {
           if (p[0] < minX) minX = p[0];
           if (p[1] < minY) minY = p[1];
           if (p[0] > maxX) maxX = p[0];

@@ -17,26 +17,25 @@ function legacyEndpoint(blockId: string | undefined, side: string | undefined, a
   }
 }
 
+/**
+ * Compute the full resolved path for an arrow block.
+ * For standalone arrows (no bindings): returns block.points directly.
+ * For bound arrows: returns [resolvedStart, ...block.points, resolvedEnd].
+ */
 export function resolvePoints(block: EditorBlock, allBlocks: EditorBlock[]): [number, number][] {
   let start: [number, number] | null = resolveBindingPosition(block.startBinding, allBlocks);
   let end: [number, number] | null = resolveBindingPosition(block.endBinding, allBlocks);
 
-  // Legacy fallback: old connection blocks with fromId/toId but no startBinding/endBinding
   if (!start && block.fromId) start = legacyEndpoint(block.fromId, block.fromSide, allBlocks);
   if (!end && block.toId) end = legacyEndpoint(block.toId, block.toSide, allBlocks);
 
-  const mids = block.keyPoints ?? [];
+  const mids: [number, number][] = block.points ?? [];
 
-  if (!start && !end && mids.length < 2) return block.points ?? [];
+  if (!start && !end) return mids;
 
   const pts: [number, number][] = [];
   if (start) pts.push(start);
   pts.push(...mids);
   if (end) pts.push(end);
-  if (pts.length === 1) pts.push([pts[0][0] + 0.01, pts[0][1] + 0.01]);
-  if (pts.length === 0) {
-    const px = block.x ?? 0, py = block.y ?? 0;
-    pts.push([px, py], [px + (block.width ?? 100), py + (block.height ?? 60)]);
-  }
   return pts;
 }

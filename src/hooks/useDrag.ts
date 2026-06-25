@@ -100,7 +100,7 @@ export function useDrag({
     const dragIds = Array.from(dragIdsSet);
 
     // Capture initial positions of all dragged elements using the synchronous block state
-    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][]; keyPoints?: [number, number][] }>();
+    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][] }>();
     dragIds.forEach(id => {
       const b = latestBlocks.find(x => x.id === id);
       if (b) {
@@ -110,7 +110,6 @@ export function useDrag({
           w: b.width ?? 0,
           h: b.height ?? 0,
           points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
-          keyPoints: b.keyPoints ? JSON.parse(JSON.stringify(b.keyPoints)) : undefined,
         });
       }
     });
@@ -172,7 +171,6 @@ export function useDrag({
       points: [number, number][] | null;
       startBinding: string | null;
       endBinding: string | null;
-      keyPoints: [number, number][] | null;
     }[] = [];
 
     const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
@@ -198,12 +196,6 @@ export function useDrag({
           } catch {}
         }
 
-        let keyPoints: [number, number][] | null = null;
-        const keyPointsStr = pathEl.getAttribute('data-key-points');
-        if (keyPointsStr) {
-          try { keyPoints = JSON.parse(keyPointsStr); } catch {}
-        }
-
         cachedPathElements.push({
           el: pathEl,
           fromId,
@@ -217,7 +209,6 @@ export function useDrag({
           points,
           startBinding: pathEl.getAttribute('data-start-binding') || null,
           endBinding: pathEl.getAttribute('data-end-binding') || null,
-          keyPoints,
         });
       }
     });
@@ -425,12 +416,7 @@ export function useDrag({
       // Build batch updates first
       const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
       snapshot.forEach((snap, id) => {
-        if (snap.keyPoints) {
-          batchUpdates.push({
-            id,
-            updates: { keyPoints: snap.keyPoints.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) },
-          });
-        } else if (snap.points) {
+        if (snap.points) {
           batchUpdates.push({
             id,
             updates: { points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) },
@@ -465,10 +451,7 @@ export function useDrag({
           const newW = snap.w;
           const newH = snap.h;
 
-          if (snap.keyPoints) {
-            // New arrow/line/freedraw with keyPoints — update keyPoints directly (VectorPath re-renders)
-            el.style.transform = `${rot}${fH}${fV}`;
-          } else if (snap.points) {
+          if (snap.points) {
             // Path-based shapes (line, arrow, freedraw): update path d attribute
             const newPts = snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]);
             const pathEl = el.querySelector<SVGPathElement>(':scope > path');

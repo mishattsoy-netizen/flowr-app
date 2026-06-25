@@ -54,7 +54,6 @@ function migrateBlock(block: any): any {
     return {
       ...block,
       editMode: 'simple',
-      keyPoints: block.points || [],
       startArrowhead: block.shapeKind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
       endArrowhead: block.shapeKind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
     };
@@ -70,7 +69,7 @@ function migrateBlock(block: any): any {
       editMode: 'simple',
       startBinding: fromId ? { blockId: fromId } : undefined,
       endBinding: toId ? { blockId: toId } : undefined,
-      keyPoints: rest.points ? rest.points.slice(1, -1) : [],
+      points: rest.points ? rest.points.slice(1, -1) : [],
       startArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
       endArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
     };
