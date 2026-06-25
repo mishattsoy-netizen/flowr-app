@@ -1,7 +1,7 @@
 "use client";
 
 import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
-import { Copy, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
+import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download } from 'lucide-react';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -19,6 +19,7 @@ import { exportCanvasToPng } from '@/lib/canvasExport';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4.0;
@@ -27,10 +28,15 @@ const ZOOM_STEP = 0.1;
 export function CanvasPage({ entity }: { entity: Entity }) {
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
   const [showLayers, setShowLayers] = useState(true);
-  const [showStylePanel, setShowStylePanel] = useState(false);
+  const [showStylePanel, setShowStylePanel] = useState(true);
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
+  const [canvasBgColor, setCanvasBgColor] = useState('default');
+  const [canvasPattern, setCanvasPattern] = useState<'none' | 'grid' | 'dots'>('grid');
+  const [canvasPatternOpacity, setCanvasPatternOpacity] = useState(0.03);
+  const [canvasPatternColor, setCanvasPatternColor] = useState('default');
   const [drawingShape, setDrawingShape] = useState<{
     kind: string; startX: number; startY: number; x: number; y: number; w: number; h: number;
     points: [number, number][];
@@ -107,44 +113,42 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   const commitFlowConnection = useCallback(() => {
     const { currentPath, isDrawing, clear } = useFlowState.getState();
-    if (!isDrawing || currentPath.length < 2) {
-      clear();
-      return;
-    }
-
-    const finalPts = [...currentPath];
-    const startSnap = findClosestBlockHandle(finalPts[0][0], finalPts[0][1]);
-    const endSnap = findClosestBlockHandle(finalPts[finalPts.length - 1][0], finalPts[finalPts.length - 1][1]);
+    if (!isDrawing || currentPath.length < 2) { clear(); return; }
 
     const tool = activeTool === 'arrow' || activeTool === 'line' ? activeTool : 'arrow';
+    const first = currentPath[0], last = currentPath[currentPath.length - 1];
+    const startSnap = findClosestBlockHandle(first[0], first[1]);
+    const endSnap = findClosestBlockHandle(last[0], last[1]);
+    const hasStart = !!startSnap;
+    const hasEnd = !!endSnap;
 
-    // Create dynamic entity based on context
-    addCanvasBlock({
-      id: generateId(),
-      type: (startSnap && endSnap) ? 'connection' : 'shape',
-      content: '',
-      canvasId: entity.id,
-      shapeKind: tool,
-      fromId: startSnap?.id,
-      fromSide: startSnap?.side as any,
-      toId: endSnap?.id,
-      toSide: endSnap?.side as any,
-      x: 0, y: 0,
-      width: 0, height: 0,
-      points: finalPts,
-      canvasStyleExt: {
-        stroke: '#d38f36',
-        strokeWidth: 2,
-        strokeStyle: 'solid',
-        fill: 'transparent',
-        fillOpacity: 0,
-      },
+    const mkBinding = (snap: { id: string; side: string }) => ({
+      blockId: snap.id,
     });
-    
+
+    addCanvasBlock({
+      id: generateId(), type: 'shape', content: '', canvasId: entity.id,
+      shapeKind: tool,
+      startBinding: hasStart ? mkBinding(startSnap!) : undefined,
+      endBinding: hasEnd ? mkBinding(endSnap!) : undefined,
+      keyPoints: currentPath.slice(hasStart ? 1 : 0, currentPath.length - (hasEnd ? 1 : 0)),
+      x: 0, y: 0, width: 0, height: 0,
+      editMode: 'simple',
+      startArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      canvasStyleExt: { stroke: '#d38f36', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
+    });
     clear();
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }, [activeTool, addCanvasBlock, entity.id, findClosestBlockHandle, history]);
 
+  const handleDoubleClickBlock = useCallback((blockId: string) => {
+    const block = useStore.getState().blocks.find(b => b.id === blockId);
+    if (block && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
+      setEditingBlockId(blockId);
+      setActiveTool('select');
+    }
+  }, []);
 
   const selectedBlocks = useMemo(
     () => pageBlocks.filter(b => selectedIds.has(b.id) && b.type !== 'connection'),
@@ -240,7 +244,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   useEffect(() => {
     const isShapeTool = ['rect', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow'].includes(activeTool);
-    setShowStylePanel(selectedIds.size > 0 || isShapeTool);
+    if (selectedIds.size > 0 || isShapeTool) {
+      setShowStylePanel(true);
+    }
   }, [selectedIds, activeTool]);
 
   useEffect(() => {
@@ -268,6 +274,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           setActiveTool('select');
           if (e.key === 'Escape') {
             setSelectedIds(new Set());
+            setEditingBlockId(null);
           }
           break;
         case 'h': setActiveTool('move'); break;
@@ -475,6 +482,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const target = e.target as HTMLElement;
     if (target.id !== 'canvas-bg' && !target.closest('#canvas-bg')) return;
 
+    if (editingBlockId && e.target === e.currentTarget) {
+      setEditingBlockId(null);
+    }
+
     if (mediaPopover) { setMediaPopover(null); return; }
 
     setShowFloatingToolbar(false);
@@ -679,43 +690,35 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       <CanvasToolbar
         activeTool={activeTool}
         setActiveTool={setActiveTool}
-        showLayers={showLayers}
-        setShowLayers={setShowLayers}
-        snapEnabled={snapEnabled}
-        setSnapEnabled={setSnapEnabled}
-        zoom={viewport.scale}
-        onZoomIn={() => setViewport(p => ({ ...p, scale: Math.min(MAX_ZOOM, p.scale + ZOOM_STEP) }))}
-        onZoomOut={() => setViewport(p => ({ ...p, scale: Math.max(MIN_ZOOM, p.scale - ZOOM_STEP) }))}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onExport={async () => {
-          const el = document.getElementById('canvas-viewport-export');
-          if (el) await exportCanvasToPng(el as HTMLElement, entity.title);
-        }}
-        onShare={() => {
-          copyShareLinkToClipboard(entity.id);
-        }}
         canvasTitle={entity.title}
       />
 
-      <div className="flex flex-1 overflow-hidden" style={{ paddingTop: 40 }}>
+      <div className="flex-1 relative overflow-hidden" style={{ paddingTop: 40 }}>
         {showLayers && (
-          <CanvasLayersPanel
-            canvasId={entity.id}
-            selectedIds={selectedIds}
-            onSelect={selectBlock}
-          />
+          <div
+            className="absolute left-4 top-[52px] z-[1500] flex flex-col select-none"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <CanvasLayersPanel
+              canvasId={entity.id}
+              selectedIds={selectedIds}
+              onSelect={selectBlock}
+            />
+          </div>
         )}
 
         <div
           ref={canvasContainerRef}
-          className="flex-1 relative overflow-hidden"
+          className="absolute inset-0 overflow-hidden"
           style={{
             cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : undefined,
-            background: 'var(--app-background)',
-            backgroundImage: `radial-gradient(var(--bone-15) 1.2px, transparent 1.2px)`,
+            backgroundColor: canvasBgColor === 'default' ? 'var(--app-background)' : canvasBgColor,
+            backgroundImage: canvasPattern === 'grid'
+              ? `linear-gradient(to right, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px)`
+              : canvasPattern === 'dots'
+              ? `radial-gradient(circle, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1.2px, transparent 1.2px)`
+              : 'none',
             backgroundSize: `${20 * viewport.scale}px ${20 * viewport.scale}px`,
             backgroundPosition: `${viewport.x}px ${viewport.y}px`,
           }}
@@ -748,7 +751,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -902,7 +905,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       <button
                         title="Duplicate (Ctrl+D)"
                         onClick={handleDuplicateSelection}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -911,7 +914,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       <button
                         title="Bring to Front"
                         onClick={() => handleLayerOrder('front')}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
@@ -920,7 +923,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       <button
                         title="Send to Back"
                         onClick={() => handleLayerOrder('back')}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
@@ -960,21 +963,164 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               onClose={() => setMediaPopover(null)}
             />
           )}
+
+          {/* Floating Canvas Controls (Zoom and Undo/Redo) in the bottom left */}
+          <div 
+            className="absolute bottom-6 left-6 z-[1000] flex gap-2 select-none"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Zoom Controls */}
+            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[8px] p-[3px]">
+              <button
+                onClick={() => setViewport(p => ({ ...p, scale: Math.max(MIN_ZOOM, p.scale - ZOOM_STEP) }))}
+                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                title="Zoom Out"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              
+              <button
+                onClick={() => setViewport(p => ({ ...p, scale: 1.0 }))}
+                className="px-2 h-[26px] flex items-center justify-center text-[11px] font-semibold text-[var(--bone-90)] hover:text-[var(--bone-100)] transition-none min-w-[48px] text-center cursor-pointer"
+                title="Reset Zoom to 100%"
+              >
+                {Math.round(viewport.scale * 100)}%
+              </button>
+
+              <button
+                onClick={() => setViewport(p => ({ ...p, scale: Math.min(MAX_ZOOM, p.scale + ZOOM_STEP) }))}
+                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                title="Zoom In"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Undo / Redo Controls */}
+            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[8px] p-[3px] gap-[1px]">
+              <button
+                onClick={handleUndo}
+                disabled={!history.canUndo}
+                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={!history.canRedo}
+                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Toolbar above the Right Sidebar */}
+        <div 
+          className="absolute right-4 top-[52px] z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[11px] p-[5px] gap-[4px] select-none"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-[4px] flex-1">
+            {/* Toggle Right Sidebar */}
+            <button
+              onClick={() => setShowStylePanel(!showStylePanel)}
+              className={cn(
+                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                showStylePanel
+                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+              )}
+              title="Toggle style sidebar"
+            >
+              <PanelRight className="w-4 h-4" />
+            </button>
+
+            {/* Toggle Left Sidebar (Layers) */}
+            <button
+              onClick={() => setShowLayers(!showLayers)}
+              className={cn(
+                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                showLayers
+                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+              )}
+              title="Layers panel"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
+            {/* Toggle Snapping */}
+            <button
+              onClick={() => setSnapEnabled(!snapEnabled)}
+              className={cn(
+                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                snapEnabled
+                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+              )}
+              title={snapEnabled ? "Snapping is ON (aligns blocks to each other)" : "Snapping is OFF (smooth movement)"}
+            >
+              <Magnet className="w-4 h-4" />
+            </button>
+
+            {/* Export PNG */}
+            <button
+              onClick={async () => {
+                const el = document.getElementById('canvas-viewport-export');
+                if (el) await exportCanvasToPng(el as HTMLElement, entity.title);
+              }}
+              className="w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none cursor-pointer"
+              title="Export PNG"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Share Button */}
+          <button
+            onClick={() => copyShareLinkToClipboard(entity.id)}
+            className="h-[30px] px-3 rounded-[var(--radius-small)] bg-[var(--bone-15)] text-[var(--bone-100)] hover:bg-[var(--bone-25)] hover:text-[var(--bone-100)] text-[11px] font-bold tracking-wide transition-none active:bg-[var(--bone-30)] cursor-pointer"
+          >
+            Share
+          </button>
         </div>
 
         {showStylePanel && (
-          <CanvasStylePanel
-            selectedIds={selectedIds}
-            canvasId={entity.id}
-            activeStyle={activeStyle}
-            onChangeActiveStyle={setActiveStyle}
-            onAlignLeft={() => alignBlocks('left')}
-            onAlignCenterH={() => alignBlocks('centerH')}
-            onAlignRight={() => alignBlocks('right')}
-            onAlignTop={() => alignBlocks('top')}
-            onAlignCenterV={() => alignBlocks('centerV')}
-            onAlignBottom={() => alignBlocks('bottom')}
-          />
+          <div
+            className="absolute right-4 top-[98px] z-[1500] flex flex-col select-none"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <CanvasStylePanel
+              selectedIds={selectedIds}
+              canvasId={entity.id}
+              activeStyle={activeStyle}
+              onChangeActiveStyle={setActiveStyle}
+              onAlignLeft={() => alignBlocks('left')}
+              onAlignCenterH={() => alignBlocks('centerH')}
+              onAlignRight={() => alignBlocks('right')}
+              onAlignTop={() => alignBlocks('top')}
+              onAlignCenterV={() => alignBlocks('centerV')}
+              onAlignBottom={() => alignBlocks('bottom')}
+              canvasBgColor={canvasBgColor}
+              onCanvasBgColorChange={setCanvasBgColor}
+              canvasPattern={canvasPattern}
+              onCanvasPatternChange={setCanvasPattern}
+              canvasPatternOpacity={canvasPatternOpacity}
+              onCanvasPatternOpacityChange={setCanvasPatternOpacity}
+              canvasPatternColor={canvasPatternColor}
+              onCanvasPatternColorChange={setCanvasPatternColor}
+              activeTool={activeTool}
+            />
+          </div>
         )}
       </div>
     </div>
