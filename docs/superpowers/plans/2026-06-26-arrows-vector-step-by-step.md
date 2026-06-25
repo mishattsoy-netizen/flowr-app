@@ -71,6 +71,36 @@ canvasContainerRef (outer div, `overflow: hidden`)
 
 ---
 
+## Pre-Flight Checklist
+
+Before starting Step 1, verify the environment is clean:
+
+```powershell
+# 1. No keyPoints references remain
+rg "keyPoints" src/
+# Expected: 0 results
+
+# 2. SmartArrowEdge is deleted
+rg "SmartArrowEdge" src/
+# Expected: 0 results
+
+# 3. TypeScript compiles
+npx tsc --noEmit
+# Expected: clean output
+
+# 4. Clear Next.js cache
+rm -rf .next
+
+# 5. Check current git state
+git log --oneline -3
+# Latest commits should be:
+# - de8fdfd docs: add Step 7.5 per-point corner radius editing
+# - 5695fe2 docs: detailed step-by-step handoff plan
+# - b862f27 fix: v17 migration copies legacy keyPoints into points
+```
+
+---
+
 ## Step-by-Step Implementation Plan
 
 **CRITICAL RULES:**
@@ -100,6 +130,7 @@ canvasContainerRef (outer div, `overflow: hidden`)
 ```ts
 blocks: [
   { id: 'b1', type: 'text', content: 'Explore unified navigation.', x: 100, y: 100, canvasId: 'cv1' },
+  // Standalone arrow
   { id: 'test-arrow', type: 'shape', shapeKind: 'arrow', canvasId: 'cv1',
     points: [[200, 200], [350, 250], [500, 200]],
     editMode: 'simple',
@@ -107,21 +138,38 @@ blocks: [
     endArrowhead: { type: 'filled-triangle', size: 1 },
     canvasStyleExt: { stroke: '#d38f36', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
   },
+  // Bound arrow (connects b1 to a second text block)
+  { id: 'test-text-2', type: 'text', content: 'Second block', x: 600, y: 100, canvasId: 'cv1' },
+  { id: 'test-bound-arrow', type: 'shape', shapeKind: 'arrow', canvasId: 'cv1',
+    points: [[100, 180]],  // intermediate points only (endpoints from bindings)
+    startBinding: { blockId: 'b1' },
+    endBinding: { blockId: 'test-text-2' },
+    editMode: 'simple',
+    startArrowhead: { type: 'filled-triangle', size: 1 },
+    endArrowhead: { type: 'filled-triangle', size: 1 },
+    canvasStyleExt: { stroke: '#5b9cf6', strokeWidth: 2, strokeStyle: 'solid' },
+  },
 ]
 ```
 
-2. **Verify the test arrow renders:**
-   - Arrow path visible at coordinates (200,200) → (350,250) → (500,200)
-   - Arrowhead at end of path
-   - No empty HTML box next to it (CanvasBlock filter should exclude arrow shapes)
-   - Can click it (hitbox 22px)
+2. **Verify the test arrows render:**
+   - Standalone arrow: path visible at (200,200) → (350,250) → (500,200), arrowhead at end
+   - Bound arrow: path from b1 (100,100 area) to test-text-2 (600,100 area), endpoints attached to blocks
+   - No empty HTML boxes next to arrows (CanvasBlock filter excludes shape arrows)
+   - Can click hitbox (22px invisible stroke) — selected state changes
+   - Bound arrow endpoints compute from bindings even though blocks have default positions
 
 3. **Check z-index:**
-   - Standalone arrow (no bindings) should appear in the standalone SVG layer at z-[10]
-   - Bound arrow (has `startBinding`/`endBinding`) should appear in CanvasConnections SVG at z-[5]
-   - Neither should be hidden under text blocks
+   - Standalone arrow (no bindings) → standalone SVG layer at zIndex: 10 (outside viewport)
+   - Bound arrow (has bindings) → CanvasConnections SVG at z-[5] (inside viewport)
+   - Neither hidden under text blocks
 
-4. **Remove the test arrow** after verification.
+4. **Check `resolvePoints` works for both cases:**
+   - Standalone: `resolvePoints(block, allBlocks)` → returns `block.points` directly (no bindings)
+   - Bound: `resolvePoints(block, allBlocks)` → returns `[resolvedStart, ...points, resolvedEnd]` (bindings resolved)
+   - Legacy: old connection blocks with `fromId`/`toId` but no bindings → `legacyEndpoint` handles them
+
+5. **Remove ALL test blocks** after verification (restore original default state).
 
 **Verify:** Open canvas page → colorful arrow visible → no empty box → can click → arrow highlights blue
 
@@ -168,6 +216,12 @@ blocks: [
 6. **Debug coordinate issues:**
    - If waypoints appear at wrong position: check `screenToCanvas` uses correct `viewportRef` and `canvasContainerRef`
    - If preview line from top-left: check `mousePosition` is set after first `addPoint`
+   - Check browser console for errors (React error boundary, null refs)
+
+7. **Connection dots on blocks also start drawing:**
+   - When arrow tool active, CanvasBlock shows 8 dots (corner + edge-mid)
+   - Clicking a dot calls `onConnectStart(side, x, y)` → same flow as clicking empty canvas
+   - Verify clicking a block dot starts drawing from that exact point on the block edge
 
 **Verify:** Select arrow tool → click 3+ points on canvas → preview line follows mouse between clicks → press Enter → arrow appears at clicked positions → switch to select tool (V) → arrow is selectable
 
@@ -200,12 +254,22 @@ blocks: [
    - `applyTransform()` applies `el.style.transform = translate3d(dx, dy, 0)` during drag
    - After drop: transform cleared, `points` updated in store
 
-3. **Multi-select:**
+3. **Multi-select + group drag:**
    - `useCanvasMultiSelect` computes bounds from `b.points`
    - Selection rectangle over arrow → arrow gets selected
    - Already implemented, just verify it works
 
-**Verify:** Select arrow → drag it smoothly → arrow moves with mouse → release → arrow stays at new position → multi-select rectangle over arrow → arrow selected → can drag group
+4. **Duplicate arrow:**
+   - `handleDuplicateSelection` clones blocks and offsets by +20
+   - Must translate `points` by +20 (line ~186 in CanvasPage: `copy.points = b.points.map(p => [p[0] + 20, p[1] + 20])`)
+   - Verify duplicate arrow renders correctly offset
+
+5. **Undo/Redo:**
+   - `history.push()` stores full block snapshot on each operation
+   - Verify: drag arrow → undo → arrow returns to original position
+   - Verify: draw arrow → undo → arrow removed
+
+**Verify:** Select arrow → drag it smoothly → arrow moves with mouse → release → arrow stays at new position → multi-select rectangle over arrow → arrow selected → can drag group → duplicate (Ctrl+D) → copy appears offset → undo (Ctrl+Z) → copy removed → redo → copy returns
 
 **Commit after verification.**
 
@@ -320,10 +384,11 @@ blocks: [
    - `viewportScale` prop ensures correct coordinate conversion
    - Cursor changes to `grabbing` while dragging
 
-4. **Exit edit mode:**
-   - Escape key handler in CanvasPage: `if (e.key === 'Escape') setEditingBlockId(null)`
-   - Canvas background click: `if (e.target === e.currentTarget) setEditingBlockId(null)`
-   - Switch to different tool: `setActiveTool` should clear edit mode
+4. **Exit edit mode (must also clear `selectedPointIndex`):**
+   - Escape key handler: `if (e.key === 'Escape') { setEditingBlockId(null); setSelectedPointIndex(null); }`
+   - Canvas background click: `if (e.target === e.currentTarget) { setEditingBlockId(null); setSelectedPointIndex(null); }`
+   - Switch to different tool: clear both states
+   - Selecting a different arrow: clear `selectedPointIndex` before setting new `editingBlockId`
 
 **Verify:** Double-click arrow → waypoint dots become bright + draggable → binding dots show in orange → drag a waypoint → path updates live → press Esc → edit mode exits → waypoint dots return to dim
 
@@ -340,20 +405,32 @@ blocks: [
 
 **What to verify/fix:**
 
-1. **Arrowhead type/size:**
-   - `CanvasStylePanel` shows "Arrowheads" section when `shapeKind === 'arrow'`
+1. **Check `updateBlockFields` function exists in CanvasStylePanel:**
+   - Must exist alongside `updateStyle` and `updateGeom`
+   - Updates top-level `EditorBlock` fields (`startArrowhead`, `endArrowhead`, `editMode`, `pointRadiuses`) via `updateCanvasBlock`
+   - If missing, create it — same pattern as `updateGeom`:
+   ```ts
+   function updateBlockFields(patch: Partial<EditorBlock>) {
+     if (hasSelection) {
+       selected.forEach(b => updateCanvasBlock(b.id, patch));
+     }
+   }
+   ```
+
+2. **Arrowhead type/size:**
+   - `CanvasStylePanel` shows "Arrowheads" section when `shapeKind === 'arrow' || shapeKind === 'line'`
    - Start/End type dropdowns already built
    - Size slider already built
-   - Changes must update `block.startArrowhead`/`block.endArrowhead` (top-level fields, NOT `canvasStyleExt`)
-   - Uses `updateBlockFields` (analogous to `updateGeom`) for top-level fields
+   - Changes must update `block.startArrowhead`/`block.endArrowhead` via `updateBlockFields`
 
-2. **Simple/Advanced mode toggle:**
+3. **Simple/Advanced mode toggle:**
    - Toggle in style panel for `editMode: 'simple' | 'advanced'`
-   - Switching to advanced: initializes `pointRadiuses` to all 20s (count = `points.length`)
-   - Switching to simple: clears `pointRadiuses`
+   - Switching to advanced: initializes `pointRadiuses` to all 20s via `updateBlockFields`
+   - Count = `ref.points?.length || 0`
+   - Switching to simple: `updateBlockFields({ editMode: 'simple', pointRadiuses: undefined })`
    - VectorPath uses `isAdvanced && radiuses.length > 0` to choose `calculateAdvancedPath` vs `calculateCatmullRomPath`
 
-3. **Stroke weight/color/style:**
+4. **Stroke weight/color/style:**
    - Already handled by existing style panel code via `canvasStyleExt`
    - Verify these work on arrow shapes (should already work)
 
@@ -373,6 +450,12 @@ blocks: [
 - `src/components/canvas/CanvasStylePanel.tsx` — per-point radius display + edit
 
 **What to do:**
+
+0. **Understanding `pointRadiuses` indexing:**
+   - `pointRadiuses[i]` = corner radius at waypoint `i` in `block.points`
+   - For bound arrows, `points` stores intermediate waypoints (NO endpoints). `pointRadiuses` indices match these.
+   - For standalone arrows, `points` stores all waypoints. `pointRadiuses` indices match all.
+   - The corner radius applies to the angle AT that waypoint (between incoming and outgoing segments)
 
 1. **Add `selectedPointIndex` state to CanvasPage:**
 ```ts
@@ -394,19 +477,24 @@ Pass from CanvasPage through the standalone arrows SVG.
 - Visual: selected waypoint is larger (8px), has blue border
 - Other waypoints are normal (5px, white fill, stroke-color border)
 
-4. **Update CanvasStylePanel:**
-- Read `ref.pointRadiuses` (array, same length as `ref.points`)
-- When `ref.editMode === 'advanced'`:
-  - If all `pointRadiuses` are the SAME value → show that number in the Corner Radius input
-  - If they DIFFER → show "Mixed" text instead of a number
-  - Changing the value updates ALL point radiuses
-- When `selectedPointIndex` is NOT null (a specific point is selected):
-  - Show only that point's radius value
-  - Changing it updates ONLY `pointRadiuses[selectedPointIndex]`
-  - Show a label like "Corner #2" to indicate which point
-- Use `updateCanvasBlock` to write `pointRadiuses` directly (top-level field, not `canvasStyleExt`)
+5. **Update CanvasStylePanel — per-point radius logic:**
+   - Read `ref.pointRadiuses` (array, same length as `ref.points`)
+   - When `ref.editMode === 'advanced'`:
+     - If all `pointRadiuses` are the SAME value → show that number in the Corner Radius input
+     - If they DIFFER → show "Mixed" text instead of a number (disable scrubbing, only allow typing a new value)
+     - Changing the value updates ALL point radiuses via `updateBlockFields({ pointRadiuses: Array(n).fill(newValue) })`
+   - When `selectedPointIndex` is NOT null (a specific point is selected AND editing):
+     - Show "Corner #N" label where N = selectedPointIndex + 1
+     - Show only that point's radius value
+     - Changing it updates ONLY `pointRadiuses[selectedPointIndex]`:
+       ```ts
+       const newRadii = [...(ref.pointRadiuses ?? Array(ref.points?.length ?? 0).fill(20))];
+       newRadii[selectedPointIndex!] = newValue;
+       updateBlockFields({ pointRadiuses: newRadii });
+       ```
+   - Use `updateBlockFields` to write `pointRadiuses` directly (top-level field)
 
-5. **Radius change instant feedback:**
+6. **Radius change instant feedback:**
 - `VectorPath` reads `block.pointRadiuses` for `calculateAdvancedPath`
 - Changing radiuses in style panel → store update → VectorPath re-renders → curve updates live
 
@@ -485,3 +573,6 @@ Pass from CanvasPage through the standalone arrows SVG.
 6. **Do NOT add GSAP or any animation** — removed for reliability
 7. **Do NOT modify the migration without bumping version** — current version is 17
 8. **Do NOT change `resolvePoints` signature** — callers depend on `(block, allBlocks) => [number,number][]`
+9. **Do NOT remove `pointRadiuses` from EditorBlock** — needed for advanced mode corner radius
+10. **Do NOT forget to clear `.next` cache** if changes don't appear: `rm -rf .next`
+11. **Do NOT skip testing with old localStorage data** — clear it or test in incognito
