@@ -61,30 +61,22 @@ function migrateBlock(block: any): any {
   }
 
   if (block.type === 'connection') {
-    const kind = block.shapeKind || 'arrow';
+    const { fromId, toId, fromSide, toSide, ...rest } = block;
+    const kind = rest.shapeKind || 'arrow';
     return {
-      ...block,
+      ...rest,
       type: 'shape',
       shapeKind: kind,
       editMode: 'simple',
-      startBinding: block.fromId ? { blockId: block.fromId } : undefined,
-      endBinding: block.toId ? { blockId: block.toId } : undefined,
-      keyPoints: block.points ? block.points.slice(1, -1) : [],
+      startBinding: fromId ? { blockId: fromId } : undefined,
+      endBinding: toId ? { blockId: toId } : undefined,
+      keyPoints: rest.points ? rest.points.slice(1, -1) : [],
       startArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
       endArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
-      fromId: undefined,
-      toId: undefined,
-      fromSide: undefined,
-      toSide: undefined,
     };
   }
 
   return block;
-}
-
-function migrateBlocks(blocks: any[]): any[] {
-  if (!Array.isArray(blocks)) return blocks;
-  return blocks.map(migrateBlock);
 }
 
 // ─── Store ─────── (types/constants/helpers moved to store.types.ts / store.constants.ts / store.helpers.ts) ───
