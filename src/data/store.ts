@@ -29,7 +29,7 @@ export type {
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
   WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
-  BotMode, ShapeKind, CanvasStyleExt,
+  BotMode, ShapeKind, CanvasStyleExt, ArrowBinding,
 } from './store.types';
 
 // Re-export helpers needed by external consumers
