@@ -90,7 +90,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     // Access current block snapshot for realtime resolution during fast click streams
     const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
     liveBlocks.forEach(b => {
-      if (b.type === 'connection' || b.type === 'shape') return;
+      if (b.type === 'connection' || (b.type === 'shape' && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw'))) return;
       const bx = b.x || 0, by = b.y || 0;
       const bw = b.width || 280, bh = b.height || 100;
       
@@ -751,7 +751,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -762,6 +762,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   onSelect={selectBlock}
                   onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                   onContextMenu={handleBlockContextMenu}
+                  onDoubleClick={handleDoubleClickBlock}
                 />
 
                 {/* Snap Guides Overlay */}
@@ -834,7 +835,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   </div>
                 ))}
 
-                {pageBlocks.map(b => (
+                {pageBlocks.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw' && b.type !== 'connection').map(b => (
                   <CanvasBlock
                     key={b.id}
                     block={b}

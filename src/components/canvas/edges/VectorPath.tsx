@@ -15,9 +15,10 @@ interface VectorPathProps {
   onPointDragStart?: (index: number, e: React.PointerEvent) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
   onPathClickForAdd?: (t: number, x: number, y: number) => void;
+  onDoubleClick?: () => void;
 }
 
-export function VectorPath({ block, selected, editing, onSelect, onPointDragStart, onBindingDragStart }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, onSelect, onPointDragStart, onBindingDragStart, onDoubleClick }: VectorPathProps) {
   const pathRef = useRef<SVGPathElement>(null);
   const allBlocks = useStore(s => s.blocks);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -79,6 +80,7 @@ export function VectorPath({ block, selected, editing, onSelect, onPointDragStar
         fill="none" stroke="transparent" strokeWidth={22}
         className="cursor-pointer" style={{ pointerEvents: 'auto' }}
         onPointerDown={e => { e.stopPropagation(); onSelect?.(block.id, e.shiftKey); }}
+        onDoubleClick={e => { e.stopPropagation(); onDoubleClick?.(); }}
         data-connection-hitbox={block.id}
         data-block-id={block.id}
         data-start-binding={block.startBinding ? JSON.stringify(block.startBinding) : undefined}

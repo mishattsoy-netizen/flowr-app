@@ -16,6 +16,7 @@ interface Props {
   onCommit?: () => void;
   snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
+  onDoubleClick?: (blockId: string) => void;
 }
 
 function shapeStroke(style: CanvasStyleExt): string {
@@ -76,7 +77,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
   return null;
 }
 
-export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu }: Props) {
+export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick }: Props) {
   const liveBlocks = useStore(s => s.blocks);
   const shapes = useMemo(() => {
     const initialIds = new Set(initialBlocks.map(b => b.id));
@@ -147,11 +148,12 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
           </g>
         );
       })}
-      {shapes.filter(b => b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw').map(b => (
+      {shapes.filter(b => b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw').filter(b => !(b.startBinding || b.endBinding || b.fromId || b.toId)).map(b => (
         <VectorPath key={b.id} block={b}
           selected={selectedIds.has(b.id)}
           editing={false}
-          onSelect={(id, add) => onSelect(id, add)} />
+          onSelect={(id, add) => onSelect(id, add)}
+          onDoubleClick={() => onDoubleClick?.(b.id)} />
       ))}
     </svg>
   );
