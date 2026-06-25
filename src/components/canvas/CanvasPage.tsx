@@ -33,6 +33,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [showStylePanel, setShowStylePanel] = useState(true);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [canvasBgColor, setCanvasBgColor] = useState('default');
@@ -161,6 +162,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const handleDoubleClickBlock = useCallback((blockId: string) => {
     const block = useStore.getState().blocks.find(b => b.id === blockId);
     if (block && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
+      setSelectedPointIndex(null);
       setEditingBlockId(blockId);
       setActiveTool('select');
     }
@@ -301,6 +303,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           if (e.key === 'Escape') {
             setSelectedIds(new Set());
             setEditingBlockId(null);
+            setSelectedPointIndex(null);
           }
           break;
         case 'h': setActiveTool('move'); break;
@@ -510,6 +513,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     if (editingBlockId && e.target === e.currentTarget) {
       setEditingBlockId(null);
+      setSelectedPointIndex(null);
     }
 
     if (mediaPopover) { setMediaPopover(null); return; }
@@ -779,7 +783,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} onDoubleClick={handleDoubleClickBlock} activeTool={activeTool} viewportScale={viewport.scale} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} activeTool={activeTool} viewportScale={viewport.scale} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -879,11 +883,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     <VectorPath key={b.id} block={b}
                       selected={selectedIds.has(b.id)}
                       editing={editingBlockId === b.id}
+                      selectedPointIndex={editingBlockId === b.id ? selectedPointIndex : null}
                       activeTool={activeTool}
                       viewportScale={viewport.scale}
                       onSelect={selectBlock}
                       onDoubleClick={() => handleDoubleClickBlock(b.id)}
-                      onDragStart={(e) => handleArrowDrag(e, b)} />
+                      onDragStart={(e) => handleArrowDrag(e, b)}
+                      onPointSelect={setSelectedPointIndex} />
                   ))}
                 </svg>
 
@@ -1172,6 +1178,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               canvasPatternColor={canvasPatternColor}
               onCanvasPatternColorChange={setCanvasPatternColor}
               activeTool={activeTool}
+              selectedPointIndex={selectedPointIndex}
             />
           </div>
         )}

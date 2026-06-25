@@ -8,12 +8,14 @@ interface CanvasConnectionsProps {
   selectedIds: Set<string>;
   onSelect: (id: string, addToSelection: boolean) => void;
   editingBlockId?: string | null;
+  selectedPointIndex?: number | null;
   onDoubleClick?: (blockId: string) => void;
+  onPointSelect?: (index: number | null) => void;
   activeTool?: string;
   viewportScale?: number;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, onDoubleClick, activeTool, viewportScale }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, activeTool, viewportScale }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
@@ -31,10 +33,12 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
         <VectorPath key={block.id} block={block}
           selected={selectedIds.has(block.id)}
           editing={editingBlockId === block.id}
+          selectedPointIndex={editingBlockId === block.id ? selectedPointIndex : null}
           activeTool={activeTool}
           viewportScale={viewportScale}
           onSelect={onSelect}
-          onDoubleClick={() => onDoubleClick?.(block.id)} />
+          onDoubleClick={() => onDoubleClick?.(block.id)}
+          onPointSelect={onPointSelect} />
       ))}
     </svg>
   );

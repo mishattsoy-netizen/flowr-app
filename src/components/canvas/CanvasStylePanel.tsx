@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { useStore, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { useDragState } from '@/lib/canvasDragState';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { Toggle } from '../ui/Toggle';
 import type { CanvasTool } from './CanvasToolbar';
 import { ColorPickerPopover } from './ColorPickerPopover';
 import { Eye, EyeOff } from 'lucide-react';
+import { toPng } from 'html-to-image';
 
 interface Props {
   selectedIds: Set<string>;
@@ -29,6 +30,7 @@ interface Props {
   canvasPatternColor: string;
   onCanvasPatternColorChange: (color: string) => void;
   activeTool: CanvasTool;
+  selectedPointIndex?: number | null;
 }
 
 
@@ -61,7 +63,7 @@ const PATTERN_ICONS: Record<'none' | 'grid' | 'dots', React.ReactNode> = {
 
 function PanelSection({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="px-3 py-2.5 border-b border-[var(--bone-10)]">
+    <div className="px-4 py-2.5 border-b border-[var(--bone-10)]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-ui-label font-semibold tracking-wider text-[var(--bone-100)]">{title}</span>
         {action}
@@ -297,12 +299,43 @@ export function CanvasStylePanel({
   canvasPatternOpacity, onCanvasPatternOpacityChange,
   canvasPatternColor, onCanvasPatternColorChange,
   activeTool,
+  selectedPointIndex,
 }: Props) {
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const [activePicker, setActivePicker] = useState<'bg' | 'pattern' | 'fill' | 'border' | null>(null);
   const outerRef = useRef<HTMLDivElement>(null);
   const [pickerTop, setPickerTop] = useState(0);
+  const [hiddenColors, setHiddenColors] = useState<Record<string, boolean>>({});
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  function resolveCSSVar(name: string): string {
+    if (typeof document === 'undefined') return '#000000';
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function makeScrub(initVal: number, onChange: (v: number) => void, step = 1, min = 0, max = 100) {
+    return (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startVal = initVal;
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX;
+        let newVal = Math.round((startVal + dx * 0.5) / step) * step;
+        newVal = Math.min(max, Math.max(min, newVal));
+        onChange(newVal);
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.style.cursor = '';
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      document.body.style.cursor = 'ew-resize';
+    };
+  }
 
   const togglePicker = (picker: 'bg' | 'pattern' | 'fill' | 'border', e: React.MouseEvent) => {
     e.stopPropagation();
@@ -329,6 +362,23 @@ export function CanvasStylePanel({
 
   const isShapeTool = ['rect', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow'].includes(activeTool);
   const showShapeCustomization = hasSelection || isShapeTool;
+
+  // Debounced canvas preview capture
+  useEffect(() => {
+    if (showShapeCustomization) return;
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = setTimeout(async () => {
+      const el = document.getElementById('canvas-viewport-export');
+      if (!el) return;
+      try {
+        const url = await toPng(el as HTMLElement, { pixelRatio: 0.3, backgroundColor: '#141413' });
+        setPreviewUrl(url);
+      } catch {}
+    }, 800);
+
+    return () => { if (previewTimerRef.current) clearTimeout(previewTimerRef.current); };
+  }, [canvasBgColor, canvasPattern, canvasPatternColor, canvasPatternOpacity, blocks, showShapeCustomization]);
 
   const ref = hasSelection ? selected[0] : null;
   const style = hasSelection ? (ref?.canvasStyleExt ?? {}) : activeStyle;
@@ -677,8 +727,8 @@ export function CanvasStylePanel({
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
-              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger">
+            <div className={cn("flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative", hiddenColors['fill'] && "opacity-40")}>
+              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('fill', e)}
                   className="w-full h-full rounded-[3px] block transition-none"
@@ -700,24 +750,35 @@ export function CanvasStylePanel({
                   }
                 }}
                 className={cn(
-                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 font-mono",
+                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0",
                   style.fill && style.fill !== 'transparent' && "uppercase"
                 )}
               />
               <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
-              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 pr-1 select-none">
-                {Math.round((style.fillOpacity ?? 1) * 100)} %
-              </span>
+              <input
+                type="text"
+                value={Math.round((style.fillOpacity ?? 1) * 100)}
+                onChange={e => {
+                  const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
+                  updateStyle({ fillOpacity: num / 100 });
+                }}
+                className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
+              />
+              <span
+                onPointerDown={makeScrub(
+                  (style.fillOpacity ?? 1) * 100,
+                  v => updateStyle({ fillOpacity: v / 100 }),
+                  1, 0, 100
+                )}
+                className="cursor-ew-resize select-none text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0"
+              >%</span>
             </div>
             <button
-              onClick={() => {
-                const isVisible = style.fill && style.fill !== 'transparent';
-                updateStyle({ fill: isVisible ? 'transparent' : '#ffffff', fillOpacity: isVisible ? 0 : 1 });
-              }}
+              onClick={() => setHiddenColors(prev => ({ ...prev, fill: !prev['fill'] }))}
               className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
-              title={style.fill && style.fill !== 'transparent' ? 'Hide fill' : 'Show fill'}
+              title={hiddenColors['fill'] ? 'Show fill' : 'Hide fill'}
             >
-              {style.fill && style.fill !== 'transparent' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {hiddenColors['fill'] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
@@ -728,8 +789,8 @@ export function CanvasStylePanel({
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
-              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger">
+            <div className={cn("flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative", hiddenColors['border'] && "opacity-40")}>
+              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('border', e)}
                   className="w-full h-full rounded-[3px] block transition-none"
@@ -751,24 +812,28 @@ export function CanvasStylePanel({
                   }
                 }}
                 className={cn(
-                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 font-mono",
+                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0",
                   style.stroke && style.stroke !== 'transparent' && "uppercase"
                 )}
               />
               <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
-              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 pr-1 select-none">
-                100 %
-              </span>
+              <input
+                type="text"
+                value={100}
+                onChange={e => {
+                  const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
+                  updateStyle({ stroke: style.stroke });
+                }}
+                className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
+              />
+              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 select-none">%</span>
             </div>
             <button
-              onClick={() => {
-                const isVisible = style.stroke && style.stroke !== 'transparent';
-                updateStyle({ stroke: isVisible ? 'transparent' : '#242423' });
-              }}
+              onClick={() => setHiddenColors(prev => ({ ...prev, border: !prev['border'] }))}
               className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
-              title={style.stroke && style.stroke !== 'transparent' ? 'Hide border' : 'Show border'}
+              title={hiddenColors['border'] ? 'Show border' : 'Hide border'}
             >
-              {style.stroke && style.stroke !== 'transparent' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {hiddenColors['border'] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
@@ -898,6 +963,53 @@ export function CanvasStylePanel({
         </PanelSection>
       )}
 
+      {ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line' || ref.shapeKind === 'freedraw') && ref.editMode === 'advanced' && (() => {
+        const radii = ref.pointRadiuses ?? [];
+        const allSame = radii.length > 0 && radii.every(r => r === radii[0]);
+        const hasMixed = radii.length > 1 && !allSame;
+        const selIdx = selectedPointIndex != null && selectedPointIndex < radii.length ? selectedPointIndex : null;
+        const currentVal = selIdx != null ? radii[selIdx] : (allSame ? radii[0] : null);
+        return (
+          <PanelSection title="Corner Radius">
+            {selIdx != null ? (
+              <PropRow label={`Corner #${selIdx + 1}`}>
+                <input
+                  type="number" min={0} max={100} step={1}
+                  value={currentVal ?? 20}
+                  onChange={e => {
+                    const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                    const newRadii = [...radii];
+                    if (selIdx < newRadii.length) {
+                      newRadii[selIdx] = v;
+                    }
+                    updateBlockFields({ pointRadiuses: newRadii });
+                  }}
+                  className="flex-1 h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] text-[11px] text-[var(--bone-90)] border-none outline-none px-2"
+                />
+              </PropRow>
+            ) : hasMixed ? (
+              <PropRow label="Corners">
+                <div className="flex-1 h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] flex items-center px-2">
+                  <span className="text-[11px] text-[var(--bone-40)]">Mixed</span>
+                </div>
+              </PropRow>
+            ) : allSame ? (
+              <PropRow label="Corners">
+                <input
+                  type="number" min={0} max={100} step={1}
+                  value={currentVal ?? 20}
+                  onChange={e => {
+                    const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                    updateBlockFields({ pointRadiuses: Array(radii.length).fill(v) });
+                  }}
+                  className="flex-1 h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] text-[11px] text-[var(--bone-90)] border-none outline-none px-2"
+                />
+              </PropRow>
+            ) : null}
+          </PanelSection>
+        );
+      })()}
+
       <PanelSection title="Options">
         <PropRow label="Locked">
           <Toggle
@@ -929,7 +1041,7 @@ export function CanvasStylePanel({
           <div className="flex items-center gap-2">
             <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
               {/* Color swatch square */}
-              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger">
+              <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('bg', e)}
                   className="w-full h-full rounded-[3px] block transition-none"
@@ -940,7 +1052,7 @@ export function CanvasStylePanel({
               {/* Hex value text */}
               <input
                 type="text"
-                value={canvasBgColor === 'default' ? 'Default' : canvasBgColor.replace('#', '').toUpperCase()}
+                value={canvasBgColor === 'default' ? resolveCSSVar('--app-background').replace('#', '').toUpperCase() : canvasBgColor.replace('#', '').toUpperCase()}
                 onChange={e => {
                   const val = e.target.value;
                   if (val.toLowerCase() === 'default') {
@@ -953,27 +1065,24 @@ export function CanvasStylePanel({
                   }
                 }}
                 className={cn(
-                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 font-mono",
+                  "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0",
                   canvasBgColor !== 'default' && "uppercase"
                 )}
               />
               
               {/* Separator and Opacity percentage */}
               <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
-              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 pr-1 select-none">
-                100 %
-              </span>
+              <input
+                type="text"
+                value={100}
+                onChange={e => {
+                  const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
+                  onCanvasBgColorChange(canvasBgColor);
+                }}
+                className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
+              />
+              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 select-none">%</span>
             </div>
-            <button
-              onClick={() => {
-                const isVisible = canvasBgColor !== 'default';
-                onCanvasBgColorChange(isVisible ? 'default' : '#F8F8F6');
-              }}
-              className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
-              title={canvasBgColor !== 'default' ? 'Hide canvas background' : 'Show canvas background'}
-            >
-              {canvasBgColor !== 'default' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            </button>
           </div>
         </div>
       </PanelSection>
@@ -1014,7 +1123,7 @@ export function CanvasStylePanel({
             <div className="flex items-center gap-2">
               <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
                 {/* Color swatch square */}
-                <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger">
+                <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                   <button
                     onClick={(e) => togglePicker('pattern', e)}
                     className="w-full h-full rounded-[3px] block transition-none"
@@ -1025,7 +1134,7 @@ export function CanvasStylePanel({
                 {/* Hex value text */}
                 <input
                   type="text"
-                  value={canvasPatternColor === 'default' ? 'Default' : canvasPatternColor.replace('#', '').toUpperCase()}
+                  value={canvasPatternColor === 'default' ? resolveCSSVar('--bone-100').replace('#', '').toUpperCase() : canvasPatternColor.replace('#', '').toUpperCase()}
                   onChange={e => {
                     const val = e.target.value;
                     if (val.toLowerCase() === 'default') {
@@ -1038,7 +1147,7 @@ export function CanvasStylePanel({
                     }
                   }}
                   className={cn(
-                    "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 font-mono",
+                    "w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0",
                     canvasPatternColor !== 'default' && "uppercase"
                   )}
                 />
@@ -1047,28 +1156,35 @@ export function CanvasStylePanel({
                 <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
                 <input
                   type="text"
-                  value={`${Math.round(canvasPatternOpacity * 100)}%`}
+                  value={Math.round(canvasPatternOpacity * 100)}
                   onChange={e => {
-                    const text = e.target.value.replace(/[^0-9]/g, '');
-                    const num = Math.min(100, Math.max(0, parseInt(text) || 0));
+                    const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                     onCanvasPatternOpacityChange(num / 100);
                   }}
-                  className="w-10 bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] text-right p-0 m-0 select-none font-ui-label cursor-text"
+                  className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
                 />
+                <span
+                  onPointerDown={makeScrub(
+                    canvasPatternOpacity * 100,
+                    v => onCanvasPatternOpacityChange(v / 100),
+                    1, 0, 100
+                  )}
+                  className="cursor-ew-resize select-none text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0"
+                >%</span>
               </div>
-              <button
-                onClick={() => {
-                  const isVisible = canvasPatternColor !== 'default';
-                  onCanvasPatternColorChange(isVisible ? 'default' : '#242423');
-                }}
-                className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
-                title={canvasPatternColor !== 'default' ? 'Hide pattern color' : 'Show pattern color'}
-              >
-                {canvasPatternColor !== 'default' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-              </button>
             </div>
           </div>
         )}
+      </PanelSection>
+
+      <PanelSection title="Export Preview">
+        <div className="relative w-full overflow-hidden rounded-[var(--radius-small)] border border-[var(--bone-15)] bg-[var(--bone-5)] flex items-center justify-center" style={{ aspectRatio: '16/10' }}>
+          {previewUrl ? (
+            <img src={previewUrl} alt="Export preview" className="w-full h-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-[var(--bone-30)]">Capturing preview…</span>
+          )}
+        </div>
       </PanelSection>
     </>
   )}

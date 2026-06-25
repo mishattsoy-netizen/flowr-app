@@ -12,13 +12,15 @@ interface VectorPathProps {
   editing: boolean;
   activeTool?: string;
   viewportScale?: number;
+  selectedPointIndex?: number | null;
   onSelect: (id: string, addToSelection: boolean) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
   onDoubleClick?: () => void;
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
+  onPointSelect?: (index: number | null) => void;
 }
 
-export function VectorPath({ block, selected, editing, activeTool, viewportScale, onSelect, onBindingDragStart, onDoubleClick, onDragStart }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, activeTool, viewportScale, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect }: VectorPathProps) {
   const allBlocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -178,12 +180,23 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       {/* Edit mode: draggable waypoint dots */}
       {editing && (
         <>
-          {waypoints.map((pt, i) => (
-            <circle key={`wp-${i}`} cx={pt[0]} cy={pt[1]} r={5}
-              fill="white" stroke={strokeColor} strokeWidth={1.5}
-              style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
-              onPointerDown={e => handleWaypointDown(i, e)} />
-          ))}
+          {waypoints.map((pt, i) => {
+            const isSelected = selectedPointIndex === i;
+            return (
+              <circle key={`wp-${i}`} cx={pt[0]} cy={pt[1]} r={isSelected ? 8 : 5}
+                fill="white" stroke={isSelected ? 'var(--brand-blue)' : strokeColor} strokeWidth={isSelected ? 2 : 1.5}
+                style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
+                onPointerDown={e => {
+                  if (draggingPt !== null) return;
+                  if (isSelected) {
+                    onPointSelect?.(null);
+                  } else {
+                    onPointSelect?.(i);
+                  }
+                  handleWaypointDown(i, e);
+                }} />
+            );
+          })}
           {startPos && (
             <circle cx={startPos[0]} cy={startPos[1]} r={6}
               fill="#d38f36" stroke="white" strokeWidth={1.5}
