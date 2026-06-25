@@ -154,7 +154,6 @@ export interface EditorBlock {
   };
   shapeKind?: ShapeKind;
   points?: [number, number][];
-  keyPoints?: [number, number][];
   startBinding?: ArrowBinding;
   endBinding?: ArrowBinding;
   editMode?: EditMode;

@@ -363,6 +363,59 @@ blocks: [
 
 ---
 
+### Step 7.5: Per-Point Corner Radius (Figma-Style)
+
+**Goal:** In advanced edit mode, clicking a waypoint selects it. Style panel shows that point's individual corner radius. Changing it affects only that point. When no point is selected, style panel affects all points. When radii differ, show "Mixed."
+
+**Files to check:**
+- `src/components/canvas/CanvasPage.tsx` — `selectedPointIndex` state
+- `src/components/canvas/edges/VectorPath.tsx` — waypoint selection + visual highlight
+- `src/components/canvas/CanvasStylePanel.tsx` — per-point radius display + edit
+
+**What to do:**
+
+1. **Add `selectedPointIndex` state to CanvasPage:**
+```ts
+const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
+```
+Clear it when `editingBlockId` changes or edit mode exits.
+
+2. **Pass selectedPointIndex to VectorPath:**
+Add `selectedPointIndex` and `onPointSelect` props to VectorPath:
+```ts
+selectedPointIndex?: number | null;
+onPointSelect?: (index: number | null) => void;
+```
+Pass from CanvasPage through the standalone arrows SVG.
+
+3. **Waypoint click selects it in VectorPath:**
+- When a waypoint dot is clicked (not dragged), call `onPointSelect(index)`
+- If already selected, clicking it again deselects: `onPointSelect(null)`
+- Visual: selected waypoint is larger (8px), has blue border
+- Other waypoints are normal (5px, white fill, stroke-color border)
+
+4. **Update CanvasStylePanel:**
+- Read `ref.pointRadiuses` (array, same length as `ref.points`)
+- When `ref.editMode === 'advanced'`:
+  - If all `pointRadiuses` are the SAME value → show that number in the Corner Radius input
+  - If they DIFFER → show "Mixed" text instead of a number
+  - Changing the value updates ALL point radiuses
+- When `selectedPointIndex` is NOT null (a specific point is selected):
+  - Show only that point's radius value
+  - Changing it updates ONLY `pointRadiuses[selectedPointIndex]`
+  - Show a label like "Corner #2" to indicate which point
+- Use `updateCanvasBlock` to write `pointRadiuses` directly (top-level field, not `canvasStyleExt`)
+
+5. **Radius change instant feedback:**
+- `VectorPath` reads `block.pointRadiuses` for `calculateAdvancedPath`
+- Changing radiuses in style panel → store update → VectorPath re-renders → curve updates live
+
+**Verify:** Double-click arrow → toggle Advanced mode → all corners have radius 20 → click a waypoint → it highlights larger/blue → style panel shows that point's radius → change to 50 → only that corner rounds more → click empty → "Mixed" shown in panel → change to 10 → all corners update to 10
+
+**Commit after verification.**
+
+---
+
 ### Step 8: Final Cleanup + Integration Test
 
 **Goal:** Remove dead code, verify the full flow end-to-end.
