@@ -149,6 +149,15 @@
         "completion_cost": null
       },
       {
+        "id": "gemini-3.1-flash-lite",
+        "_key": "is5n1pw9r",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
         "id": "deepseek/deepseek-v4-flash",
         "_key": "5kest5kfo",
         "provider": "openrouter",
@@ -157,15 +166,6 @@
         "is_paid": true,
         "prompt_cost": 1.4e-7,
         "completion_cost": 2.8e-7
-      },
-      {
-        "id": "gemini-3.1-flash-lite",
-        "_key": "is5n1pw9r",
-        "provider": "gemini",
-        "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
       },
       {
         "id": "duckduckgo-search",
@@ -244,6 +244,15 @@
       {
         "id": "gemini-3-flash-preview",
         "_key": "iocag5cg3",
+        "provider": "gemini",
+        "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "gemini-3.1-flash-lite",
+        "_key": "d7n9h9wzz",
         "provider": "gemini",
         "is_enabled": true,
         "is_paid": false,

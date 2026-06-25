@@ -392,13 +392,41 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const processFiles = useCallback(async (files: FileList | File[]) => {
     for (const file of Array.from(files)) {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        const url = ev.target?.result as string;
+      reader.onload = async (ev) => {
+        const base64Url = ev.target?.result as string;
         let type: 'image' | 'audio' | 'file' | 'pdf' = 'file';
         if (file.type.startsWith('image/')) type = 'image';
         if (file.type.startsWith('audio/')) type = 'audio';
         if (file.type === 'application/pdf' || file.type === 'application/x-pdf' || file.name.toLowerCase().endsWith('.pdf')) type = 'pdf';
-        setAttachments(prev => [...prev, { type, url, name: file.name }]);
+        
+        const tempId = Math.random().toString(36).slice(2);
+        
+        // Add a temporary uploading object
+        setAttachments(prev => [...prev, { type, url: base64Url, name: file.name, uploading: true, tempId }]);
+
+        try {
+          const res = await fetch('/api/ai/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: file.name, type, dataUrl: base64Url }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.url) {
+              setAttachments(prev => prev.map(att => 
+                att.tempId === tempId 
+                  ? { type, url: data.url, name: file.name } 
+                  : att
+              ));
+            }
+          } else {
+            console.error('Failed to upload attachment');
+            setAttachments(prev => prev.filter(att => att.tempId !== tempId));
+          }
+        } catch (err) {
+          console.error('Attachment upload error:', err);
+          setAttachments(prev => prev.filter(att => att.tempId !== tempId));
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -812,21 +840,44 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                       att.type === 'audio' ? "w-auto h-auto" : "w-11 h-11"
                     )}>
                       {att.type === 'image' ? (
-                        <img src={att.url} className="w-full h-full object-cover" />
+                        <div className="relative w-full h-full">
+                          <img src={att.url} className={cn("w-full h-full object-cover", att.uploading && "opacity-40 blur-[1px]")} />
+                          {att.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-bone-100 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
                       ) : att.type === 'audio' ? (
-                        <ChatAudioPlayer
-                          url={att.url}
-                          name={att.name}
-                          isPending
-                          onRemove={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
-                        />
-                      ) : att.type === 'pdf' ? (
-                        <FileText strokeWidth={2} className="w-4 h-4 text-bone-70" />
+                        <div className="relative flex items-center">
+                          <ChatAudioPlayer
+                            url={att.url}
+                            name={att.name}
+                            isPending
+                            onRemove={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
+                          />
+                          {att.uploading && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-[10px]">
+                              <div className="w-4 h-4 border-2 border-bone-100 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
                       ) : (
-                        <Paperclip strokeWidth={2} className="w-4 h-4 text-bone-70" />
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          {att.type === 'pdf' ? (
+                            <FileText strokeWidth={2} className={cn("w-4 h-4 text-bone-70", att.uploading && "opacity-30")} />
+                          ) : (
+                            <Paperclip strokeWidth={2} className={cn("w-4 h-4 text-bone-70", att.uploading && "opacity-30")} />
+                          )}
+                          {att.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-bone-100 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                    {att.type !== 'audio' && (
+                    {att.type !== 'audio' && !att.uploading && (
                       <button
                         onClick={() => setAttachments(p => p.filter((_, idx) => idx !== i))}
                         className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 z-10  hover:scale-110"
@@ -1263,7 +1314,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                   <Tooltip content="Send Message">
                     <button
                       onClick={() => handleSend()}
-                      className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20  active:scale-90"
+                      disabled={attachments.some(att => att.uploading)}
+                      className={cn(
+                        "w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20 active:scale-90",
+                        attachments.some(att => att.uploading) && "opacity-40 cursor-not-allowed pointer-events-none"
+                      )}
                     >
                       <ArrowUp strokeWidth={2} className="w-[18px] h-[18px]" />
                     </button>

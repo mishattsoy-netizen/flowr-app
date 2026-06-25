@@ -1568,3 +1568,14 @@ a:focus:not(:focus-visible),
   outline: none !important;
   box-shadow: none !important;
 }
+
+/* Crawling dashed guide lines for alignment snapping */
+@keyframes guide-dash-crawl {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.snap-guide-line {
+  stroke-dasharray: 4 3;
+  animation: guide-dash-crawl 0.8s linear infinite;
+}

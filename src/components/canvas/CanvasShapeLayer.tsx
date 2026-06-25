@@ -1,7 +1,8 @@
 "use client";
 
-import { EditorBlock, CanvasStyleExt } from '@/data/store';
-import { useMemo } from 'react';
+import { EditorBlock, CanvasStyleExt, useStore } from '@/data/store';
+import { useMemo, useRef, useEffect } from 'react';
+import { useDrag } from '@/hooks/useDrag';
 
 interface Props {
   blocks: EditorBlock[];
@@ -10,6 +11,8 @@ interface Props {
   updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   onSelect: (id: string, addToSelection: boolean) => void;
   onCommit?: () => void;
+  snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
+  onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
 }
 
 function shapeStroke(style: CanvasStyleExt): string {
@@ -31,8 +34,9 @@ function strokeDasharray(style: CanvasStyleExt): string {
   return 'none';
 }
 
-function ShapeEl({ block, isSelected, onPointerDown }: {
+function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
   block: EditorBlock; isSelected: boolean; onPointerDown: (e: React.PointerEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const style = block.canvasStyleExt ?? {};
   const x = block.x ?? 0, y = block.y ?? 0;
@@ -53,6 +57,7 @@ function ShapeEl({ block, isSelected, onPointerDown }: {
     opacity,
     style: { cursor: 'move' },
     onPointerDown,
+    onContextMenu,
   };
 
   if (block.shapeKind === 'rect') {
@@ -88,6 +93,7 @@ function ShapeEl({ block, isSelected, onPointerDown }: {
           markerEnd={block.shapeKind === 'arrow' ? `url(#${markerId})` : undefined}
           style={{ cursor: 'move' }}
           onPointerDown={onPointerDown}
+          onContextMenu={onContextMenu}
         />
       </>
     );
@@ -98,21 +104,41 @@ function ShapeEl({ block, isSelected, onPointerDown }: {
     const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
     return (
       <path
-        d={d} fill="none"
+        d={d}
+        fill="none"
         stroke={isSelected ? selectionStroke : stroke}
-        strokeWidth={isSelected ? Math.max(sw, 2) : sw}
+        strokeWidth={isSelected ? Math.max(sw, 1.5) : sw}
+        strokeDasharray={da}
         opacity={opacity}
-        strokeLinecap="round" strokeLinejoin="round"
         style={{ cursor: 'move' }}
         onPointerDown={onPointerDown}
+        onContextMenu={onContextMenu}
       />
     );
   }
   return null;
 }
 
-export function CanvasShapeLayer({ blocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit }: Props) {
-  const shapes = useMemo(() => blocks.filter(b => b.type === 'shape'), [blocks]);
+export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu }: Props) {
+  const liveBlocks = useStore(s => s.blocks);
+  const shapes = useMemo(() => {
+    const initialIds = new Set(initialBlocks.map(b => b.id));
+    return liveBlocks.filter(b => b.type === 'shape' && initialIds.has(b.id));
+  }, [liveBlocks, initialBlocks]);
+
+  const viewportRef = useRef(viewport);
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
+
+  const { startDrag } = useDrag({
+    viewportRef,
+    blocks: initialBlocks,
+    selectedIds,
+    snapWithObjects,
+    updateCanvasBlocks,
+    onCommit,
+  });
 
   const handleShapePointerDown = (e: React.PointerEvent, clickedBlock: EditorBlock) => {
     e.stopPropagation();
@@ -124,58 +150,7 @@ export function CanvasShapeLayer({ blocks, selectedIds, viewport, updateCanvasBl
 
     if (e.button !== 0) return;
 
-    const startClientX = e.clientX;
-    const startClientY = e.clientY;
-
-    const groupIds = isAlreadySelected ? Array.from(selectedIds) : [clickedBlock.id];
-    
-    // Rigid group capture snapshot
-    const snapshot = new Map<string, { x: number; y: number; points?: [number, number][] }>();
-    blocks.forEach(b => {
-      if (groupIds.includes(b.id)) {
-        snapshot.set(b.id, {
-          x: b.x ?? 0,
-          y: b.y ?? 0,
-          points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined
-        });
-      }
-    });
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const deltaX = (moveEvent.clientX - startClientX) / viewport.scale;
-      const deltaY = (moveEvent.clientY - startClientY) / viewport.scale;
-
-      const updates: { id: string; updates: Partial<EditorBlock> }[] = [];
-      snapshot.forEach((snap, id) => {
-        if (snap.points) {
-          updates.push({
-            id,
-            updates: { points: snap.points.map(p => [p[0] + deltaX, p[1] + deltaY] as [number, number]) }
-          });
-        } else {
-          updates.push({
-            id,
-            updates: { x: snap.x + deltaX, y: snap.y + deltaY }
-          });
-        }
-      });
-      updateCanvasBlocks(updates);
-    };
-
-    const handlePointerUp = (upEvent: PointerEvent) => {
-      const movedDist = Math.hypot(upEvent.clientX - startClientX, upEvent.clientY - startClientY);
-      
-      if (movedDist < 4 && isAlreadySelected && !upEvent.shiftKey) {
-        onSelect(clickedBlock.id, false);
-      }
-      
-      onCommit?.();
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-    };
-
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerUp);
+    startDrag(e, clickedBlock);
   };
 
   return (
@@ -183,15 +158,28 @@ export function CanvasShapeLayer({ blocks, selectedIds, viewport, updateCanvasBl
       className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"
       style={{ zIndex: 1 }}
     >
-      {shapes.map(b => (
-        <g key={b.id} style={{ pointerEvents: 'auto' }}>
-          <ShapeEl 
-            block={b} 
-            isSelected={selectedIds.has(b.id)} 
-            onPointerDown={(e) => handleShapePointerDown(e, b)} 
-          />
-        </g>
-      ))}
+      {shapes.map(b => {
+        return (
+          <g 
+            key={b.id} 
+            id={b.id} 
+            style={{ 
+              pointerEvents: 'auto',
+            }}
+          >
+            <ShapeEl 
+              block={b} 
+              isSelected={selectedIds.has(b.id)} 
+              onPointerDown={(e) => handleShapePointerDown(e, b)} 
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onContextMenu?.(e, b.id);
+              }}
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }

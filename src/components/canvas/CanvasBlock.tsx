@@ -5,7 +5,9 @@ import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
-import { BlockRenderer } from '../editor/BlockRenderer';
+import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
+import { calculateCatmullRomPath } from '@/lib/geometry/splines';
+import { activeDragOffsets } from '@/lib/canvasDragState';
 
 interface CanvasBlockProps {
   block: EditorBlock;
@@ -16,19 +18,23 @@ interface CanvasBlockProps {
   selectedIds?: Set<string>;
   onSelect?: (id: string, addToSelection: boolean) => void;
   onCommit?: () => void;
-  snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number };
+  snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
+  snapForResize?: (x: number, y: number, w: number, h: number, handle: string, excludeId: string) => { x: number; y: number; width: number; height: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
+  onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects }: CanvasBlockProps) {
+export function CanvasBlock({ block: initialBlock, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu }: CanvasBlockProps) {
+  const liveBlock = useStore(useCallback(s => s.blocks.find(b => b.id === initialBlock.id), [initialBlock.id])) || initialBlock;
+  const block = liveBlock;
+
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
   const moveCanvasSection = useStore(s => s.moveCanvasSection);
 
-  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [position, setPosition] = useState({ x: block.x || 0, y: block.y || 0 });
   const [size, setSize] = useState({ width: block.width || 280, height: block.height || undefined as number | undefined });
   const [showMenu, setShowMenu] = useState(false);
   const [isOverSection, setIsOverSection] = useState<string | null>(null);
@@ -39,6 +45,12 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block.x || 0, y: block.y || 0 });
   const finalSizeRef = useRef({ w: block.width || 280, h: block.height || 150 });
+  const lastSectionCheckRef = useRef(0);
+
+  const viewportRef = useRef(viewport);
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
 
   useEffect(() => {
     if (!isSelected) setIsEditing(false);
@@ -46,11 +58,10 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
   // Sync from store when not interacting
   useEffect(() => {
-    if (!isDragging && !isResizing) {
-      setPosition({ x: block.x || 0, y: block.y || 0 });
+    if (!isDraggingLocal && !isResizing) {
       setSize({ width: block.width || 280, height: block.height || undefined });
     }
-  }, [block.x, block.y, block.width, block.height, isDragging, isResizing]);
+  }, [block.width, block.height, isDraggingLocal, isResizing]);
 
   // Report actual height for connections
   const heightRef = useRef(block.height || 0);
@@ -59,20 +70,69 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   }, [block.height]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !isNoteBlock) return;
+    let timeoutId: NodeJS.Timeout;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
         const height = entry.contentRect.height;
-        // Only update store if it significantly differs and we are not dragging
-        if (!isDragging && !isResizing && isNoteBlock && Math.abs(heightRef.current - height) > 1) {
-          updateCanvasBlock(block.id, { height });
+        // Only update store if it significantly differs, we are not dragging, resizing, or editing
+        if (Math.abs(heightRef.current - height) > 4) {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            if (!isDraggingLocal && !isResizing && !isEditing) {
+              updateCanvasBlock(block.id, { height });
+            }
+          }, 150);
         }
       }
     });
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [block.id, isDragging, isResizing, updateCanvasBlock, isNoteBlock]);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeoutId);
+    };
+  }, [block.id, isDraggingLocal, isResizing, isEditing, updateCanvasBlock, isNoteBlock]);
+
+  const { startDrag } = useDrag({
+    viewportRef,
+    blocks,
+    selectedIds: selectedIds || new Set(),
+    snapWithObjects,
+    updateCanvasBlocks,
+    onCommit,
+    onDragMove: (dx, dy, moveEvent) => {
+      const now = Date.now();
+      if (now - lastSectionCheckRef.current < 150) return;
+      lastSectionCheckRef.current = now;
+
+      const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+      const sectionEl = over?.closest('[data-block-type="section"]');
+      const isAlreadySelected = selectedIds?.has(block.id) ?? false;
+      const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
+      if (sectionEl && sectionEl.id !== block.id && !groupIds.includes(sectionEl.id)) {
+        setIsOverSection(sectionEl.id);
+      } else {
+        setIsOverSection(null);
+      }
+    },
+    onDragEnd: (dx, dy, upEvent) => {
+      setIsDraggingLocal(false);
+      const movedDist = Math.hypot(dx, dy);
+
+      const isAlreadySelected = selectedIds?.has(block.id) ?? false;
+      const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
+
+      // useDrag handles updating section and children coordinate records in the store, avoiding double-shift bugs
+
+      if (isOverSection) {
+        updateCanvasBlocks(groupIds.filter(id => id !== isOverSection).map(id => ({
+          id, updates: { parentId: isOverSection }
+        })));
+      }
+      setIsOverSection(null);
+    }
+  });
 
   // --- DRAG ---
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -82,7 +142,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     const isGrip = (e.target as HTMLElement).closest('.block-grip');
     const isEdge = (e.target as HTMLElement).classList.contains('canvas-block-edge');
     const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
-    
+
     const isAlreadySelected = selectedIds?.has(block.id) ?? false;
     if (!isInput && !isAlreadySelected) {
       onSelect?.(block.id, e.shiftKey);
@@ -93,105 +153,13 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     if (e.button !== 0) return;
 
     e.stopPropagation();
-    setIsDragging(true);
+    setIsDraggingLocal(true);
     setShowMenu(false);
+    lastSectionCheckRef.current = Date.now();
 
-    const startClientX = e.clientX;
-    const startClientY = e.clientY;
-    
-    const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
-    
-    // Capture rigid snapshot of entire selection
-    const groupSnapshot = new Map<string, { x: number; y: number; points?: [number, number][] }>();
-    blocks.forEach(b => {
-      if (groupIds.includes(b.id)) {
-        groupSnapshot.set(b.id, {
-          x: b.x ?? 0,
-          y: b.y ?? 0,
-          points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined
-        });
-      }
-    });
-
-    const primaryStart = groupSnapshot.get(block.id) || { x: block.x ?? 0, y: block.y ?? 0 };
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const deltaX = (moveEvent.clientX - startClientX) / viewport.scale;
-      const deltaY = (moveEvent.clientY - startClientY) / viewport.scale;
-
-      const unSnappedX = primaryStart.x + deltaX;
-      const unSnappedY = primaryStart.y + deltaY;
-      
-      const snappedPos = snapWithObjects
-        ? snapWithObjects(unSnappedX, unSnappedY, block.width ?? 100, block.height ?? 40, block.id)
-        : { x: unSnappedX, y: unSnappedY };
-
-      const finalDX = snappedPos.x - primaryStart.x;
-      const finalDY = snappedPos.y - primaryStart.y;
-
-      // Push local render state instantly for primary block for immediate feedback
-      setPosition({ x: snappedPos.x, y: snappedPos.y });
-
-      const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
-      groupSnapshot.forEach((snap, id) => {
-        if (snap.points) {
-          batchUpdates.push({
-            id, 
-            updates: { points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) }
-          });
-        } else {
-          batchUpdates.push({
-            id,
-            updates: { x: snap.x + finalDX, y: snap.y + finalDY }
-          });
-        }
-      });
-      
-      updateCanvasBlocks(batchUpdates);
-
-      const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-      const sectionEl = over?.closest('[data-block-type="section"]');
-      if (sectionEl && sectionEl.id !== block.id && !groupIds.includes(sectionEl.id)) {
-        setIsOverSection(sectionEl.id);
-      } else {
-        setIsOverSection(null);
-      }
-    };
-
-    const handlePointerUp = (upEvent: PointerEvent) => {
-      setIsDragging(false);
-      const movedDist = Math.hypot(upEvent.clientX - startClientX, upEvent.clientY - startClientY);
-
-      // If was selected and clicked without distinct drag movement, revert to only selecting this
-      if (movedDist < 4 && isAlreadySelected && !upEvent.shiftKey) {
-        onSelect?.(block.id, false);
-      }
-
-      // Commit final positions and section grouping containment
-      if (block.type === 'section' && movedDist >= 4) {
-         // Calculate actual cumulative offset done by primary for accurate group move triggers
-         const finalX = (upEvent.clientX - startClientX) / viewport.scale + primaryStart.x;
-         const finalY = (upEvent.clientY - startClientY) / viewport.scale + primaryStart.y;
-         const commitDX = finalX - (block.x || 0);
-         const commitDY = finalY - (block.y || 0);
-         // Standard section behavior carries all its children
-         moveCanvasSection(block.id, commitDX, commitDY);
-      }
-
-      if (isOverSection) {
-        updateCanvasBlocks(groupIds.filter(id => id !== isOverSection).map(id => ({
-          id, updates: { parentId: isOverSection }
-        })));
-      }
-
-      onCommit?.();
-      setIsOverSection(null);
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-    };
-
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerUp);
+    // If was selected and clicked without distinct drag movement, handlePointerUp inside useDrag checks it,
+    // but we can also trigger select here.
+    startDrag(e, block);
   };
 
   // --- RESIZE ---
@@ -204,11 +172,74 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     const startPos = { x: block.x || 0, y: block.y || 0 };
     const startSize = { w: block.width || 280, h: block.height || 150 };
 
+    // Cache related connection paths once at resize start (highly optimized)
+    const labelEl = containerRef.current?.querySelector('.dimension-label');
+    const gEl = document.getElementById(block.id);
+    const rectEl = gEl?.querySelector('rect');
+    const ellipseEl = gEl?.querySelector('ellipse');
+    const polygonEl = gEl?.querySelector('polygon');
+    const shapePathEl = gEl?.querySelector('path');
+
+    const cachedPathElements: {
+      el: SVGPathElement;
+      fromId: string | null;
+      toId: string | null;
+      fromSide: string;
+      toSide: string;
+      initSx: number;
+      initSy: number;
+      initTx: number;
+      initTy: number;
+      points: [number, number][] | null;
+    }[] = [];
+
+    const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
+    allPaths.forEach(pathEl => {
+      const fromId = pathEl.getAttribute('data-from-id');
+      const toId = pathEl.getAttribute('data-to-id');
+      const hasFrom = fromId === block.id;
+      const hasTo = toId === block.id;
+
+      if (hasFrom || hasTo) {
+        const fromSide = pathEl.getAttribute('data-from-side') || 'bottom';
+        const toSide = pathEl.getAttribute('data-to-side') || 'top';
+        const initSx = parseFloat(pathEl.getAttribute('data-init-sx') || '0');
+        const initSy = parseFloat(pathEl.getAttribute('data-init-sy') || '0');
+        const initTx = parseFloat(pathEl.getAttribute('data-init-tx') || '0');
+        const initTy = parseFloat(pathEl.getAttribute('data-init-ty') || '0');
+
+        let points: [number, number][] | null = null;
+        const pointsStr = pathEl.getAttribute('data-points');
+        if (pointsStr) {
+          try {
+            points = JSON.parse(pointsStr);
+          } catch { }
+        }
+
+        cachedPathElements.push({
+          el: pathEl,
+          fromId,
+          toId,
+          fromSide,
+          toSide,
+          initSx,
+          initSy,
+          initTx,
+          initTy,
+          points,
+        });
+      }
+    });
+
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      const dx = (moveEvent.clientX - startX) / viewport.scale;
-      const dy = (moveEvent.clientY - startY) / viewport.scale;
+      let dx = (moveEvent.clientX - startX) / viewport.scale;
+      let dy = (moveEvent.clientY - startY) / viewport.scale;
+
+      const isCorner = handle.length === 2;
+      const isShiftPressed = moveEvent.shiftKey;
 
       let newX = startPos.x;
+      let yNew = startPos.y; // using local temp to avoid duplicate name collision if necessary
       let newY = startPos.y;
       let newW = startSize.w;
       let newH = startSize.h;
@@ -226,22 +257,180 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       if (newW < 60) { newW = 60; newX = startPos.x + startSize.w - 60; }
       if (newH < 40) { newH = 40; newY = startPos.y + startSize.h - 40; }
 
+      // Snapping during resize
+      const isAltPressed = moveEvent.altKey;
+      let snapResult = { x: newX, y: newY, width: newW, height: newH, guides: [] as any[] };
+      if (snapForResize && !isAltPressed) {
+        snapResult = snapForResize(newX, newY, newW, newH, handle, block.id);
+        newX = snapResult.x;
+        newY = snapResult.y;
+        newW = snapResult.width;
+        newH = snapResult.height;
+      }
+
+      // Enforce aspect ratio lock (Shift-key corner resize)
+      if (isShiftPressed && isCorner) {
+        const ratio = startSize.w / startSize.h;
+        const rawDw = newW - startSize.w;
+        const rawDh = newH - startSize.h;
+
+        let targetW = newW;
+        let targetH = newH;
+
+        if (Math.abs(rawDw) > Math.abs(rawDh * ratio)) {
+          targetW = newW;
+          targetH = targetW / ratio;
+        } else {
+          targetH = newH;
+          targetW = targetH * ratio;
+        }
+
+        // Clamp minimum size and enforce aspect ratio
+        if (targetW < 60) {
+          targetW = 60;
+          targetH = targetW / ratio;
+        }
+        if (targetH < 40) {
+          targetH = 40;
+          targetW = targetH * ratio;
+        }
+
+        if (handle === 'se') {
+          newW = targetW;
+          newH = targetH;
+        } else if (handle === 'sw') {
+          newW = targetW;
+          newH = targetH;
+          newX = (startPos.x + startSize.w) - newW;
+        } else if (handle === 'ne') {
+          newW = targetW;
+          newH = targetH;
+          newY = (startPos.y + startSize.h) - newH;
+        } else if (handle === 'nw') {
+          newW = targetW;
+          newH = targetH;
+          newX = (startPos.x + startSize.w) - newW;
+          newY = (startPos.y + startSize.h) - newH;
+        }
+      }
+
       finalPosRef.current = { x: newX, y: newY };
       finalSizeRef.current = { w: newW, h: newH };
-      setPosition({ x: newX, y: newY });
-      setSize({ width: newW, height: newH });
 
-      // Live update store so shapes visually resize during drag
-      updateCanvasBlock(block.id, {
-        x: newX,
-        y: newY,
-        width: newW,
-        height: newH,
+      // Update DOM directly for buttery smoothness (no react renders)
+      const container = containerRef.current;
+      if (container) {
+        container.style.left = `${newX}px`;
+        container.style.top = `${newY}px`;
+        container.style.width = `${newW}px`;
+        container.style.height = `${newH}px`;
+      }
+
+      // Update the dimension label text directly in DOM
+      if (labelEl) {
+        labelEl.textContent = `${Math.round(newW)} × ${Math.round(newH)}`;
+      }
+
+      // Update SVG shape element directly in DOM
+      if (rectEl) {
+        rectEl.setAttribute('x', String(newX));
+        rectEl.setAttribute('y', String(newY));
+        rectEl.setAttribute('width', String(newW));
+        rectEl.setAttribute('height', String(newH));
+      }
+      if (ellipseEl) {
+        ellipseEl.setAttribute('cx', String(newX + newW / 2));
+        ellipseEl.setAttribute('cy', String(newY + newH / 2));
+        ellipseEl.setAttribute('rx', String(newW / 2));
+        ellipseEl.setAttribute('ry', String(newH / 2));
+      }
+      if (polygonEl) {
+        polygonEl.setAttribute('points', `${newX + newW / 2},${newY} ${newX + newW},${newY + newH / 2} ${newX + newW / 2},${newY + newH} ${newX},${newY + newH / 2}`);
+      }
+      if (shapePathEl) {
+        shapePathEl.setAttribute('d', `M ${newX} ${newY} L ${newX + newW} ${newY + newH}`);
+      }
+
+      // Render guides
+      const guidesContainer = document.getElementById('canvas-snap-guides');
+      if (guidesContainer) {
+        if (snapResult.guides && snapResult.guides.length > 0) {
+          guidesContainer.innerHTML = snapResult.guides.map(g => {
+            if (g.type === 'v') {
+              return `<line x1="${g.coord}" y1="${g.start}" x2="${g.coord}" y2="${g.end}" class="snap-guide-line" stroke="#ec4899" stroke-width="1.5" opacity="0.8" />`;
+            } else {
+              return `<line x1="${g.start}" y1="${g.coord}" x2="${g.end}" y2="${g.coord}" class="snap-guide-line" stroke="#ec4899" stroke-width="1.5" opacity="0.8" />`;
+            }
+          }).join('');
+        } else {
+          guidesContainer.innerHTML = '';
+        }
+      }
+
+      // Update active drag offsets for connection lines so they track resizing anchor points
+      const currentDX = newX - startPos.x;
+      const currentDY = newY - startPos.y;
+      activeDragOffsets.set(block.id, { dx: currentDX, dy: currentDY });
+
+      // Live update path elements
+      cachedPathElements.forEach(item => {
+        let sx = item.initSx;
+        let sy = item.initSy;
+        let tx = item.initTx;
+        let ty = item.initTy;
+
+        if (item.fromId === block.id) {
+          if (item.fromSide === 'top') { sx = newX + newW / 2; sy = newY; }
+          else if (item.fromSide === 'bottom') { sx = newX + newW / 2; sy = newY + newH; }
+          else if (item.fromSide === 'left') { sx = newX; sy = newY + newH / 2; }
+          else if (item.fromSide === 'right') { sx = newX + newW; sy = newY + newH / 2; }
+        }
+        if (item.toId === block.id) {
+          if (item.toSide === 'top') { tx = newX + newW / 2; ty = newY; }
+          else if (item.toSide === 'bottom') { tx = newX + newW / 2; ty = newY + newH; }
+          else if (item.toSide === 'left') { tx = newX; ty = newY + newH / 2; }
+          else if (item.toSide === 'right') { tx = newX + newW; ty = newY + newH / 2; }
+        }
+
+        if (item.points) {
+          const pts = [...item.points];
+          if (item.fromId === block.id) pts[0] = [sx, sy];
+          if (item.toId === block.id) pts[pts.length - 1] = [tx, ty];
+          // Shorten the last segment mathematically to create the gap
+          const n = pts.length;
+          if (n >= 2) {
+            const last = pts[n - 1];
+            const prev = pts[n - 2];
+            const dx = last[0] - prev[0];
+            const dy = last[1] - prev[1];
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0) {
+              const gap = 12;
+              const ratio = Math.max(0, (dist - gap) / dist);
+              pts[n - 1] = [prev[0] + dx * ratio, prev[1] + dy * ratio];
+            }
+          }
+          const rawPath = calculateCatmullRomPath(pts);
+          item.el.setAttribute('d', rawPath);
+        } else {
+          const rawPath = getSimpleBezierPath({ sx, sy, tx, ty, sp: item.fromSide, tp: item.toSide });
+          item.el.setAttribute('d', rawPath);
+        }
       });
     };
 
     const handlePointerUp = () => {
       setIsResizing(false);
+      activeDragOffsets.delete(block.id);
+
+      const guidesContainer = document.getElementById('canvas-snap-guides');
+      if (guidesContainer) {
+        guidesContainer.innerHTML = '';
+      }
+
+      // Update local state size too to match
+      setSize({ width: finalSizeRef.current.w, height: finalSizeRef.current.h });
+
       // Commit to store using refs to avoid stale closure
       updateCanvasBlock(block.id, {
         x: finalPosRef.current.x,
@@ -261,11 +450,19 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setShowMenu(true);
+    if (onContextMenu) {
+      onContextMenu(e, block.id);
+    } else {
+      setShowMenu(true);
+    }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (block.type === 'text' || block.type === 'comment') {
+    if (
+      block.type === 'text' ||
+      block.type === 'comment' ||
+      (block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || ''))
+    ) {
       e.stopPropagation();
       setIsEditing(true);
     }
@@ -274,33 +471,38 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const connectionPoints = ['top', 'right', 'bottom', 'left'] as const;
   const HANDLES: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
+
+
   return (
     <div
       ref={containerRef}
       id={block.id}
       className={cn(
         "absolute group",
-        !isDragging && !isResizing && "",
-        isDragging && "z-[3000] opacity-90 border border-brand-blue rounded-2xl",
-        isResizing && "z-[3000] border border-brand-blue rounded-2xl",
-        !isDragging && !isResizing && (block.type === 'section' ? "z-0" : "z-10"),
-        isSelected && !isDragging && !isResizing && "border border-brand-blue rounded-2xl",
-        !isSelected && "hover:border hover:border-brand-blue/30 rounded-2xl",
+        isDraggingLocal && "z-[3000] opacity-90",
+        isResizing && "z-[3000]",
+        !isDraggingLocal && !isResizing && (block.type === 'section' ? "z-0" : "z-10"),
+        !isSelected && !isDraggingLocal && !isResizing && "hover:outline hover:outline-brand-blue/30 hover:outline-1 hover:outline-offset-[1px]",
         block.type === 'section' && "border-2 border-dashed border-[var(--bone-100)]/40 bg-[var(--bone-10)]/5 p-4 min-w-[300px] min-h-[200px]",
         (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
-        showMenu && "border border-brand-blue ring-2 ring-accent/20 rounded-2xl"
+        showMenu && "ring-2 ring-accent/20"
       )}
       style={{
-        left: position.x,
-        top: position.y,
+        left: block.x || 0,
+        top: block.y || 0,
         width: size.width,
         height: size.height,
-        zIndex: block.zIndex,
+        zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'section' ? 2 : 10)),
       }}
       onPointerDown={handlePointerDown}
       onContextMenu={handleContextMenu}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
+      {(isSelected || isDraggingLocal || isResizing || showMenu) && (
+        <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
+      )}
+
       {/* Edge drag trigger */}
       {!isEditing && <div className="canvas-block-edge absolute -inset-1 cursor-move" />}
 
@@ -310,8 +512,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       ))}
 
       {/* Dimension Label */}
-      {(isResizing || isDragging) && (
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-[var(--bone-100)] text-background text-[10px] font-bold px-1.5 py-0.5 rounded-sm z-[4000] whitespace-nowrap pointer-events-none ">
+      {(isResizing || isDraggingLocal) && (
+        <div className="dimension-label absolute -bottom-8 left-1/2 -translate-x-1/2 bg-[var(--bone-100)] text-background text-[10px] font-bold px-1.5 py-0.5 rounded-sm z-[4000] whitespace-nowrap pointer-events-none ">
           {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
         </div>
       )}
@@ -343,23 +545,35 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       ))}
 
       {/* CONTENT */}
-      {isNoteBlock ? (
-        <div className={cn(
-          "w-full h-full min-w-[120px]",
-          block.type === 'text' && "bg-background border border-border rounded-xl p-2",
-          (block.type === 'image' || block.type === 'video') && "overflow-hidden rounded-xl",
-          !isEditing && block.type === 'text' && "pointer-events-none select-none"
-        )}>
-          <BlockRenderer
-            block={block}
-            index={0}
-            onUpdate={(id: string, updates: any) => updateCanvasBlock(id, updates)}
-            onDelete={(id: string) => deleteCanvasBlock(id)}
-            onInsertAfter={() => { }}
-            onSlash={() => { }}
-            onOpenMenu={() => { }}
-            onFocus={() => onSelect?.(block.id, false)}
+      {block.type === 'text' ? (
+        <div className="w-full h-full bg-background border border-border rounded-xl p-2 flex items-center justify-center">
+          <textarea
+            className={cn(
+              "w-full h-full bg-transparent text-sm leading-relaxed outline-none resize-none text-foreground/85 placeholder:text-muted-foreground/30 text-center flex items-center justify-center",
+              !isEditing && "pointer-events-none select-none"
+            )}
+            value={block.content}
+            onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
+            placeholder="Double click to edit..."
+            onFocus={() => { setIsEditing(true); onSelect?.(block.id, false); }}
+            onBlur={() => setIsEditing(false)}
           />
+        </div>
+      ) : block.type === 'image' ? (
+        <div className="w-full h-full overflow-hidden rounded-xl bg-muted/20 border border-border/50">
+          {block.mediaUrl ? (
+            <img src={block.mediaUrl} className="w-full h-full object-cover pointer-events-none select-none" alt="" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Empty Image</div>
+          )}
+        </div>
+      ) : block.type === 'video' ? (
+        <div className="w-full h-full overflow-hidden rounded-xl bg-muted/20 border border-border/50">
+          {block.mediaUrl ? (
+            <video src={block.mediaUrl} className="w-full h-full object-cover" controls />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Empty Video</div>
+          )}
         </div>
       ) : block.type === 'section' ? (
         <div className="w-full h-full relative">
@@ -368,7 +582,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             <span className="text-xs font-bold truncate max-w-[150px]">{block.content || 'Untitled'}</span>
           </div>
         </div>
-      ) : block.type === 'comment' && (
+      ) : block.type === 'comment' ? (
         <div className="bg-[var(--bone-10)]/80 backdrop-blur-xl border border-[var(--bone-20)] rounded-2xl p-4 w-full h-full">
           <div className="flex items-center gap-2 mb-3 text-accent">
             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
@@ -386,14 +600,30 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             onBlur={() => setIsEditing(false)}
           />
         </div>
-      )}
+      ) : block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || '') ? (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3 text-center">
+          {isEditing ? (
+            <textarea
+              className="w-full h-full bg-transparent text-sm leading-relaxed outline-none resize-none text-foreground/85 placeholder:text-muted-foreground/30 text-center flex items-center justify-center pointer-events-auto"
+              value={block.content || ''}
+              onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
+              placeholder="Type to add text..."
+              autoFocus
+              onBlur={() => setIsEditing(false)}
+            />
+          ) : (
+            <span className="text-sm font-semibold select-none text-[var(--bone-100)] break-words w-full px-1">
+              {block.content}
+            </span>
+          )}
+        </div>
+      ) : null}
 
-      {/* Context Menu */}
       {showMenu && (
-        <div className="absolute top-0 right-full mr-2 z-[4000] popup-glass-small p-1.5 flex flex-col gap-[3px] w-48">
+        <div className="absolute top-0 right-full mr-2 z-[4000] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] shadow-[0_4px_12px_rgba(0,0,0,0.3)] p-1.5 flex flex-col gap-[3px] w-48">
           <button
             onClick={() => deleteCanvasBlock(block.id)}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-danger hover:bg-danger/10 rounded-lg text-left"
+            className="flex items-center gap-3 w-full px-3 py-1.5 text-[13.5px] cursor-pointer whitespace-nowrap text-danger hover:text-danger hover:bg-danger/10 rounded-[var(--radius-medium)] transition-none text-left"
           >
             Delete Layer
           </button>

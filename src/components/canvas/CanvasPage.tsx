@@ -1,6 +1,7 @@
 "use client";
 
-import { Entity, useStore, generateId } from '@/data/store';
+import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
+import { Copy, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -29,17 +30,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [showStylePanel, setShowStylePanel] = useState(false);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [pendingConnection, setPendingConnection] = useState<{
-    fromId: string; fromSide: string; x: number; y: number; x2: number; y2: number;
-  } | null>(null);
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [drawingShape, setDrawingShape] = useState<{
     kind: string; startX: number; startY: number; x: number; y: number; w: number; h: number;
     points: [number, number][];
   } | null>(null);
+  const [activeStyle, setActiveStyle] = useState<CanvasStyleExt>({
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    strokeStyle: 'solid',
+    fill: '#ffffff',
+    fillOpacity: 1.0,
+    opacity: 1.0,
+    locked: false,
+    cornerRadius: 20,
+  });
   const [mediaPopover, setMediaPopover] = useState<{
     x: number; y: number; canvasX: number; canvasY: number;
   } | null>(null);
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
   const [remoteCursors, setRemoteCursors] = useState<{ userId: string; name: string; x: number; y: number; color: string }[]>([]);
 
   const cloudSyncEnabled = !!entity.cloudSyncEnabled;
@@ -57,12 +68,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
 
   const pageBlocks = useMemo(
-    () => blocks.filter(b => b.canvasId === entity.id),
+    () => blocks.filter(b => b.canvasId === entity.id).sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)),
     [blocks, entity.id]
   );
 
   const history = useCanvasHistory(pageBlocks);
-  const { snapWithObjects } = useCanvasSnap(snapEnabled, pageBlocks);
+  const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
 
   const flowState = useFlowState();
@@ -135,9 +146,102 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   }, [activeTool, addCanvasBlock, entity.id, findClosestBlockHandle, history]);
 
 
+  const selectedBlocks = useMemo(
+    () => pageBlocks.filter(b => selectedIds.has(b.id) && b.type !== 'connection'),
+    [pageBlocks, selectedIds]
+  );
+
+  const selectionBoundingBox = useMemo(() => {
+    if (selectedBlocks.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedBlocks.forEach(b => {
+      const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+      if (bx < minX) minX = bx;
+      if (by < minY) minY = by;
+      if (bx + bw > maxX) maxX = bx + bw;
+      if (by + bh > maxY) maxY = by + bh;
+    });
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }, [selectedBlocks]);
+
+  const handleDuplicateSelection = useCallback(() => {
+    if (selectedBlocks.length === 0) return;
+    const duplicateMap = new Map<string, string>();
+    const duplicatedList: typeof selectedBlocks = [];
+
+    selectedBlocks.forEach(b => {
+      const newId = generateId();
+      duplicateMap.set(b.id, newId);
+      const copy: any = {
+        ...b,
+        id: newId,
+        x: (b.x ?? 0) + 20,
+        y: (b.y ?? 0) + 20,
+      };
+      if (b.points) {
+        copy.points = b.points.map(p => [p[0] + 20, p[1] + 20]);
+      }
+      duplicatedList.push(copy);
+    });
+
+    duplicatedList.forEach(copy => {
+      if (copy.parentId && duplicateMap.has(copy.parentId)) {
+        copy.parentId = duplicateMap.get(copy.parentId);
+      }
+      addCanvasBlock(copy);
+    });
+
+    setSelectedIds(new Set(duplicatedList.map(b => b.id)));
+    history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
+  }, [selectedBlocks, addCanvasBlock, entity.id, history]);
+
+  const handleLayerOrder = useCallback((direction: 'front' | 'back') => {
+    if (selectedBlocks.length === 0) return;
+    const canvasBlocks = pageBlocks;
+    const zIndexes = canvasBlocks.map(b => b.zIndex ?? 0);
+    const maxZ = Math.max(...zIndexes, 0);
+    const minZ = Math.min(...zIndexes, 0);
+
+    const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
+    selectedBlocks.forEach((b, idx) => {
+      const newZ = direction === 'front' ? maxZ + 1 + idx : minZ - 1 - (selectedBlocks.length - 1 - idx);
+      batchUpdates.push({ id: b.id, updates: { zIndex: newZ } });
+    });
+
+    updateCanvasBlocks(batchUpdates);
+    history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
+  }, [selectedBlocks, pageBlocks, updateCanvasBlocks, entity.id, history]);
+
+  const handleQuickColor = useCallback((fillColor: string, opacity: number) => {
+    if (selectedBlocks.length === 0) return;
+    const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
+    selectedBlocks.forEach(b => {
+      batchUpdates.push({
+        id: b.id,
+        updates: {
+          canvasStyleExt: {
+            ...(b.canvasStyleExt ?? {}),
+            fill: fillColor,
+            fillOpacity: opacity,
+          }
+        }
+      });
+    });
+    updateCanvasBlocks(batchUpdates);
+    history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
+  }, [selectedBlocks, updateCanvasBlocks, entity.id, history]);
+
+  const handleDeleteSelection = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    selectedIds.forEach(id => deleteCanvasBlock(id));
+    setSelectedIds(new Set());
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+  }, [selectedIds, deleteCanvasBlock, entity.id, history]);
+
   useEffect(() => {
-    setShowStylePanel(selectedIds.size > 0);
-  }, [selectedIds]);
+    const isShapeTool = ['rect', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow'].includes(activeTool);
+    setShowStylePanel(selectedIds.size > 0 || isShapeTool);
+  }, [selectedIds, activeTool]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -152,6 +256,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           e.shiftKey ? handleUngroup() : handleGroup();
           return;
         }
+        if (e.key === 'd') {
+          e.preventDefault();
+          handleDuplicateSelection();
+          return;
+        }
       }
 
       switch (e.key.toLowerCase()) {
@@ -159,7 +268,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           setActiveTool('select');
           if (e.key === 'Escape') {
             setSelectedIds(new Set());
-            setPendingConnection(null);
           }
           break;
         case 'h': setActiveTool('move'); break;
@@ -246,16 +354,16 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       document.removeEventListener('keydown', handleGlobalKey);
       document.removeEventListener('contextmenu', handleGlobalContextMenu, true);
     };
-  }, [viewport, commitFlowConnection]);
+  }, [commitFlowConnection]);
 
   const screenToCanvas = useCallback((clientX: number, clientY: number) => {
     const rect = canvasContainerRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     return {
-      x: (clientX - rect.left - viewport.x) / viewport.scale,
-      y: (clientY - rect.top - viewport.y) / viewport.scale,
+      x: (clientX - rect.left - viewportRef.current.x) / viewportRef.current.scale,
+      y: (clientY - rect.top - viewportRef.current.y) / viewportRef.current.scale,
     };
-  }, [viewport]);
+  }, []);
 
   // Cloud sync: load remote blocks and subscribe to realtime updates
   useEffect(() => {
@@ -368,7 +476,16 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     if (target.id !== 'canvas-bg' && !target.closest('#canvas-bg')) return;
 
     if (mediaPopover) { setMediaPopover(null); return; }
-    if (pendingConnection) { setPendingConnection(null); return; }
+
+    setShowFloatingToolbar(false);
+
+    // Ignore background click handler if clicking a block, shape, resize handle, or button
+    if (
+      target.closest('.ResizeHandle') || 
+      (target.closest('[id]') && pageBlocks.some(b => b.id === target.closest('[id]')?.id))
+    ) {
+      return;
+    }
 
     const shouldPan = spaceHeldRef.current || activeTool === 'move' || e.button === 1;
     if (shouldPan) {
@@ -448,30 +565,60 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         if (kind === 'freedraw' || kind === 'line' || kind === 'arrow') {
           currentShape = { ...currentShape, points: [...currentShape.points, [cx, cy]], w: cx - currentShape.startX, h: cy - currentShape.startY };
         } else {
-          const nx = Math.min(currentShape.startX, cx), ny = Math.min(currentShape.startY, cy);
-          currentShape = { ...currentShape, x: nx, y: ny, w: Math.abs(cx - currentShape.startX), h: Math.abs(cy - currentShape.startY) };
+          let dx = cx - currentShape.startX;
+          let dy = cy - currentShape.startY;
+          if (ev.shiftKey) {
+            const size = Math.max(Math.abs(dx), Math.abs(dy));
+            dx = Math.sign(dx) * size;
+            dy = Math.sign(dy) * size;
+          }
+          const nx = dx < 0 ? currentShape.startX + dx : currentShape.startX;
+          const ny = dy < 0 ? currentShape.startY + dy : currentShape.startY;
+          currentShape = { ...currentShape, x: nx, y: ny, w: Math.abs(dx), h: Math.abs(dy) };
         }
         setDrawingShape(currentShape);
       };
 
       const onUp = (ev: PointerEvent) => {
         const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
+        
+        let finalW = currentShape.w;
+        let finalH = currentShape.h;
+        let finalX = currentShape.x;
+        let finalY = currentShape.y;
+
+        const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
+        
+        if (!isLineish && ev.shiftKey) {
+          let dx = cx - currentShape.startX;
+          let dy = cy - currentShape.startY;
+          const size = Math.max(Math.abs(dx), Math.abs(dy));
+          dx = Math.sign(dx) * size;
+          dy = Math.sign(dy) * size;
+          finalX = dx < 0 ? currentShape.startX + dx : currentShape.startX;
+          finalY = dy < 0 ? currentShape.startY + dy : currentShape.startY;
+          finalW = Math.abs(dx);
+          finalH = Math.abs(dy);
+        }
+
         const isPoint = Math.abs(cx - currentShape.startX) < 3 && Math.abs(cy - currentShape.startY) < 3;
         
         if (!isPoint) {
-          const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
+          const newBlockId = generateId();
           addCanvasBlock({
-            id: generateId(), type: 'shape', content: '', canvasId: entity.id,
+            id: newBlockId, type: 'shape', content: '', canvasId: entity.id,
             shapeKind: kind as any,
-            x: isLineish ? 0 : currentShape.x, y: isLineish ? 0 : currentShape.y,
-            width: isLineish ? 0 : Math.max(currentShape.w, 20),
-            height: isLineish ? 0 : Math.max(currentShape.h, 20),
+            x: isLineish ? 0 : finalX, y: isLineish ? 0 : finalY,
+            width: isLineish ? 0 : Math.max(finalW, 20),
+            height: isLineish ? 0 : Math.max(finalH, 20),
             points: isLineish ? currentShape.points : undefined,
             canvasStyleExt: {
-              stroke: '#d38f36', strokeWidth: 2, strokeStyle: 'solid',
-              fill: isLineish ? 'transparent' : '#d38f36', fillOpacity: isLineish ? 0 : 0.1,
+              ...activeStyle,
+              fill: isLineish ? 'transparent' : activeStyle.fill,
+              fillOpacity: isLineish ? 0 : activeStyle.fillOpacity,
             },
           });
+          setSelectedIds(new Set([newBlockId]));
           history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
         }
         
@@ -506,6 +653,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   };
 
   function selectBlock(id: string, addToSelection: boolean) {
+    setShowFloatingToolbar(false);
     if (addToSelection) {
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -517,8 +665,17 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     }
   }
 
+  const handleBlockContextMenu = useCallback((e: React.MouseEvent, blockId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedIds.has(blockId)) {
+      setSelectedIds(new Set([blockId]));
+    }
+    setShowFloatingToolbar(true);
+  }, [selectedIds]);
+
   return (
-    <div className="flex-1 relative overflow-hidden flex flex-col bg-[#141413]">
+    <div className="flex-1 relative overflow-hidden flex flex-col bg-[var(--app-background)]">
       <CanvasToolbar
         activeTool={activeTool}
         setActiveTool={setActiveTool}
@@ -557,8 +714,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           className="flex-1 relative overflow-hidden"
           style={{
             cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : undefined,
-            background: '#141413',
-            backgroundImage: `linear-gradient(to right, var(--bone-3) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-3) 1px, transparent 1px)`,
+            background: 'var(--app-background)',
+            backgroundImage: `radial-gradient(var(--bone-15) 1.2px, transparent 1.2px)`,
             backgroundSize: `${20 * viewport.scale}px ${20 * viewport.scale}px`,
             backgroundPosition: `${viewport.x}px ${viewport.y}px`,
           }}
@@ -597,9 +754,17 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   blocks={pageBlocks}
                   selectedIds={selectedIds}
                   viewport={viewport}
+                  snapWithObjects={snapWithObjects}
                   updateCanvasBlocks={updateCanvasBlocks}
                   onSelect={selectBlock}
                   onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
+                  onContextMenu={handleBlockContextMenu}
+                />
+
+                {/* Snap Guides Overlay */}
+                <svg
+                  id="canvas-snap-guides"
+                  className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[5000]"
                 />
 
                 <FlowPreview />
@@ -608,34 +773,34 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none z-[4998]">
                     {(drawingShape.kind === 'rect') && (
                       <rect x={drawingShape.x} y={drawingShape.y} width={drawingShape.w} height={drawingShape.h}
-                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />
+                        fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
+                        stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
+                        strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined}
+                        rx={activeStyle.cornerRadius ?? 0} />
                     )}
                     {(drawingShape.kind === 'ellipse') && (
                       <ellipse cx={drawingShape.x + drawingShape.w/2} cy={drawingShape.y + drawingShape.h/2}
                         rx={drawingShape.w/2} ry={drawingShape.h/2}
-                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />
+                        fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
+                        stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
+                        strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} />
                     )}
                     {(drawingShape.kind === 'diamond') && (() => {
                       const {x, y, w, h} = drawingShape;
                       return <polygon points={`${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`}
-                        fill="rgba(211,143,54,0.08)" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" />;
+                        fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
+                        stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
+                        strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} />;
                     })()}
                     {(['line','arrow','freedraw'].includes(drawingShape.kind)) && drawingShape.points.length > 1 && (
                       <path d={drawingShape.points.map((p,i) => `${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ')}
-                        fill="none" stroke="rgba(211,143,54,0.6)" strokeWidth="1.5" strokeDasharray="4 3" strokeLinecap="round" />
+                        fill="none" stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
+                        strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} strokeLinecap="round" />
                     )}
                   </svg>
                 )}
 
-                {pendingConnection && (
-                  <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[5000]">
-                    <line
-                      x1={pendingConnection.x} y1={pendingConnection.y}
-                      x2={pendingConnection.x2} y2={pendingConnection.y2}
-                      stroke="var(--accent)" strokeWidth="2" strokeDasharray="4 4"
-                    />
-                  </svg>
-                )}
+
 
                 {multiSelect.selectionRect && (
                   <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[4999]">
@@ -673,10 +838,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     activeTool={activeTool}
                     viewport={viewport}
                     snapWithObjects={snapWithObjects}
+                    snapForResize={snapForResize}
                     isSelected={selectedIds.has(b.id)}
                     selectedIds={selectedIds}
                     onSelect={selectBlock}
                     onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
+                    onContextMenu={handleBlockContextMenu}
                     onConnectStart={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
                       
@@ -692,6 +859,85 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     }}
                   />
                 ))}
+
+                 {selectionBoundingBox && activeTool === 'select' && showFloatingToolbar && (
+                  <div
+                    className="absolute pointer-events-none z-[5001] flex justify-center"
+                    style={{
+                      left: selectionBoundingBox.x + selectionBoundingBox.w / 2,
+                      top: selectionBoundingBox.y - 12,
+                      transform: `translate(-50%, -100%) scale(${1 / viewport.scale})`,
+                      transformOrigin: 'bottom center',
+                    }}
+                  >
+                    <div 
+                      className="flex items-center gap-1.5 bg-panel/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.3)] rounded-full px-2.5 py-1.5 pointer-events-auto select-none"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      {/* Quick Colors */}
+                      <div className="flex items-center gap-1 pr-1.5 border-r border-border/30">
+                        {[
+                          { label: 'None', value: 'transparent', opacity: 0 },
+                          { label: 'Accent', value: '#d38f36', opacity: 0.15 },
+                          { label: 'Blue', value: '#5b9cf6', opacity: 0.15 },
+                          { label: 'Purple', value: '#a78bfa', opacity: 0.15 },
+                          { label: 'Green', value: '#4ade80', opacity: 0.15 },
+                          { label: 'Red', value: '#f87171', opacity: 0.15 },
+                        ].map(col => (
+                          <button
+                            key={col.value}
+                            title={col.label}
+                            onClick={() => handleQuickColor(col.value, col.opacity)}
+                            className="w-4 h-4 rounded-full border border-[var(--bone-15)] hover:border-[var(--bone-60)] transition-none"
+                            style={{
+                              background: col.value === 'transparent' ? 'transparent' : col.value,
+                              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)',
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Duplicate */}
+                      <button
+                        title="Duplicate (Ctrl+D)"
+                        onClick={handleDuplicateSelection}
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Bring to Front */}
+                      <button
+                        title="Bring to Front"
+                        onClick={() => handleLayerOrder('front')}
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Send to Back */}
+                      <button
+                        title="Send to Back"
+                        onClick={() => handleLayerOrder('back')}
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)] active:bg-[var(--bone-15)] transition-none"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+
+                      <div className="w-px h-3.5 bg-border/30 mx-0.5" />
+
+                      {/* Delete */}
+                      <button
+                        title="Delete (Delete/Backspace)"
+                        onClick={handleDeleteSelection}
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-danger/70 hover:text-danger hover:bg-danger/10 transition-none"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -720,6 +966,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           <CanvasStylePanel
             selectedIds={selectedIds}
             canvasId={entity.id}
+            activeStyle={activeStyle}
+            onChangeActiveStyle={setActiveStyle}
             onAlignLeft={() => alignBlocks('left')}
             onAlignCenterH={() => alignBlocks('centerH')}
             onAlignRight={() => alignBlocks('right')}

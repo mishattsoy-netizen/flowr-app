@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { EditorBlock, CanvasStyleExt } from '@/data/store';
+import { activeDragOffsets } from '@/lib/canvasDragState';
 
 // ─── Row ↔ store mappers ──────────────────────────────────────────────────────
 
@@ -49,14 +50,34 @@ function rowToBlock(row: Record<string, unknown>): EditorBlock {
 const pendingUpserts = new Map<string, ReturnType<typeof setTimeout>>();
 
 export async function upsertCanvasBlock(
-  block: EditorBlock, userId: string, workspaceId: string
+  block: EditorBlock, userId?: string, workspaceId?: string
 ): Promise<void> {
   if (!supabase || !block.canvasId) return;
   const existing = pendingUpserts.get(block.id);
   if (existing) clearTimeout(existing);
   pendingUpserts.set(block.id, setTimeout(async () => {
     pendingUpserts.delete(block.id);
-    const row = blockToRow(block, userId, workspaceId);
+    
+    let resolvedUid = userId;
+    if (!resolvedUid) {
+      const { data } = await supabase.auth.getUser();
+      resolvedUid = data?.user?.id;
+    }
+    if (!resolvedUid) return;
+
+    let resolvedWsId: string = workspaceId || 'ws-personal';
+    if (!workspaceId) {
+      const { data } = await supabase
+        .from('entities')
+        .select('workspace_id')
+        .eq('id', block.canvasId)
+        .single();
+      if (data?.workspace_id) {
+        resolvedWsId = data.workspace_id;
+      }
+    }
+
+    const row = blockToRow(block, resolvedUid, resolvedWsId);
     const { error } = await supabase.from('canvas_blocks').upsert(row, { onConflict: 'id' });
     if (error) console.error('[canvasSync] upsertCanvasBlock', error);
   }, 300));
@@ -91,17 +112,34 @@ export function subscribeCanvasBlocks(
 ): () => void {
   if (!supabase) return () => {};
 
+  let currentUserId: string | null = null;
+  supabase.auth.getUser().then((res: any) => {
+    currentUserId = res?.data?.user?.id || null;
+  });
+
   const channel = supabase
     .channel(`canvas_blocks:${canvasId}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'canvas_blocks', filter: `canvas_id=eq.${canvasId}` },
       (payload: { eventType: string; old: Record<string, unknown>; new: Record<string, unknown> }) => {
+        // Skip updates initiated by the current user to prevent self-conflict loopbacks
+        if (payload.eventType !== 'DELETE' && payload.new && payload.new.user_id === currentUserId) {
+          return;
+        }
+
+        const incoming = payload.eventType !== 'DELETE' ? rowToBlock(payload.new as Record<string, unknown>) : null;
+
+        // Skip updates for elements currently being dragged by this user
+        if (incoming && activeDragOffsets.has(incoming.id)) {
+          return;
+        }
+
         const current = getCurrentBlocks();
         if (payload.eventType === 'DELETE') {
           onChange(current.filter(b => b.id !== (payload.old as Record<string, unknown>).id));
         } else {
-          const incoming = rowToBlock(payload.new as Record<string, unknown>);
+          if (!incoming) return;
           const idx = current.findIndex(b => b.id === incoming.id);
           if (idx === -1) {
             onChange([...current, incoming]);

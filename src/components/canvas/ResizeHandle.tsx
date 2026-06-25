@@ -22,14 +22,14 @@ const CURSOR_MAP: Record<HandlePosition, string> = {
 };
 
 const POSITION_CLASSES: Record<HandlePosition, string> = {
-  nw: '-top-[3px] -left-[3px]',
-  n:  '-top-[3px] left-1/2 -translate-x-1/2',
-  ne: '-top-[3px] -right-[3px]',
-  e:  'top-1/2 -right-[3px] -translate-y-1/2',
-  se: '-bottom-[3px] -right-[3px]',
-  s:  '-bottom-[3px] left-1/2 -translate-x-1/2',
-  sw: '-bottom-[3px] -left-[3px]',
-  w:  'top-1/2 -left-[3px] -translate-y-1/2',
+  nw: '-top-[5px] -left-[5px]',
+  n:  '-top-[5px] left-1/2 -translate-x-1/2',
+  ne: '-top-[5px] -right-[5px]',
+  e:  'top-1/2 -right-[5px] -translate-y-1/2',
+  se: '-bottom-[5px] -right-[5px]',
+  s:  '-bottom-[5px] left-1/2 -translate-x-1/2',
+  sw: '-bottom-[5px] -left-[5px]',
+  w:  'top-1/2 -left-[5px] -translate-y-1/2',
 };
 
 export function ResizeHandle({ position, onResizeStart, isSelected }: ResizeHandleProps) {
@@ -38,9 +38,10 @@ export function ResizeHandle({ position, onResizeStart, isSelected }: ResizeHand
   return (
     <div
       className={cn(
-        "absolute z-[200] ",
-        "w-2.5 h-2.5 bg-background border-2 border-brand-blue rounded-full ",
-        isSelected ? "opacity-100 scale-100" : "opacity-0 scale-50",
+        "absolute z-[200]",
+        "w-2.5 h-2.5 bg-panel border border-brand-blue rounded-none shadow-sm",
+        "transition-none hover:scale-135 hover:bg-brand-blue hover:border-[var(--app-panel)]",
+        isSelected ? "opacity-100 scale-100" : "opacity-0 scale-50 pointer-events-none",
         POSITION_CLASSES[position],
       )}
       style={{ cursor: CURSOR_MAP[position] }}

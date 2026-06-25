@@ -7,7 +7,6 @@ export interface SelectionRect {
 
 export function useCanvasMultiSelect(blocks: EditorBlock[]) {
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selectedIdsRef = useRef<Set<string>>(new Set());
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -16,7 +15,6 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
   const startSelection = useCallback((canvasX: number, canvasY: number) => {
     startRef.current = { x: canvasX, y: canvasY };
     setSelectionRect({ x: canvasX, y: canvasY, width: 0, height: 0 });
-    setSelectedIds(new Set());
     selectedIdsRef.current = new Set();
   }, []);
 
@@ -62,7 +60,6 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
         intersecting.add(b.id);
       }
     }
-    setSelectedIds(intersecting);
     selectedIdsRef.current = intersecting;
   }, [blocks]);
 
@@ -73,10 +70,9 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
 
   const clearSelection = useCallback(() => {
     const empty = new Set<string>();
-    setSelectedIds(empty);
     selectedIdsRef.current = empty;
     setSelectionRect(null);
   }, []);
 
-  return { selectionRect, selectedIds, getLatestSelectedIds, startSelection, updateSelection, endSelection, clearSelection };
+  return { selectionRect, getLatestSelectedIds, startSelection, updateSelection, endSelection, clearSelection };
 }

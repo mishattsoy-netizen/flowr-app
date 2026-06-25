@@ -84,38 +84,42 @@ export const SmartArrowEdge = ({
     });
   }
 
-  const applyPathGap = (path: string) => {
-    if (!path) return path;
-    // Split by letters or spaces to ensure solid parse
-    const parts = path.split(/[ ,]/).filter(Boolean);
-    if (parts.length < 4) return path;
-
-    const lastX = parseFloat(parts[parts.length - 2]);
-    const lastY = parseFloat(parts[parts.length - 1]);
+  const applyPathGap = (pStr: string) => {
+    if (!pStr) return pStr;
+    const tokens = pStr.match(/[a-zA-Z]|-?\d+(?:\.\d+)?/g);
+    if (!tokens || tokens.length < 4) return pStr;
     
-    // Find the last control or point previous to coordinate pair for tangent vectors
-    const prevX = parseFloat(parts[parts.length - 4]);
-    const prevY = parseFloat(parts[parts.length - 3]);
-
+    const len = tokens.length;
+    const lastX = parseFloat(tokens[len - 2]);
+    const lastY = parseFloat(tokens[len - 1]);
+    
+    const prevX = parseFloat(tokens[len - 4]);
+    const prevY = parseFloat(tokens[len - 3]);
+    
+    if (isNaN(lastX) || isNaN(lastY) || isNaN(prevX) || isNaN(prevY)) {
+      return pStr;
+    }
+    
     const dx = lastX - prevX;
     const dy = lastY - prevY;
     const dist = Math.hypot(dx, dy);
     
-    if (dist === 0) return path;
-
-    const gap = 8;
-    const ratio = (dist - gap) / dist;
+    if (dist === 0) return pStr;
+    
+    const gap = 12; // Gap for arrowhead
+    const ratio = Math.max(0, (dist - gap) / dist);
     
     const newX = prevX + dx * ratio;
     const newY = prevY + dy * ratio;
-
-    // Simple reconstruction
-    const corePath = path.substring(0, path.lastIndexOf(lastX.toString()) - 1);
-    return `${corePath} ${newX.toFixed(1)} ${newY.toFixed(1)}`;
+    
+    tokens[len - 2] = newX.toFixed(1);
+    tokens[len - 1] = newY.toFixed(1);
+    
+    return tokens.join(' ');
   };
 
   // Apply path shortening safely on final curves
-  const path = edgePath; // For safety on pure string outputs, keeping native spline string
+  const path = applyPathGap(edgePath);
 
   useEffect(() => {
     if (pathRef.current) {
@@ -149,6 +153,18 @@ export const SmartArrowEdge = ({
     else if (s.toLowerCase().includes('bone')) markerId = "arrowhead-bone";
   }
 
+  const sharedDataAttrs = {
+    'data-from-id': source,
+    'data-to-id': target,
+    'data-from-side': sourcePosition,
+    'data-to-side': targetPosition,
+    'data-init-sx': sourceX,
+    'data-init-sy': sourceY,
+    'data-init-tx': targetX,
+    'data-init-ty': targetY,
+    'data-points': pathPoints ? JSON.stringify(pathPoints) : undefined,
+  };
+
   return (
     <g>
       {/* Hitbox */}
@@ -164,6 +180,8 @@ export const SmartArrowEdge = ({
           e.stopPropagation();
           onSelect?.(id, e.shiftKey);
         }}
+        data-connection-hitbox={id}
+        {...sharedDataAttrs}
       />
 
       {/* Spline Path */}
@@ -176,6 +194,8 @@ export const SmartArrowEdge = ({
         strokeDasharray={dasharray}
         markerEnd={`url(#${markerId})`}
         style={{ pointerEvents: 'none', transition: 'stroke 0.2s, stroke-width 0.2s' }}
+        data-connection-path={id}
+        {...sharedDataAttrs}
       />
     </g>
   );

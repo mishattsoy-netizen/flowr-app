@@ -18,6 +18,7 @@ import {
   insertMessage,
 } from '@/lib/chat';
 import type { ChatConversation } from '@/lib/chat';
+import { upsertCanvasBlock, deleteCanvasBlock as deleteCanvasBlockFromDB } from '@/lib/canvasSync';
 
 // Re-export all types so all consumers import paths remain valid
 export type {
@@ -307,6 +308,7 @@ export const useStore = create<AppState>()(
       imageProvider: (typeof window !== 'undefined' && localStorage.getItem('flowr_image_provider') as 'pollinations' | 'puter') || 'pollinations',
       isAIAssistantOpen: false,
       activeChatId: null,
+      newEmptyChatId: null,
       isTempChat: true,
       tempChatMessages: [],
       chatHistoryOpen: true,
@@ -484,8 +486,8 @@ export const useStore = create<AppState>()(
       },
 
       cleanupActiveChatIfEmpty: async () => {
-        const { activeChatId, isTempChat, chatConversations } = get();
-        if (activeChatId && !isTempChat) {
+        const { activeChatId, isTempChat, newEmptyChatId } = get();
+        if (activeChatId && !isTempChat && activeChatId === newEmptyChatId) {
           const msgs = get().chatMessagesMap[activeChatId] || get().aiMessages;
           const hasMessages = msgs && msgs.some(m => m.role === 'user' || m.role === 'assistant');
           if (!hasMessages) {
@@ -498,6 +500,7 @@ export const useStore = create<AppState>()(
             set(s => ({
               chatConversations: s.chatConversations.filter(c => c.id !== activeChatId),
               activeChatId: null,
+              newEmptyChatId: null,
               aiMessages: [],
               tempChatMessages: [],
               aiSessionContext: null,
@@ -561,6 +564,7 @@ export const useStore = create<AppState>()(
 
         set(s => ({
           activeChatId: null,
+          newEmptyChatId: null,
           isTempChat: true,
           tempChatMessages: [],
           aiMessages: [],
@@ -608,6 +612,7 @@ export const useStore = create<AppState>()(
           if (conv) {
             set({
               activeChatId: conv.id,
+              newEmptyChatId: conv.id,
               isTempChat: false,
               tempChatMessages: [],
               aiMessages: [],
@@ -931,6 +936,7 @@ export const useStore = create<AppState>()(
             },
             ...(isActive ? { aiMessages: updated } : {}),
             ...(isTemp ? { tempChatMessages: updated } : {}),
+            newEmptyChatId: null,
             activeReplyMessage: null,
             isAILoading: true,
             loadingStatesMap: { ...s.loadingStatesMap, [targetChatId]: true }
@@ -952,8 +958,32 @@ export const useStore = create<AppState>()(
             }
           }
 
+          // Resolve any public paths in attachments to base64 strings on-the-fly for vision payload
+          const resolvedAttachments = await Promise.all(
+            attachments.map(async (att) => {
+              if (att.url && att.url.startsWith('/') && !att.url.startsWith('data:')) {
+                try {
+                  const absoluteUrl = `${window.location.origin}${att.url}`;
+                  const res = await fetch(absoluteUrl);
+                  const blob = await res.blob();
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                  return { ...att, url: base64 };
+                } catch (e) {
+                  console.error('Failed to resolve attachment to base64:', att.url, e);
+                  return att;
+                }
+              }
+              return att;
+            })
+          );
+
           // Handle vision / PDF: extract all image/pdf attachments as base64 array
-          const imageAttachments = attachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
+          const imageAttachments = resolvedAttachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
           const imageBuffers: string[] = imageAttachments.map(a => a.url.split(',')[1]);
           const imageBuffer: string | undefined = imageBuffers[0];
           const imagesArray: string[] | undefined = imageBuffers.length > 1 ? imageBuffers : undefined;
@@ -1112,7 +1142,14 @@ export const useStore = create<AppState>()(
                     }
                     try {
                       const parsed = JSON.parse(data);
-                      if (parsed.content) {
+                      if (parsed.error) {
+                        accumulatedContent = parsed.error;
+                        pendingContent = parsed.error;
+                        lastModel = parsed.model || 'system';
+                        isStreamDone = true;
+                        flushUpdate();
+                        break;
+                      } else if (parsed.content) {
                         const isFinalMetadata = parsed.type !== undefined;
                         if (isFinalMetadata && accumulatedContent.length > 0) {
                           // Final metadata with streamed content before it — skip to avoid double
@@ -1164,6 +1201,11 @@ export const useStore = create<AppState>()(
               }
               // Final flush: ensure all accumulated content is rendered
               if (flushTimer) clearTimeout(flushTimer);
+              if (!accumulatedContent) {
+                accumulatedContent = 'No response received from the server. Please try again.';
+                pendingContent = accumulatedContent;
+                lastModel = 'system';
+              }
               pendingContent = accumulatedContent;
               flushUpdate();
             }
@@ -1279,9 +1321,10 @@ export const useStore = create<AppState>()(
               insertMessage(activeChatId, 'assistant', interruptedContent).catch(e => console.warn('[Store] Failed to persist interrupted message:', e));
             }
           } else {
+            const errMsg = e?.message ? `Connection error: ${e.message}. Please check your connection and try again.` : 'Connection error. Please try again.';
             set(s => {
               const updated = (s.chatMessagesMap[targetChatId] || []).map(m => m.id === placeholderMessage.id
-                ? { ...m, content: 'Connection error. Please try again.' }
+                ? { ...m, content: errMsg, model: 'system' }
                 : m
               );
               const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
@@ -1326,6 +1369,7 @@ export const useStore = create<AppState>()(
               ? { ...m, content: '', variants: newVariants, variantIndex: newIndex, interrupted: false }
               : m
           ),
+          newEmptyChatId: null,
           isAILoading: true,
         }));
 
@@ -1336,7 +1380,31 @@ export const useStore = create<AppState>()(
             if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
           }
 
-          const imageAttachments = userAttachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
+          // Resolve any public paths in attachments to base64 strings on-the-fly for vision payload
+          const resolvedAttachments = await Promise.all(
+            userAttachments.map(async (att) => {
+              if (att.url && att.url.startsWith('/') && !att.url.startsWith('data:')) {
+                try {
+                  const absoluteUrl = `${window.location.origin}${att.url}`;
+                  const res = await fetch(absoluteUrl);
+                  const blob = await res.blob();
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                  return { ...att, url: base64 };
+                } catch (e) {
+                  console.error('Failed to resolve attachment to base64:', att.url, e);
+                  return att;
+                }
+              }
+              return att;
+            })
+          );
+
+          const imageAttachments = resolvedAttachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
           const imageBuffers: string[] = imageAttachments.map(a => a.url.split(',')[1]);
           const imageBuffer: string | undefined = imageBuffers[0];
           const imagesArray: string[] | undefined = imageBuffers.length > 1 ? imageBuffers : undefined;
@@ -1446,7 +1514,14 @@ export const useStore = create<AppState>()(
                     }
                     try {
                       const parsed = JSON.parse(data);
-                      if (parsed.content !== undefined) {
+                      if (parsed.error) {
+                        accumulatedContent = parsed.error;
+                        pendingContent = parsed.error;
+                        lastModel = parsed.model || 'system';
+                        isStreamDone = true;
+                        flushUpdate();
+                        break;
+                      } else if (parsed.content !== undefined) {
                         accumulatedContent += parsed.content;
                         pendingContent = accumulatedContent;
                       }
@@ -1460,7 +1535,13 @@ export const useStore = create<AppState>()(
                 }
                 if (isStreamDone) break;
               }
-              if (flushTimer !== null) { clearTimeout(flushTimer); flushUpdate(); }
+              if (flushTimer !== null) { clearTimeout(flushTimer); }
+              if (!accumulatedContent) {
+                accumulatedContent = 'No response received from the server. Please try again.';
+                pendingContent = accumulatedContent;
+                lastModel = 'system';
+              }
+              flushUpdate();
               await get().finishAILoading();
             }
           } else {
@@ -1486,9 +1567,10 @@ export const useStore = create<AppState>()(
             }));
             await get().finishAILoading();
           } else {
+            const errMsg = e?.message ? `Connection error: ${e.message}. Please check your connection and try again.` : 'Connection error. Please try again.';
             set(s => ({
               aiMessages: s.aiMessages.map(m =>
-                m.id === messageId ? { ...m, content: 'Connection error. Please try again.' } : m
+                m.id === messageId ? { ...m, content: errMsg, model: 'system' } : m
               ),
             }));
             await get().finishAILoading();
@@ -1822,35 +1904,85 @@ export const useStore = create<AppState>()(
 
       addEmptyTag: (id: string) => set((state) => ({ entities: state.entities.map(e => e.id === id ? { ...e, tags: [...(e.tags ?? []), ''], lastModified: Date.now() } : e) })),
 
-      addCanvasBlock: (block: EditorBlock) => set((state) => ({
-        blocks: [...state.blocks, block]
-      })),
-      updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => set((state) => ({
-        blocks: state.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
-      })),
-      updateCanvasBlocks: (batch: { id: string; updates: Partial<EditorBlock> }[]) => set((state) => {
-        const map = new Map(batch.map(u => [u.id, u.updates]));
-        return {
+      addCanvasBlock: (block: EditorBlock) => {
+        set((state) => ({
+          blocks: [...state.blocks, block]
+        }));
+        const canvas = get().entities.find(e => e.id === block.canvasId);
+        if (canvas?.cloudSyncEnabled) {
+          upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+        }
+      },
+      updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => {
+        set((state) => ({
+          blocks: state.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
+        }));
+        const block = get().blocks.find(b => b.id === id);
+        if (block && block.canvasId) {
+          const canvas = get().entities.find(e => e.id === block.canvasId);
+          if (canvas?.cloudSyncEnabled) {
+            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+      updateCanvasBlocks: (batch: { id: string; updates: Partial<EditorBlock> }[]) => {
+        set((state) => {
+          const map = new Map(batch.map(u => [u.id, u.updates]));
+          return {
+            blocks: state.blocks.map(b => {
+              const up = map.get(b.id);
+              return up ? { ...b, ...up } : b;
+            })
+          };
+        });
+        batch.forEach(({ id }) => {
+          const block = get().blocks.find(b => b.id === id);
+          if (block && block.canvasId) {
+            const canvas = get().entities.find(e => e.id === block.canvasId);
+            if (canvas?.cloudSyncEnabled) {
+              upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+            }
+          }
+        });
+      },
+      deleteCanvasBlock: (id: string) => {
+        const block = get().blocks.find(b => b.id === id);
+        set((state) => ({
+          blocks: state.blocks.filter(b => b.id !== id)
+        }));
+        if (block && block.canvasId) {
+          const canvas = get().entities.find(e => e.id === block.canvasId);
+          if (canvas?.cloudSyncEnabled) {
+            deleteCanvasBlockFromDB(id);
+          }
+        }
+      },
+      moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => {
+        set((state) => ({
           blocks: state.blocks.map(b => {
-            const up = map.get(b.id);
-            return up ? { ...b, ...up } : b;
+            if (b.id === sectionId) {
+              return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
+            }
+            if (b.parentId === sectionId) {
+              return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
+            }
+            return b;
           })
-        };
-      }),
-      deleteCanvasBlock: (id: string) => set((state) => ({
-        blocks: state.blocks.filter(b => b.id !== id)
-      })),
-      moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => set((state) => ({
-        blocks: state.blocks.map(b => {
-          if (b.id === sectionId) {
-            return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
+        }));
+
+        const sectionBlock = get().blocks.find(b => b.id === sectionId);
+        if (sectionBlock && sectionBlock.canvasId) {
+          const canvas = get().entities.find(e => e.id === sectionBlock.canvasId);
+          if (canvas?.cloudSyncEnabled) {
+            upsertCanvasBlock(sectionBlock, undefined, canvas.workspaceId || undefined);
+
+            const childBlocks = get().blocks.filter(b => b.parentId === sectionId);
+            childBlocks.forEach(b => {
+              upsertCanvasBlock(b, undefined, canvas.workspaceId || undefined);
+            });
           }
-          if (b.parentId === sectionId) {
-            return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
-          }
-          return b;
-        })
-      })),
+        }
+      },
 
       toggleFavorite: (id) => set((state) => ({ favoriteIds: state.favoriteIds.includes(id) ? state.favoriteIds.filter(fid => fid !== id) : [...state.favoriteIds, id] })),
 

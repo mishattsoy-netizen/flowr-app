@@ -235,6 +235,8 @@ export interface AIAttachment {
   type: 'image' | 'audio' | 'file' | 'pdf';
   url: string;
   name: string;
+  uploading?: boolean;
+  tempId?: string;
 }
 
 export interface AIMessage {
@@ -466,6 +468,7 @@ export interface AppState {
 
   // Chat page state
   activeChatId: string | null;
+  newEmptyChatId: string | null;
   isTempChat: boolean;
   tempChatMessages: AIMessage[];
   chatHistoryOpen: boolean;

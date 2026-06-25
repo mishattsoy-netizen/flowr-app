@@ -113,7 +113,11 @@ export async function insertMessage(
 ): Promise<ChatMessage> {
   let finalContent = content;
   if (attachments && attachments.length > 0) {
-    finalContent = `${content}\n\n<!-- ATTACHMENTS_JSON:${JSON.stringify(attachments)} -->`;
+    const sanitizedAttachments = attachments.map(att => {
+      const { type, url, name } = att;
+      return { type, url, name };
+    });
+    finalContent = `${content}\n\n<!-- ATTACHMENTS_JSON:${JSON.stringify(sanitizedAttachments)} -->`;
   }
 
   const insertPayload: Record<string, any> = {

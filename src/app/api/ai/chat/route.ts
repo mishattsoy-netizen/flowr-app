@@ -129,16 +129,42 @@ export async function POST(req: NextRequest) {
         )
 
         let content = result.content
+        let isImage = false;
+        let imageBuffer: Buffer | null = null;
+        let mime = 'image/png';
+
         if (content && (Buffer.isBuffer(content) || (content as any) instanceof Uint8Array)) {
-          const buf = Buffer.from(content as any);
-          const b64 = buf.toString('base64');
-          let mime = 'image/png';
-          if (buf[0] === 0xFF && buf[1] === 0xD8) mime = 'image/jpeg';
-          else if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) mime = 'image/gif';
-          else if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) mime = 'image/webp';
-          content = `![Generated Image](data:${mime};base64,${b64})`
+          imageBuffer = Buffer.from(content as any);
+          isImage = true;
+          if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) mime = 'image/jpeg';
+          else if (imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49 && imageBuffer[2] === 0x46) mime = 'image/gif';
+          else if (imageBuffer[0] === 0x52 && imageBuffer[1] === 0x49 && imageBuffer[2] === 0x46 && imageBuffer[3] === 0x46) mime = 'image/webp';
         } else if (result.type === 'photo' && typeof content === 'string' && content.startsWith('data:')) {
-          content = `![Generated Image](${content})`
+          const match = content.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
+          if (match) {
+            mime = match[1];
+            imageBuffer = Buffer.from(match[2], 'base64');
+            isImage = true;
+          }
+        }
+
+        if (isImage && imageBuffer) {
+          try {
+            const ext = mime.split('/')[1] || 'png';
+            const filename = `ai-${Date.now()}-${crypto.randomUUID()}.${ext}`;
+            const publicDir = path.join(process.cwd(), 'public', 'generated_images');
+            if (!fs.existsSync(publicDir)) {
+              fs.mkdirSync(publicDir, { recursive: true });
+            }
+            const filePath = path.join(publicDir, filename);
+            fs.writeFileSync(filePath, imageBuffer);
+            content = `![Generated Image](/generated_images/${filename})`;
+          } catch (e) {
+            console.error('[AI Chat] Failed to save generated image to public folder:', e);
+            // Fallback to base64 if save fails
+            const b64 = imageBuffer!.toString('base64');
+            content = `![Generated Image](data:${mime};base64,${b64})`;
+          }
         } else if (result.type === 'photo' && typeof content === 'string' && (content.startsWith('http') || content.includes('.ai/'))) {
           content = `![Generated Image](${content})`
         }

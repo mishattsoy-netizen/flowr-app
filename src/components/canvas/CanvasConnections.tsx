@@ -3,6 +3,7 @@
 import { useStore, EditorBlock } from "@/data/store";
 import { useMemo } from "react";
 import { SmartArrowEdge } from "./edges/SmartArrowEdge";
+import { activeDragOffsets } from "@/lib/canvasDragState";
 
 interface CanvasConnectionsProps {
   canvasId: string;
@@ -29,9 +30,12 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect }: CanvasCon
   const getBlockData = (blockId: string) => {
     const b = blocks.find(x => x.id === blockId);
     if (!b) return null;
+    const dragOffset = activeDragOffsets.get(blockId) || { dx: 0, dy: 0 };
     return {
-      x: b.x || 0, y: b.y || 0,
-      w: b.width || 280, h: b.height || 100
+      x: (b.x || 0) + dragOffset.dx,
+      y: (b.y || 0) + dragOffset.dy,
+      w: b.width || 280,
+      h: b.height || 100
     };
   };
 
@@ -94,6 +98,8 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect }: CanvasCon
           <SmartArrowEdge
             key={conn.id}
             id={conn.id}
+            source={conn.fromId}
+            target={conn.toId}
             sourceX={p1.x}
             sourceY={p1.y}
             targetX={p2.x}

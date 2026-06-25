@@ -15,6 +15,42 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.8',
+    build: '2319',
+    date: '2026-06-25',
+    title: 'AI Settings Tab, File-Based Image Caching, & Canvas Precision Drag/Resizing Engine',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added custom AI settings section tab to configure user background/descriptions and system context prompts.',
+          'Added server-based description syncing actions dynamically injecting custom background content in prompt pipelines.',
+          'Added absolute pixel coordinates snapping guides matching shape dimensions and canvas alignments.',
+          'Added shift-key dragging axis constraint locking block movements to pure horizontal or vertical coordinates.',
+          'Added shift-key shape resize locking to maintain native shape aspect ratio rules.',
+          'Added coordinate (X/Y) and dimension (width/height/radius/stroke) numeric scrub gesture labels to quickly drag and scale shape values.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Migrated canvas data structures to a global Zustand store layer to prevent out-of-sync local render configurations.',
+          'Overhauled SVG arrow link algorithms to auto-center connections, fix broken command regex parses, and add snap lines.',
+          'Updated canvas styling specifications, buttons, colors, toggles, sidebars, and right-click contextual menus to align with brand standards.',
+          'Configured AI image generation to automatically write files directly to public directory caching paths to guarantee offline persistence.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed shapes double-click listeners failing to activate textarea overlays for shape text editing.',
+          'Fixed floating toolbar selection actions firing off background page selections and closing context menus.',
+          'Fixed right-click custom events to cleanly trigger absolute placement context controls.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.7',
     build: '2318',
     date: '2026-06-24',
