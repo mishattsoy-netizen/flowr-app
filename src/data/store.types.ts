@@ -83,6 +83,23 @@ export interface DatabaseRow {
 
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw';
 
+export interface ArrowBinding {
+  blockId: string;
+  focus?: number;
+  gap?: number;
+  fixedPoint?: [number, number];
+  fixedPointType?: 'corner' | 'edge-center' | 'free';
+}
+
+export type ArrowheadType = 'none' | 'triangle' | 'filled-triangle' | 'circle' | 'bar' | 'diamond';
+
+export interface ArrowheadStyle {
+  type: ArrowheadType;
+  size?: number;
+}
+
+export type EditMode = 'simple' | 'advanced';
+
 export interface CanvasStyleExt {
   fill?: string;
   fillOpacity?: number;
@@ -92,6 +109,10 @@ export interface CanvasStyleExt {
   cornerRadius?: number;
   opacity?: number;
   locked?: boolean;
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  aspectRatioLocked?: boolean;
 }
 
 export interface EditorBlock {
@@ -133,6 +154,13 @@ export interface EditorBlock {
   };
   shapeKind?: ShapeKind;
   points?: [number, number][];
+  startBinding?: ArrowBinding;
+  endBinding?: ArrowBinding;
+  keyPoints?: [number, number][];
+  editMode?: EditMode;
+  pointRadiuses?: number[];
+  startArrowhead?: ArrowheadStyle;
+  endArrowhead?: ArrowheadStyle;
   canvasStyleExt?: CanvasStyleExt;
   groupId?: string;
   fromId?: string;
@@ -522,7 +550,7 @@ export interface AppState {
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
   finishAILoading: (chatId?: string) => Promise<void>;
-  sendAIMessage: (content: string, attachments?: AIAttachment[]) => Promise<void>;
+  sendAIMessage: (content: string, attachments?: AIAttachment[], pageContext?: string) => Promise<void>;
   regenerateAIMessage: (messageId: string, userContent: string, userAttachments?: AIAttachment[]) => Promise<void>;
   setVariantIndex: (messageId: string, index: number) => void;
   setActiveEntityId: (id: string | null) => void;

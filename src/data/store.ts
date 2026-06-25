@@ -48,6 +48,45 @@ import {
 } from './store.helpers';
 
 
+function migrateBlock(block: any): any {
+  if (block.type === 'shape' && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
+    if (block.editMode) return block;
+    return {
+      ...block,
+      editMode: 'simple',
+      keyPoints: block.points || [],
+      startArrowhead: block.shapeKind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      endArrowhead: block.shapeKind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+    };
+  }
+
+  if (block.type === 'connection') {
+    const kind = block.shapeKind || 'arrow';
+    return {
+      ...block,
+      type: 'shape',
+      shapeKind: kind,
+      editMode: 'simple',
+      startBinding: block.fromId ? { blockId: block.fromId } : undefined,
+      endBinding: block.toId ? { blockId: block.toId } : undefined,
+      keyPoints: block.points ? block.points.slice(1, -1) : [],
+      startArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      endArrowhead: kind === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      fromId: undefined,
+      toId: undefined,
+      fromSide: undefined,
+      toSide: undefined,
+    };
+  }
+
+  return block;
+}
+
+function migrateBlocks(blocks: any[]): any[] {
+  if (!Array.isArray(blocks)) return blocks;
+  return blocks.map(migrateBlock);
+}
+
 // ─── Store ─────── (types/constants/helpers moved to store.types.ts / store.constants.ts / store.helpers.ts) ───
 
 const oneDayMs = 24 * 60 * 60 * 1000;
@@ -866,7 +905,7 @@ export const useStore = create<AppState>()(
         }));
       },
 
-      sendAIMessage: async (content, attachments = []) => {
+      sendAIMessage: async (content, attachments = [], pageContext) => {
         const { aiMessages, activeReplyMessage } = get();
         const isTemp = get().isTempChat;
         const activeChatId = get().activeChatId;
@@ -1039,6 +1078,7 @@ export const useStore = create<AppState>()(
               pendingAdvisorState: pendingState,
               isTempChat: isTemp,
               clientHistory: historyMessages,
+              pageContext: pageContext ?? null,
             }),
           });
 
@@ -2193,7 +2233,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 15,
+      version: 16,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
@@ -2268,6 +2308,11 @@ export const useStore = create<AppState>()(
               ...t,
               workspaceId: t.workspaceId || 'ws-personal',
             }));
+          }
+        }
+        if (version < 16) {
+          if (Array.isArray(state.blocks)) {
+            state.blocks = state.blocks.map((b: any) => migrateBlock(b));
           }
         }
         return state;
