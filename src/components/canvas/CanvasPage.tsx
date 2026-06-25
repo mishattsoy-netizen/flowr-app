@@ -8,6 +8,7 @@ import { CanvasLayersPanel } from './CanvasLayersPanel';
 import { CanvasStylePanel } from './CanvasStylePanel';
 import { CanvasConnections } from './CanvasConnections';
 import { CanvasShapeLayer } from './CanvasShapeLayer';
+import { VectorPath } from './edges/VectorPath';
 import { MediaUploadPopover } from './MediaUploadPopover';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
@@ -776,7 +777,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                   onContextMenu={handleBlockContextMenu}
                   onDoubleClick={handleDoubleClickBlock}
-                  activeTool={activeTool}
                 />
 
                 {/* Snap Guides Overlay */}
@@ -848,6 +848,28 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     </span>
                   </div>
                 ))}
+
+                {/* Standalone arrows layer — outside viewport-export so z-index competes with HTML blocks */}
+                <svg
+                  className="absolute inset-0 pointer-events-none overflow-visible"
+                  style={{
+                    zIndex: 10,
+                    transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+                    transformOrigin: '0 0',
+                  }}
+                >
+                  {pageBlocks.filter(b =>
+                    (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw') &&
+                    !(b.startBinding || b.endBinding || b.fromId || b.toId)
+                  ).map(b => (
+                    <VectorPath key={b.id} block={b}
+                      selected={selectedIds.has(b.id)}
+                      editing={editingBlockId === b.id}
+                      activeTool={activeTool}
+                      onSelect={selectBlock}
+                      onDoubleClick={() => handleDoubleClickBlock(b.id)} />
+                  ))}
+                </svg>
 
                 {pageBlocks.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw' && b.type !== 'connection').map(b => (
                   <CanvasBlock
@@ -986,7 +1008,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Zoom Controls */}
-            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[8px] p-[3px]">
+            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px]">
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: Math.max(MIN_ZOOM, p.scale - ZOOM_STEP) }))}
                 className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
@@ -1016,7 +1038,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             </div>
 
             {/* Undo / Redo Controls */}
-            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[8px] p-[3px] gap-[1px]">
+            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px] gap-[1px]">
               <button
                 onClick={handleUndo}
                 disabled={!history.canUndo}
@@ -1039,7 +1061,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         {/* Floating Toolbar above the Right Sidebar */}
         <div 
-          className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[11px] p-[5px] gap-[4px] select-none"
+          className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[11px] p-[5px] gap-[4px] select-none"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -1110,7 +1132,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         {showStylePanel && (
           <div
-            className="absolute right-4 top-[56px] z-[1500] flex flex-col select-none"
+            className="absolute right-4 top-[64px] z-[1500] flex flex-col select-none"
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >

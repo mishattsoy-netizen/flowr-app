@@ -75,12 +75,30 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
 
   const isDrawingTool = activeTool === 'arrow' || activeTool === 'line';
 
+  const bounds = useMemo(() => {
+    if (resolvedPts.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of resolvedPts) {
+      if (p[0] < minX) minX = p[0];
+      if (p[1] < minY) minY = p[1];
+      if (p[0] > maxX) maxX = p[0];
+      if (p[1] > maxY) maxY = p[1];
+    }
+    return { x: minX, y: minY, w: Math.max(maxX - minX, 1), h: Math.max(maxY - minY, 1) };
+  }, [resolvedPts]);
+
   return (
     <g id={block.id}>
       <defs>
         <ArrowheadMarker id={markerIds.start} style={sHead} strokeColor={strokeColor} />
         <ArrowheadMarker id={markerIds.end} style={eHead} strokeColor={strokeColor} />
       </defs>
+      {/* Selection frame */}
+      {selected && bounds && (
+        <rect x={bounds.x - 6} y={bounds.y - 6} width={bounds.w + 12} height={bounds.h + 12}
+          fill="none" stroke="var(--brand-blue)" strokeWidth={1} strokeDasharray="4 4" rx={4}
+          style={{ pointerEvents: 'none' }} />
+      )}
       <path
         d={path}
         fill="none" stroke="transparent" strokeWidth={22}
