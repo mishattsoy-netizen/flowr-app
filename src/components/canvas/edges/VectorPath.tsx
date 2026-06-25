@@ -45,7 +45,9 @@ export function VectorPath({ block, selected, editing, activeTool, onSelect, onP
     if (isNaN(lx) || isNaN(ly) || isNaN(px) || isNaN(py)) return edgePath;
     const dx = lx - px, dy = ly - py, dist = Math.hypot(dx, dy);
     if (dist === 0) return edgePath;
-    const gap = 12, ratio = Math.max(0, (dist - gap) / dist);
+    const headSize = block.endArrowhead?.size ?? 1;
+    const gap = 8 * headSize;
+    const ratio = Math.max(0, (dist - gap) / dist);
     tokens[len-2] = (px + dx * ratio).toFixed(1);
     tokens[len-1] = (py + dy * ratio).toFixed(1);
     return tokens.join(' ');

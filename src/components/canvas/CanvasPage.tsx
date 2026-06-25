@@ -551,15 +551,18 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       if (!isDrawing) {
         setDrawing(true);
         addPoint([x, y]);
+        useFlowState.getState().updateMouse({ x, y });
       } else {
         // Handle auto snap completion logic if user clicks nearby an existing anchor handle
         const snap = findClosestBlockHandle(x, y);
         if (snap) {
           addPoint([x, y]);
+          useFlowState.getState().updateMouse({ x, y });
           commitFlowConnection();
           return;
         }
         addPoint([x, y]);
+        useFlowState.getState().updateMouse({ x, y });
       }
       return;
     }
@@ -907,27 +910,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       <button
                         title="Duplicate (Ctrl+D)"
                         onClick={handleDuplicateSelection}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
+                        className="group w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
-                        <Copy className="w-3.5 h-3.5" />
+                        <span className="opacity-60 group-hover:opacity-100"><Copy className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
                       </button>
 
                       {/* Bring to Front */}
                       <button
                         title="Bring to Front"
                         onClick={() => handleLayerOrder('front')}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
+                        className="group w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
-                        <ArrowUp className="w-3.5 h-3.5" />
+                        <span className="opacity-60 group-hover:opacity-100"><ArrowUp className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
                       </button>
 
                       {/* Send to Back */}
                       <button
                         title="Send to Back"
                         onClick={() => handleLayerOrder('back')}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
+                        className="group w-6 h-6 flex items-center justify-center rounded-full text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] transition-none"
                       >
-                        <ArrowDown className="w-3.5 h-3.5" />
+                        <span className="opacity-60 group-hover:opacity-100"><ArrowDown className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
                       </button>
 
                       <div className="w-px h-3.5 bg-border/30 mx-0.5" />
@@ -936,9 +939,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       <button
                         title="Delete (Delete/Backspace)"
                         onClick={handleDeleteSelection}
-                        className="w-6 h-6 flex items-center justify-center rounded-full text-danger/70 hover:text-danger hover:bg-danger/10 transition-none"
+                        className="group w-6 h-6 flex items-center justify-center rounded-full text-danger/70 hover:text-danger hover:bg-danger/10 transition-none"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="opacity-70 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5 text-[var(--color-danger)]" /></span>
                       </button>
                     </div>
                   </div>
@@ -976,10 +979,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_20px_rgba(0,0,0,0.18)] rounded-[8px] p-[3px]">
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: Math.max(MIN_ZOOM, p.scale - ZOOM_STEP) }))}
-                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
                 title="Zoom Out"
               >
-                <Minus className="w-3.5 h-3.5" />
+                <span className="opacity-70 group-hover:opacity-100"><Minus className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
               </button>
               
               <button
@@ -992,13 +995,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: Math.min(MAX_ZOOM, p.scale + ZOOM_STEP) }))}
-                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
                 title="Zoom In"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <span className="opacity-70 group-hover:opacity-100"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--bone-100)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
+                </svg></span>
               </button>
             </div>
 
@@ -1007,18 +1010,18 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               <button
                 onClick={handleUndo}
                 disabled={!history.canUndo}
-                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
                 title="Undo (Ctrl+Z)"
               >
-                <Undo2 className="w-3.5 h-3.5" />
+                <span className="opacity-70 group-hover:opacity-100"><Undo2 className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
               </button>
               <button
                 onClick={handleRedo}
                 disabled={!history.canRedo}
-                className="w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
                 title="Redo (Ctrl+Y)"
               >
-                <Redo2 className="w-3.5 h-3.5" />
+                <span className="opacity-70 group-hover:opacity-100"><Redo2 className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
               </button>
             </div>
           </div>
@@ -1035,42 +1038,42 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             <button
               onClick={() => setShowStylePanel(!showStylePanel)}
               className={cn(
-                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
                 showStylePanel
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title="Toggle style sidebar"
             >
-              <PanelRight className="w-4 h-4" />
+              <span className={showStylePanel ? "" : "opacity-60 group-hover:opacity-100"}><PanelRight className="w-4 h-4 text-[var(--bone-100)]" /></span>
             </button>
 
             {/* Toggle Left Sidebar (Layers) */}
             <button
               onClick={() => setShowLayers(!showLayers)}
               className={cn(
-                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
                 showLayers
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title="Layers panel"
             >
-              <Layers className="w-4 h-4" />
+              <span className={showLayers ? "" : "opacity-60 group-hover:opacity-100"}><Layers className="w-4 h-4 text-[var(--bone-100)]" /></span>
             </button>
 
             {/* Toggle Snapping */}
             <button
               onClick={() => setSnapEnabled(!snapEnabled)}
               className={cn(
-                "w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
                 snapEnabled
                   ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title={snapEnabled ? "Snapping is ON (aligns blocks to each other)" : "Snapping is OFF (smooth movement)"}
             >
-              <Magnet className="w-4 h-4" />
+              <span className={snapEnabled ? "" : "opacity-60 group-hover:opacity-100"}><Magnet className="w-4 h-4 text-[var(--bone-100)]" /></span>
             </button>
 
             {/* Export PNG */}
@@ -1079,10 +1082,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 const el = document.getElementById('canvas-viewport-export');
                 if (el) await exportCanvasToPng(el as HTMLElement, entity.title);
               }}
-              className="w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none cursor-pointer"
+              className="group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none cursor-pointer"
               title="Export PNG"
             >
-              <Download className="w-4 h-4" />
+              <span className="opacity-60 group-hover:opacity-100"><Download className="w-4 h-4 text-[var(--bone-100)]" /></span>
             </button>
           </div>
 

@@ -100,7 +100,7 @@ export function useDrag({
     const dragIds = Array.from(dragIdsSet);
 
     // Capture initial positions of all dragged elements using the synchronous block state
-    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][] }>();
+    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][]; keyPoints?: [number, number][] }>();
     dragIds.forEach(id => {
       const b = latestBlocks.find(x => x.id === id);
       if (b) {
@@ -110,6 +110,7 @@ export function useDrag({
           w: b.width ?? 0,
           h: b.height ?? 0,
           points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
+          keyPoints: b.keyPoints ? JSON.parse(JSON.stringify(b.keyPoints)) : undefined,
         });
       }
     });
@@ -424,7 +425,12 @@ export function useDrag({
       // Build batch updates first
       const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
       snapshot.forEach((snap, id) => {
-        if (snap.points) {
+        if (snap.keyPoints) {
+          batchUpdates.push({
+            id,
+            updates: { keyPoints: snap.keyPoints.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) },
+          });
+        } else if (snap.points) {
           batchUpdates.push({
             id,
             updates: { points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) },
@@ -459,7 +465,10 @@ export function useDrag({
           const newW = snap.w;
           const newH = snap.h;
 
-          if (snap.points) {
+          if (snap.keyPoints) {
+            // New arrow/line/freedraw with keyPoints — update keyPoints directly (VectorPath re-renders)
+            el.style.transform = `${rot}${fH}${fV}`;
+          } else if (snap.points) {
             // Path-based shapes (line, arrow, freedraw): update path d attribute
             const newPts = snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]);
             const pathEl = el.querySelector<SVGPathElement>(':scope > path');
