@@ -2224,7 +2224,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 16,
+      version: 17,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
@@ -2304,6 +2304,16 @@ export const useStore = create<AppState>()(
         if (version < 16) {
           if (Array.isArray(state.blocks)) {
             state.blocks = state.blocks.map((b: any) => migrateBlock(b));
+          }
+        }
+        if (version < 17) {
+          if (Array.isArray(state.blocks)) {
+            state.blocks = state.blocks.map((b: any) => {
+              if (b.keyPoints && !b.points) {
+                return { ...b, points: b.keyPoints };
+              }
+              return b;
+            });
           }
         }
         return state;
