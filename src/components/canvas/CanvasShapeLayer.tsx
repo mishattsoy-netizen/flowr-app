@@ -3,6 +3,9 @@
 import { EditorBlock, CanvasStyleExt, useStore } from '@/data/store';
 import { useMemo, useRef, useEffect } from 'react';
 import { useDrag } from '@/hooks/useDrag';
+import { activeDragOffsets } from '@/lib/canvasDragState';
+import { VectorPath } from './edges/VectorPath';
+
 
 interface Props {
   blocks: EditorBlock[];
@@ -47,11 +50,10 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
   const fill = shapeFill(style);
   const da = strokeDasharray(style);
   const opacity = style.opacity ?? 1;
-  const selectionStroke = 'var(--brand-blue)';
-
+  
   const sharedProps = {
-    stroke: isSelected ? selectionStroke : stroke,
-    strokeWidth: isSelected ? Math.max(sw, 1.5) : sw,
+    stroke: stroke,
+    strokeWidth: sw,
     strokeDasharray: da,
     fill,
     opacity,
@@ -70,52 +72,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
     const pts = `${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`;
     return <polygon points={pts} {...sharedProps} strokeLinejoin={r > 0 ? "round" : "miter"} />;
   }
-  if (block.shapeKind === 'line' || block.shapeKind === 'arrow') {
-    const pts = block.points ?? [[x, y], [x + w, y + h]];
-    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
-    const markerId = `arrow-${block.id}`;
-    return (
-      <>
-        {block.shapeKind === 'arrow' && (
-          <defs>
-            <marker id={markerId} markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-              <path d="M0,0 L0,8 L8,4 z" fill={isSelected ? selectionStroke : stroke} />
-            </marker>
-          </defs>
-        )}
-        <path
-          d={d}
-          fill="none"
-          stroke={isSelected ? selectionStroke : stroke}
-          strokeWidth={isSelected ? Math.max(sw, 1.5) : sw}
-          strokeDasharray={da}
-          opacity={opacity}
-          markerEnd={block.shapeKind === 'arrow' ? `url(#${markerId})` : undefined}
-          style={{ cursor: 'move' }}
-          onPointerDown={onPointerDown}
-          onContextMenu={onContextMenu}
-        />
-      </>
-    );
-  }
-  if (block.shapeKind === 'freedraw') {
-    const pts = block.points ?? [];
-    if (pts.length < 2) return null;
-    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
-    return (
-      <path
-        d={d}
-        fill="none"
-        stroke={isSelected ? selectionStroke : stroke}
-        strokeWidth={isSelected ? Math.max(sw, 1.5) : sw}
-        strokeDasharray={da}
-        opacity={opacity}
-        style={{ cursor: 'move' }}
-        onPointerDown={onPointerDown}
-        onContextMenu={onContextMenu}
-      />
-    );
-  }
+
   return null;
 }
 
@@ -158,13 +115,23 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
       className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"
       style={{ zIndex: 1 }}
     >
-      {shapes.map(b => {
+      {shapes.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw').map(b => {
         return (
           <g 
             key={b.id} 
             id={b.id} 
             style={{ 
               pointerEvents: 'auto',
+              transform: (() => {
+                // During drag, return undefined so React leaves useDrag's translate3d intact.
+                if (activeDragOffsets.has(b.id)) return undefined;
+                const rotation = b.canvasStyleExt?.rotation ?? 0;
+                const flipH = b.canvasStyleExt?.flipH ? ' scaleX(-1)' : '';
+                const flipV = b.canvasStyleExt?.flipV ? ' scaleY(-1)' : '';
+                // Return '' (not undefined) so React clears residual translate after drop
+                return (rotation || flipH || flipV) ? `rotate(${rotation}deg)${flipH}${flipV}` : '';
+              })(),
+              transformOrigin: `${(b.x ?? 0) + (b.width ?? 0) / 2}px ${(b.y ?? 0) + (b.height ?? 0) / 2}px`,
             }}
           >
             <ShapeEl 
@@ -180,6 +147,12 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
           </g>
         );
       })}
+      {shapes.filter(b => b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw').map(b => (
+        <VectorPath key={b.id} block={b}
+          selected={selectedIds.has(b.id)}
+          editing={false}
+          onSelect={(id, add) => onSelect(id, add)} />
+      ))}
     </svg>
   );
 }
