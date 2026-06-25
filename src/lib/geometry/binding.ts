@@ -1,3 +1,4 @@
+// src/lib/geometry/binding.ts
 import type { ArrowBinding, EditorBlock } from '@/data/store';
 
 interface BlockRect { x: number; y: number; width: number; height: number; }
@@ -22,7 +23,7 @@ export function focusToPerimeter(focus: number, rect: BlockRect, gap: number = 0
 export function pointToFocus(cx: number, cy: number, rect: BlockRect): number {
   const { x, y, width, height } = rect;
   const perim = 2 * (width + height);
-
+  
   const candidates = [
     { d: Math.abs(cy - y), pd: Math.max(x, Math.min(cx, x + width)) - x },
     { d: Math.abs(cx - (x + width)), pd: width + (Math.max(y, Math.min(cy, y + height)) - y) },
