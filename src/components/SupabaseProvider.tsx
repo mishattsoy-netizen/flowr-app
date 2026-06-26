@@ -42,11 +42,22 @@ function mergeCloudData(data: {
   // ── Tasks ──
   if (data.tasks.length > 0) {
     const localTasks = store().tasks;
-    const merged = [...data.tasks];
+    const byId = new Map<string, AppTask>();
+    for (const ct of data.tasks) byId.set(ct.id, ct);
     for (const lt of localTasks) {
-      if (!merged.find((mt: any) => mt.id === lt.id)) merged.push(lt);
+      const ct = byId.get(lt.id);
+      if (!ct) {
+        // Not in cloud — assume deleted on another device (or RLS now blocks it). Drop it.
+        continue;
+      }
+      // Both exist — prefer the newer one (approximate: local writes are newer during
+      // a session, but on a fresh page load cloud is authoritative).
+      if ((lt as any).lastModified && (ct as any).lastModified &&
+          (lt as any).lastModified > (ct as any).lastModified) {
+        byId.set(lt.id, lt);
+      }
     }
-    store().setTasks(merged);
+    store().setTasks(Array.from(byId.values()));
   }
 
   // ── Workspaces ──
@@ -75,33 +86,9 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const setTasks = useStore(s => s.setTasks);
   const setWorkspaces = useStore(s => s.setWorkspaces);
 
-  const setLifeData = useStore(s => s.setLifeData);
-  const setKnowledgeData = useStore(s => s.setKnowledgeData);
   const getEntities = () => useStore.getState().entities;
   const getTasks = () => useStore.getState().tasks;
   const getWorkspaces = () => useStore.getState().workspaces;
-
-  const getLifeData = () => {
-    const s = useStore.getState();
-    return {
-      lifeHabits: s.lifeHabits,
-      lifeHabitChecks: s.lifeHabitChecks,
-      lifeMoods: s.lifeMoods,
-      lifeJournals: s.lifeJournals,
-      lifeGoals: s.lifeGoals,
-      lifeRoutines: s.lifeRoutines,
-      lifeRoutineChecks: s.lifeRoutineChecks,
-    };
-  };
-
-  const getKnowledgeData = () => {
-    const s = useStore.getState();
-    return {
-      knowledgeResources: s.knowledgeResources,
-      knowledgeSnippets: s.knowledgeSnippets,
-      knowledgeGuides: s.knowledgeGuides,
-    };
-  };
 
   const loaded = useRef(false);
   const reconcilerRef = useRef<ReturnType<typeof setInterval> | null>(null);
