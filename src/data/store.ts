@@ -45,6 +45,8 @@ import {
   generateId, getDescendantIds, validateNoteContent,
   robustParseJSON, markdownToBlocks, blocksToMarkdown
 } from './store.helpers';
+import { isDesktop } from '@/lib/env';
+import { saveEntityToFile } from '@/lib/persistence';
 
 
 function migrateBlock(block: any): any {
@@ -2312,3 +2314,16 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+if (isDesktop()) {
+  useStore.subscribe((state, prevState) => {
+    // Basic detection for M3: if lastModified changed, save it
+    // In M4 this will be replaced by direct calls to saveEntity() on store actions
+    for (const entity of state.entities) {
+      const prev = prevState.entities.find(e => e.id === entity.id);
+      if (!prev || prev.lastModified !== entity.lastModified) {
+        saveEntityToFile(entity, state.blocks.filter(b => b.canvasId === entity.id));
+      }
+    }
+  });
+}
