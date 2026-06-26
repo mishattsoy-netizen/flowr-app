@@ -73,6 +73,6 @@ export function needsBlockBackup(blocks: EditorBlock[]): boolean {
     b.type === 'comment' || 
     b.type === 'section' || 
     b.type === 'connection' ||
-    (b.textAlign && b.textAlign !== 'left')
+    (b.align && b.align !== 'left')
   );
 }

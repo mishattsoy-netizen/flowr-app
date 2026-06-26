@@ -276,3 +276,21 @@ describe('normalizeBlocks', () => {
     expect(() => normalizeBlocks([deep(21)])).toThrow();
   });
 });
+
+describe('parseMarkdownToBlocks — pill links', () => {
+  it('parses pill links correctly', () => {
+    const md = 'Here is a [pill:Doc Name](doc-id)';
+    const blocks = parseMarkdownToBlocks(md);
+    expect(blocks[0].content).toContain('<a href="doc-id" data-type="entity-link" data-id="doc-id" class="entity-pill">Doc Name</a>');
+  });
+
+  it('round-trips entity pill links correctly', () => {
+    const original = '<a href="doc-id" data-type="entity-link" data-id="doc-id" class="entity-pill">Doc Name</a>';
+    const block = { id: '1', type: 'text' as const, content: original, style: 'body' as const };
+    const md = blocksToMarkdown([block]);
+    expect(md).toBe('[pill:Doc Name](doc-id)');
+    
+    const parsed = parseMarkdownToBlocks(md);
+    expect(parsed[0].content).toBe('<a href="doc-id" data-type="entity-link" data-id="doc-id" class="entity-pill">Doc Name</a>');
+  });
+});

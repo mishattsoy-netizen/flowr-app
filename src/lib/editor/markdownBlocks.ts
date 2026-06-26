@@ -59,6 +59,11 @@ function inlineToHtml(text: string): string {
     const displayLabel = isPill ? label.slice(5) : label;
 
     if (isPill) {
+      if (!cleanUrl.startsWith('http')) {
+        // Internal entity link pill representation
+        return `<a href="${cleanUrl}" data-type="entity-link" data-id="${cleanUrl}" class="entity-pill">${displayLabel}</a>`;
+      }
+
       let faviconUrl = '';
       try {
         if (cleanUrl.startsWith('http')) {
@@ -236,6 +241,10 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
 
 function htmlToText(html: string): string {
   let s = html;
+  
+  // Convert custom entity-pill links back to standard markdown link syntax with 'pill:' prefix
+  s = s.replace(/<a[^>]*class="[^"]*entity-pill[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, '[pill:$2]($1)');
+  s = s.replace(/<a[^>]*href="([^"]*)"[^>]*class="[^"]*entity-pill[^"]*"[^>]*>([^<]*)<\/a>/g, '[pill:$2]($1)');
   
   // Convert custom inline-link-btn tags back to standard markdown link syntax with 'pill:' prefix
   s = s.replace(/<a[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*data-url="([^"]*)"[^>]*data-label="([^"]*)"[^>]*>.*?<\/a>/g, '[pill:$2]($1)');
