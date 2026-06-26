@@ -128,18 +128,6 @@ export const useStore = create<AppState>()(
         { id: 'b1', type: 'text', content: 'Explore unified navigation.', x: 100, y: 100, canvasId: 'cv1' },
       ],
 
-      lifeHabits: [],
-      lifeHabitChecks: [],
-      lifeMoods: [],
-      lifeJournals: [],
-      lifeGoals: [],
-      lifeRoutines: [],
-      lifeRoutineChecks: [],
-
-      knowledgeResources: [],
-      knowledgeSnippets: [],
-      knowledgeGuides: [],
-
       workspaces: [
         {
           id: 'ws-personal',
@@ -2128,66 +2116,6 @@ export const useStore = create<AppState>()(
 
       setTasks: (tasks) => set({ tasks }),
 
-      addHabit: (habit) => set(s => ({ lifeHabits: [...s.lifeHabits, habit] })),
-      updateHabit: (id, updates) => set(s => ({ lifeHabits: s.lifeHabits.map(h => h.id === id ? { ...h, ...updates } : h) })),
-      deleteHabit: (id) => set(s => ({ lifeHabits: s.lifeHabits.filter(h => h.id !== id), lifeHabitChecks: s.lifeHabitChecks.filter(c => c.habitId !== id) })),
-      checkHabit: (habitId, date, done) => set(s => {
-        const existing = s.lifeHabitChecks.find(c => c.habitId === habitId && c.date === date);
-        if (existing) {
-          return { lifeHabitChecks: s.lifeHabitChecks.map(c => c.id === existing.id ? { ...c, done } : c) };
-        }
-        return { lifeHabitChecks: [...s.lifeHabitChecks, { id: generateId(), habitId, date, done }] };
-      }),
-
-      setMood: (entry) => set(s => {
-        const existing = s.lifeMoods.find(m => m.workspaceId === entry.workspaceId && m.date === entry.date);
-        if (existing) {
-          return { lifeMoods: s.lifeMoods.map(m => m.id === existing.id ? { ...m, ...entry } : m) };
-        }
-        return { lifeMoods: [...s.lifeMoods, entry] };
-      }),
-      deleteMood: (id) => set(s => ({ lifeMoods: s.lifeMoods.filter(m => m.id !== id) })),
-
-      upsertJournal: (entry) => set(s => {
-        const existing = s.lifeJournals.find(j => j.workspaceId === entry.workspaceId && j.date === entry.date);
-        if (existing) {
-          return { lifeJournals: s.lifeJournals.map(j => j.id === existing.id ? { ...j, ...entry } : j) };
-        }
-        return { lifeJournals: [...s.lifeJournals, entry] };
-      }),
-      deleteJournal: (id) => set(s => ({ lifeJournals: s.lifeJournals.filter(j => j.id !== id) })),
-
-      addGoal: (goal) => set(s => ({ lifeGoals: [...s.lifeGoals, goal] })),
-      updateGoal: (id, updates) => set(s => ({ lifeGoals: s.lifeGoals.map(g => g.id === id ? { ...g, ...updates } : g) })),
-      deleteGoal: (id) => set(s => ({ lifeGoals: s.lifeGoals.filter(g => g.id !== id) })),
-
-      addRoutine: (routine) => set(s => ({ lifeRoutines: [...s.lifeRoutines, routine] })),
-      updateRoutine: (id, updates) => set(s => ({ lifeRoutines: s.lifeRoutines.map(r => r.id === id ? { ...r, ...updates } : r) })),
-      deleteRoutine: (id) => set(s => ({ lifeRoutines: s.lifeRoutines.filter(r => r.id !== id), lifeRoutineChecks: s.lifeRoutineChecks.filter(c => c.routineId !== id) })),
-      checkRoutineStep: (routineId, stepId, date, done) => set(s => {
-        const existing = s.lifeRoutineChecks.find(c => c.routineId === routineId && c.stepId === stepId && c.date === date);
-        if (existing) {
-          return { lifeRoutineChecks: s.lifeRoutineChecks.map(c => c.id === existing.id ? { ...c, done } : c) };
-        }
-        return { lifeRoutineChecks: [...s.lifeRoutineChecks, { id: generateId(), routineId, stepId, date, done }] };
-      }),
-
-      setLifeData: (data) => set(s => ({ ...s, ...data })),
-
-      addResource: (resource) => set(s => ({ knowledgeResources: [...s.knowledgeResources, resource] })),
-      updateResource: (id, updates) => set(s => ({ knowledgeResources: s.knowledgeResources.map(r => r.id === id ? { ...r, ...updates } : r) })),
-      deleteResource: (id) => set(s => ({ knowledgeResources: s.knowledgeResources.filter(r => r.id !== id) })),
-
-      addSnippet: (snippet) => set(s => ({ knowledgeSnippets: [...s.knowledgeSnippets, snippet] })),
-      updateSnippet: (id, updates) => set(s => ({ knowledgeSnippets: s.knowledgeSnippets.map(sn => sn.id === id ? { ...sn, ...updates } : sn) })),
-      deleteSnippet: (id) => set(s => ({ knowledgeSnippets: s.knowledgeSnippets.filter(sn => sn.id !== id) })),
-
-      addGuide: (guide) => set(s => ({ knowledgeGuides: [...s.knowledgeGuides, guide] })),
-      updateGuide: (id, updates) => set(s => ({ knowledgeGuides: s.knowledgeGuides.map(g => g.id === id ? { ...g, ...updates } : g) })),
-      deleteGuide: (id) => set(s => ({ knowledgeGuides: s.knowledgeGuides.filter(g => g.id !== id) })),
-
-      setKnowledgeData: (data) => set(s => ({ ...s, ...data })),
-
       openModal: (modal) => set({ modal, contextMenu: null }),
       closeModal: () => set({ modal: null }),
 
@@ -2346,16 +2274,6 @@ export const useStore = create<AppState>()(
         entities: state.entities,
         tasks: state.tasks,
         blocks: state.blocks,
-        lifeHabits: state.lifeHabits,
-        lifeHabitChecks: state.lifeHabitChecks,
-        lifeMoods: state.lifeMoods,
-        lifeJournals: state.lifeJournals,
-        lifeGoals: state.lifeGoals,
-        lifeRoutines: state.lifeRoutines,
-        lifeRoutineChecks: state.lifeRoutineChecks,
-        knowledgeResources: state.knowledgeResources,
-        knowledgeSnippets: state.knowledgeSnippets,
-        knowledgeGuides: state.knowledgeGuides,
         workspaces: state.workspaces,
         activeWorkspaceId: state.activeWorkspaceId,
 
