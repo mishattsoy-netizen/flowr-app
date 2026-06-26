@@ -29,7 +29,7 @@ import { getPipelineSettings } from '../router-config'
 import { expandImagePrompt } from './prompt-expansion'
 import { TraceCollector } from './tracing'
 import { buildTranscript } from './transcript'
-import { getAiUserDescription, getAiCreatorInfo } from '@/app/settings/ai/actions'
+import { getAiUserDescription } from '@/app/settings/ai/actions'
 
 function logCost(cost: {
   model_id: string; provider: string; prompt_cost: number; completion_cost: number;
@@ -257,13 +257,12 @@ export async function runChain(
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
-  const [sessionState, globalPrompt, fallbackModes, pipelineSettings, userDescription, creatorInfo] = await Promise.all([
+  const [sessionState, globalPrompt, fallbackModes, pipelineSettings, userDescription] = await Promise.all([
     getSessionState(sessionId),
     getCompiledPrompt(context?.mode ?? 'default'),
     getFallbackModes(),
     getPipelineSettings(),
     context?.userId ? getAiUserDescription(context.userId) : null,
-    context?.userId ? getAiCreatorInfo(context.userId) : null,
   ])
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
@@ -743,9 +742,22 @@ export async function runChain(
   if (userDescription) {
     finalSysPrompt += `\n\n[ABOUT THE USER]\nThe following is what the user has shared about themselves. Use this information to personalize your responses and understand who they are:\n${userDescription}\n`
   }
-  if (creatorInfo) {
-    finalSysPrompt += `\n\n[ABOUT THE CREATOR]\n${creatorInfo}\n`
-  }
+  // Static identity context about Flowr and its creator
+  finalSysPrompt += `\n\n[ABOUT THE APP & CREATOR]
+Flowr is a productivity platform that combines knowledge management, task planning, visual whiteboarding, and a personal context-aware AI agent — all in one seamless workspace. Designed to keep you in a flow state. Not a cryptocurrency, blockchain, or financial service.
+
+What Flowr does:
+- Note & knowledge management (notes as local files with optional cloud sync, similar to an Obsidian vault)
+- Visual whiteboards, moodboards, and diagrams (canvas with shapes, connectors, alignment guides — ranging from simple Excalidraw-style to advanced Figma-like capabilities)
+- Task & planning management (structured task tracking integrated with your workspace)
+- Personal AI agent that can interact with your content, answer questions, and help you organize
+
+Two usage modes:
+- **Desktop (local):** files live on your device. Use offline for privacy and full local control.
+- **Web (sync):** access from multiple devices with cloud sync.
+Both modes give you access to your personal AI assistant and full task management.
+
+Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and student. What started as a Notion + Figma + Tasks hybrid evolved into a full desktop + web platform with an integrated AI agent.\n`
   // Skip internal pipeline prompt for chains that have their own router override —
   // the router prompt already contains [ANSWER MODE] instructions and mixing both
   // causes the model to default to PIPELINE structured output instead of user-facing answers.

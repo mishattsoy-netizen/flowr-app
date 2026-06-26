@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles } from 'lucide-react';
+import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Trash2, RefreshCw } from 'lucide-react';
 import { useState, useCallback, useEffect, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
@@ -87,7 +87,7 @@ export function SettingsPage() {
 
         {/* Version Info */}
         <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.5.0 - Build 2320</p>
+          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.5.1 - Build 2321</p>
         </div>
       </div>
 
@@ -221,21 +221,17 @@ export function SettingsPage() {
             )}
 
             {activeTab === 'account' && (
-              <div className="flex flex-col items-center justify-center py-20 text-center border border-[var(--bone-10)] rounded-2xl bg-sidebar/10 px-6">
-                <div className="w-16 h-16 rounded-[20px] bg-accent/5 border border-accent/10 flex items-center justify-center mb-6 overflow-hidden relative group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <Zap strokeWidth={2} className="w-8 h-8 text-accent/60 relative z-10" />
-                </div>
-                <h4 className="text-xl font-display font-semibold mb-2 text-[var(--bone-100)]">Account Settings</h4>
-                <p className="text-[var(--bone-70)] max-w-sm text-sm leading-relaxed mb-6">
-                  This module is currently being optimized for high-fidelity performance. Stay tuned for updates.
-                </p>
-                <button
-                  onClick={() => setActiveTab('interface')}
-                  className="px-5 py-2 rounded-lg bg-white/5 border border-[var(--bone-10)] text-xs font-semibold text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-white/10 hover:border-muted-foreground/30 transition-all"
-                >
-                  Return to Interface
-                </button>
+              <div className="space-y-10">
+                {/* Clear Local Cache */}
+                <section className="flex items-center justify-between py-1 max-w-2xl">
+                  <div>
+                    <h4 className="text-sm font-semibold text-[var(--bone-100)]">Local Cache</h4>
+                    <p className="text-xs text-[var(--bone-70)] mt-0.5">
+                      Clears locally stored data (tasks, notes, canvases) and reloads fresh from the cloud.
+                    </p>
+                  </div>
+                  <ClearCacheButton />
+                </section>
               </div>
             )}
             {activeTab === 'ai' && <AISettingsSection />}
@@ -244,5 +240,45 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ClearCacheButton() {
+  const [cleared, setCleared] = useState(false);
+
+  const handleClear = useCallback(() => {
+    try {
+      localStorage.removeItem('flowr-storage');
+      setCleared(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } catch (e) {
+      console.error('[Settings] Failed to clear cache:', e);
+    }
+  }, []);
+
+  return (
+    <button
+      onClick={handleClear}
+      className={cn(
+        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all shrink-0",
+        cleared
+          ? "bg-green-500/10 text-green-500 border border-green-500/20"
+          : "bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500/10 hover:border-red-500/20"
+      )}
+    >
+      {cleared ? (
+        <>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          Refreshing...
+        </>
+      ) : (
+        <>
+          <Trash2 className="w-3.5 h-3.5" />
+          Clear Cache & Reload
+        </>
+      )}
+    </button>
   );
 }

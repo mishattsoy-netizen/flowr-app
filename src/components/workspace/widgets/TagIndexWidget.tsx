@@ -11,22 +11,10 @@ export function TagIndexWidget() {
       e.tags?.forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1);
     });
 
-    state.knowledgeResources.forEach(r => {
-      r.tags.forEach((t: string) => tagCounts[t] = (tagCounts[t] || 0) + 1);
-    });
-
-    state.knowledgeSnippets.forEach(s => {
-      s.tags.forEach((t: string) => tagCounts[t] = (tagCounts[t] || 0) + 1);
-    });
-
-    state.knowledgeGuides.forEach(g => {
-      g.tags.forEach((t: string) => tagCounts[t] = (tagCounts[t] || 0) + 1);
-    });
-
     return Object.entries(tagCounts)
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
-  }, [state.entities, state.knowledgeResources, state.knowledgeSnippets, state.knowledgeGuides]);
+  }, [state.entities]);
 
   return (
     <div className="flex flex-col h-full bg-panel group/widget overflow-hidden widget-shadow transition-all">

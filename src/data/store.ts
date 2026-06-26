@@ -22,8 +22,7 @@ import { upsertCanvasBlock, deleteCanvasBlock as deleteCanvasBlockFromDB } from 
 
 // Re-export all types so all consumers import paths remain valid
 export type {
-  EntityType, BlockStyle, BlockType, EmbedDisplayMode, DatabaseViewType,
-  DatabaseColumnType, DatabaseColumn, DatabaseRow, EditorBlock,
+  EntityType, BlockStyle, BlockType, EditorBlock,
   WidgetType, WidgetSize, WidgetConfig, Entity, AppTask, SettingsTab, ModalType,
   EditingSource, AIAttachment, AIMessage, AICursor, ModelStatus,
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,

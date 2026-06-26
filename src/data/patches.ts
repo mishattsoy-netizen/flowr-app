@@ -21,6 +21,34 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.5.1',
+    build: '2321',
+    date: '2026-06-27',
+    title: 'Workspace Simplification & Performance Overhaul',
+    sections: [
+      {
+        type: 'changed',
+        items: [
+          'Decluttered and simplified the workspace by deprecating unused legacy components, specifically removing "Life Mode" and separate "Knowledge" categorizations in favor of a unified, lightning-fast notes system.',
+          'Simplified the document editor experience by deprecating old database table blocks and embedding frameworks, making note rendering much faster.'
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          'Added a "Local Cache Control" section in Settings, enabling users to easily clear local cache storage and force-reload the app if synchronization gets stuck.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Streamlined AI Assistant prompt loading by using inlined, static context descriptions rather than requesting metadata from the database on every chat launch, improving responsiveness.',
+          'Optimized database synchronization loops by removing deprecated schema definitions, hooks, and unused database fields.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.5.0',
     build: '2320',
     date: '2026-06-26',
