@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore, EditorBlock, CanvasStyleExt } from '@/data/store';
+import { resolvePoints } from '@/lib/geometry/resolvePoints';
+import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { useDragState } from '@/lib/canvasDragState';
 import { cn } from '@/lib/utils';
 import { Toggle } from '../ui/Toggle';
 import type { CanvasTool } from './CanvasToolbar';
 import { ColorPickerPopover } from './ColorPickerPopover';
-import { Eye, EyeOff } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { Eye, EyeOff, Check, Scan, ChevronDown, Camera, Copy, Download } from 'lucide-react';
+import { toPng, toJpeg } from 'html-to-image';
+import { createPortal } from 'react-dom';
 
 interface Props {
   selectedIds: Set<string>;
@@ -23,6 +26,8 @@ interface Props {
   onChangeActiveStyle: (s: CanvasStyleExt) => void;
   canvasBgColor: string;
   onCanvasBgColorChange: (color: string) => void;
+  canvasBgOpacity: number;
+  onCanvasBgOpacityChange: (opacity: number) => void;
   canvasPattern: 'none' | 'grid' | 'dots';
   onCanvasPatternChange: (pattern: 'none' | 'grid' | 'dots') => void;
   canvasPatternOpacity: number;
@@ -31,6 +36,18 @@ interface Props {
   onCanvasPatternColorChange: (color: string) => void;
   activeTool: CanvasTool;
   selectedPointIndex?: number | null;
+  captureBg: boolean;
+  onCaptureBgChange: (v: boolean) => void;
+  captureRatio: 'screen' | '16:9' | '4:3' | '1:1';
+  onCaptureRatioChange: (v: 'screen' | '16:9' | '4:3' | '1:1') => void;
+  captureOrientation: 'horizontal' | 'vertical';
+  onCaptureOrientationChange: (v: 'horizontal' | 'vertical') => void;
+  captureScale: number;
+  onCaptureScaleChange: (v: number) => void;
+  exportFormat: 'png' | 'jpg' | 'svg';
+  onExportFormatChange: (v: 'png' | 'jpg' | 'svg') => void;
+  fileName: string;
+  onFileNameChange: (v: string) => void;
 }
 
 
@@ -63,7 +80,7 @@ const PATTERN_ICONS: Record<'none' | 'grid' | 'dots', React.ReactNode> = {
 
 function PanelSection({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="px-4 py-2.5 border-b border-[var(--bone-10)]">
+    <div className="px-4 py-2.5 border-b border-[var(--bone-10)] last:border-b-0">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-ui-label font-semibold tracking-wider text-[var(--bone-100)]">{title}</span>
         {action}
@@ -241,34 +258,22 @@ function SliderGroup<T extends string>({
   onChange: (v: T) => void;
   renderLabel?: (v: T) => React.ReactNode;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [pillStyle, setPillStyle] = useState({ left: 3, width: 40 });
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const idx = options.indexOf(value);
-    const buttons = container.querySelectorAll<HTMLButtonElement>('button');
-    const btn = buttons[idx];
-    if (!btn) return;
-    const containerRect = container.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    setPillStyle({
-      left: btnRect.left - containerRect.left,
-      width: btnRect.width,
-    });
-  }, [value, options]);
+  const activeIdx = options.indexOf(value);
+  const numOptions = options.length;
 
   return (
     <div
-      ref={containerRef}
       className="relative flex items-center p-[3px] rounded-[var(--radius-small)] w-full h-7"
       style={{ background: 'var(--slider-track)' }}
     >
       {/* Animated sliding pill */}
       <div
-        className="absolute top-[3px] bottom-[3px] rounded-[5px] bg-[var(--slider-pill)] transition-all duration-250 ease-out pointer-events-none"
-        style={{ left: pillStyle.left, width: pillStyle.width, boxShadow: 'var(--slider-pill-shadow)' }}
+        className="absolute top-[3px] bottom-[3px] rounded-[5px] bg-[var(--slider-pill)] pointer-events-none transition-all duration-300 ease-out"
+        style={{
+          width: `calc((100% - 6px) / ${numOptions})`,
+          left: `calc(3px + ${activeIdx} * (100% - 6px) / ${numOptions})`,
+          boxShadow: 'var(--slider-pill-shadow)'
+        }}
       />
       {options.map(opt => (
         <button
@@ -289,26 +294,370 @@ function SliderGroup<T extends string>({
 }
 
 
+function ExportSelect({
+  value,
+  onChange,
+  options,
+  iconOnly,
+  align = 'left',
+  popupWidth,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string; icon?: React.ReactNode }[];
+  iconOnly?: boolean;
+  align?: 'left' | 'right';
+  popupWidth?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef({ top: 0, left: 0, width: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        popupRef.current && !popupRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [open]);
+
+  const width = popupWidth ?? posRef.current.width;
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={() => {
+          if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            posRef.current = { top: r.bottom + 4, left: r.left, width: r.width };
+          }
+          setOpen(prev => !prev);
+        }}
+        className={cn(
+          "w-full h-7 rounded-[var(--radius-small)] text-[11px] border-none outline-none px-2 flex items-center justify-between gap-1 cursor-pointer transition-none",
+          open 
+            ? "bg-[var(--bone-10)] text-[var(--bone-100)]" 
+            : "bg-[var(--bone-6)] text-[var(--bone-90)] hover:bg-[var(--app-dark)]"
+        )}
+      >
+        {iconOnly ? (
+          options.find(o => o.value === value)?.icon
+        ) : (
+          <span className="truncate">{options.find(o => o.value === value)?.label ?? value}</span>
+        )}
+        <ChevronDown className={cn("w-3 h-3 flex-shrink-0 text-[var(--bone-40)] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && createPortal(
+        <div
+          ref={popupRef}
+          style={{ 
+            position: 'fixed', 
+            top: (() => {
+              const popupHeight = options.length * 25 + 8;
+              let t = posRef.current.top;
+              if (t + popupHeight > window.innerHeight - 10) {
+                t = Math.max(10, posRef.current.top - 28 - popupHeight - 8); // 28px is trigger h-7 height, 8px gap
+              }
+              return t;
+            })(),
+            left: align === 'right' 
+              ? posRef.current.left + posRef.current.width - width
+              : posRef.current.left, 
+            width: width 
+          }}
+          className="z-[200] popup-glass-small p-1 flex flex-col gap-0.5 canvas-floating-panel"
+        >
+          {options.map(({ value: optVal, label, icon }) => (
+            <button
+              key={optVal}
+              onClick={() => { onChange(optVal); setOpen(false); }}
+              className={cn(
+                "w-full h-[25px] px-2 rounded-[var(--radius-small)] text-[10px] text-left flex items-center gap-1.5 text-[var(--bone-80)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none cursor-pointer border-none outline-none bg-transparent",
+                optVal === value && "bg-[var(--app-dark)] text-[var(--bone-100)]"
+              )}
+            >
+              {icon && <span className="shrink-0">{icon}</span>}
+              <span className="truncate">{label}</span>
+              {optVal === value && <Check className="w-2.5 h-2.5 text-[var(--bone-60)] shrink-0 ml-auto" />}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+const ARROWHEAD_ICONS: Record<string, React.ReactNode> = {
+  none: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="opacity-60 flex-shrink-0">
+      <line x1="4" y1="8" x2="14" y2="8" />
+    </svg>
+  ),
+  triangle: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <polygon points="8,5 3,8 8,11" fill="none" />
+    </svg>
+  ),
+  'filled-triangle': (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <polygon points="8,5 3,8 8,11" fill="currentColor" />
+    </svg>
+  ),
+  circle: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <circle cx="5" cy="8" r="2.5" fill="currentColor" />
+    </svg>
+  ),
+  bar: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="5" y1="8" x2="14" y2="8" />
+      <line x1="5" y1="5" x2="5" y2="11" />
+    </svg>
+  ),
+  diamond: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <polygon points="5,5 2,8 5,11 8,8" fill="currentColor" />
+    </svg>
+  ),
+};
+
+function ArrowheadDropdown({
+  value,
+  onChange,
+  align = 'left',
+}: {
+  value: string;
+  onChange: (type: string) => void;
+  align?: 'left' | 'right';
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef({ top: 0, left: 0, width: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        popupRef.current && !popupRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [open]);
+
+  const labels: Record<string, string> = {
+    none: 'None',
+    triangle: 'Triangle',
+    'filled-triangle': 'Filled',
+    circle: 'Circle',
+    bar: 'Bar',
+    diamond: 'Diamond',
+  };
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={() => {
+          if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            posRef.current = { top: r.bottom + 4, left: r.left, width: r.width };
+          }
+          setOpen(prev => !prev);
+        }}
+        className={cn(
+          "w-full h-7 rounded-[var(--radius-small)] border-none outline-none px-1.5 flex items-center justify-between gap-0.5 cursor-pointer transition-none",
+          open 
+            ? "bg-[var(--bone-10)] text-[var(--bone-100)]" 
+            : "bg-[var(--bone-6)] text-[var(--bone-90)] hover:bg-[var(--app-dark)]"
+        )}
+      >
+        <span className="flex items-center justify-center flex-1 min-w-0">
+          {ARROWHEAD_ICONS[value] || ARROWHEAD_ICONS['none']}
+        </span>
+        <ChevronDown className={cn("w-3 h-3 flex-shrink-0 text-[var(--bone-40)] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && createPortal(
+        <div
+          ref={popupRef}
+          style={{ 
+            position: 'fixed', 
+            top: (() => {
+              const popupHeight = 160; // 6 options * 25px + padding/gap
+              let t = posRef.current.top;
+              if (t + popupHeight > window.innerHeight - 10) {
+                t = Math.max(10, posRef.current.top - 28 - popupHeight - 8); // 28px trigger height, 8px gap
+              }
+              return t;
+            })(),
+            left: align === 'right' 
+              ? posRef.current.left + posRef.current.width - 120 
+              : posRef.current.left, 
+            width: 120 
+          }}
+          className="z-[200] popup-glass-small p-1 flex flex-col gap-0.5 canvas-floating-panel"
+        >
+          {Object.entries(labels).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => { onChange(key); setOpen(false); }}
+              className={cn(
+                "w-full h-[25px] px-2 rounded-[var(--radius-small)] text-[10px] text-left flex items-center gap-1.5 text-[var(--bone-80)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none cursor-pointer border-none outline-none bg-transparent",
+                key === value && "bg-[var(--app-dark)] text-[var(--bone-100)]"
+              )}
+            >
+              {ARROWHEAD_ICONS[key] || ARROWHEAD_ICONS['none']}
+              <span>{label}</span>
+              {key === value && <Check className="w-2.5 h-2.5 text-[var(--bone-60)] shrink-0 ml-auto" />}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+
 export function CanvasStylePanel({
   selectedIds, canvasId,
   onAlignLeft, onAlignCenterH, onAlignRight,
   onAlignTop, onAlignCenterV, onAlignBottom,
   activeStyle, onChangeActiveStyle,
   canvasBgColor, onCanvasBgColorChange,
+  canvasBgOpacity, onCanvasBgOpacityChange,
   canvasPattern, onCanvasPatternChange,
   canvasPatternOpacity, onCanvasPatternOpacityChange,
   canvasPatternColor, onCanvasPatternColorChange,
   activeTool,
   selectedPointIndex,
+  captureBg, onCaptureBgChange,
+  captureRatio, onCaptureRatioChange,
+  captureOrientation, onCaptureOrientationChange,
+  captureScale, onCaptureScaleChange,
+  exportFormat, onExportFormatChange,
+  fileName, onFileNameChange,
 }: Props) {
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const [activePicker, setActivePicker] = useState<'bg' | 'pattern' | 'fill' | 'border' | null>(null);
   const outerRef = useRef<HTMLDivElement>(null);
-  const [pickerTop, setPickerTop] = useState(0);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const [hiddenColors, setHiddenColors] = useState<Record<string, boolean>>({});
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const previewTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const [previewSize, setPreviewSize] = useState<{w: number; h: number} | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  const capturingRef = useRef(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [hasGeneratedPreview, setHasGeneratedPreview] = useState(false);
+
+  const handleCapture = useCallback(async () => {
+    const el = document.getElementById('canvas-viewport-export');
+    if (!el || capturingRef.current) return;
+    capturingRef.current = true;
+    setCapturing(true);
+    setPreviewUrl(null);
+    setPreviewSize(null);
+
+    const startTime = Date.now();
+    let w = el.offsetWidth;
+    let h = el.offsetHeight;
+    const scale = captureScale;
+
+    try {
+      const captureOpts = {
+        pixelRatio: scale,
+        backgroundColor: captureBg ? (canvasBgColor === 'default' ? resolveCSSVar('--app-background') : canvasBgColor) : undefined,
+        style: { transform: 'none', transformOrigin: '0 0' },
+      };
+      let dataUrl = exportFormat === 'jpg'
+        ? await toJpeg(el as HTMLElement, { ...captureOpts, quality: 0.92 })
+        : await toPng(el as HTMLElement, captureOpts);
+
+      // Crop to aspect ratio
+      if (captureRatio !== 'screen') {
+        const [rw, rh] = captureRatio.split(':').map(Number);
+        const targetRatio = rw / rh;
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        let cropW = img.width, cropH = img.height;
+        if (img.width / img.height > targetRatio) cropW = img.height * targetRatio;
+        else cropH = img.width / targetRatio;
+        const c = document.createElement('canvas');
+        c.width = cropW;
+        c.height = cropH;
+        const ctx = c.getContext('2d')!;
+        ctx.drawImage(img, (img.width - cropW) / 2, (img.height - cropH) / 2, cropW, cropH, 0, 0, cropW, cropH);
+        const mime = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+        dataUrl = c.toDataURL(mime, 0.92);
+        w = cropW;
+        h = cropH;
+      }
+
+      // Rotate for vertical orientation
+      if (captureOrientation === 'vertical') {
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+        const c = document.createElement('canvas');
+        c.width = img.height;
+        c.height = img.width;
+        const ctx = c.getContext('2d')!;
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate(90 * Math.PI / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        const mime = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+        dataUrl = c.toDataURL(mime, 0.92);
+        [w, h] = [h, w];
+      }
+
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
+
+      const finalImg = new Image();
+      await new Promise<void>((resolve, reject) => {
+        finalImg.onload = () => resolve();
+        finalImg.onerror = reject;
+        finalImg.src = dataUrl;
+      });
+
+      setPreviewUrl(dataUrl);
+      setPreviewSize({ w: finalImg.width, h: finalImg.height });
+    } catch {}
+    capturingRef.current = false;
+    setCapturing(false);
+  }, [captureScale, captureRatio, captureOrientation, captureBg, exportFormat, canvasBgColor]);
+
+  useEffect(() => {
+    if (hasGeneratedPreview) {
+      handleCapture();
+    }
+  }, [captureScale, captureRatio, captureOrientation, captureBg, exportFormat, hasGeneratedPreview, handleCapture]);
 
   function resolveCSSVar(name: string): string {
     if (typeof document === 'undefined') return '#000000';
@@ -345,12 +694,18 @@ export function CanvasStylePanel({
       const rect = e.currentTarget.getBoundingClientRect();
       const outerRect = outerRef.current?.getBoundingClientRect();
       if (outerRect) {
-        let topPos = rect.top - outerRect.top;
+        // Float popover 10px to the left of the style panel
+        const leftPos = outerRect.left - 240; // 230px popover width + 10px spacing
+        let topPos = rect.top; // Align top with the clicked swatch button
         const popoverHeight = 330;
-        if (topPos + popoverHeight > outerRect.height) {
-          topPos = Math.max(10, outerRect.height - popoverHeight - 10);
+        
+        // Clamp top to keep popover fully inside visible viewport
+        if (topPos + popoverHeight > window.innerHeight - 10) {
+          topPos = Math.max(10, window.innerHeight - popoverHeight - 10);
         }
-        setPickerTop(topPos);
+        if (topPos < 10) topPos = 10;
+        
+        setPickerPos({ left: leftPos, top: topPos });
       }
       setActivePicker(picker);
     }
@@ -363,23 +718,6 @@ export function CanvasStylePanel({
   const isShapeTool = ['rect', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow'].includes(activeTool);
   const showShapeCustomization = hasSelection || isShapeTool;
 
-  // Debounced canvas preview capture
-  useEffect(() => {
-    if (showShapeCustomization) return;
-
-    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-    previewTimerRef.current = setTimeout(async () => {
-      const el = document.getElementById('canvas-viewport-export');
-      if (!el) return;
-      try {
-        const url = await toPng(el as HTMLElement, { pixelRatio: 0.3, backgroundColor: '#141413' });
-        setPreviewUrl(url);
-      } catch {}
-    }, 800);
-
-    return () => { if (previewTimerRef.current) clearTimeout(previewTimerRef.current); };
-  }, [canvasBgColor, canvasPattern, canvasPatternColor, canvasPatternOpacity, blocks, showShapeCustomization]);
-
   const ref = hasSelection ? selected[0] : null;
   const style = hasSelection ? (ref?.canvasStyleExt ?? {}) : activeStyle;
 
@@ -390,11 +728,36 @@ export function CanvasStylePanel({
   const displayY = activeDrag ? (activeDrag.resizeY ?? ((activeDrag.startY ?? ref?.y ?? 0) + activeDrag.dy)) : (ref?.y ?? 0);
   const displayRotation = activeDrag?.rotation ?? style.rotation ?? 0;
 
+  const isArrow = ref?.shapeKind === 'arrow' || ref?.shapeKind === 'line' || ref?.shapeKind === 'freedraw';
+  let arrowBounds: { x: number; y: number; w: number; h: number } | null = null;
+  if (isArrow && ref?.points?.length) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of ref.points) {
+      if (p[0] < minX) minX = p[0];
+      if (p[1] < minY) minY = p[1];
+      if (p[0] > maxX) maxX = p[0];
+      if (p[1] > maxY) maxY = p[1];
+    }
+    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    arrowBounds = { x: minX - pad, y: minY - pad, w: Math.max(maxX - minX + pad * 2, 1), h: Math.max(maxY - minY + pad * 2, 1) };
+  }
+
   function updateStyle(patch: Partial<CanvasStyleExt>) {
     if (hasSelection) {
-      selected.forEach(b =>
-        updateCanvasBlock(b.id, { canvasStyleExt: { ...(b.canvasStyleExt ?? {}), ...patch } })
-      );
+      selected.forEach(b => {
+        let extra = {};
+        if ('rotation' in patch && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')) {
+          const resolved = resolvePoints(b, blocks);
+          const { minX, minY, maxX, maxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
+          const pad = 6;
+          const cx = minX - pad + Math.max(maxX - minX + pad * 2, 1) / 2;
+          const cy = minY - pad + Math.max(maxY - minY + pad * 2, 1) / 2;
+          if (!b.canvasStyleExt?.pivot) {
+            extra = { pivot: [cx, cy] };
+          }
+        }
+        updateCanvasBlock(b.id, { canvasStyleExt: { ...(b.canvasStyleExt ?? {}), ...patch, ...extra } });
+      });
     }
     onChangeActiveStyle({ ...activeStyle, ...patch });
   }
@@ -445,9 +808,66 @@ export function CanvasStylePanel({
     updateStyle({ flipV: !style.flipV });
   };
 
+  // Arrow-specific geometry handlers — translate/scale points instead of setting block.x/y/width/height
+  function handleArrowPosChange(deltaX: number, deltaY: number) {
+    if (!isArrow || !ref?.points) return;
+    selected.forEach(b => {
+      if (b.points) {
+        updateCanvasBlock(b.id, {
+          points: b.points.map(p => [p[0] + deltaX, p[1] + deltaY] as [number, number])
+        });
+      }
+    });
+  }
+  function handleArrowXChange(newX: number) {
+    if (!isArrow || !arrowBounds || !ref?.points) return;
+    const delta = newX - arrowBounds.x;
+    handleArrowPosChange(delta, 0);
+  }
+  function handleArrowYChange(newY: number) {
+    if (!isArrow || !arrowBounds || !ref?.points) return;
+    const delta = newY - arrowBounds.y;
+    handleArrowPosChange(0, delta);
+  }
+  function handleArrowWidthChange(newW: number) {
+    if (!isArrow || !arrowBounds || !ref?.points || arrowBounds.w <= 0) return;
+    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    const currentSpan = arrowBounds.w - 2 * pad;
+    const targetSpan = Math.max(1, newW - 2 * pad);
+    const scale = targetSpan / currentSpan;
+    const minX = Math.min(...ref.points.map(p => p[0]));
+    selected.forEach(b => {
+      if (b.points) {
+        const pts = b.points;
+        const localMinX = Math.min(...pts.map(p => p[0]));
+        updateCanvasBlock(b.id, {
+          points: pts.map(p => [localMinX + (p[0] - localMinX) * scale, p[1]] as [number, number])
+        });
+      }
+    });
+  }
+  function handleArrowHeightChange(newH: number) {
+    if (!isArrow || !arrowBounds || !ref?.points || arrowBounds.h <= 0) return;
+    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    const currentSpan = arrowBounds.h - 2 * pad;
+    const targetSpan = Math.max(1, newH - 2 * pad);
+    const scale = targetSpan / currentSpan;
+    const minY = Math.min(...ref.points.map(p => p[1]));
+    selected.forEach(b => {
+      if (b.points) {
+        const pts = b.points;
+        const localMinY = Math.min(...pts.map(p => p[1]));
+        updateCanvasBlock(b.id, {
+          points: pts.map(p => [p[0], localMinY + (p[1] - localMinY) * scale] as [number, number])
+        });
+      }
+    });
+  }
+
   return (
-    <div ref={outerRef} className="relative">
-      <div className="w-[250px] flex flex-col overflow-y-auto" style={{ background: 'var(--sys-color)', border: '1px solid var(--bone-12)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 'calc(100vh - 100px)' }}>
+    <>
+      <div ref={outerRef} className="relative">
+      <div className="w-[250px] flex flex-col overflow-y-auto canvas-floating-panel" style={{ background: 'var(--app-panel)', border: '1px solid var(--bone-12)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 'calc(100vh - 100px)' }}>
 
       {showShapeCustomization ? (
         <>
@@ -513,20 +933,20 @@ export function CanvasStylePanel({
                 <div className="flex gap-2 mb-2">
                   <SidebarInput
                     prefix={<span className="text-[11px] font-bold leading-none select-none">X</span>}
-                    value={Math.round(displayX)}
-                    onChange={v => updateGeom({ x: Number(v) || 0 })}
+                    value={Math.round(isArrow && arrowBounds ? arrowBounds.x : displayX)}
+                    onChange={v => isArrow && arrowBounds ? handleArrowXChange(Number(v) || 0) : updateGeom({ x: Number(v) || 0 })}
                     scrub={{
-                      value: displayX,
-                      onChange: v => updateGeom({ x: v })
+                      value: isArrow && arrowBounds ? arrowBounds.x : displayX,
+                      onChange: v => isArrow && arrowBounds ? handleArrowXChange(v) : updateGeom({ x: v })
                     }}
                   />
                   <SidebarInput
                     prefix={<span className="text-[11px] font-bold leading-none select-none">Y</span>}
-                    value={Math.round(displayY)}
-                    onChange={v => updateGeom({ y: Number(v) || 0 })}
+                    value={Math.round(isArrow && arrowBounds ? arrowBounds.y : displayY)}
+                    onChange={v => isArrow && arrowBounds ? handleArrowYChange(Number(v) || 0) : updateGeom({ y: Number(v) || 0 })}
                     scrub={{
-                      value: displayY,
-                      onChange: v => updateGeom({ y: v })
+                      value: isArrow && arrowBounds ? arrowBounds.y : displayY,
+                      onChange: v => isArrow && arrowBounds ? handleArrowYChange(v) : updateGeom({ y: v })
                     }}
                   />
                 </div>
@@ -618,11 +1038,11 @@ export function CanvasStylePanel({
                           <path d="M2 8h12M5 5L2 8l3 3M11 5l3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       }
-                      value={Math.round(displayWidth)}
-                      onChange={v => handleWidthChange(Number(v) || 0)}
+                      value={Math.round(isArrow && arrowBounds ? arrowBounds.w : displayWidth)}
+                      onChange={v => isArrow && arrowBounds ? handleArrowWidthChange(Number(v) || 0) : handleWidthChange(Number(v) || 0)}
                       scrub={{
-                        value: displayWidth,
-                        onChange: handleWidthChange,
+                        value: isArrow && arrowBounds ? arrowBounds.w : displayWidth,
+                        onChange: v => isArrow && arrowBounds ? handleArrowWidthChange(v) : handleWidthChange(v),
                         min: 20
                       }}
                     />
@@ -643,11 +1063,11 @@ export function CanvasStylePanel({
                           <path d="M8 2v12M5 5l3-3 3 3M5 11l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       }
-                      value={Math.round(displayHeight)}
-                      onChange={v => handleHeightChange(Number(v) || 0)}
+                      value={Math.round(isArrow && arrowBounds ? arrowBounds.h : displayHeight)}
+                      onChange={v => isArrow && arrowBounds ? handleArrowHeightChange(Number(v) || 0) : handleHeightChange(Number(v) || 0)}
                       scrub={{
-                        value: displayHeight,
-                        onChange: handleHeightChange,
+                        value: isArrow && arrowBounds ? arrowBounds.h : displayHeight,
+                        onChange: v => isArrow && arrowBounds ? handleArrowHeightChange(v) : handleHeightChange(v),
                         min: 20
                       }}
                     />
@@ -673,7 +1093,7 @@ export function CanvasStylePanel({
             </>
           )}
 
-          <PanelSection title="Opacity & Corner">
+          <PanelSection title="Appearance">
             <div className="flex gap-2">
               <div className="flex-1">
                 <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Opacity</div>
@@ -722,12 +1142,18 @@ export function CanvasStylePanel({
             </div>
           </PanelSection>
 
-      {/* Fill */}
+      {(!ref?.shapeKind || !['arrow', 'line', 'freedraw'].includes(ref.shapeKind)) && (
       <PanelSection title="Fill">
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
           <div className="flex items-center gap-2">
-            <div className={cn("flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative", hiddenColors['fill'] && "opacity-40")}>
+            <div className={cn(
+              "flex-1 flex items-center h-7 rounded-[var(--radius-small)] border px-2 gap-2 relative transition-all duration-150",
+              activePicker === 'fill'
+                ? "border-[var(--bone-30)] bg-[var(--app-dark)]"
+                : "border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)]",
+              hiddenColors['fill'] && "opacity-40"
+            )}>
               <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('fill', e)}
@@ -783,18 +1209,25 @@ export function CanvasStylePanel({
           </div>
         </div>
       </PanelSection>
+      )}
 
-      {/* Border */}
-      <PanelSection title="Border">
+      {/* Stroke */}
+      <PanelSection title="Stroke">
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
           <div className="flex items-center gap-2">
-            <div className={cn("flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative", hiddenColors['border'] && "opacity-40")}>
+            <div className={cn(
+              "flex-1 flex items-center h-7 rounded-[var(--radius-small)] border px-2 gap-2 relative transition-all duration-150",
+              activePicker === 'border'
+                ? "border-[var(--bone-30)] bg-[var(--app-dark)]"
+                : "border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)]",
+              hiddenColors['border'] && "opacity-40"
+            )}>
               <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('border', e)}
                   className="w-full h-full rounded-[3px] block transition-none"
-                  style={{ background: style.stroke && style.stroke !== 'transparent' ? style.stroke : 'transparent' }}
+                  style={{ backgroundColor: style.stroke && style.stroke !== 'transparent' ? style.stroke : 'transparent', opacity: style.strokeOpacity ?? 1 }}
                 />
               </div>
               <input
@@ -819,14 +1252,21 @@ export function CanvasStylePanel({
               <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
               <input
                 type="text"
-                value={100}
+                value={Math.round((style.strokeOpacity ?? 1) * 100)}
                 onChange={e => {
                   const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
-                  updateStyle({ stroke: style.stroke });
+                  updateStyle({ strokeOpacity: num / 100 });
                 }}
                 className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
               />
-              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 select-none">%</span>
+              <span
+                onPointerDown={makeScrub(
+                  (style.strokeOpacity ?? 1) * 100,
+                  v => updateStyle({ strokeOpacity: v / 100 }),
+                  1, 0, 100
+                )}
+                className="cursor-ew-resize select-none text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0"
+              >%</span>
             </div>
             <button
               onClick={() => setHiddenColors(prev => ({ ...prev, border: !prev['border'] }))}
@@ -875,58 +1315,62 @@ export function CanvasStylePanel({
 
       {ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line') && (
         <PanelSection title="Arrowheads">
-          <div className="flex gap-2 mb-2">
-            <div className="flex-1">
-              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Start</div>
-              <select
-                value={ref.startArrowhead?.type ?? 'none'}
-                onChange={e => updateBlockFields({
-                  startArrowhead: { type: e.target.value as any, size: ref.startArrowhead?.size ?? 1 }
-                })}
-                className="w-full h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] text-[11px] text-[var(--bone-90)] border-none outline-none px-2"
-              >
-                <option value="none">None</option>
-                <option value="triangle">Triangle</option>
-                <option value="filled-triangle">Filled ▲</option>
-                <option value="circle">Circle</option>
-                <option value="bar">Bar</option>
-                <option value="diamond">Diamond</option>
-              </select>
+          <div className="flex gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Size</div>
+              <SidebarInput
+                prefix={
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 14l12-12M8 2h6v6" />
+                  </svg>
+                }
+                value={Math.round((ref.endArrowhead?.size ?? 1) * 10) / 10}
+                onChange={v => {
+                  const val = parseFloat(v.replace(/[^0-9.]/g, '')) || 1;
+                  const size = Math.min(3, Math.max(0.5, val));
+                  updateBlockFields({
+                    endArrowhead: { ...ref.endArrowhead ?? { type: 'filled-triangle' }, size },
+                    startArrowhead: ref.startArrowhead?.type !== 'none'
+                      ? { ...ref.startArrowhead ?? { type: 'none' }, size }
+                      : ref.startArrowhead,
+                  });
+                }}
+                scrub={{
+                  value: ref.endArrowhead?.size ?? 1,
+                  onChange: v => {
+                    const size = Math.min(3, Math.max(0.5, v));
+                    updateBlockFields({
+                      endArrowhead: { ...ref.endArrowhead ?? { type: 'filled-triangle' }, size },
+                      startArrowhead: ref.startArrowhead?.type !== 'none'
+                        ? { ...ref.startArrowhead ?? { type: 'none' }, size }
+                        : ref.startArrowhead,
+                    });
+                  },
+                  step: 0.1,
+                  min: 0.5
+                }}
+              />
             </div>
-            <div className="flex-1">
-              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">End</div>
-              <select
-                value={ref.endArrowhead?.type ?? 'filled-triangle'}
-                onChange={e => updateBlockFields({
-                  endArrowhead: { type: e.target.value as any, size: ref.endArrowhead?.size ?? 1 }
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Start</div>
+              <ArrowheadDropdown
+                value={ref.startArrowhead?.type ?? 'none'}
+                onChange={type => updateBlockFields({
+                  startArrowhead: { type: type as any, size: ref.startArrowhead?.size ?? 1 }
                 })}
-                className="w-full h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] text-[11px] text-[var(--bone-90)] border-none outline-none px-2"
-              >
-                <option value="none">None</option>
-                <option value="triangle">Triangle</option>
-                <option value="filled-triangle">Filled ▲</option>
-                <option value="circle">Circle</option>
-                <option value="bar">Bar</option>
-                <option value="diamond">Diamond</option>
-              </select>
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">End</div>
+              <ArrowheadDropdown
+                value={ref.endArrowhead?.type ?? 'filled-triangle'}
+                align="right"
+                onChange={type => updateBlockFields({
+                  endArrowhead: { type: type as any, size: ref.endArrowhead?.size ?? 1 }
+                })}
+              />
             </div>
           </div>
-          <PropRow label="Size">
-            <input
-              type="range" min={0.5} max={3} step={0.1}
-              value={ref.endArrowhead?.size ?? 1}
-              onChange={e => updateBlockFields({
-                endArrowhead: { ...ref.endArrowhead ?? { type: 'filled-triangle' }, size: Number(e.target.value) },
-                startArrowhead: ref.startArrowhead?.type !== 'none'
-                  ? { ...ref.startArrowhead ?? { type: 'none' }, size: Number(e.target.value) }
-                  : ref.startArrowhead,
-              })}
-              className="flex-1 h-[3px] rounded-full accent-[var(--accent)]"
-            />
-            <span className="text-[11px] text-[var(--bone-40)] w-6 text-right">
-              {Math.round((ref.endArrowhead?.size ?? 1) * 10) / 10}
-            </span>
-          </PropRow>
         </PanelSection>
       )}
 
@@ -1023,7 +1467,7 @@ export function CanvasStylePanel({
   ) : (
     <>
       <PanelSection 
-        title="Canvas Background"
+        title="Background"
         action={
           canvasBgColor !== 'default' && (
             <button
@@ -1039,13 +1483,18 @@ export function CanvasStylePanel({
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
           <div className="flex items-center gap-2">
-            <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
+            <div className={cn(
+              "flex-1 flex items-center h-7 rounded-[var(--radius-small)] border px-2 gap-2 relative transition-all duration-150",
+              activePicker === 'bg'
+                ? "border-[var(--bone-30)] bg-[var(--app-dark)]"
+                : "border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)]"
+            )}>
               {/* Color swatch square */}
               <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                 <button
                   onClick={(e) => togglePicker('bg', e)}
                   className="w-full h-full rounded-[3px] block transition-none"
-                  style={{ backgroundColor: canvasBgColor === 'default' ? 'var(--app-background)' : canvasBgColor }}
+                  style={{ backgroundColor: canvasBgColor === 'default' ? 'var(--app-background)' : canvasBgColor, opacity: canvasBgOpacity }}
                 />
               </div>
               
@@ -1074,21 +1523,37 @@ export function CanvasStylePanel({
               <div className="w-px h-4 bg-[var(--bone-15)] flex-shrink-0" />
               <input
                 type="text"
-                value={100}
+                value={Math.round(canvasBgOpacity * 100)}
                 onChange={e => {
                   const num = Math.min(100, Math.max(0, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
-                  onCanvasBgColorChange(canvasBgColor);
+                  onCanvasBgOpacityChange(num / 100);
                 }}
                 className="w-[26px] bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 text-right"
               />
-              <span className="text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0 select-none">%</span>
+              <span
+                onPointerDown={makeScrub(
+                  canvasBgOpacity * 100,
+                  v => onCanvasBgOpacityChange(v / 100),
+                  1, 0, 100
+                )}
+                className="cursor-ew-resize select-none text-[10px] text-[var(--bone-40)] font-ui-label flex-shrink-0"
+              >%</span>
             </div>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              onClick={() => onCaptureBgChange(!captureBg)}
+              className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
+            >
+              {captureBg && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
+            </button>
+            <span className="text-[10px] font-ui-label text-[var(--bone-60)] select-none">Show in exports</span>
           </div>
         </div>
       </PanelSection>
 
       <PanelSection 
-        title="Canvas Pattern"
+        title="Pattern"
         action={
           (canvasPattern !== 'grid' || canvasPatternColor !== 'default' || canvasPatternOpacity !== 0.03) && (
             <button
@@ -1121,7 +1586,12 @@ export function CanvasStylePanel({
           <div className="flex flex-col gap-1 mt-2.5">
             <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
             <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 gap-2 relative">
+              <div className={cn(
+                "flex-1 flex items-center h-7 rounded-[var(--radius-small)] border px-2 gap-2 relative transition-all duration-150",
+                activePicker === 'pattern'
+                  ? "border-[var(--bone-30)] bg-[var(--app-dark)]"
+                  : "border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)]"
+              )}>
                 {/* Color swatch square */}
                 <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
                   <button
@@ -1178,13 +1648,158 @@ export function CanvasStylePanel({
       </PanelSection>
 
       <PanelSection title="Export Preview">
-        <div className="relative w-full overflow-hidden rounded-[var(--radius-small)] border border-[var(--bone-15)] bg-[var(--bone-5)] flex items-center justify-center" style={{ aspectRatio: '16/10' }}>
-          {previewUrl ? (
+        <div
+          onClick={() => {
+            setHasGeneratedPreview(true);
+            handleCapture();
+          }}
+          className={cn(
+            "relative w-full overflow-hidden rounded-[var(--radius-medium)] border border-[var(--bone-6)] flex items-center justify-center cursor-pointer hover:border-[var(--bone-30)] transition-colors",
+            capturing && "skeleton-shimmer-fast",
+            previewUrl && !captureBg && "transparency-grid",
+            !(previewUrl && !captureBg) && "bg-[var(--bone-5)]"
+          )}
+          style={{ aspectRatio: '16/10' }}
+                >
+          {!capturing && (previewUrl ? (
             <img src={previewUrl} alt="Export preview" className="w-full h-full object-contain" />
           ) : (
-            <span className="text-[10px] text-[var(--bone-30)]">Capturing preview…</span>
+            <div className="flex flex-col items-center justify-center gap-1">
+              <Camera className="w-5 h-5 text-[var(--bone-30)]" />
+              <span className="text-[10px] text-[var(--bone-30)]">Click to capture preview</span>
+            </div>
+          ))}
+          {capturing && (
+            <div className="absolute inset-0 rounded-[var(--radius-small)] flex flex-col items-center justify-center gap-1.5">
+              <Scan className="w-5 h-5 text-[var(--bone-30)]" />
+              <span className="text-[11px] font-ui-label text-[var(--bone-40)]">Capturing preview…</span>
+            </div>
           )}
         </div>
+
+        {previewUrl && previewSize && (
+          <div className="flex items-center justify-center mt-1 text-[10px] font-ui-label text-[var(--bone-40)] select-none">
+            {previewSize.w} × {previewSize.h} px
+          </div>
+        )}
+
+        <div className="mt-2">
+          <span className="text-[10px] font-ui-label text-[var(--bone-60)] block mb-1">Filename &amp; Format</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={fileName}
+              onChange={e => onFileNameChange(e.target.value)}
+              className="flex-[2] h-7 bg-[var(--bone-6)] rounded-[var(--radius-small)] border border-transparent hover:bg-[var(--app-dark)] px-2 text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] outline-none transition-none"
+            />
+            <ExportSelect
+              value={exportFormat}
+              onChange={v => onExportFormatChange(v as any)}
+              options={[
+                { value: 'png', label: 'PNG' },
+                { value: 'jpg', label: 'JPG' },
+                { value: 'svg', label: 'SVG' },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-2">
+          <div className="flex-1">
+            <span className="text-[10px] font-ui-label text-[var(--bone-30)] block mb-1">Scale</span>
+            <ExportSelect
+              value={String(captureScale)}
+              onChange={v => onCaptureScaleChange(Number(v))}
+              options={[
+                { value: '0.5', label: '0.5x' },
+                { value: '0.75', label: '0.75x' },
+                { value: '1', label: '1x' },
+                { value: '1.5', label: '1.5x' },
+                { value: '2', label: '2x' },
+                { value: '3', label: '3x' },
+                { value: '5', label: '5x' },
+              ]}
+            />
+          </div>
+          <div className="flex-1">
+            <span className="text-[10px] font-ui-label text-[var(--bone-30)] block mb-1">Ratio</span>
+            <ExportSelect
+              value={captureRatio}
+              onChange={v => onCaptureRatioChange(v as any)}
+              align="right"
+              popupWidth={95}
+              options={[
+                { value: 'screen', label: 'Screen' },
+                { value: '16:9', label: '16:9' },
+                { value: '4:3', label: '4:3' },
+                { value: '1:1', label: '1:1' },
+              ]}
+            />
+          </div>
+          <div className="flex-1">
+            <span className="text-[10px] font-ui-label text-[var(--bone-30)] block mb-1">Orient</span>
+            <ExportSelect
+              value={captureOrientation}
+              onChange={v => onCaptureOrientationChange(v as any)}
+              iconOnly
+              align="right"
+              popupWidth={120}
+              options={[
+                { value: 'horizontal', label: 'Horizontal', icon: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="4" width="13" height="8" rx="1.5" /></svg> },
+                { value: 'vertical', label: 'Vertical', icon: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="4" y="1.5" width="8" height="13" rx="1.5" /></svg> },
+              ]}
+            />
+          </div>
+        </div>
+
+        {previewUrl && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={async () => {
+                if (copySuccess) return;
+                try {
+                  const res = await fetch(previewUrl);
+                  const blob = await res.blob();
+                  const mime = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+                  await navigator.clipboard.write([new ClipboardItem({ [mime]: blob })]);
+                } catch {}
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 1500);
+              }}
+              className={cn(
+                "flex-1 h-7 rounded-[var(--radius-small)] text-[11px] font-semibold transition-none cursor-pointer flex items-center justify-center gap-1",
+                copySuccess
+                  ? "bg-[#22c55e1a] text-[#22c55e]"
+                  : "bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-60)] hover:text-[var(--bone-100)]"
+              )}
+            >
+              {copySuccess ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copySuccess ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              onClick={() => {
+                if (downloadSuccess) return;
+                const a = document.createElement('a');
+                a.href = previewUrl;
+                a.download = `${fileName}.${exportFormat}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setDownloadSuccess(true);
+                setTimeout(() => setDownloadSuccess(false), 1500);
+              }}
+              className={cn(
+                "flex-1 h-7 rounded-[var(--radius-small)] text-[11px] font-semibold transition-none cursor-pointer flex items-center justify-center gap-1",
+                downloadSuccess
+                  ? "bg-[#22c55e1a] text-[#22c55e]"
+                  : "bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-60)] hover:text-[var(--bone-100)]"
+              )}
+            >
+              {downloadSuccess ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+              {downloadSuccess ? 'Downloaded' : 'Download'}
+            </button>
+          </div>
+        )}
       </PanelSection>
     </>
   )}
@@ -1201,17 +1816,18 @@ export function CanvasStylePanel({
           }
           opacity={
             activePicker === 'fill' ? (style.fillOpacity ?? 1) :
-            activePicker === 'border' ? 1 :
-            activePicker === 'bg' ? 1 :
+            activePicker === 'border' ? (style.strokeOpacity ?? 1) :
+            activePicker === 'bg' ? canvasBgOpacity :
             canvasPatternOpacity
           }
           onChange={(color, opacity) => {
             if (activePicker === 'fill') {
               updateStyle({ fill: color, fillOpacity: opacity });
             } else if (activePicker === 'border') {
-              updateStyle({ stroke: color });
+              updateStyle({ stroke: color, strokeOpacity: opacity });
             } else if (activePicker === 'bg') {
               onCanvasBgColorChange(color);
+              onCanvasBgOpacityChange(opacity);
             } else if (activePicker === 'pattern') {
               onCanvasPatternColorChange(color);
               onCanvasPatternOpacityChange(opacity);
@@ -1219,11 +1835,11 @@ export function CanvasStylePanel({
           }}
           onClose={() => setActivePicker(null)}
           style={{
-            right: '260px',
-            top: `${pickerTop}px`,
+            left: `${pickerPos.left}px`,
+            top: `${pickerPos.top}px`,
           }}
         />
       )}
     </div>
-  );
+    </>   );
 }

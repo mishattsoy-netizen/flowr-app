@@ -35,9 +35,9 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
 
   const removeWidget = (index: number) => {
     const newWidgets = widgets.filter((_, i) => i !== index);
-    const newActiveIndex = activeTabIndex === index ? 0 : 
+    const newActiveIndex = activeTabIndex === index ? 0 :
       (activeTabIndex > index ? activeTabIndex - 1 : activeTabIndex);
-    
+
     setActiveTabIndex(newActiveIndex);
     onUpdateData?.({ ...data, widgets: newWidgets, activeTabIndex: newActiveIndex });
   };
@@ -89,7 +89,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
   const stableEmptyData = useMemo(() => ({}), []);
 
   return (
-    <section 
+    <section
       className={cn(
         "h-full w-full relative bg-panel widget-shadow flex flex-col p-5 pt-4 transition-all duration-200 generic-stack-container",
         isDragOver && "ring-2 ring-accent ring-inset bg-accent/5"
@@ -104,7 +104,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
         {widgets.length > 1 ? (
           /* Multi-widget Switcher */
           <div className="relative flex items-center p-0.5 rounded-[8px] no-drag min-w-[160px]" style={{ background: 'var(--slider-track)' }}>
-            <div 
+            <div
               className="absolute top-0.5 bottom-0.5 rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
               style={pillStyle}
             />
@@ -120,9 +120,9 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
                 <span className="text-[11px] font-semibold tracking-normal">
                   {widgetRegistry[id]?.label || 'Widget'}
                 </span>
-                
+
                 {/* Remove Button on Hover */}
-                <div 
+                <div
                   onClick={(e) => { e.stopPropagation(); removeWidget(idx); }}
                   className="absolute -top-1 -right-1 bg-[var(--bone-10)] text-[var(--bone-70)] hover:bg-red-500 hover:text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 shadow-sm transition-all duration-200 z-20"
                 >
@@ -134,7 +134,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
         ) : widgets.length === 1 ? (
           /* Single Widget Normal Header */
           <div className="flex items-center gap-2 px-1">
-             <h3 className="text-[15px] font-bold text-[var(--bone-100)]">
+            <h3 className="text-[15px] font-bold text-[var(--bone-100)]">
               {widgetRegistry[widgets[0]]?.label || 'Widget'}
             </h3>
             <span className="text-[9px] text-[var(--bone-70)] font-bold bg-[var(--bone-10)] px-1.5 py-0.5 rounded border border-[var(--bone-15)] uppercase tracking-widest">Stack</span>

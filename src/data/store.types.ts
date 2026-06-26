@@ -104,6 +104,7 @@ export interface CanvasStyleExt {
   fill?: string;
   fillOpacity?: number;
   stroke?: string;
+  strokeOpacity?: number;
   strokeWidth?: number;
   strokeStyle?: 'solid' | 'dashed' | 'dotted';
   cornerRadius?: number;
@@ -113,6 +114,13 @@ export interface CanvasStyleExt {
   flipH?: boolean;
   flipV?: boolean;
   aspectRatioLocked?: boolean;
+  pivot?: [number, number];
+  startArrowhead?: ArrowheadStyle;
+  endArrowhead?: ArrowheadStyle;
+  editMode?: EditMode;
+  pointRadiuses?: number[];
+  startBinding?: ArrowBinding;
+  endBinding?: ArrowBinding;
 }
 
 export interface EditorBlock {

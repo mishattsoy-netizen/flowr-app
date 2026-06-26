@@ -133,15 +133,15 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
 
   function handleAddSubmit() {
     if (isSubmitting.current) return;
-    
+
     const t = newTitle.trim();
     if (t) {
       isSubmitting.current = true;
-      const taskData: Partial<AppTask> = { 
+      const taskData: Partial<AppTask> = {
         title: t,
         workspaceId: (!contextId || contextId === 'dashboard') ? activeWorkspaceId : contextId
       };
-      
+
       // Smart defaults based on active tab to ensure visibility
       if (activeId === 'today') {
         taskData.dueDate = getLocalDateStr();
@@ -156,7 +156,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
       } else if (activeId === 'completed') {
         taskData.completed = true;
       }
-      
+
       addTask(taskData as any);
       setNewTitle('');
     }

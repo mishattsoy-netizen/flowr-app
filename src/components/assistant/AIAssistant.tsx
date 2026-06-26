@@ -4,7 +4,7 @@
 
 import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
-import { generateId } from '@/data/store';
+import { generateId, blocksToMarkdown } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
 import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -152,7 +152,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   useEffect(() => () => {
     if (contextTooltipTimeoutRef.current) clearTimeout(contextTooltipTimeoutRef.current);
   }, []);
-  const [contextEnabled, setContextEnabled] = useState(false);
 
   const showSkeleton = useDeferredLoading(isAILoading, 200);
 
@@ -163,6 +162,30 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
   const sessionId = activeChatId || activeEntityId || 'global';
+
+  // Build page context string for sidebar/floating modes. Returns null on chat page
+  // or when there is no active entity with content.
+  const buildPageContext = (): string | null => {
+    if (chatPageMode) return null;
+    const state = useStore.getState();
+    const entity = state.entities.find(e => e.id === activeEntityId);
+    if (!entity) return null;
+    let pageContent = '';
+    if (entity.type === 'canvas') {
+      const canvasBlocks = state.blocks.filter(b => b.canvasId === entity.id);
+      pageContent = blocksToMarkdown(canvasBlocks);
+    } else if (entity.content && entity.content.length > 0) {
+      pageContent = blocksToMarkdown(entity.content);
+    } else if (entity.type === 'folder' || entity.type === 'collection' || entity.type === 'workspace') {
+      const children = state.entities.filter(e => e.parentId === entity.id);
+      if (children.length > 0) {
+        pageContent = children.map(c => `- ${c.title} (${c.type})`).join('\n');
+      }
+    }
+    return pageContent
+      ? `Here is the content of the "${entity.title}" page the user is currently viewing:\n${pageContent}`
+      : null;
+  };
 
   // Local token estimate: ~4 chars per token. Mirrors the exact per-message text the
   // server builds for history in store.ts.sendAIMessage (stripHeavyMedia + digital twin
@@ -194,7 +217,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
       imageTokens += imageCount * 258;
       chars += text.length;
     }
-    return summaryTokens + Math.ceil(chars / 4) + imageTokens;
+    const pageCtx = buildPageContext();
+    const pageContextTokens = pageCtx ? Math.ceil(pageCtx.length / 4) : 0;
+    return summaryTokens + Math.ceil(chars / 4) + imageTokens + pageContextTokens;
   })();
 
   useEffect(() => {
@@ -305,6 +330,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
       return;
     }
 
+    let pageContext: string | undefined;
+    if (!chatPageMode && finalContent) {
+      pageContext = buildPageContext() ?? undefined;
+    }
+
     try {
       setIsSubmitting(true);
       const isSad = ['bad', 'error', 'stop', 'stupid', 'hate'].some(w => finalContent.toLowerCase().includes(w));
@@ -314,7 +344,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
       if (overrideAttachments === undefined) setAttachments([]);
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-      await sendAIMessage(finalContent, finalAttachments);
+      await sendAIMessage(finalContent, finalAttachments, pageContext);
       // Clear intent tag after message is dispatched
       setActiveIntentTag(null);
       // Re-fetch context after message to get updated token usage
@@ -968,8 +998,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                   <ChatPlusMenu
                     onClose={() => setShowPlusMenu(false)}
                     onMediaClick={() => fileInputRef.current?.click()}
-                    onContextToggle={() => setContextEnabled(v => !v)}
-                    contextEnabled={contextEnabled}
                     position={plusMenuPos}
                   />
                 )}

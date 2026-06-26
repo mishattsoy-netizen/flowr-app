@@ -50,7 +50,7 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
                   role="button"
                 >
                   <Folder strokeWidth={2} className="w-4 h-4 text-[var(--bone-100)] opacity-70 group-hover/item:opacity-100 shrink-0 transition-opacity duration-200 ease-in-out" />
-                  
+
                   {isEditing ? (
                     <input
                       autoFocus

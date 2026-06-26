@@ -1,5 +1,5 @@
 "use client";
- 
+
 import { useStore, Entity } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import { Clock, ChevronRight, FileText, Frame, Layers, Folder } from 'lucide-react';
@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import type { EntityType } from '@/data/store.types';
 import type { WidgetProps } from './types';
 import { stripHtml } from '@/lib/utils';
- 
+
 function formatAge(ts: number) {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return `${s}s`;
@@ -16,15 +16,15 @@ function formatAge(ts: number) {
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86400)}d`;
 }
- 
+
 type Filter = 'all' | 'note' | 'canvas';
- 
+
 const ALL_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'note', label: 'Note' },
   { id: 'canvas', label: 'Canvas' },
 ] as const;
- 
+
 export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { data?: { filter?: Filter } }) {
   const recentEntityIds = useStore(s => s.recentEntityIds);
   const entities = useStore(s => s.entities);
@@ -38,7 +38,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
   useEffect(() => {
     setMounted(true);
   }, []);
- 
+
   const recentEntities = useMemo(() => {
     let list = recentEntityIds.map(id => {
       // Find in entities (pages, folders, etc.)
@@ -64,7 +64,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
     if (contextId && contextId !== 'dashboard') {
       // Exclude workspaces and collections inside a specific workspace dashboard to avoid self-listing
       list = list.filter(e => e.type !== 'workspace' && e.type !== 'collection');
-      
+
       list = list.filter(e => {
         let curr: Entity | undefined = e;
         const visited = new Set<string>();
@@ -85,10 +85,10 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
     }
     return list.filter(e => filter === 'all' || e.type === filter);
   }, [recentEntityIds, entities, workspaces, filter, contextId]);
- 
+
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const [pillStyle, setPillStyle] = useState({ left: 3, width: 40 });
- 
+
   useEffect(() => {
     if (!tabContainerRef.current) return;
     const measure = () => {
@@ -100,19 +100,19 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
         );
       }
     };
- 
+
     measure();
     window.addEventListener('resize', measure);
- 
+
     const observer = new ResizeObserver(measure);
     observer.observe(tabContainerRef.current);
- 
+
     return () => {
       window.removeEventListener('resize', measure);
       observer.disconnect();
     };
   }, [filter]);
- 
+
   if (!mounted) return null;
 
   return (
@@ -152,7 +152,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           </div>
         )}
       </div>
- 
+
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
         {recentEntities.length > 0 ? recentEntities.map(entity => {
           if (!entity) return null;

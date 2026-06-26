@@ -242,6 +242,7 @@ export async function runChain(
     _visionImageDescription?: string | null;
     isTempChat?: boolean;
     clientHistory?: any[];
+    pageContext?: string | null;
   }
 ): Promise<ChainResponse> {
   const tracer = new TraceCollector()
@@ -751,6 +752,7 @@ export async function runChain(
   const PIPELINE_PROMPT_CHAINS = ['WEB_SEARCH', 'RESEARCH']
   if (internalPipelinePrompt && !PIPELINE_PROMPT_CHAINS.includes(category)) finalSysPrompt += "\n\n" + internalPipelinePrompt
   if (routerOverridePrompt) finalSysPrompt += "\n\n" + routerOverridePrompt
+  if (context?.pageContext) finalSysPrompt += `\n\n[PAGE CONTEXT]\n${context.pageContext}\n`
 
   // Deduplicate [RESTRICTIONS] — the compiled global prompt already contains it,
   // and it may also appear in the router override or internal prompt.

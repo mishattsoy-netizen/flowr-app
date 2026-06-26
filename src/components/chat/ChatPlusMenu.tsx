@@ -1,17 +1,12 @@
 "use client";
 
-import { Image as ImageIcon, Eye, Plug, Wand2 } from 'lucide-react';
+import { Image as ImageIcon, Plug, Wand2 } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
-import { Tooltip } from '@/components/layout/Tooltip';
-import { Toggle } from '@/components/ui/Toggle';
 
 interface ChatPlusMenuProps {
   onClose: () => void;
   onMediaClick: () => void;
-  onContextToggle: () => void;
-  contextEnabled: boolean;
   position?: { bottom: number; left: number };
 }
 
@@ -19,7 +14,7 @@ const EXTENSION_STUBS = [
   'Gmail', 'Figma', 'GitHub', 'Telegram', 'Obsidian', 'Notion', 'TradingView',
 ];
 
-export function ChatPlusMenu({ onClose, onMediaClick, onContextToggle, contextEnabled, position }: ChatPlusMenuProps) {
+export function ChatPlusMenu({ onClose, onMediaClick, position }: ChatPlusMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,30 +41,6 @@ export function ChatPlusMenu({ onClose, onMediaClick, onContextToggle, contextEn
         <ImageIcon className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
         <span className="tracking-wide">Upload Media</span>
       </button>
-
-      {/* Context toggle */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onContextToggle(); }}
-        className={cn(
-          'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
-          contextEnabled && 'text-bone-100'
-        )}
-      >
-        <Eye className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
-        <div className="flex flex-col items-start">
-          <Tooltip content="Provides context from your current page">
-            <span className="tracking-wide">Context</span>
-          </Tooltip>
-        </div>
-        <Toggle
-          size="sm"
-          checked={contextEnabled}
-          onChange={onContextToggle}
-          className="ml-auto pointer-events-none"
-        />
-      </button>
-
-      <div className="popup-divider" />
 
       {/* Extensions — stubs */}
       <div className="flex flex-col gap-0.5">

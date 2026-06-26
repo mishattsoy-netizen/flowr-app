@@ -15,6 +15,26 @@ export function MediaUploadPopover({ position, onConfirm, onClose }: MediaUpload
   const [urlValue, setUrlValue] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [coords, setCoords] = useState({ x: position.x, y: position.y });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const w = r.width || 224; // 224px is w-56
+    const h = r.height || 120;
+    
+    let x = position.x;
+    let y = position.y;
+    
+    if (x + w > window.innerWidth) {
+      x = Math.max(10, window.innerWidth - w - 10);
+    }
+    if (y + h > window.innerHeight) {
+      y = Math.max(10, window.innerHeight - h - 10);
+    }
+    setCoords({ x, y });
+  }, [position]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -81,8 +101,8 @@ export function MediaUploadPopover({ position, onConfirm, onClose }: MediaUpload
   return (
     <div
       ref={ref}
-      className="fixed z-[6000] w-56 popup-glass-big p-1 "
-      style={{ left: position.x, top: position.y }}
+      className="fixed z-[6000] w-56 popup-glass-big p-1 canvas-floating-panel"
+      style={{ left: coords.x, top: coords.y }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <input
@@ -94,7 +114,7 @@ export function MediaUploadPopover({ position, onConfirm, onClose }: MediaUpload
       />
 
       {mode === 'menu' ? (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-0.5">
           <button
             onClick={() => fileRef.current?.click()}
             className="popup-item"
@@ -141,7 +161,7 @@ export function MediaUploadPopover({ position, onConfirm, onClose }: MediaUpload
               "w-full py-1.5 rounded-[var(--radius-small)] text-xs font-bold",
               urlValue.trim()
                 ? "bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20"
-                : "bg-[var(--bone-5)] text-muted-foreground cursor-not-allowed"
+                : "bg-[var(--bone-6)] text-muted-foreground cursor-not-allowed"
             )}
           >
             Add Media

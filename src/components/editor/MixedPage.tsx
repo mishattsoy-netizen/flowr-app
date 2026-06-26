@@ -77,7 +77,7 @@ export function MixedPage({ entity }: { entity: Entity }) {
       <div
         className="relative bg-panel overflow-hidden flex-1"
         style={{ 
-          backgroundImage: 'radial-gradient(var(--border) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(to right, var(--bone-3) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-3) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
       >

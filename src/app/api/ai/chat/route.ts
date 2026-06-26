@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     user = data.user
   }
 
-  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
             pendingAdvisorState: pendingAdvisorState || undefined,
             isTempChat: isTempChat === true,
             clientHistory: clientHistory ?? [],
+            pageContext: pageContext ?? null,
             onStatus: (step: any) => {
               if (step.status === 'running') {
                 send({ status: step.label || step.goal })

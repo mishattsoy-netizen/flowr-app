@@ -5,6 +5,15 @@ import { activeDragOffsets } from '@/lib/canvasDragState';
 // ─── Row ↔ store mappers ──────────────────────────────────────────────────────
 
 function blockToRow(b: EditorBlock, userId: string, workspaceId: string): Record<string, unknown> {
+  const dbStyle = {
+    ...(b.canvasStyleExt ?? {}),
+    startArrowhead: b.startArrowhead,
+    endArrowhead: b.endArrowhead,
+    editMode: b.editMode,
+    pointRadiuses: b.pointRadiuses,
+    startBinding: b.startBinding,
+    endBinding: b.endBinding,
+  };
   return {
     id:           b.id,
     canvas_id:    b.canvasId!,
@@ -17,7 +26,7 @@ function blockToRow(b: EditorBlock, userId: string, workspaceId: string): Record
     width:        b.width ?? null,
     height:       b.height ?? null,
     content:      b.content ?? null,
-    style:        b.canvasStyleExt ?? null,
+    style:        dbStyle,
     points:       b.points ?? null,
     parent_id:    b.parentId ?? null,
     z_index:      b.zIndex ?? 0,
@@ -27,6 +36,8 @@ function blockToRow(b: EditorBlock, userId: string, workspaceId: string): Record
 }
 
 function rowToBlock(row: Record<string, unknown>): EditorBlock {
+  const dbStyle = (row.style as any) ?? {};
+  const { startArrowhead, endArrowhead, editMode, pointRadiuses, startBinding, endBinding, ...canvasStyleExt } = dbStyle;
   return {
     id:             row.id as string,
     canvasId:       row.canvas_id as string,
@@ -37,11 +48,17 @@ function rowToBlock(row: Record<string, unknown>): EditorBlock {
     y:              (row.y as number) ?? 0,
     width:          (row.width as number) ?? undefined,
     height:         (row.height as number) ?? undefined,
-    canvasStyleExt: (row.style as CanvasStyleExt) ?? undefined,
+    canvasStyleExt: Object.keys(canvasStyleExt).length > 0 ? canvasStyleExt : undefined,
     points:         (row.points as [number, number][]) ?? undefined,
     parentId:       (row.parent_id as string) ?? undefined,
     zIndex:         (row.z_index as number) ?? undefined,
     groupId:        (row.group_id as string) ?? undefined,
+    startArrowhead: startArrowhead ?? undefined,
+    endArrowhead:   endArrowhead ?? undefined,
+    editMode:       editMode ?? undefined,
+    pointRadiuses:  pointRadiuses ?? undefined,
+    startBinding:   startBinding ?? undefined,
+    endBinding:     endBinding ?? undefined,
   };
 }
 

@@ -45,8 +45,8 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
   const handleAdd = () => {
     const title = newTitle.trim();
     if (!title) { setIsAdding(false); return; }
-    addTask({ 
-      title, 
+    addTask({
+      title,
       workspaceId: entity?.id ?? activeWorkspaceId ?? null,
       status: activeTab === 'in-progress' ? 'in-progress' : 'todo'
     });
@@ -66,11 +66,11 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
     Overdue: workspaceTasks.filter(t => !t.completed && t.dueDate && t.dueDate < today && t.status !== 'in-progress'),
   } : null;
 
-  const currentTabTasks = activeTab === 'todo' 
-    ? todoTasks 
-    : activeTab === 'in-progress' 
-    ? inProgressTasks 
-    : completedTasks;
+  const currentTabTasks = activeTab === 'todo'
+    ? todoTasks
+    : activeTab === 'in-progress'
+      ? inProgressTasks
+      : completedTasks;
 
   return (
     <section className="bg-panel group/widget px-5 pb-5 pt-4 widget-shadow h-full flex flex-col">
@@ -100,7 +100,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
             const isActive = activeTab === tab;
             const count = tab === 'todo' ? todoTasks.length : tab === 'in-progress' ? inProgressTasks.length : completedTasks.length;
             const label = tab === 'todo' ? 'To Do' : tab === 'in-progress' ? 'In Progress' : 'Completed';
-            
+
             return (
               <button
                 key={tab}

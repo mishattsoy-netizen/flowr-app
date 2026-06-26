@@ -1,7 +1,7 @@
 "use client";
 
 import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
-import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download } from 'lucide-react';
+import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download, Check } from 'lucide-react';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -17,7 +17,9 @@ import { useDrag } from '@/hooks/useDrag';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFlowState } from '@/hooks/useFlowState';
 import { FlowPreview } from './FlowPreview';
-import { exportCanvasToPng } from '@/lib/canvasExport';
+import { exportCanvasToPng, copyCanvasToClipboard } from '@/lib/canvasExport';
+import { resolvePoints } from '@/lib/geometry/resolvePoints';
+import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
 import { supabase } from '@/lib/supabase';
@@ -37,6 +39,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [canvasBgColor, setCanvasBgColor] = useState('default');
+  const [canvasBgOpacity, setCanvasBgOpacity] = useState(1);
+  const [captureBg, setCaptureBg] = useState(true);
+  const [captureRatio, setCaptureRatio] = useState<'screen' | '16:9' | '4:3' | '1:1'>('screen');
+  const [captureOrientation, setCaptureOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [captureScale, setCaptureScale] = useState(2);
+  const [exportFormat, setExportFormat] = useState<'png' | 'jpg' | 'svg'>('png');
+  const [exportFileName, setExportFileName] = useState('canvas-export');
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const resolvedBgColor = useMemo(() => {
+    if (canvasBgColor === 'default') return 'var(--app-background)';
+    if (canvasBgColor.startsWith('#')) {
+      const r = parseInt(canvasBgColor.slice(1, 3), 16);
+      const g = parseInt(canvasBgColor.slice(3, 5), 16);
+      const b = parseInt(canvasBgColor.slice(5, 7), 16);
+      return `rgba(${r},${g},${b},${canvasBgOpacity})`;
+    }
+    return canvasBgColor;
+  }, [canvasBgColor, canvasBgOpacity]);
+
   const [canvasPattern, setCanvasPattern] = useState<'none' | 'grid' | 'dots'>('grid');
   const [canvasPatternOpacity, setCanvasPatternOpacity] = useState(0.03);
   const [canvasPatternColor, setCanvasPatternColor] = useState('default');
@@ -46,7 +69,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   } | null>(null);
   const [activeStyle, setActiveStyle] = useState<CanvasStyleExt>({
     stroke: '#ffffff',
-    strokeWidth: 2,
+    strokeWidth: 1,
     strokeStyle: 'solid',
     fill: '#ffffff',
     fillOpacity: 1.0,
@@ -153,7 +176,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       editMode: 'simple',
       startArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
       endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
-      canvasStyleExt: { stroke: '#d38f36', strokeWidth: 2, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
+      canvasStyleExt: { stroke: '#d38f36', strokeWidth: 1, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
     });
     clear();
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
@@ -162,6 +185,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const handleDoubleClickBlock = useCallback((blockId: string) => {
     const block = useStore.getState().blocks.find(b => b.id === blockId);
     if (block && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
+      useFlowState.getState().clear();
       setSelectedPointIndex(null);
       setEditingBlockId(blockId);
       setActiveTool('select');
@@ -179,12 +203,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     selectedBlocks.forEach(b => {
       const isArrow = b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw';
       if (isArrow && b.points?.length) {
-        for (const p of b.points) {
-          if (p[0] < minX) minX = p[0];
-          if (p[1] < minY) minY = p[1];
-          if (p[0] > maxX) maxX = p[0];
-          if (p[1] > maxY) maxY = p[1];
-        }
+        const resolved = resolvePoints(b, pageBlocks);
+        const { minX: sMinX, minY: sMinY, maxX: sMaxX, maxY: sMaxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
+        if (sMinX < minX) minX = sMinX;
+        if (sMinY < minY) minY = sMinY;
+        if (sMaxX > maxX) maxX = sMaxX;
+        if (sMaxY > maxY) maxY = sMaxY;
       } else {
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
         if (bx < minX) minX = bx;
@@ -194,7 +218,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     });
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }, [selectedBlocks]);
+  }, [selectedBlocks, pageBlocks]);
 
   const handleDuplicateSelection = useCallback(() => {
     if (selectedBlocks.length === 0) return;
@@ -745,7 +769,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           className="absolute inset-0 overflow-hidden"
           style={{
             cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : undefined,
-            backgroundColor: canvasBgColor === 'default' ? 'var(--app-background)' : canvasBgColor,
+            backgroundColor: resolvedBgColor,
             backgroundImage: canvasPattern === 'grid'
               ? `linear-gradient(to right, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px)`
               : canvasPattern === 'dots'
@@ -782,8 +806,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 pointerEvents: 'none',
               }}
             >
-              <div style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} activeTool={activeTool} viewportScale={viewport.scale} />
+              <div id="canvas-viewport-content" style={{ pointerEvents: 'auto' }}>
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -870,11 +894,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 {/* Standalone arrows layer — outside viewport-export so z-index competes with HTML blocks */}
                 <svg
                   className="absolute inset-0 pointer-events-none overflow-visible"
-                  style={{
-                    zIndex: 10,
-                    transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
-                    transformOrigin: '0 0',
-                  }}
+                  style={{ zIndex: 10 }}
                 >
                   {pageBlocks.filter(b =>
                     (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw') &&
@@ -886,6 +906,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       selectedPointIndex={editingBlockId === b.id ? selectedPointIndex : null}
                       activeTool={activeTool}
                       viewportScale={viewport.scale}
+                      viewport={{ x: viewport.x, y: viewport.y, scale: viewport.scale }}
                       onSelect={selectBlock}
                       onDoubleClick={() => handleDoubleClickBlock(b.id)}
                       onDragStart={(e) => handleArrowDrag(e, b)}
@@ -1028,12 +1049,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             className="absolute bottom-6 left-6 z-[1000] flex gap-2 select-none"
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-          >
-            {/* Zoom Controls */}
-            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px]">
+          >            {/* Zoom Controls */}
+            <div className="flex items-center h-8 bg-panel/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px] canvas-floating-panel">
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: Math.max(MIN_ZOOM, p.scale - ZOOM_STEP) }))}
-                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-all duration-150 ease-in-out"
                 title="Zoom Out"
               >
                 <span className="opacity-70 group-hover:opacity-100"><Minus className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
@@ -1041,15 +1061,15 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: 1.0 }))}
-                className="px-2 h-[26px] flex items-center justify-center text-[11px] font-semibold text-[var(--bone-90)] hover:text-[var(--bone-100)] transition-none min-w-[48px] text-center cursor-pointer"
+                className="px-2 h-[26px] flex items-center justify-center text-[11px] font-semibold text-[var(--bone-90)] hover:text-[var(--bone-100)] transition-all duration-150 ease-in-out min-w-[48px] text-center cursor-pointer"
                 title="Reset Zoom to 100%"
               >
                 {Math.round(viewport.scale * 100)}%
               </button>
-
+              
               <button
                 onClick={() => setViewport(p => ({ ...p, scale: Math.min(MAX_ZOOM, p.scale + ZOOM_STEP) }))}
-                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-15)] cursor-pointer transition-all duration-150 ease-in-out"
                 title="Zoom In"
               >
                 <span className="opacity-70 group-hover:opacity-100"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--bone-100)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1060,11 +1080,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             </div>
 
             {/* Undo / Redo Controls */}
-            <div className="flex items-center h-8 bg-sidebar/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px] gap-[1px]">
+            <div className="flex items-center h-8 bg-panel/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[8px] p-[3px] gap-[1px] canvas-floating-panel">
               <button
                 onClick={handleUndo}
                 disabled={!history.canUndo}
-                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-in-out"
                 title="Undo (Ctrl+Z)"
               >
                 <span className="opacity-70 group-hover:opacity-100"><Undo2 className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
@@ -1072,7 +1092,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               <button
                 onClick={handleRedo}
                 disabled={!history.canRedo}
-                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-none"
+                className="group w-7 h-[26px] rounded-[6px] flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--bone-70)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-in-out"
                 title="Redo (Ctrl+Y)"
               >
                 <span className="opacity-70 group-hover:opacity-100"><Redo2 className="w-3.5 h-3.5 text-[var(--bone-100)]" /></span>
@@ -1083,7 +1103,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         {/* Floating Toolbar above the Right Sidebar */}
         <div 
-          className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-sidebar/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[11px] p-[5px] gap-[4px] select-none"
+          className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-panel border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[11px] p-[5px] gap-[4px] select-none canvas-floating-panel"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -1092,9 +1112,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             <button
               onClick={() => setShowStylePanel(!showStylePanel)}
               className={cn(
-                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[32px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out cursor-pointer",
                 showStylePanel
-                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  ? "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title="Toggle style sidebar"
@@ -1106,9 +1126,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             <button
               onClick={() => setShowLayers(!showLayers)}
               className={cn(
-                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[32px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out cursor-pointer",
                 showLayers
-                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  ? "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title="Layers panel"
@@ -1120,9 +1140,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             <button
               onClick={() => setSnapEnabled(!snapEnabled)}
               className={cn(
-                "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-none cursor-pointer",
+                "group w-[32px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out cursor-pointer",
                 snapEnabled
-                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                  ? "bg-[var(--bone-6)] text-[var(--bone-100)] font-semibold"
                   : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
               )}
               title={snapEnabled ? "Snapping is ON (aligns blocks to each other)" : "Snapping is OFF (smooth movement)"}
@@ -1133,20 +1153,70 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             {/* Export PNG */}
             <button
               onClick={async () => {
+                if (exportSuccess) return;
                 const el = document.getElementById('canvas-viewport-export');
-                if (el) await exportCanvasToPng(el as HTMLElement, entity.title);
+                if (el) {
+                  const bg = resolvedBgColor.startsWith('var(')
+                    ? getComputedStyle(document.documentElement).getPropertyValue('--app-background').trim()
+                    : resolvedBgColor;
+                  await exportCanvasToPng(el as HTMLElement, entity.title, {
+                    pixelRatio: 2,
+                    backgroundColor: bg,
+                    format: 'png',
+                    ratio: 'screen',
+                    orientation: 'horizontal',
+                  });
+                  setExportSuccess(true);
+                  setTimeout(() => setExportSuccess(false), 1500);
+                }
               }}
-              className="group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none cursor-pointer"
-              title="Export PNG"
+              className={cn(
+                "group w-[32px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out cursor-pointer",
+                exportSuccess
+                  ? "bg-[#22c55e1a] text-[#22c55e]"
+                  : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+              )}
+              title={exportSuccess ? "Exported!" : "Export PNG (2x)"}
             >
-              <span className="opacity-60 group-hover:opacity-100"><Download className="w-4 h-4 text-[var(--bone-100)]" /></span>
+              <span>{exportSuccess ? <Check className="w-4 h-4 text-[#22c55e]" /> : <Download className="w-4 h-4 text-[var(--bone-100)]" />}</span>
+            </button>
+
+            {/* Copy to Clipboard */}
+            <button
+              onClick={async () => {
+                if (copySuccess) return;
+                const el = document.getElementById('canvas-viewport-export');
+                if (el) {
+                  const bg = resolvedBgColor.startsWith('var(')
+                    ? getComputedStyle(document.documentElement).getPropertyValue('--app-background').trim()
+                    : resolvedBgColor;
+                  await copyCanvasToClipboard(el as HTMLElement, {
+                    pixelRatio: 2,
+                    backgroundColor: bg,
+                    format: 'png',
+                    ratio: 'screen',
+                    orientation: 'horizontal',
+                  });
+                  setCopySuccess(true);
+                  setTimeout(() => setCopySuccess(false), 1500);
+                }
+              }}
+              className={cn(
+                "group w-[32px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out cursor-pointer",
+                copySuccess
+                  ? "bg-[#22c55e1a] text-[#22c55e]"
+                  : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+              )}
+              title={copySuccess ? "Copied!" : "Copy to clipboard (2x)"}
+            >
+              <span>{copySuccess ? <Check className="w-4 h-4 text-[#22c55e]" /> : <Copy className="w-4 h-4 text-[var(--bone-100)]" />}</span>
             </button>
           </div>
 
           {/* Share Button */}
           <button
             onClick={() => copyShareLinkToClipboard(entity.id)}
-            className="h-[30px] px-3 rounded-[var(--radius-small)] bg-[var(--bone-15)] text-[var(--bone-100)] hover:bg-[var(--bone-25)] hover:text-[var(--bone-100)] text-[11px] font-bold tracking-wide transition-none active:bg-[var(--bone-30)] cursor-pointer"
+            className="h-[30px] px-3 rounded-[var(--radius-small)] bg-[var(--bone-15)] text-[var(--bone-100)] hover:bg-[var(--bone-25)] hover:text-[var(--bone-100)] text-[11px] font-bold tracking-wide transition-all duration-150 ease-in-out active:bg-[var(--bone-30)] cursor-pointer"
           >
             Share
           </button>
@@ -1171,6 +1241,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               onAlignBottom={() => alignBlocks('bottom')}
               canvasBgColor={canvasBgColor}
               onCanvasBgColorChange={setCanvasBgColor}
+              canvasBgOpacity={canvasBgOpacity}
+              onCanvasBgOpacityChange={setCanvasBgOpacity}
               canvasPattern={canvasPattern}
               onCanvasPatternChange={setCanvasPattern}
               canvasPatternOpacity={canvasPatternOpacity}
@@ -1179,6 +1251,18 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               onCanvasPatternColorChange={setCanvasPatternColor}
               activeTool={activeTool}
               selectedPointIndex={selectedPointIndex}
+              captureBg={captureBg}
+              onCaptureBgChange={setCaptureBg}
+              captureRatio={captureRatio}
+              onCaptureRatioChange={setCaptureRatio}
+              captureOrientation={captureOrientation}
+              onCaptureOrientationChange={setCaptureOrientation}
+              captureScale={captureScale}
+              onCaptureScaleChange={setCaptureScale}
+              exportFormat={exportFormat}
+              onExportFormatChange={setExportFormat}
+              fileName={exportFileName}
+              onFileNameChange={setExportFileName}
             />
           </div>
         )}

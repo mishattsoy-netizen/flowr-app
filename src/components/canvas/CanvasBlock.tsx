@@ -608,7 +608,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       {isSelected && block.type !== 'connection' && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
-            className="w-3 h-3 bg-brand-blue border-2 border-background rounded-full cursor-grab active:cursor-grabbing hover:scale-125 transition-transform"
+            className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
             onPointerDown={handleRotateStart}
           />
           <div className="w-[1px] h-3 bg-brand-blue" />

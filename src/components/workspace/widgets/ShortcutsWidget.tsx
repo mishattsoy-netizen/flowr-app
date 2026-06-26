@@ -20,7 +20,7 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
   const shortcuts = data?.shortcuts || [];
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
-  
+
   // Grid is always 2 columns minimum, 4 rows tall. Each shortcut occupies a
   // half-column block (1 col x 2 rows), so 4 shortcuts fill the widget. When
   // more are added we densify each block to 1 row, allowing up to 8, then add
@@ -28,7 +28,7 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
   const numCols = shortcuts.length > 8 ? 3 : 2;
   // Rows each shortcut spans: 2 while there's room (<=4 in 2-col), else 1.
   const rowSpan = shortcuts.length <= numCols * 2 ? 2 : 1;
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newValue, setNewValue] = useState('');
@@ -49,19 +49,19 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
   const handleAdd = () => {
     if (!newValue.trim()) return;
     const label = newLabel.trim() || (type === 'entity' ? entities.find(e => e.id === newValue)?.title : 'Link') || 'Link';
-    
+
     let newShortcuts;
     if (editingId) {
       newShortcuts = shortcuts.map(s => s.id === editingId ? { ...s, type, label, value: newValue.trim() } : s);
     } else {
-      newShortcuts = [...shortcuts, { 
-        id: crypto.randomUUID(), 
-        type, 
-        label, 
-        value: newValue.trim() 
+      newShortcuts = [...shortcuts, {
+        id: crypto.randomUUID(),
+        type,
+        label,
+        value: newValue.trim()
       }].slice(0, 12);
     }
-    
+
     onUpdateData({ shortcuts: newShortcuts });
     setNewLabel('');
     setNewValue('');
@@ -93,18 +93,18 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
         {isAdding ? (
           <div className="space-y-3 p-3 bg-[var(--bone-5)] rounded-xl border border-[var(--bone-3)]">
             <div className="flex gap-1 p-0.5 bg-[var(--bone-10)] rounded-md">
-              <button 
+              <button
                 onClick={() => setType('url')}
                 className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'url' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
               >URL</button>
-              <button 
+              <button
                 onClick={() => setType('entity')}
                 className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'entity' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
               >Entity</button>
             </div>
-            
+
             {type === 'entity' ? (
-              <select 
+              <select
                 value={newValue}
                 onChange={e => setNewValue(e.target.value)}
                 className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
@@ -120,7 +120,7 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
                 className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
               />
             )}
-            
+
             <input
               placeholder="Label (optional)"
               value={newLabel}
@@ -128,15 +128,15 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
               className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
             />
 
-            
+
             <div className="flex gap-2 justify-end">
-              <button 
+              <button
                 onClick={() => {
                   setIsAdding(false);
                   setEditingId(null);
                   setNewLabel('');
                   setNewValue('');
-                }} 
+                }}
                 className="text-[10px] text-muted-foreground"
               >
                 Cancel
@@ -254,7 +254,7 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
   let isInternal = shortcut.type === 'entity';
   let faviconUrl = '';
   let displaySubtitle = '';
-  
+
   if (isInternal) {
     const ent = entities.find(e => e.id === shortcut.value);
     Icon = ent ? getEntityIcon(ent.icon) : FileText;
@@ -288,10 +288,10 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
         className="relative w-full h-full flex items-center gap-3 pl-4 pr-5 py-3 rounded-[10px] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-10)] text-left cursor-pointer group transition-colors duration-200 ease-in-out"
       >
         {!isInternal && faviconUrl && !imgError ? (
-          <img 
-            src={faviconUrl} 
-            alt="" 
-            className="w-6 h-6 object-contain shrink-0 rounded-sm" 
+          <img
+            src={faviconUrl}
+            alt=""
+            className="w-6 h-6 object-contain shrink-0 rounded-sm"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -309,7 +309,7 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
       </button>
 
       {showMenu && createPortal(
-        <div 
+        <div
           onClick={(e) => e.stopPropagation()}
           className="fixed z-[500] popup-glass-small p-1 flex flex-col gap-[3px] pointer-events-auto min-w-[100px]"
           style={{
@@ -333,7 +333,7 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
             <Edit2 className="w-3.5 h-3.5" />
             <span>Edit</span>
           </button>
-          <button 
+          <button
             onClick={() => { onRemove(shortcut.id); setShowMenu(false); }}
             className="popup-item-danger"
           >

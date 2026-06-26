@@ -23,8 +23,8 @@
   --app-dark: #EFEEEB;
   --sys-color: #F7F7F6;
   --slider-pill: var(--app-panel);
-  --slider-track: rgba(0, 0, 0, 0.08);
-  --slider-pill-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --slider-track: var(--bone-6);
+  --slider-pill-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   --popup-shadow-color: rgba(0, 0, 0, 0.1);
 
   /* Dynamic Font Weights for Light Mode (Bolder) */
@@ -79,8 +79,7 @@
   --app-dark: #121212;
   --sys-color: #1E1E1D;
   --slider-pill: var(--bone-12);
-  --slider-track: rgba(233, 233, 226, 0.06);
-  --slider-pill-shadow: inset 0 0 0 1px var(--bone-6);
+  --slider-pill-shadow: none;
   --popup-shadow-color: rgba(0, 0, 0, 0.3);
 
   /* Standard Font Weights for Dark Mode */
@@ -119,6 +118,16 @@
   --color-brand-blue: #2A78D6;
   --brand-blue: #2A78D6;
   color-scheme: dark;
+}
+
+/* Scoped transition styles for all canvas floating panels to guarantee unified hover effects */
+.canvas-floating-panel button,
+.canvas-floating-panel input,
+.canvas-floating-panel select,
+.canvas-floating-panel .color-swatch-trigger,
+.canvas-floating-panel [class*="cursor-pointer"]:not(.pointer-events-none),
+.canvas-floating-panel [role="button"] {
+  transition: background-color 150ms ease-in-out, border-color 150ms ease-in-out, opacity 150ms ease-in-out, fill 150ms ease-in-out, stroke 150ms ease-in-out, color 150ms ease-in-out !important;
 }
 
 @layer base {
@@ -1448,6 +1457,32 @@ body.is-dragging-widget [data-widget-id] * {
         transparent 100%);
     animation: skeleton-shimmer 2s infinite linear;
   }
+}
+
+@utility skeleton-shimmer-fast {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bone-5);
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        var(--bone-10) 50%,
+        transparent 100%);
+    animation: skeleton-shimmer 1.2s infinite linear;
+  }
+}
+
+@utility transparency-grid {
+  background-image: repeating-conic-gradient(var(--bone-10) 0% 25%, transparent 0% 50%);
+  background-size: 8px 8px;
+  background-color: var(--bone-5);
 }
 
 .widget-skeleton {

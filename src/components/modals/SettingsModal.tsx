@@ -125,7 +125,7 @@ export function SettingsModal() {
 
           {/* Version Info */}
           <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta 1.4.8 - Build 2319</p>
+            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta 1.5.0 - Build 2320</p>
           </div>
         </div>
 

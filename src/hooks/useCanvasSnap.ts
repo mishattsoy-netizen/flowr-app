@@ -25,57 +25,103 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
     // Scale-aware visual threshold (constant screen distance)
     const threshold = SCREEN_SNAP_THRESHOLD / scale;
 
-    // Snap to other objects
+    let minDiffX = threshold;
+    let minDiffY = threshold;
+
+    // First pass: find the closest snap coordinate across all blocks
     for (const b of blocks) {
       if (b.id === excludeId || b.type === 'connection') continue;
       const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
-      let guideX: number | null = null;
-      let guideY: number | null = null;
-
-      if (Math.abs(x - (bx + bw)) < threshold) {
+      // X snapping
+      if (Math.abs(x - (bx + bw)) < minDiffX) {
+        minDiffX = Math.abs(x - (bx + bw));
         snappedX = bx + bw;
-        guideX = bx + bw;
-      } else if (Math.abs((x + width) - bx) < threshold) {
+      }
+      if (Math.abs((x + width) - bx) < minDiffX) {
+        minDiffX = Math.abs((x + width) - bx);
         snappedX = bx - width;
-        guideX = bx;
-      } else if (Math.abs(x - bx) < threshold) {
+      }
+      if (Math.abs(x - bx) < minDiffX) {
+        minDiffX = Math.abs(x - bx);
         snappedX = bx;
-        guideX = bx;
-      } else if (Math.abs((x + width) - (bx + bw)) < threshold) {
+      }
+      if (Math.abs((x + width) - (bx + bw)) < minDiffX) {
+        minDiffX = Math.abs((x + width) - (bx + bw));
         snappedX = bx + bw - width;
-        guideX = bx + bw;
+      }
+      if (Math.abs((x + width / 2) - (bx + bw / 2)) < minDiffX) {
+        minDiffX = Math.abs((x + width / 2) - (bx + bw / 2));
+        snappedX = bx + bw / 2 - width / 2;
       }
 
-      if (Math.abs(y - (by + bh)) < threshold) {
+      // Y snapping
+      if (Math.abs(y - (by + bh)) < minDiffY) {
+        minDiffY = Math.abs(y - (by + bh));
         snappedY = by + bh;
-        guideY = by + bh;
-      } else if (Math.abs((y + height) - by) < threshold) {
+      }
+      if (Math.abs((y + height) - by) < minDiffY) {
+        minDiffY = Math.abs((y + height) - by);
         snappedY = by - height;
-        guideY = by;
-      } else if (Math.abs(y - by) < threshold) {
+      }
+      if (Math.abs(y - by) < minDiffY) {
+        minDiffY = Math.abs(y - by);
         snappedY = by;
-        guideY = by;
-      } else if (Math.abs((y + height) - (by + bh)) < threshold) {
+      }
+      if (Math.abs((y + height) - (by + bh)) < minDiffY) {
+        minDiffY = Math.abs((y + height) - (by + bh));
         snappedY = by + bh - height;
-        guideY = by + bh;
       }
+      if (Math.abs((y + height / 2) - (by + bh / 2)) < minDiffY) {
+        minDiffY = Math.abs((y + height / 2) - (by + bh / 2));
+        snappedY = by + bh / 2 - height / 2;
+      }
+    }
 
-      if (guideX !== null) {
-        guides.push({
-          type: 'v',
-          coord: guideX,
-          start: Math.min(y, by),
-          end: Math.max(y + height, by + bh)
-        });
+    // Second pass: draw all guide lines that align at the snapped positions (within 0.01 tolerance)
+    if (minDiffX < threshold) {
+      for (const b of blocks) {
+        if (b.id === excludeId || b.type === 'connection') continue;
+        const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+
+        if (Math.abs(snappedX - (bx + bw)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw, start: Math.min(y, by), end: Math.max(y + height, by + bh) });
+        }
+        if (Math.abs((snappedX + width) - bx) < 0.01) {
+          guides.push({ type: 'v', coord: bx, start: Math.min(y, by), end: Math.max(y + height, by + bh) });
+        }
+        if (Math.abs(snappedX - bx) < 0.01) {
+          guides.push({ type: 'v', coord: bx, start: Math.min(y, by), end: Math.max(y + height, by + bh) });
+        }
+        if (Math.abs((snappedX + width) - (bx + bw)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw, start: Math.min(y, by), end: Math.max(y + height, by + bh) });
+        }
+        if (Math.abs((snappedX + width / 2) - (bx + bw / 2)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw / 2, start: Math.min(y, by), end: Math.max(y + height, by + bh) });
+        }
       }
-      if (guideY !== null) {
-        guides.push({
-          type: 'h',
-          coord: guideY,
-          start: Math.min(x, bx),
-          end: Math.max(x + width, bx + bw)
-        });
+    }
+
+    if (minDiffY < threshold) {
+      for (const b of blocks) {
+        if (b.id === excludeId || b.type === 'connection') continue;
+        const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+
+        if (Math.abs(snappedY - (by + bh)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh, start: Math.min(x, bx), end: Math.max(x + width, bx + bw) });
+        }
+        if (Math.abs((snappedY + height) - by) < 0.01) {
+          guides.push({ type: 'h', coord: by, start: Math.min(x, bx), end: Math.max(x + width, bx + bw) });
+        }
+        if (Math.abs(snappedY - by) < 0.01) {
+          guides.push({ type: 'h', coord: by, start: Math.min(x, bx), end: Math.max(x + width, bx + bw) });
+        }
+        if (Math.abs((snappedY + height) - (by + bh)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh, start: Math.min(x, bx), end: Math.max(x + width, bx + bw) });
+        }
+        if (Math.abs((snappedY + height / 2) - (by + bh / 2)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh / 2, start: Math.min(x, bx), end: Math.max(x + width, bx + bw) });
+        }
       }
     }
 
@@ -97,74 +143,153 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
     const rightEdge = x + width;
     const bottomEdge = y + height;
 
+    let minDiffX = threshold;
+    let minDiffY = threshold;
+    let guideX: number | null = null;
+    let guideY: number | null = null;
+    let guideXBlock: EditorBlock | null = null;
+    let guideYBlock: EditorBlock | null = null;
+
     for (const b of blocks) {
       if (b.id === excludeId || b.type === 'connection') continue;
       const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
-      let guideX: number | null = null;
-      let guideY: number | null = null;
-
       // Snapping horizontal edges (width changes)
       if (handle.includes('w')) {
-        if (Math.abs(x - (bx + bw)) < threshold) {
+        if (Math.abs(x - (bx + bw)) < minDiffX) {
+          minDiffX = Math.abs(x - (bx + bw));
           snappedX = bx + bw;
           guideX = bx + bw;
-        } else if (Math.abs(x - bx) < threshold) {
+          guideXBlock = b;
+        }
+        if (Math.abs(x - bx) < minDiffX) {
+          minDiffX = Math.abs(x - bx);
           snappedX = bx;
           guideX = bx;
+          guideXBlock = b;
         }
-        if (guideX !== null) {
-          snappedW = rightEdge - snappedX;
+        if (Math.abs(x - (bx + bw / 2)) < minDiffX) {
+          minDiffX = Math.abs(x - (bx + bw / 2));
+          snappedX = bx + bw / 2;
+          guideX = bx + bw / 2;
+          guideXBlock = b;
         }
       } else if (handle.includes('e') || handle === 'e') {
-        if (Math.abs(rightEdge - bx) < threshold) {
+        if (Math.abs(rightEdge - bx) < minDiffX) {
+          minDiffX = Math.abs(rightEdge - bx);
           guideX = bx;
-        } else if (Math.abs(rightEdge - (bx + bw)) < threshold) {
-          guideX = bx + bw;
+          guideXBlock = b;
         }
-        if (guideX !== null) {
-          snappedW = guideX - x;
+        if (Math.abs(rightEdge - (bx + bw)) < minDiffX) {
+          minDiffX = Math.abs(rightEdge - (bx + bw));
+          guideX = bx + bw;
+          guideXBlock = b;
+        }
+        if (Math.abs(rightEdge - (bx + bw / 2)) < minDiffX) {
+          minDiffX = Math.abs(rightEdge - (bx + bw / 2));
+          guideX = bx + bw / 2;
+          guideXBlock = b;
         }
       }
 
       // Snapping vertical edges (height changes)
       if (handle.includes('n') || handle === 'nw' || handle === 'ne') {
-        if (Math.abs(y - (by + bh)) < threshold) {
+        if (Math.abs(y - (by + bh)) < minDiffY) {
+          minDiffY = Math.abs(y - (by + bh));
           snappedY = by + bh;
           guideY = by + bh;
-        } else if (Math.abs(y - by) < threshold) {
+          guideYBlock = b;
+        }
+        if (Math.abs(y - by) < minDiffY) {
+          minDiffY = Math.abs(y - by);
           snappedY = by;
           guideY = by;
+          guideYBlock = b;
         }
-        if (guideY !== null) {
-          snappedH = bottomEdge - snappedY;
+        if (Math.abs(y - (by + bh / 2)) < minDiffY) {
+          minDiffY = Math.abs(y - (by + bh / 2));
+          snappedY = by + bh / 2;
+          guideY = by + bh / 2;
+          guideYBlock = b;
         }
       } else if (handle.includes('s') || handle === 'sw' || handle === 'se') {
-        if (Math.abs(bottomEdge - by) < threshold) {
+        if (Math.abs(bottomEdge - by) < minDiffY) {
+          minDiffY = Math.abs(bottomEdge - by);
           guideY = by;
-        } else if (Math.abs(bottomEdge - (by + bh)) < threshold) {
+          guideYBlock = b;
+        }
+        if (Math.abs(bottomEdge - (by + bh)) < minDiffY) {
+          minDiffY = Math.abs(bottomEdge - (by + bh));
           guideY = by + bh;
+          guideYBlock = b;
         }
-        if (guideY !== null) {
-          snappedH = guideY - y;
+        if (Math.abs(bottomEdge - (by + bh / 2)) < minDiffY) {
+          minDiffY = Math.abs(bottomEdge - (by + bh / 2));
+          guideY = by + bh / 2;
+          guideYBlock = b;
         }
       }
+    }
 
-      if (guideX !== null) {
-        guides.push({
-          type: 'v',
-          coord: guideX,
-          start: Math.min(y, by),
-          end: Math.max(y + height, by + bh)
-        });
+    if (guideX !== null) {
+      if (handle.includes('w')) {
+        snappedW = rightEdge - snappedX;
+      } else {
+        snappedW = guideX - x;
       }
-      if (guideY !== null) {
-        guides.push({
-          type: 'h',
-          coord: guideY,
-          start: Math.min(x, bx),
-          end: Math.max(x + width, bx + bw)
-        });
+    }
+    if (guideY !== null) {
+      if (handle.includes('n') || handle === 'nw' || handle === 'ne') {
+        snappedH = bottomEdge - snappedY;
+      } else {
+        snappedH = guideY - y;
+      }
+    }
+
+    // Draw all guide lines that align at the snapped positions (within 0.01 tolerance)
+    if (minDiffX < threshold) {
+      for (const b of blocks) {
+        if (b.id === excludeId || b.type === 'connection') continue;
+        const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+
+        if (Math.abs(snappedX - (bx + bw)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw, start: Math.min(snappedY, by), end: Math.max(snappedY + snappedH, by + bh) });
+        }
+        if (Math.abs((snappedX + snappedW) - bx) < 0.01) {
+          guides.push({ type: 'v', coord: bx, start: Math.min(snappedY, by), end: Math.max(snappedY + snappedH, by + bh) });
+        }
+        if (Math.abs(snappedX - bx) < 0.01) {
+          guides.push({ type: 'v', coord: bx, start: Math.min(snappedY, by), end: Math.max(snappedY + snappedH, by + bh) });
+        }
+        if (Math.abs((snappedX + snappedW) - (bx + bw)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw, start: Math.min(snappedY, by), end: Math.max(snappedY + snappedH, by + bh) });
+        }
+        if (Math.abs((snappedX + snappedW / 2) - (bx + bw / 2)) < 0.01) {
+          guides.push({ type: 'v', coord: bx + bw / 2, start: Math.min(snappedY, by), end: Math.max(snappedY + snappedH, by + bh) });
+        }
+      }
+    }
+
+    if (minDiffY < threshold) {
+      for (const b of blocks) {
+        if (b.id === excludeId || b.type === 'connection') continue;
+        const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+
+        if (Math.abs(snappedY - (by + bh)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh, start: Math.min(snappedX, bx), end: Math.max(snappedX + snappedW, bx + bw) });
+        }
+        if (Math.abs((snappedY + snappedH) - by) < 0.01) {
+          guides.push({ type: 'h', coord: by, start: Math.min(snappedX, bx), end: Math.max(snappedX + snappedW, bx + bw) });
+        }
+        if (Math.abs(snappedY - by) < 0.01) {
+          guides.push({ type: 'h', coord: by, start: Math.min(snappedX, bx), end: Math.max(snappedX + snappedW, bx + bw) });
+        }
+        if (Math.abs((snappedY + snappedH) - (by + bh)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh, start: Math.min(snappedX, bx), end: Math.max(snappedX + snappedW, bx + bw) });
+        }
+        if (Math.abs((snappedY + snappedH / 2) - (by + bh / 2)) < 0.01) {
+          guides.push({ type: 'h', coord: by + bh / 2, start: Math.min(snappedX, bx), end: Math.max(snappedX + snappedW, bx + bw) });
+        }
       }
     }
 

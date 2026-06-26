@@ -15,6 +15,42 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.5.0',
+    build: '2320',
+    date: '2026-06-26',
+    title: 'Canvas Overhaul: Floating Workspace panels, Alignment Guides & Spline Path Engine',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added absolute pixel alignment and snapping guides (horizontal & vertical lines) during shape dragging and resizing.',
+          'Added interactive vector waypoint editing mode for spline curves and arrows with direct double-click triggers.',
+          'Added standalone line and vector connection layers with Supabase serialization and persistence.',
+          'Added custom self-contained canvas color picker popover with viewport boundary constraint checking.',
+          'Added real-time feedback (checkmark success indicators) to export and copy toolbar buttons.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Overhauled canvas layout with sleek floating sidebars (Layers & Style panels) using backdrop blurs and soft shadows.',
+          'Moved canvas zoom, undo/redo, and toolbar controls to float overlays for maximum workspace area.',
+          'Re-organized the Canvas Style Panel layout to group position, alignment, and rotation inputs with borderless scrubbing labels.',
+          'Implemented high-performance O(1) DOM updates during waypoint editing to ensure butter-smooth 60fps dragging.',
+          'Optimized export engine to support custom ratios, portrait/landscape orientations, and multi-scale image qualities.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed translation and rotation desyncs on rotated shapes where selection bounding boxes drifted from vector paths.',
+          'Fixed waypoint coordinate mappings on rotated arrows to track cursor positions accurately.',
+          'Fixed arrowhead marker style properties and size variables resetting on browser refresh.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.8',
     build: '2319',
     date: '2026-06-25',

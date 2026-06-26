@@ -362,7 +362,7 @@ export const HeaderBar = memo(function HeaderBar() {
       {/* Save Status */}
       {(() => {
         const activeEntity = entities.find(e => e.id === activeEntityId);
-        const isWorkspaceOrPage = activeEntity && ['workspace', 'folder', 'note', 'canvas', 'mixed'].includes(activeEntity.type);
+        const isWorkspaceOrPage = activeEntity && ['workspace', 'folder', 'note'].includes(activeEntity.type);
         if (!isWorkspaceOrPage) return null;
 
         return (
@@ -378,7 +378,7 @@ export const HeaderBar = memo(function HeaderBar() {
       {/* Right side actions — only for content pages (note / mixed / canvas) */}
       {(() => {
         const activeEntity = activeEntityId ? entities.find(e => e.id === activeEntityId) : null;
-        const isContentPage = activeEntity && ['note', 'mixed', 'canvas'].includes(activeEntity.type);
+        const isContentPage = activeEntity && ['note'].includes(activeEntity.type);
         if (!isContentPage) return null;
         return (
           <>

@@ -1,7 +1,8 @@
 import { useRef, useCallback } from 'react';
 import { useStore } from '@/data/store';
 import type { EditorBlock } from '@/data/store';
-import { calculateCatmullRomPath } from '@/lib/geometry/splines';
+import { calculateCatmullRomPath, calculateSplineBounds } from '@/lib/geometry/splines';
+import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { focusToPerimeter } from '@/lib/geometry/binding';
 
@@ -100,17 +101,32 @@ export function useDrag({
     const dragIds = Array.from(dragIdsSet);
 
     // Capture initial positions of all dragged elements using the synchronous block state
-    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; points?: [number, number][] }>();
+    const snapshot = new Map<string, { x: number; y: number; w: number; h: number; pivot?: [number, number]; points?: [number, number][] }>();
     dragIds.forEach(id => {
       const b = latestBlocks.find(x => x.id === id);
       if (b) {
-        snapshot.set(b.id, {
-          x: b.x ?? 0,
-          y: b.y ?? 0,
-          w: b.width ?? 0,
-          h: b.height ?? 0,
-          points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
-        });
+        const isArrow = b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw';
+        if (isArrow) {
+          const resolved = resolvePoints(b, latestBlocks);
+          const { minX, minY, maxX, maxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
+          const pad = 6;
+          snapshot.set(b.id, {
+            x: minX - pad,
+            y: minY - pad,
+            w: Math.max(maxX - minX + pad * 2, 1),
+            h: Math.max(maxY - minY + pad * 2, 1),
+            pivot: b.canvasStyleExt?.pivot ? [...b.canvasStyleExt.pivot] : undefined,
+            points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
+          });
+        } else {
+          snapshot.set(b.id, {
+            x: b.x ?? 0,
+            y: b.y ?? 0,
+            w: b.width ?? 0,
+            h: b.height ?? 0,
+            points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
+          });
+        }
       }
     });
 
@@ -142,14 +158,20 @@ export function useDrag({
         const fV = flipV ? 'scaleY(-1) ' : '';
         el.style.transform = `${translate} ${rot}${fH}${fV}`;
 
+        // Also translate+rotate the portal-ed HTML overlay in sync with the SVG group!
+        const overlayEl = document.getElementById(`arrow-overlay-${id}`);
+        if (overlayEl) {
+          overlayEl.style.transform = `${translate} ${rot}${fH}${fV}`;
+        }
+
         // For SVG <g>: transform-origin must stay at the ORIGINAL (fixed) center.
         // If we move it with currentDX/DY, the rotation pivot shifts every frame
         // and the shape orbits instead of translating — that's the rotated shape desync bug.
         if (el instanceof SVGElement) {
           const snap = snapshot.get(id);
           if (snap) {
-            const cx = snap.x + snap.w / 2; // fixed original center — no currentDX
-            const cy = snap.y + snap.h / 2; // fixed original center — no currentDY
+            const cx = snap.pivot ? snap.pivot[0] : (snap.x + snap.w / 2); // fixed original center — no currentDX
+            const cy = snap.pivot ? snap.pivot[1] : (snap.y + snap.h / 2); // fixed original center — no currentDY
             el.style.transformOrigin = `${cx}px ${cy}px`;
           }
         }
@@ -336,6 +358,7 @@ export function useDrag({
           ty += currentDY;
         }
 
+        let resolvedPointsArr: [number, number][] = [];
         if (item.points) {
           const pts = [...item.points];
           if (item.fromId && dragIds.includes(item.fromId)) {
@@ -360,9 +383,43 @@ export function useDrag({
           }
           const rawPath = calculateCatmullRomPath(pts);
           item.el.setAttribute('d', rawPath);
+          resolvedPointsArr = pts;
         } else {
           const rawPath = getSimpleBezierPath({ sx, sy, tx, ty, sp: item.fromSide, tp: item.toSide });
           item.el.setAttribute('d', rawPath);
+          resolvedPointsArr = [[sx, sy], [tx, ty]];
+        }
+
+        // Live update the HTML bounding box and selection overlay of the arrow if it is selected and rendered via portal
+        const arrowId = item.el.getAttribute('data-block-id');
+        const overlayEl = arrowId ? document.getElementById(`arrow-overlay-${arrowId}`) : null;
+        if (overlayEl && resolvedPointsArr.length > 0) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const p of resolvedPointsArr) {
+            if (p[0] < minX) minX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] > maxY) maxY = p[1];
+          }
+          const pad = 6;
+          const newBounds = {
+            x: minX - pad,
+            y: minY - pad,
+            w: Math.max(maxX - minX + pad * 2, 1),
+            h: Math.max(maxY - minY + pad * 2, 1)
+          };
+
+          // Position the wrapper div
+          overlayEl.style.left = `${newBounds.x}px`;
+          overlayEl.style.top = `${newBounds.y}px`;
+          overlayEl.style.width = `${newBounds.w}px`;
+          overlayEl.style.height = `${newBounds.h}px`;
+
+          // Update dimension label text if visible
+          const dimLabelEl = overlayEl.querySelector('.dimension-label');
+          if (dimLabelEl) {
+            dimLabelEl.textContent = `${Math.round(newBounds.w - 12)} × ${Math.round(newBounds.h - 12)}`;
+          }
         }
       });
 
@@ -417,9 +474,19 @@ export function useDrag({
       const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
       snapshot.forEach((snap, id) => {
         if (snap.points) {
+          const b = latestBlocks.find(x => x.id === id);
+          const updates: Partial<EditorBlock> = {
+            points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]),
+          };
+          if (b?.canvasStyleExt?.pivot) {
+            updates.canvasStyleExt = {
+              ...b.canvasStyleExt,
+              pivot: [b.canvasStyleExt.pivot[0] + finalDX, b.canvasStyleExt.pivot[1] + finalDY],
+            };
+          }
           batchUpdates.push({
             id,
-            updates: { points: snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]) },
+            updates,
           });
         } else {
           batchUpdates.push({
@@ -435,6 +502,12 @@ export function useDrag({
         const rot = rotation ? `rotate(${rotation}deg)` : '';
         const fH = flipH ? ' scaleX(-1)' : '';
         const fV = flipV ? ' scaleY(-1)' : '';
+
+        // Clear arrow overlay translation, keep rotation/flip
+        const overlayEl = document.getElementById(`arrow-overlay-${id}`);
+        if (overlayEl) {
+          overlayEl.style.transform = `${rot}${fH}${fV}`;
+        }
 
         if (el instanceof HTMLElement && !(el instanceof SVGElement)) {
           // HTML wrapper (CanvasBlock div): set left/top and clear translate
@@ -452,13 +525,10 @@ export function useDrag({
           const newH = snap.h;
 
           if (snap.points) {
-            // Path-based shapes (line, arrow, freedraw): update path d attribute
-            const newPts = snap.points.map(p => [p[0] + finalDX, p[1] + finalDY] as [number, number]);
-            const pathEl = el.querySelector<SVGPathElement>(':scope > path');
-            if (pathEl) {
-              const d = newPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
-              pathEl.setAttribute('d', d);
-            }
+            // Path-based shapes (line, arrow, freedraw): clear inline style transform and transform-origin
+            // completely so the native SVG transform attribute takes over.
+            el.style.transform = '';
+            el.style.transformOrigin = '';
           } else {
             // Box shapes (rect, ellipse, diamond): update shape attributes
             const rectEl = el.querySelector<SVGRectElement>('rect');
@@ -477,11 +547,11 @@ export function useDrag({
                 `${newX + newW / 2},${newY} ${newX + newW},${newY + newH / 2} ${newX + newW / 2},${newY + newH} ${newX},${newY + newH / 2}`
               );
             }
-          }
 
-          // Clear translate AFTER attribute update — shape stays at correct position
-          el.style.transform = `${rot}${fH}${fV}`;
-          el.style.transformOrigin = `${newX + newW / 2}px ${newY + newH / 2}px`;
+            // Clear translate AFTER attribute update — shape stays at correct position
+            el.style.transform = `${rot}${fH}${fV}`;
+            el.style.transformOrigin = `${newX + newW / 2}px ${newY + newH / 2}px`;
+          }
         }
       });
 

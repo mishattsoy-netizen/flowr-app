@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import { EditorBlock } from '@/data/store.types';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Square, Circle, Diamond, MoveUpRight, Minus, Type, Image, MessageSquarePlus, Frame, Eye, EyeOff, Lock, Pencil } from 'lucide-react';
+import { Square, Circle, Diamond, MoveUpRight, Minus, Type, Image, MessageSquarePlus, Frame, Eye, EyeOff, Lock, Pencil, Layers, Package } from 'lucide-react';
 
 interface Props {
   canvasId: string;
@@ -13,21 +13,21 @@ interface Props {
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
-  rect:     <Square className="w-3 h-3" />,
-  ellipse:  <Circle className="w-3 h-3" />,
-  diamond:  <Diamond className="w-3 h-3" />,
-  arrow:    <MoveUpRight className="w-3 h-3" />,
-  line:     <Minus className="w-3 h-3" />,
-  text:     <Type className="w-3 h-3" />,
-  image:    <Image className="w-3 h-3" />,
-  comment:  <MessageSquarePlus className="w-3 h-3" />,
-  section:  <Frame className="w-3 h-3" />,
-  freedraw: <Pencil className="w-3 h-3" />,
+  rect:     <Square className="w-3 h-3 text-[var(--bone-100)]" />,
+  ellipse:  <Circle className="w-3 h-3 text-[var(--bone-100)]" />,
+  diamond:  <Diamond className="w-3 h-3 text-[var(--bone-100)]" />,
+  arrow:    <MoveUpRight className="w-3 h-3 text-[var(--bone-100)]" />,
+  line:     <Minus className="w-3 h-3 text-[var(--bone-100)]" />,
+  text:     <Type className="w-3 h-3 text-[var(--bone-100)]" />,
+  image:    <Image className="w-3 h-3 text-[var(--bone-100)]" />,
+  comment:  <MessageSquarePlus className="w-3 h-3 text-[var(--bone-100)]" />,
+  section:  <Frame className="w-3 h-3 text-[var(--bone-100)]" />,
+  freedraw: <Pencil className="w-3 h-3 text-[var(--bone-100)]" />,
 };
 
 function blockIcon(b: EditorBlock) {
-  if (b.type === 'shape' && b.shapeKind) return ICON_MAP[b.shapeKind] ?? <Square className="w-3 h-3" />;
-  return ICON_MAP[b.type] ?? <Square className="w-3 h-3" />;
+  if (b.type === 'shape' && b.shapeKind) return ICON_MAP[b.shapeKind] ?? <Square className="w-3 h-3 text-[var(--bone-100)]" />;
+  return ICON_MAP[b.type] ?? <Square className="w-3 h-3 text-[var(--bone-100)]" />;
 }
 
 function blockLabel(b: EditorBlock) {
@@ -41,6 +41,9 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const [tab, setTab] = useState<'layers' | 'assets'>('layers');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const TAB_OPTIONS = ['layers', 'assets'] as const;
+  const TAB_ICONS: Record<string, React.ReactNode> = { layers: <Layers className="w-3 h-3 text-[var(--bone-100)]" />, assets: <Package className="w-3 h-3 text-[var(--bone-100)]" /> };
+
 
   const pageBlocks = useMemo(() =>
     blocks.filter(b => b.canvasId === canvasId && b.type !== 'connection'),
@@ -72,8 +75,8 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
     return (
       <div
         className={cn(
-          "group h-7 flex items-center gap-[5px] px-2.5 mx-1.5 rounded-[var(--radius-medium)] cursor-pointer select-none border border-transparent transition-none",
-          isSelected ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-60)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
+          "group h-7 flex items-center gap-[5px] px-2.5 mx-1.5 rounded-[var(--radius-medium)] cursor-pointer select-none border border-transparent transition-all duration-150 ease-in-out",
+          isSelected ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
         )}
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={(e) => onSelect(block.id, e.shiftKey)}
@@ -88,16 +91,16 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
         ) : (
           <div className="w-[10px] flex-shrink-0" />
         )}
-        <div className={cn("w-[14px] flex-shrink-0 flex items-center justify-center", isSelected ? "text-[var(--bone-100)]" : "text-[var(--bone-30)]")}>
+        <div className={cn("w-[14px] flex-shrink-0 flex items-center justify-center", isSelected ? "text-[var(--bone-100)]" : "text-[var(--bone-100)] opacity-30")}>
           {blockIcon(block)}
         </div>
         <div className={cn("flex-1 text-[11px] truncate", isSelected ? "text-[var(--bone-100)] font-medium" : "text-[var(--bone-60)]", isHidden && "opacity-40")}>
           {blockLabel(block)}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-          {isLocked && <Lock className="w-2.5 h-2.5 text-[var(--bone-30)]" />}
-          <button onClick={(e) => toggleVisibility(block, e)} className="text-[var(--bone-30)] hover:text-[var(--bone-70)]">
-            {isHidden ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
+          {isLocked && <span className="opacity-30"><Lock className="w-2.5 h-2.5 text-[var(--bone-100)]" /></span>}
+          <button onClick={(e) => toggleVisibility(block, e)} className="group text-[var(--bone-30)] hover:text-[var(--bone-70)]">
+            <span className="opacity-30 group-hover:opacity-70">{isHidden ? <EyeOff className="w-2.5 h-2.5 text-[var(--bone-100)]" /> : <Eye className="w-2.5 h-2.5 text-[var(--bone-100)]" />}</span>
           </button>
         </div>
       </div>
@@ -105,30 +108,34 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
   }
 
   return (
-    <div className="w-[220px] bg-sidebar border-r border-[var(--bone-10)] flex flex-col flex-shrink-0 overflow-hidden z-10">
+    <div className="w-[220px] flex flex-col overflow-hidden canvas-floating-panel" style={{ background: 'var(--app-panel)', border: '1px solid var(--bone-12)', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
       {/* Tabs */}
       <div className="h-10 flex items-center px-2.5 border-b border-[var(--bone-10)] flex-shrink-0">
-        <div className="relative flex items-center p-0.5 bg-background rounded-[var(--radius-medium)] w-full">
-          {/* Sliding Background Pill */}
-          <div 
-            className="absolute top-[3px] bottom-[3px] rounded-[var(--radius-small)] bg-[var(--bone-10)] shadow-sm transition-all duration-0"
-            style={{ 
-              left: tab === 'layers' ? '3px' : 'calc(50% + 1px)',
-              width: 'calc(50% - 4px)'
+        <div
+          className="relative flex items-center p-[3px] rounded-[var(--radius-small)] w-full h-7"
+          style={{ background: 'var(--slider-track)' }}
+        >
+          <div
+            className="absolute top-[3px] bottom-[3px] rounded-[5px] bg-[var(--slider-pill)] pointer-events-none transition-all duration-300 ease-out"
+            style={{
+              width: 'calc((100% - 6px) / 2)',
+              left: `calc(3px + ${TAB_OPTIONS.indexOf(tab)} * (100% - 6px) / 2)`,
+              boxShadow: 'var(--slider-pill-shadow)'
             }}
           />
-          {(['layers', 'assets'] as const).map(t => (
+          {TAB_OPTIONS.map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "relative z-10 flex-1 flex items-center justify-center py-1 rounded-[var(--radius-small)] capitalize transition-none",
-                tab === t ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
+                "group relative z-10 flex-1 h-full flex items-center justify-center gap-1 text-[10px] font-semibold rounded-[5px] transition-all duration-150 ease-in-out cursor-pointer capitalize",
+                tab === t
+                  ? "text-[var(--bone-100)]"
+                  : "text-[var(--bone-60)] hover:text-[var(--bone-100)]"
               )}
             >
-              <span className="text-[11px] font-semibold">
-                {t}
-              </span>
+              <span className={tab === t ? "opacity-100" : "opacity-60 group-hover:opacity-100"}>{TAB_ICONS[t]}</span>
+              {t}
             </button>
           ))}
         </div>

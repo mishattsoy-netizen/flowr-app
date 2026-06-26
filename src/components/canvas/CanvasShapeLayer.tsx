@@ -55,6 +55,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
     stroke: stroke,
     strokeWidth: sw,
     strokeDasharray: da,
+    strokeOpacity: style.strokeOpacity ?? 1,
     fill,
     opacity,
     style: { cursor: 'move' },

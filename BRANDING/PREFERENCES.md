@@ -33,6 +33,7 @@
 - **Tab switchers:** Clean, borderless `bg-dark` containers with a rounded active sliding pill (`bg-[var(--bone-10)]`) rather than solid `bg-background` or borders, providing a unified dark aesthetic across widgets.
 - **Mono Pills (Quick Access):** Transparent background with a `1px` border of `var(--bone-10)`, `var(--bone-100)` text (idle), and `var(--bone-30)` icon (idle). On hover, it fills with `var(--app-dark)`, removes the border (`border-transparent`), and transitions the icon to `var(--bone-60)` while maintaining `var(--bone-100)` text. Sized compactly (`px-3 py-1.5`, `text-[12px]`) with corners using `rounded-[var(--radius-medium)]` (8px) rather than capsule shapes, maintaining a minimal boxy tone.
 - Subtle hover backgrounds (`hover:bg-white/5`) over bordered buttons
+- **Canvas Button Hover State:** Floating panels (Layers, Styles) and toolbar buttons in the canvas page use `hover:bg-[var(--app-dark)]` to ensure a consistent, darkened hover state highlight across both light and dark themes.
 - Compact, tight spacing
 - `font-ui-label` for small uppercase labels (Today, Clear, etc.)
 - **Chat message hover footprints:** Wrap right-aligned user messages and their action buttons in a stretched `w-full flex flex-col items-end` container, matching the bot's `w-full` hover detection block. This guarantees stable, stutter-free mouse-down movements to click actions, while keeping all bubble elements perfectly right-aligned.
