@@ -8,7 +8,7 @@ import {
   FileInput, Table, Kanban, GalleryHorizontalEnd,
   ListFilter, ImageIcon, Video, Link
 } from 'lucide-react';
-import type { BlockType, DatabaseViewType } from '@/data/store';
+import type { BlockType } from '@/data/store';
 
 export interface SlashCommand {
   id: string;
@@ -60,15 +60,8 @@ export function SlashCommandMenu({ position, search, onClose, onInsertBlock, act
       { id: 'image', label: 'Image', icon: <ImageIcon strokeWidth={2} className={ICON_CLS} />, category: 'Media', action: () => onInsertBlock('image') },
       { id: 'video', label: 'Video', icon: <Video strokeWidth={2} className={ICON_CLS} />, category: 'Media', action: () => onInsertBlock('video') },
 
-      // Embeds
-      { id: 'embed', label: 'Embed Subpage', icon: <FileInput strokeWidth={2} className={ICON_CLS} />, category: 'Embeds', action: () => onInsertBlock('embed') },
-      { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Embeds', shortcut: '|', action: () => onInsertBlock('table') },
-
-      // Database
-      { id: 'db-table', label: 'Table View', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Database', action: () => onInsertBlock('database', { dbViewType: 'table' as DatabaseViewType }) },
-      { id: 'db-board', label: 'Board View', icon: <Kanban strokeWidth={2} className={ICON_CLS} />, category: 'Database', action: () => onInsertBlock('database', { dbViewType: 'board' as DatabaseViewType }) },
-      { id: 'db-gallery', label: 'Gallery View', icon: <GalleryHorizontalEnd strokeWidth={2} className={ICON_CLS} />, category: 'Database', action: () => onInsertBlock('database', { dbViewType: 'gallery' as DatabaseViewType }) },
-      { id: 'db-list', label: 'List View', icon: <ListFilter strokeWidth={2} className={ICON_CLS} />, category: 'Database', action: () => onInsertBlock('database', { dbViewType: 'list' as DatabaseViewType }) },
+      // Tables
+      { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Tables', shortcut: '|', action: () => onInsertBlock('table') },
     ];
  
      if (activeBlockStyle && ['title', 'heading', 'subheading'].includes(activeBlockStyle)) {

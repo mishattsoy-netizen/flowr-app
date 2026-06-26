@@ -11,7 +11,6 @@ import { ListBlock } from './ListBlock';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { useStore } from '@/data/store';
-import { DatabaseBlock } from './DatabaseBlock';
 import { TableBlock } from './TableBlock';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -934,34 +933,6 @@ export function BlockRenderer({
     );
   }
 
-  // ─── Database ─────────────────────────────────────────
-  if (block.type === 'database') {
-    return (
-      <div
-        ref={elementRef}
-        data-block-id={block.id}
-        style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-2 relative flex flex-col items-stretch before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
-      >
-        <BlockControls {...controlsProps} topOffset="8px" />
-        <div className={cn(
-          "relative w-full rounded-3xl transition-colors duration-0",
-          isSelected && "bg-[var(--app-dark)]"
-        )}>
-          <DatabaseBlock block={block} onUpdate={onUpdate} />
-        </div>
-        {closestEdge && (
-          <div
-            className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
-            )}
-          />
-        )}
-      </div>
-    );
-  }
-
   // ─── Table ────────────────────────────────────────────
   if (block.type === 'table') {
     return (
@@ -1039,42 +1010,6 @@ export function BlockRenderer({
               )}
               <input type="text" placeholder="Add a caption..." value={block.mediaCaption || ''} onChange={(e) => onUpdate(block.id, { mediaCaption: e.target.value })} className="w-full bg-white/[0.03] backdrop-blur-md px-5 py-3 text-[11px] font-medium text-muted-foreground/40 outline-none opacity-0 group-hover/media:opacity-100 focus:opacity-100 border-t border-white/5 focus:text-foreground/80 placeholder:opacity-20" />
             </div>
-          </div>
-        </div>
-        {closestEdge && (
-          <div
-            className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
-            )}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // ─── Embed ──────────────────────────────────────────
-  if (block.type === 'embed') {
-    const linked = entities.find((e: Entity) => e.id === block.embedEntityId);
-    return (
-      <div
-        ref={elementRef}
-        data-block-id={block.id}
-        style={{ ...style, ...colorStyle }}
-        className={cn("editor-block group py-2 relative before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
-      >
-        <BlockControls {...controlsProps} topOffset="8px" />
-        <div className={cn(
-          "relative w-full transition-colors duration-0 rounded-3xl",
-          isSelected && "bg-[var(--app-dark)]"
-        )}>
-          <div onClick={() => linked && setActiveEntityId(linked.id)} className="border border-white/5 rounded-3xl px-5 py-4 group-hover:bg-white/5 flex items-center gap-4 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent text-lg font-bold border border-accent/20 group-hover/embed:bg-accent/20">{linked?.title?.charAt(0) ?? '?'}</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground tracking-tight truncate">{linked?.title ?? 'Untitled Page'}</p>
-              <p className="text-[10px] font-bold text-muted-foreground/40   pt-0.5">{linked?.type ?? 'page'}</p>
-            </div>
-            <ExternalLink strokeWidth={2} className="w-4 h-4 text-muted-foreground/20 group-hover/embed:text-accent " />
           </div>
         </div>
         {closestEdge && (

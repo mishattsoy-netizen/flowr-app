@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useStore } from '@/data/store';
 import { Toggle } from '@/components/ui/Toggle';
-import type { EditorBlock, BlockType, DatabaseViewType } from '@/data/store';
+import type { EditorBlock, BlockType } from '@/data/store';
 
 /* ────────────────────────────────────────────────── */
 /*  Color palette                                     */
@@ -67,14 +67,9 @@ const TURN_INTO_ITEMS: TurnIntoItem[] = [
   { id: '2col', label: '2 Columns', icon: <Columns2 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 2 } },
   { id: '3col', label: '3 Columns', icon: <Columns3 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 3 } },
   { id: '4col', label: '4 Columns', icon: <Columns4 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 4 } },
-  { id: 'embed', label: 'Embed Subpage', icon: <FileInput strokeWidth={2} className={ICON_CLS} />, category: 'Embed', type: 'embed' },
-  { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Embed', type: 'table' },
+  { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Tables', type: 'table' },
   { id: 'image', label: 'Image', icon: <ImageIcon strokeWidth={2} className={ICON_CLS} />, category: 'Media', type: 'image' },
   { id: 'video', label: 'Video', icon: <Video strokeWidth={2} className={ICON_CLS} />, category: 'Media', type: 'video' },
-  { id: 'db-table', label: 'Table View', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Database', type: 'database', extra: { dbViewType: 'table' as DatabaseViewType } },
-  { id: 'db-board', label: 'Board View', icon: <Kanban strokeWidth={2} className={ICON_CLS} />, category: 'Database', type: 'database', extra: { dbViewType: 'board' as DatabaseViewType } },
-  { id: 'db-gallery', label: 'Gallery View', icon: <GalleryHorizontalEnd strokeWidth={2} className={ICON_CLS} />, category: 'Database', type: 'database', extra: { dbViewType: 'gallery' as DatabaseViewType } },
-  { id: 'db-list', label: 'List View', icon: <ListFilter strokeWidth={2} className={ICON_CLS} />, category: 'Database', type: 'database', extra: { dbViewType: 'list' as DatabaseViewType } },
 ];
 
 /* ────────────────────────────────────────────────── */

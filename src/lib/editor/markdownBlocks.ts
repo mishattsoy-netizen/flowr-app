@@ -320,7 +320,7 @@ export function blocksToMarkdown(blocks: EditorBlock[]): string {
 
 const VALID_TYPES = new Set<BlockType>([
   'text', 'checklist', 'bulletList', 'dashedList', 'numberedList',
-  'quote', 'divider', 'columns', 'column', 'embed', 'database',
+  'quote', 'divider', 'columns', 'column',
   'table', 'image', 'video', 'shape', 'section', 'comment', 'connection', 'link',
 ]);
 

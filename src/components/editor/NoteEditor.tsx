@@ -42,16 +42,6 @@ function createBlock(type: BlockType = 'text', extra?: Record<string, unknown>):
           children: []
         }))
       : (type === 'column' ? [] : undefined),
-    dbViewType: type === 'database' ? ((extra?.dbViewType as string) ?? 'table') as EditorBlock['dbViewType'] : undefined,
-    dbColumns: type === 'database' ? [
-      { id: 'col-name', name: 'Name', type: 'text' as const },
-      { id: 'col-status', name: 'Status', type: 'select' as const, options: ['To Do', 'In Progress', 'Done'] },
-      { id: 'col-date', name: 'Date', type: 'date' as const },
-    ] : undefined,
-    dbRows: type === 'database' ? [
-      { id: generateId(), cells: { 'col-name': 'Item 1', 'col-status': 'To Do', 'col-date': '' } },
-      { id: generateId(), cells: { 'col-name': 'Item 2', 'col-status': 'In Progress', 'col-date': '' } },
-    ] : undefined,
     tableData: type === 'table' ? [['Header 1', 'Header 2', 'Header 3'], ['', '', ''], ['', '', '']] : undefined,
     mediaUrl: (extra?.mediaUrl as string) || (type === 'image' ? 'https://images.unsplash.com/photo-1544391496-1ca7c97651a2?q=80&w=2000&auto=format&fit=crop' : type === 'video' ? 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' : undefined),
     mediaWidth: (extra?.mediaWidth as any) || 4,
