@@ -1,19 +1,8 @@
 // No imports — this is the foundation layer.
 import type { ChatConversation, ChatMessage as ChatMessageRecord } from '@/lib/chat';
 
-// Life types
-export interface Habit { id: string; title: string; frequency: string; icon?: string; color?: string; workspaceId?: string; }
-export interface HabitCheck { id: string; habitId: string; date: string; done: boolean; }
-export interface MoodEntry { id: string; mood: number; note?: string; date: string; workspaceId?: string; }
-export interface JournalEntry { id: string; content: string; date: string; workspaceId?: string; }
-export interface Goal { id: string; title: string; targetDate?: string; completed: boolean; workspaceId?: string; }
-export interface Routine { id: string; title: string; frequency: string; workspaceId?: string; }
-export interface RoutineCheck { id: string; routineId: string; stepId: string; date: string; done: boolean; }
-
-// Knowledge types
-export interface Resource { id: string; title: string; url: string; topicId?: string; tags: string[]; workspaceId?: string; }
-export interface Snippet { id: string; title: string; content: string; topicId?: string; tags: string[]; workspaceId?: string; }
-export interface Guide { id: string; title: string; steps: any[]; topicId?: string; tags: string[]; workspaceId?: string; }
+// Life types removed in M1
+// Knowledge types removed in M1
 
 export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'mixed' | 'workspace' | 'divider';
 
@@ -53,8 +42,6 @@ export type BlockType =
   | 'divider'
   | 'columns'
   | 'column'
-  | 'embed'
-  | 'database'
   | 'table'
   | 'image'
   | 'video'
@@ -64,22 +51,6 @@ export type BlockType =
   | 'connection'
   | 'link';
 
-export type EmbedDisplayMode = 'list-item' | 'widget-sm' | 'widget-md' | 'widget-lg';
-export type DatabaseViewType = 'table' | 'board' | 'gallery' | 'list';
-export type DatabaseColumnType = 'text' | 'number' | 'select' | 'date' | 'checkbox';
-
-export interface DatabaseColumn {
-  id: string;
-  name: string;
-  type: DatabaseColumnType;
-  options?: string[];
-  width?: number;
-}
-
-export interface DatabaseRow {
-  id: string;
-  cells: Record<string, string>;
-}
 
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw';
 
@@ -131,12 +102,6 @@ export interface EditorBlock {
   checked?: boolean;
   columnCount?: number;
   children?: EditorBlock[];
-  embedEntityId?: string;
-  embedDisplayMode?: EmbedDisplayMode;
-  dbViewType?: DatabaseViewType;
-  dbColumns?: DatabaseColumn[];
-  dbRows?: DatabaseRow[];
-  dbGroupByColumnId?: string;
   tableData?: string[][];
   align?: 'left' | 'center' | 'right' | 'justify';
   mediaUrl?: string;
@@ -250,10 +215,6 @@ export type ModalType =
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
-  | { kind: 'habitDetail'; id: string | null }
-  | { kind: 'goalDetail'; id: string | null }
-  | { kind: 'journalDetail'; id: string | null }
-  | { kind: 'routineDetail'; id: string | null }
   | { kind: 'summaryPreview'; summary: string };
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
@@ -412,18 +373,6 @@ export interface AppState {
   entities: Entity[];
   tasks: AppTask[];
   blocks: EditorBlock[];
-
-  lifeHabits: Habit[];
-  lifeHabitChecks: HabitCheck[];
-  lifeMoods: MoodEntry[];
-  lifeJournals: JournalEntry[];
-  lifeGoals: Goal[];
-  lifeRoutines: Routine[];
-  lifeRoutineChecks: RoutineCheck[];
-
-  knowledgeResources: Resource[];
-  knowledgeSnippets: Snippet[];
-  knowledgeGuides: Guide[];
 
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
@@ -615,35 +564,9 @@ export interface AppState {
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;
-  addHabit: (habit: Habit) => void;
-  updateHabit: (id: string, updates: Partial<Habit>) => void;
-  deleteHabit: (id: string) => void;
-  checkHabit: (habitId: string, date: string, done: boolean) => void;
-  setMood: (entry: MoodEntry) => void;
-  deleteMood: (id: string) => void;
-  upsertJournal: (entry: JournalEntry) => void;
-  deleteJournal: (id: string) => void;
-  addGoal: (goal: Goal) => void;
-  updateGoal: (id: string, updates: Partial<Goal>) => void;
-  deleteGoal: (id: string) => void;
-  addRoutine: (routine: Routine) => void;
-  updateRoutine: (id: string, updates: Partial<Routine>) => void;
-  deleteRoutine: (id: string) => void;
-  checkRoutineStep: (routineId: string, stepId: string, date: string, done: boolean) => void;
-  setLifeData: (data: Partial<AppState>) => void;
-  addResource: (resource: Resource) => void;
-  updateResource: (id: string, updates: Partial<Resource>) => void;
-  deleteResource: (id: string) => void;
-  addSnippet: (snippet: Snippet) => void;
-  updateSnippet: (id: string, updates: Partial<Snippet>) => void;
-  deleteSnippet: (id: string) => void;
-  addGuide: (guide: Guide) => void;
-  updateGuide: (id: string, updates: Partial<Guide>) => void;
-  deleteGuide: (id: string) => void;
   setCloudSyncEnabled: (enabled: boolean) => void;
   setWorkspaceCloudSync: (rootEntityId: string, enabled: boolean) => Promise<void>;
   setLastSaved: (time: number | null) => void;
-  setKnowledgeData: (data: Partial<AppState>) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;
   openContextMenu: (entityId: string | null, x: number, y: number, source: EditingSource) => void;
