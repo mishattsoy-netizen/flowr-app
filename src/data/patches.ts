@@ -11,6 +11,12 @@ export interface Patch {
   date: string;
   title: string;
   sections: PatchSection[];
+  images?: {
+    before: string;
+    after: string;
+    beforeTitle?: string;
+    afterTitle?: string;
+  };
 }
 
 export const PATCHES: Patch[] = [
@@ -48,7 +54,13 @@ export const PATCHES: Patch[] = [
           'Fixed arrowhead marker style properties and size variables resetting on browser refresh.'
         ]
       }
-    ]
+    ],
+    images: {
+      before: '/patches/before-1.5.0.png',
+      after: '/patches/after-1.5.0.png',
+      beforeTitle: 'Original Layout (v1.4.8)',
+      afterTitle: 'Overhauled Workspace (v1.5.0)',
+    }
   },
   {
     version: '1.4.8',

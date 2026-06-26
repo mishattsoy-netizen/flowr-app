@@ -85,6 +85,42 @@ export default function UpdatesSection() {
               );
             })}
           </div>
+          
+          {/* Images comparison section */}
+          {patch.images && (
+            <div className="mt-6 border-t border-[var(--bone-6)] pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  {patch.images.beforeTitle && (
+                    <div className="text-[10px] font-bold text-[var(--bone-40)] uppercase tracking-wider text-left">
+                      {patch.images.beforeTitle}
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-[var(--bone-6)] overflow-hidden bg-sidebar/20">
+                    <img 
+                      src={patch.images.before} 
+                      alt={patch.images.beforeTitle || 'Before'} 
+                      className="w-full h-auto object-cover select-none pointer-events-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {patch.images.afterTitle && (
+                    <div className="text-[10px] font-bold text-accent uppercase tracking-wider text-left">
+                      {patch.images.afterTitle}
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-accent/20 overflow-hidden bg-accent/[0.02]">
+                    <img 
+                      src={patch.images.after} 
+                      alt={patch.images.afterTitle || 'After'} 
+                      className="w-full h-auto object-cover select-none pointer-events-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </OverlayScrollbar>
