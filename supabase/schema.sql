@@ -15,16 +15,22 @@ create table if not exists entities (
   title        text        not null default '',
   type         text        not null,           -- 'note' | 'canvas' | 'folder' | 'collection' | 'mixed'
   parent_id    text        references entities(id) on delete cascade,
+  owner_id     uuid        references auth.users(id) on delete cascade,
   last_modified bigint     not null default 0,
   icon         text,
   tags         text[]      default '{}',
   content      jsonb       default '[]',       -- EditorBlock[]
   sort_order   integer     default 0,
-  created_at   timestamptz not null default now()
+  created_at   timestamptz not null default now(),
+  workspace_id text,
+  mode_id      text,
+  widget_layout jsonb
 );
 
 create index if not exists entities_parent_id_idx on entities(parent_id);
 create index if not exists entities_type_idx      on entities(type);
+create index if not exists entities_workspace_id_idx on entities(workspace_id);
+create index if not exists entities_mode_id_idx      on entities(mode_id);
 
 
 -- ─── tasks ───────────────────────────────────────────────────
@@ -35,16 +41,28 @@ create table if not exists tasks (
   completed   boolean     not null default false,
   due_date    text,                             -- 'YYYY-MM-DD'
   entity_id   text        references entities(id) on delete set null,
+  owner_id    uuid        references auth.users(id) on delete cascade,
   note        text,
   color       text,
   priority    text        check (priority in ('low', 'medium', 'high')),
   difficulty  integer,
   status      text        check (status in ('todo', 'in-progress', 'done')),
   position    double precision,
-  created_at  bigint      default 0
+  created_at  bigint      default 0,
+  workspace_id text,
+  mode_id      text,
+  subtasks    jsonb,
+  completed_at bigint,
+  description text,
+  user_due_date text
 );
 
 create index if not exists tasks_entity_id_idx on tasks(entity_id);
+create index if not exists tasks_workspace_id_idx on tasks(workspace_id);
+
+-- Owner-id index for RLS filtering performance
+create index if not exists idx_entities_owner_id on entities(owner_id);
+create index if not exists idx_tasks_owner_id on tasks(owner_id);
 
 
 -- ─── Row-Level Security (RLS) ────────────────────────────────
@@ -54,16 +72,35 @@ create index if not exists tasks_entity_id_idx on tasks(entity_id);
 alter table entities enable row level security;
 alter table tasks     enable row level security;
 
--- Allow all operations for the authenticated user only
-create policy "entities: owner full access"
-  on entities for all
-  using      (auth.uid() is not null)
-  with check (auth.uid() is not null);
+-- ENTITIES: users can only access their own rows
+drop policy if exists "entities: owner full access" on entities;
 
-create policy "tasks: owner full access"
-  on tasks for all
-  using      (auth.uid() is not null)
-  with check (auth.uid() is not null);
+create policy "entities_select_own" on entities
+  for select using (owner_id = auth.uid());
+
+create policy "entities_insert_own" on entities
+  for insert with check (owner_id = auth.uid());
+
+create policy "entities_update_own" on entities
+  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+create policy "entities_delete_own" on entities
+  for delete using (owner_id = auth.uid());
+
+-- TASKS: users can only access their own rows
+drop policy if exists "tasks: owner full access" on tasks;
+
+create policy "tasks_select_own" on tasks
+  for select using (owner_id = auth.uid());
+
+create policy "tasks_insert_own" on tasks
+  for insert with check (owner_id = auth.uid());
+
+create policy "tasks_update_own" on tasks
+  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+create policy "tasks_delete_own" on tasks
+  for delete using (owner_id = auth.uid());
 
 -- Enable real-time updates for entities and tasks
 alter publication supabase_realtime add table entities, tasks;
@@ -100,8 +137,6 @@ create table if not exists workspaces (
   owner_id      uuid        references auth.users(id) on delete cascade,
   icon          text,
   color         text,
-  active_modes  text[]      not null default '{life}',
-  enabled_modes text[]      not null default '{life,knowledge,student,trader,creator,hobby-business}',
   settings      jsonb       default '{}',
   created_at    timestamptz not null default now()
 );
@@ -113,161 +148,8 @@ create policy "workspaces: owner full access"
   using      (owner_id = auth.uid())
   with check (owner_id = auth.uid());
 
--- Add workspace_id + mode_id to entities
--- Note: workspace_id is intentionally a plain text column (no FK). The app uses
--- it to hold the id of a sidebar workspace-entity, which lives in `entities`,
--- not in the `workspaces` table.
-alter table entities
-  add column if not exists workspace_id text,
-  add column if not exists mode_id      text,
-  add column if not exists widget_layout jsonb;
-
-create index if not exists entities_workspace_id_idx on entities(workspace_id);
-create index if not exists entities_mode_id_idx      on entities(mode_id);
-
--- Add workspace_id + mode_id to tasks (workspace_id is plain text; see above)
-alter table tasks
-  add column if not exists workspace_id text,
-  add column if not exists mode_id      text;
-
-create index if not exists tasks_workspace_id_idx on tasks(workspace_id);
-
--- Backfill: assign all existing rows to the default personal workspace
--- Run only after inserting a ws-personal row for the user.
--- update entities set workspace_id = 'ws-personal' where workspace_id is null;
--- update tasks    set workspace_id = 'ws-personal' where workspace_id is null;
-
 alter publication supabase_realtime add table workspaces;
 
--- ─── Phase 02: Life Mode ─────────────────────────────────────
--- Add domain tables for Life Mode.
-
-create table if not exists habits (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text        not null,
-  icon          text,
-  color         text,
-  frequency     text        not null default 'daily', -- 'daily' | 'weekly' | 'custom'
-  schedule      jsonb       default '[]',             -- array of numbers 0-6
-  created_at    bigint      not null default 0
-);
-alter table habits enable row level security;
-create policy "habits: owner via workspace" on habits for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists habit_checks (
-  id            text        primary key,
-  habit_id      text        not null references habits(id) on delete cascade,
-  date          text        not null, -- 'YYYY-MM-DD'
-  done          boolean     not null default false,
-  unique(habit_id, date)
-);
-alter table habit_checks enable row level security;
-create policy "habit_checks: owner via habit" on habit_checks for all using (exists (select 1 from habits h join workspaces w on h.workspace_id = w.id where h.id = habit_id and w.owner_id = auth.uid())) with check (exists (select 1 from habits h join workspaces w on h.workspace_id = w.id where h.id = habit_id and w.owner_id = auth.uid()));
-
-create table if not exists mood_entries (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  date          text        not null, -- 'YYYY-MM-DD'
-  score         integer     not null, -- 1-5
-  emoji         text,
-  note          text,
-  unique(workspace_id, date)
-);
-alter table mood_entries enable row level security;
-create policy "mood_entries: owner via workspace" on mood_entries for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists journal_entries (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  date          text        not null, -- 'YYYY-MM-DD'
-  content       jsonb       not null default '[]',
-  prompt        text,
-  unique(workspace_id, date)
-);
-alter table journal_entries enable row level security;
-create policy "journal_entries: owner via workspace" on journal_entries for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists goals (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text        not null,
-  description   text,
-  target_value  numeric,
-  current_value numeric,
-  unit          text,
-  due_date      bigint,
-  status        text        not null default 'active' -- 'active' | 'done' | 'archived'
-);
-alter table goals enable row level security;
-create policy "goals: owner via workspace" on goals for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists routines (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text        not null,
-  steps         jsonb       not null default '[]', -- array of RoutineStep objects
-  schedule      text,       -- 'morning' | 'evening' | 'custom'
-  created_at    bigint      not null default 0
-);
-alter table routines enable row level security;
-create policy "routines: owner via workspace" on routines for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists routine_checks (
-  id            text        primary key,
-  routine_id    text        not null references routines(id) on delete cascade,
-  step_id       text        not null,
-  date          text        not null, -- 'YYYY-MM-DD'
-  done          boolean     not null default false,
-  unique(routine_id, step_id, date)
-);
-alter table routine_checks enable row level security;
-create policy "routine_checks: owner via routine" on routine_checks for all using (exists (select 1 from routines r join workspaces w on r.workspace_id = w.id where r.id = routine_id and w.owner_id = auth.uid())) with check (exists (select 1 from routines r join workspaces w on r.workspace_id = w.id where r.id = routine_id and w.owner_id = auth.uid()));
-
-alter publication supabase_realtime add table habits, habit_checks, mood_entries, journal_entries, goals, routines, routine_checks;
-
--- ─── Phase 03: Knowledge Manager Mode ────────────────────────
-
-create table if not exists resources (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text        not null,
-  url           text        not null,
-  description   text,
-  image_url     text,
-  tags          text[]      not null default '{}',
-  topic_id      text        references entities(id) on delete set null,
-  created_at    bigint      not null default 0
-);
-alter table resources enable row level security;
-create policy "resources: owner via workspace" on resources for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists snippets (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text,
-  body          text        not null,
-  lang          text,
-  tags          text[]      not null default '{}',
-  topic_id      text        references entities(id) on delete set null,
-  created_at    bigint      not null default 0
-);
-alter table snippets enable row level security;
-create policy "snippets: owner via workspace" on snippets for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-create table if not exists guides (
-  id            text        primary key,
-  workspace_id  text        not null references workspaces(id) on delete cascade,
-  title         text        not null,
-  steps         jsonb       not null default '[]',
-  topic_id      text        references entities(id) on delete set null,
-  tags          text[]      not null default '{}',
-  created_at    bigint      not null default 0
-);
-alter table guides enable row level security;
-create policy "guides: owner via workspace" on guides for all using (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid())) with check (exists (select 1 from workspaces w where w.id = workspace_id and w.owner_id = auth.uid()));
-
-alter publication supabase_realtime add table resources, snippets, guides;
 
 -- ─── Phase 04: Telegram Bot & AI Admin ───────────────────────
 
@@ -361,4 +243,3 @@ grant select, insert, update, delete on all tables in schema public to authentic
 grant select, insert, update, delete on all tables in schema public to service_role;
 grant usage on all sequences in schema public to authenticated;
 grant usage on all sequences in schema public to service_role;
-
