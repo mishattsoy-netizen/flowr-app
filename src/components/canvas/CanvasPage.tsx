@@ -813,6 +813,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   blocks={pageBlocks}
                   selectedIds={selectedIds}
                   viewport={viewport}
+                  activeTool={activeTool}
                   snapWithObjects={snapWithObjects}
                   updateCanvasBlocks={updateCanvasBlocks}
                   onSelect={selectBlock}

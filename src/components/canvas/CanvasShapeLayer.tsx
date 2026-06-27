@@ -4,12 +4,14 @@ import { EditorBlock, CanvasStyleExt, useStore } from '@/data/store';
 import { useMemo, useRef, useEffect } from 'react';
 import { useDrag } from '@/hooks/useDrag';
 import { activeDragOffsets } from '@/lib/canvasDragState';
+import type { CanvasTool } from './CanvasToolbar';
 
 
 interface Props {
   blocks: EditorBlock[];
   selectedIds: Set<string>;
   viewport: { x: number; y: number; scale: number };
+  activeTool?: CanvasTool;
   updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   onSelect: (id: string, addToSelection: boolean) => void;
   onCommit?: () => void;
@@ -77,7 +79,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
   return null;
 }
 
-export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick }: Props) {
+export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, activeTool, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick }: Props) {
   const liveBlocks = useStore(s => s.blocks);
   const shapes = useMemo(() => {
     const initialIds = new Set(initialBlocks.map(b => b.id));
@@ -100,8 +102,12 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
 
   const handleShapePointerDown = (e: React.PointerEvent, clickedBlock: EditorBlock) => {
     e.stopPropagation();
+
+    const canDrag = activeTool === 'select' || activeTool === 'move';
+    if (!canDrag) return;
+
     const isAlreadySelected = selectedIds.has(clickedBlock.id);
-    
+
     if (!isAlreadySelected) {
       onSelect(clickedBlock.id, e.shiftKey);
     }
