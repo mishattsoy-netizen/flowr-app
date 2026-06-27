@@ -1,28 +1,47 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const fs = require('fs/promises');
-const { spawn } = require('child_process');
+const fs = require('fs');
+const fsp = require('fs/promises');
 const net = require('net');
+const os = require('os');
 
-// Disable GPU sandbox on Windows to prevent GPU process crash under restricted folder permissions
-if (process.platform === 'win32') {
-  app.commandLine.appendSwitch('disable-gpu-sandbox');
-}
+// ── Global error handlers (MUST be registered before any risky requires) ────
+// These catch errors that happen before our own handlers below are set up.
+let earlyCrashLog = '';
+try {
+  earlyCrashLog = path.join(os.tmpdir(), 'flowr-crash.log');
+} catch (_) { /* best-effort */ }
 
-// Global error handlers to display native dialogs for uncaught main process crashes
 process.on('uncaughtException', (err) => {
-  dialog.showErrorBox('Main Process Uncaught Exception', err.stack || err.message);
+  const msg = err && (err.stack || err.message);
+  try { fs.appendFileSync(earlyCrashLog, `[FATAL ${Date.now()}] ${msg}\n`); } catch (_) {}
+  dialog.showErrorBox('Flowr Fatal Error', msg || String(err));
   app.quit();
 });
 
 process.on('unhandledRejection', (reason) => {
   const msg = (reason && (reason.stack || reason.message)) || String(reason);
-  dialog.showErrorBox('Main Process Unhandled Rejection', msg);
+  try { fs.appendFileSync(earlyCrashLog, `[FATAL ${Date.now()}] UNHANDLED: ${msg}\n`); } catch (_) {}
+  dialog.showErrorBox('Flowr Fatal Error', msg);
   app.quit();
 });
 
+// ── Diagnostic logger ───────────────────────────────────────────────────────
+const LOG_FILE = path.join(os.tmpdir(), 'flowr-startup.log');
+function debugLog(...args) {
+  const line = `[Flowr ${new Date().toISOString()}] ${args.join(' ')}`;
+  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (_) { /* best-effort */ }
+  console.log(line);
+}
+debugLog('=== Flowr starting ===');
+
+// Disable GPU sandbox on Windows to prevent GPU process crash under restricted folder permissions
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  debugLog('GPU sandbox disabled');
+}
+
 let mainWindow;
-let nextProcess;
 
 function getFreePort() {
   return new Promise((resolve) => {
@@ -35,88 +54,77 @@ function getFreePort() {
   });
 }
 
+// ── Start Next.js directly in the main process ──────────────────────────────
+// Previously this spawned a child process with ELECTRON_RUN_AS_NODE=1, but that
+// disabled ASAR filesystem support, so require('next') would fail because all
+// node_modules live inside app.asar. Running Next.js in the main process keeps
+// ASAR support intact.
+//
+// We lazy-require 'next' here (rather than at the top of the file) so that the
+// error handlers above are fully registered before we load any module that
+// depends on large ASAR-backed packages.
+let nextServer;
+
 async function startNextServer(port) {
   const isPackaged = app.isPackaged;
   const appPath = app.getAppPath();
-  
-  if (isPackaged) {
-    // Resolve unpacked runnerPath case-insensitively using appPath
-    // appPath points to resources/app.asar, so unpacked runner is in resources/app.asar.unpacked/electron/runner.js
-    const runnerPath = path.join(appPath, '..', 'app.asar.unpacked', 'electron', 'runner.js');
-    
-    // Copy system environment variables (case-sensitive on Windows)
-    const spawnEnv = Object.assign({}, process.env, {
-      NODE_ENV: 'production',
-      PORT: port.toString(),
-      ELECTRON_RUN_AS_NODE: '1',
-      NEXT_DIR: appPath, // Tell Next.js to read from the app.asar archive directory
-      NODE_PATH: path.join(appPath, 'node_modules'), // Direct Node to resolve dependencies inside app.asar
-      NEXT_PUBLIC_SUPABASE_URL: `http://localhost:${port}` // Override Supabase URL with local dynamic server port
-    });
 
-    // Ensure critical Windows variables are defined for cmd.exe spawning
-    if (process.platform === 'win32') {
-      spawnEnv.SystemRoot = process.env.SystemRoot || 'C:\\Windows';
-      spawnEnv.SystemDrive = process.env.SystemDrive || 'C:';
-      spawnEnv.ComSpec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
-    }
-    
-    // Spawn the runner process using Electron's Node environment
-    nextProcess = spawn(process.execPath, [runnerPath], {
-      cwd: isPackaged ? path.join(appPath, '..') : appPath,
-      shell: false, // Do not use shell to avoid cmd.exe parsing errors with spaces
-      env: spawnEnv
-    });
+  debugLog('isPackaged:', isPackaged);
+  debugLog('appPath:', appPath);
 
-    nextProcess.stdout.on('data', (data) => {
-      console.log(`[Next.js stdout]: ${data}`);
-    });
-
-    nextProcess.stderr.on('data', (data) => {
-      console.error(`[Next.js stderr]: ${data}`);
-    });
-
-    // Capture premature child process exit
-    let exited = false;
-    let exitCode = null;
-    nextProcess.on('exit', (code) => {
-      exited = true;
-      exitCode = code;
-    });
-
-    // Wait for the Next.js server port to actively accept TCP connections before resolving
-    await new Promise((resolve, reject) => {
-      const startTime = Date.now();
-      const timeout = 15000;
-      
-      function check() {
-        if (exited) {
-          return reject(new Error(`Next.js server process exited prematurely with code ${exitCode}`));
-        }
-        
-        const socket = net.connect(port, '127.0.0.1', () => {
-          socket.destroy();
-          resolve();
-        });
-        
-        socket.on('error', () => {
-          if (Date.now() - startTime > timeout) {
-            reject(new Error(`Timeout waiting for Next.js server on port ${port}`));
-          } else {
-            setTimeout(check, 200);
-          }
-        });
-      }
-      check();
-    });
+  // Lazy-require — this call depends on ASAR support for reading node_modules
+  let next;
+  try {
+    next = require('next');
+    debugLog('require(next) succeeded');
+  } catch (err) {
+    debugLog('FAILED to require(next):', err.message);
+    throw new Error(`Cannot load Next.js: ${err.message}`);
   }
+
+  const { createServer } = require('http');
+
+  const nextApp = next({
+    dev: false,
+    dir: appPath,
+  });
+  const handle = nextApp.getRequestHandler();
+
+  debugLog('Calling nextApp.prepare()...');
+  await nextApp.prepare();
+  debugLog('nextApp.prepare() completed');
+
+  return new Promise((resolve, reject) => {
+    nextServer = createServer((req, res) => {
+      handle(req, res);
+    });
+
+    nextServer.listen(port, () => {
+      debugLog(`Next.js server listening on port ${port}`);
+      resolve();
+    });
+
+    nextServer.on('error', (err) => {
+      debugLog('Next.js server error:', err.message);
+      reject(err);
+    });
+  });
 }
 
 async function createWindow() {
   let port = 3000;
+
   if (app.isPackaged) {
     port = await getFreePort();
-    await startNextServer(port);
+    debugLog(`Selected free port: ${port}`);
+    try {
+      await startNextServer(port);
+    } catch (err) {
+      debugLog('startNextServer failed:', err.message);
+      throw err; // caught by the .catch() in app.whenReady
+    }
+  } else {
+    debugLog('Dev mode — skipping Next.js startup, expecting external dev server');
   }
 
   mainWindow = new BrowserWindow({
@@ -125,16 +133,15 @@ async function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
-    }
+      contextIsolation: true,
+    },
   });
 
-  // Intercept Supabase OAuth login URLs and Google accounts sign-in to launch them in the system browser
+  // Intercept Supabase OAuth login URLs and Google accounts sign-in
   const handleOauthRedirect = (event, url) => {
     if (url.includes('/auth/v1/authorize') || url.includes('accounts.google.com')) {
       event.preventDefault();
       let targetUrl = url;
-      // Force the redirect_to parameter to contain desktop=true for desktop app loopback polling
       if (url.includes('redirect_to=')) {
         targetUrl = url.replace(/redirect_to=([^&]+)/, (match, p1) => {
           const redirectUrl = decodeURIComponent(p1);
@@ -156,30 +163,43 @@ async function createWindow() {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com"]
-      }
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com",
+        ],
+      },
     });
   });
 
   mainWindow.webContents.openDevTools();
+  debugLog(`Loading URL: http://localhost:${port}`);
   mainWindow.loadURL(`http://localhost:${port}`);
 }
 
 app.whenReady().then(() => {
-  ipcMain.handle('fs:readFile', async (_, filePath) => fs.readFile(filePath, 'utf-8'));
-  ipcMain.handle('fs:writeFile', async (_, filePath, content) => fs.writeFile(filePath, content, 'utf-8'));
-  ipcMain.handle('fs:deleteFile', async (_, filePath) => fs.unlink(filePath));
-  ipcMain.handle('fs:readdir', async (_, dirPath) => fs.readdir(dirPath));
-  ipcMain.handle('fs:mkdir', async (_, dirPath) => fs.mkdir(dirPath, { recursive: true }));
+  debugLog('app.whenReady');
+
+  ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
+  ipcMain.handle('fs:writeFile', async (_, filePath, content) => fsp.writeFile(filePath, content, 'utf-8'));
+  ipcMain.handle('fs:deleteFile', async (_, filePath) => fsp.unlink(filePath));
+  ipcMain.handle('fs:readdir', async (_, dirPath) => fsp.readdir(dirPath));
+  ipcMain.handle('fs:mkdir', async (_, dirPath) => fsp.mkdir(dirPath, { recursive: true }));
   ipcMain.handle('dialog:pickVaultFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
     return result.filePaths[0] || null;
   });
 
-  createWindow();
+  createWindow().catch((err) => {
+    debugLog('createWindow failed:', err.message);
+    dialog.showErrorBox('Flowr Startup Error', err.stack || err.message);
+    app.quit();
+  });
 });
 
 app.on('window-all-closed', () => {
-  if (nextProcess) nextProcess.kill();
+  if (nextServer) {
+    nextServer.close();
+    debugLog('Next.js server closed');
+  }
   if (process.platform !== 'darwin') app.quit();
+  debugLog('=== Flowr exiting ===');
 });

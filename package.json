@@ -68,9 +68,6 @@
       "output": "dist-desktop"
     },
     "asar": true,
-    "asarUnpack": [
-      "electron/runner.js"
-    ],
     "files": [
       "electron/**/*",
       "package.json",
