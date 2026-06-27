@@ -141,8 +141,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     if (isEditing) return;
     if (isResizing) return;
 
-    const isGrip = (e.target as HTMLElement).closest('.block-grip');
-    const isEdge = (e.target as HTMLElement).classList.contains('canvas-block-edge');
     const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
 
     const isAlreadySelected = selectedIds?.has(block.id) ?? false;
@@ -150,7 +148,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       onSelect?.(block.id, e.shiftKey);
     }
 
-    const canMove = activeTool === 'move' || activeTool === 'select' || isGrip || isEdge;
+    const canMove = activeTool === 'move' || activeTool === 'select';
     if (!canMove) return;
     if (e.button !== 0) return;
 
