@@ -161,6 +161,7 @@ async function createWindow() {
     });
   });
 
+  mainWindow.webContents.openDevTools();
   mainWindow.loadURL(`http://localhost:${port}`);
 }
 
