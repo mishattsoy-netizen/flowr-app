@@ -56,3 +56,6 @@ Flowr-1.0/
 
 .agents/
 !.agents/rules/
+
+# Electron build outputs
+/dist-desktop/
