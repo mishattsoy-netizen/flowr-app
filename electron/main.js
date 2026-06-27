@@ -43,7 +43,8 @@ async function startNextServer(port) {
     const spawnEnv = Object.assign({}, process.env, {
       NODE_ENV: 'production',
       PORT: port.toString(),
-      ELECTRON_RUN_AS_NODE: '1'
+      ELECTRON_RUN_AS_NODE: '1',
+      NEXT_DIR: appPath // Tell Next.js to read from the app.asar archive directory
     });
 
     // Ensure critical Windows variables are defined for cmd.exe spawning
@@ -68,8 +69,39 @@ async function startNextServer(port) {
       console.error(`[Next.js stderr]: ${data}`);
     });
 
-    // Wait a brief moment for the server to start
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Capture premature child process exit
+    let exited = false;
+    let exitCode = null;
+    nextProcess.on('exit', (code) => {
+      exited = true;
+      exitCode = code;
+    });
+
+    // Wait for the Next.js server port to actively accept TCP connections before resolving
+    await new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const timeout = 15000;
+      
+      function check() {
+        if (exited) {
+          return reject(new Error(`Next.js server process exited prematurely with code ${exitCode}`));
+        }
+        
+        const socket = net.connect(port, '127.0.0.1', () => {
+          socket.destroy();
+          resolve();
+        });
+        
+        socket.on('error', () => {
+          if (Date.now() - startTime > timeout) {
+            reject(new Error(`Timeout waiting for Next.js server on port ${port}`));
+          } else {
+            setTimeout(check, 200);
+          }
+        });
+      }
+      check();
+    });
   }
 }
 

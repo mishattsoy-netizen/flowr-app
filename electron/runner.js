@@ -5,9 +5,8 @@ const { createServer } = require('http');
 // Start Next.js programmatically
 const port = process.env.PORT || 3000;
 
-// The app.asar directory is one level up from this file's packaged location
-// (which is in resources/app.asar.unpacked/electron/runner.js)
-const appPath = path.join(__dirname, '..');
+// The app.asar directory can be passed in NEXT_DIR, otherwise falls back to one level up
+const appPath = process.env.NEXT_DIR || path.join(__dirname, '..');
 
 const nextApp = next({
   dev: false,
