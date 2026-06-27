@@ -23,16 +23,18 @@ async function startNextServer(port) {
   const appPath = app.getAppPath();
   
   if (isPackaged) {
-    // Next.js binary location inside packaged bundle
-    const nextBin = path.join(appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
+    let runnerPath = path.join(__dirname, 'runner.js');
+    runnerPath = runnerPath.replace('app.asar', 'app.asar.unpacked');
     
-    // Spawn the next start process
-    nextProcess = spawn(process.execPath, [nextBin, 'start', '-p', port.toString()], {
+    // Spawn the runner process using Electron's Node environment
+    nextProcess = spawn(process.execPath, [runnerPath], {
       cwd: appPath,
+      shell: process.platform === 'win32', // Run inside shell on Windows to handle space characters in paths
       env: {
         ...process.env,
         NODE_ENV: 'production',
-        PORT: port.toString()
+        PORT: port.toString(),
+        ELECTRON_RUN_AS_NODE: '1'
       }
     });
 
