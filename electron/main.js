@@ -43,7 +43,7 @@ async function startNextServer(port) {
     
     // Spawn the runner process using Electron's Node environment
     nextProcess = spawn(process.execPath, [runnerPath], {
-      cwd: appPath,
+      cwd: isPackaged ? path.join(appPath, '..') : appPath,
       shell: false, // Do not use shell to avoid cmd.exe parsing errors with spaces
       env: spawnEnv
     });
