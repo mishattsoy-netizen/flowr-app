@@ -4,6 +4,18 @@ const fs = require('fs/promises');
 const { spawn } = require('child_process');
 const net = require('net');
 
+// Global error handlers to display native dialogs for uncaught main process crashes
+process.on('uncaughtException', (err) => {
+  dialog.showErrorBox('Main Process Uncaught Exception', err.stack || err.message);
+  app.quit();
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = (reason && (reason.stack || reason.message)) || String(reason);
+  dialog.showErrorBox('Main Process Unhandled Rejection', msg);
+  app.quit();
+});
+
 let mainWindow;
 let nextProcess;
 
