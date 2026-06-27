@@ -44,7 +44,8 @@ async function startNextServer(port) {
       NODE_ENV: 'production',
       PORT: port.toString(),
       ELECTRON_RUN_AS_NODE: '1',
-      NEXT_DIR: appPath // Tell Next.js to read from the app.asar archive directory
+      NEXT_DIR: appPath, // Tell Next.js to read from the app.asar archive directory
+      NODE_PATH: path.join(appPath, 'node_modules') // Direct Node to resolve dependencies inside app.asar
     });
 
     // Ensure critical Windows variables are defined for cmd.exe spawning
