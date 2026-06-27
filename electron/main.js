@@ -4,6 +4,11 @@ const fs = require('fs/promises');
 const { spawn } = require('child_process');
 const net = require('net');
 
+// Disable GPU sandbox on Windows to prevent GPU process crash under restricted folder permissions
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
 // Global error handlers to display native dialogs for uncaught main process crashes
 process.on('uncaughtException', (err) => {
   dialog.showErrorBox('Main Process Uncaught Exception', err.stack || err.message);
