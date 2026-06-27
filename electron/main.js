@@ -23,19 +23,29 @@ async function startNextServer(port) {
   const appPath = app.getAppPath();
   
   if (isPackaged) {
-    let runnerPath = path.join(__dirname, 'runner.js');
-    runnerPath = runnerPath.replace('app.asar', 'app.asar.unpacked');
+    // Resolve unpacked runnerPath case-insensitively using appPath
+    // appPath points to resources/app.asar, so unpacked runner is in resources/app.asar.unpacked/electron/runner.js
+    const runnerPath = path.join(appPath, '..', 'app.asar.unpacked', 'electron', 'runner.js');
+    
+    // Copy system environment variables (case-sensitive on Windows)
+    const spawnEnv = Object.assign({}, process.env, {
+      NODE_ENV: 'production',
+      PORT: port.toString(),
+      ELECTRON_RUN_AS_NODE: '1'
+    });
+
+    // Ensure critical Windows variables are defined for cmd.exe spawning
+    if (process.platform === 'win32') {
+      spawnEnv.SystemRoot = process.env.SystemRoot || 'C:\\Windows';
+      spawnEnv.SystemDrive = process.env.SystemDrive || 'C:';
+      spawnEnv.ComSpec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    }
     
     // Spawn the runner process using Electron's Node environment
     nextProcess = spawn(process.execPath, [runnerPath], {
       cwd: appPath,
       shell: process.platform === 'win32', // Run inside shell on Windows to handle space characters in paths
-      env: {
-        ...process.env,
-        NODE_ENV: 'production',
-        PORT: port.toString(),
-        ELECTRON_RUN_AS_NODE: '1'
-      }
+      env: spawnEnv
     });
 
     nextProcess.stdout.on('data', (data) => {
