@@ -45,7 +45,8 @@ async function startNextServer(port) {
       PORT: port.toString(),
       ELECTRON_RUN_AS_NODE: '1',
       NEXT_DIR: appPath, // Tell Next.js to read from the app.asar archive directory
-      NODE_PATH: path.join(appPath, 'node_modules') // Direct Node to resolve dependencies inside app.asar
+      NODE_PATH: path.join(appPath, 'node_modules'), // Direct Node to resolve dependencies inside app.asar
+      NEXT_PUBLIC_SUPABASE_URL: `http://localhost:${port}` // Override Supabase URL with local dynamic server port
     });
 
     // Ensure critical Windows variables are defined for cmd.exe spawning
@@ -122,6 +123,28 @@ async function createWindow() {
       contextIsolation: true
     }
   });
+
+  // Intercept Supabase OAuth login URLs and Google accounts sign-in to launch them in the system browser
+  const handleOauthRedirect = (event, url) => {
+    if (url.includes('/auth/v1/authorize') || url.includes('accounts.google.com')) {
+      event.preventDefault();
+      let targetUrl = url;
+      // Force the redirect_to parameter to contain desktop=true for desktop app loopback polling
+      if (url.includes('redirect_to=')) {
+        targetUrl = url.replace(/redirect_to=([^&]+)/, (match, p1) => {
+          const redirectUrl = decodeURIComponent(p1);
+          const separator = redirectUrl.includes('?') ? '&' : '?';
+          const newRedirect = encodeURIComponent(`${redirectUrl}${separator}desktop=true`);
+          return `redirect_to=${newRedirect}`;
+        });
+      }
+      const { shell } = require('electron');
+      shell.openExternal(targetUrl);
+    }
+  };
+
+  mainWindow.webContents.on('will-navigate', handleOauthRedirect);
+  mainWindow.webContents.on('will-redirect', handleOauthRedirect);
 
   const { session } = require('electron');
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

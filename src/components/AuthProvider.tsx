@@ -120,6 +120,33 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Poll desktop session endpoint inside Electron when not logged in
+  useEffect(() => {
+    const client = supabase.current
+    if (!client || typeof window === 'undefined') return
+
+    const isDesktop = !!(window as any).__FLOWR_DESKTOP__
+    if (!isDesktop || user) return
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/desktop-session')
+        const data = await res.json()
+        if (data.session) {
+          clearInterval(intervalId)
+          await client.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+          })
+        }
+      } catch (err) {
+        console.error('Failed to poll desktop session:', err)
+      }
+    }, 1000)
+
+    return () => clearInterval(intervalId)
+  }, [user])
+
   const signInWithGoogle = async () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     await supabase.current!.auth.signInWithOAuth({
