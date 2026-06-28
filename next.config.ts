@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'gsap'],
   },
+  output: 'standalone',
   async headers() {
     return [
       {

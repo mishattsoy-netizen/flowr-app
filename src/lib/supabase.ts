@@ -8,12 +8,16 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const getSupabaseUrl = () => {
   if (!rawUrl) return '';
   if (isServer) {
+    if (rawUrl.includes('localhost') && process.env.PORT) {
+      return `http://127.0.0.1:${process.env.PORT}`;
+    }
     return rawUrl.includes('flowr.website')
       ? 'https://qmufalwubepttjxehvit.supabase.co'
       : rawUrl;
   }
   // Client-side: dynamically match active browser origin to bypass CORS preflight redirect blocks
-  if (rawUrl.includes('flowr.website')) {
+  // and support random Electron ports.
+  if (rawUrl.includes('flowr.website') || rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1')) {
     try {
       const parsed = new URL(rawUrl);
       return `${window.location.origin}${parsed.pathname}`;

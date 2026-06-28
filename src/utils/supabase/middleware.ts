@@ -5,9 +5,7 @@ export async function createClient(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const url = rawUrl && rawUrl.includes('flowr.website')
-    ? 'https://qmufalwubepttjxehvit.supabase.co'
-    : rawUrl;
+  const url = 'https://qmufalwubepttjxehvit.supabase.co';
 
   const supabase = createServerClient(
     url,

@@ -149,10 +149,12 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const isDesktop = origin.includes('127.0.0.1')
+    
     await supabase.current!.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: isDesktop ? 'flowr://auth/callback' : `${origin}/auth/callback`,
         queryParams: {
           prompt: 'select_account',
         },

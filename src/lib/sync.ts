@@ -76,7 +76,7 @@ function rowToWorkspace(row: Record<string, any>): Workspace {
     icon:         row.icon ?? undefined,
     color:        row.color ?? undefined,
     settings:     row.settings ?? undefined,
-    cloudSyncEnabled: true,
+    syncMode:     row.sync_mode ?? 'cloud-only',
   };
 }
 
@@ -90,6 +90,7 @@ function workspaceToRow(w: Workspace): Record<string, any> {
   if (w.icon)     row.icon     = w.icon;
   if (w.color)    row.color    = w.color;
   if (w.settings) row.settings = w.settings;
+  if (w.syncMode) row.sync_mode = w.syncMode;
   return row;
 }
 
@@ -370,8 +371,8 @@ export function subscribeRealtime(store: StoreSetters) {
         const current = store.getEntities();
         const existing = current.find(e => e.id === entity.id);
         if (!existing) {
-          // New entity from another device — assume sync on (it came from cloud).
-          store.setEntities([...current, { ...entity, cloudSyncEnabled: true }]);
+          // New entity from another device
+          store.setEntities([...current, entity]);
         }
       }
     )
@@ -385,8 +386,7 @@ export function subscribeRealtime(store: StoreSetters) {
             if (e.id !== incoming.id) return e;
             // Skip if our local copy is newer (we just made the change).
             if ((e.lastModified ?? 0) > (incoming.lastModified ?? 0)) return e;
-            // Preserve client-only flag — not stored in DB.
-            return { ...incoming, cloudSyncEnabled: e.cloudSyncEnabled };
+            return incoming;
           })
         );
       }
@@ -423,8 +423,7 @@ export function subscribeRealtime(store: StoreSetters) {
         store.setWorkspaces(
           store.getWorkspaces().map(w => {
             if (w.id !== incoming.id) return w;
-            // Preserve client-only flag — not stored in DB.
-            return { ...incoming, cloudSyncEnabled: w.cloudSyncEnabled };
+            return incoming;
           })
         );
       }

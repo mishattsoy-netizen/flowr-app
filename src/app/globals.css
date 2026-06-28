@@ -846,19 +846,8 @@ html {
   padding: 0 2px;
 }
 
-/* â”€â”€â”€ Sidebar Layout Transitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-.shell-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  /* Mobile default: 1 column */
-}
-
-@media (min-width: 768px) {
-  .shell-container {
-    grid-template-columns: var(--sidebar-w, 280px) 1fr;
-
-  }
-}
+/* ─── Sidebar Layout Transitions ─────────────────────── */
+/* shell-container grid layout removed to support flex flex-col layout in Shell.tsx */
 
 /* --- Drag & Drop ----------------------------------------- */
 
