@@ -4,6 +4,18 @@
  */
 export const FLOWR_TOOLS = [
   {
+    name: "set_sync_mode",
+    description: "Changes the sync mode of a note or folder.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Entity ID" },
+        mode: { type: "string", enum: ["cloud-only", "local-only", "full-sync"] }
+      },
+      required: ["id", "mode"]
+    }
+  },
+  {
     name: "get_crypto_price",
     description: "Fetches the current price of a cryptocurrency in USD.",
     parameters: {
