@@ -575,7 +575,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         isDraggingLocal && "z-[3000] opacity-90",
         isResizing && "z-[3000]",
         !isDraggingLocal && !isResizing && (block.type === 'section' ? "z-0" : "z-10"),
-        !isSelected && !isDraggingLocal && !isResizing && "hover:outline hover:outline-brand-blue/30 hover:outline-1 hover:outline-offset-[1px]",
+        !isSelected && !isDraggingLocal && !isResizing && (activeTool === 'select' || activeTool === 'move') && "hover:outline hover:outline-brand-blue/30 hover:outline-1 hover:outline-offset-[1px]",
         block.type === 'section' && "border-2 border-dashed border-[var(--bone-100)]/40 bg-[var(--bone-10)]/5 p-4 min-w-[300px] min-h-[200px]",
         (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
         showMenu && "ring-2 ring-accent/20"
@@ -619,7 +619,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       )}
 
       {/* Edge drag trigger */}
-      {!isEditing && <div className="canvas-block-edge absolute -inset-1 cursor-move" />}
+      {!isEditing && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
 
       {/* Resize handles (visible on hover/selection) */}
       {block.type !== 'connection' && HANDLES.map(h => (

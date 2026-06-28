@@ -544,10 +544,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     setShowFloatingToolbar(false);
 
-    // Ignore background click handler if clicking a block, shape, resize handle, or button
+    // Ignore background click handler if clicking a block (only in selection/move mode)
+    const isSelectionTool = activeTool === 'select' || activeTool === 'move';
     if (
-      target.closest('.ResizeHandle') || 
-      (target.closest('[id]') && pageBlocks.some(b => b.id === target.closest('[id]')?.id))
+      target.closest('.ResizeHandle') ||
+      (isSelectionTool && target.closest('[id]') && pageBlocks.some(b => b.id === target.closest('[id]')?.id))
     ) {
       return;
     }

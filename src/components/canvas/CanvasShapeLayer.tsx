@@ -39,8 +39,8 @@ function strokeDasharray(style: CanvasStyleExt): string {
   return 'none';
 }
 
-function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
-  block: EditorBlock; isSelected: boolean; onPointerDown: (e: React.PointerEvent) => void;
+function ShapeEl({ block, isSelected, activeTool, onPointerDown, onContextMenu }: {
+  block: EditorBlock; isSelected: boolean; activeTool?: CanvasTool; onPointerDown: (e: React.PointerEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const style = block.canvasStyleExt ?? {};
@@ -60,7 +60,7 @@ function ShapeEl({ block, isSelected, onPointerDown, onContextMenu }: {
     strokeOpacity: style.strokeOpacity ?? 1,
     fill,
     opacity,
-    style: { cursor: 'move' },
+    style: { cursor: activeTool === 'select' || activeTool === 'move' ? 'move' : 'crosshair' },
     onPointerDown,
     onContextMenu,
   };
@@ -101,20 +101,23 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
   });
 
   const handleShapePointerDown = (e: React.PointerEvent, clickedBlock: EditorBlock) => {
-    e.stopPropagation();
-
     const canDrag = activeTool === 'select' || activeTool === 'move';
-    if (!canDrag) return;
 
-    const isAlreadySelected = selectedIds.has(clickedBlock.id);
+    // For selection tools: stop propagation and handle drag
+    if (canDrag) {
+      e.stopPropagation();
+      const isAlreadySelected = selectedIds.has(clickedBlock.id);
 
-    if (!isAlreadySelected) {
-      onSelect(clickedBlock.id, e.shiftKey);
+      if (!isAlreadySelected) {
+        onSelect(clickedBlock.id, e.shiftKey);
+      }
+
+      if (e.button !== 0) return;
+
+      startDrag(e, clickedBlock);
     }
-
-    if (e.button !== 0) return;
-
-    startDrag(e, clickedBlock);
+    // For creation tools (rect, ellipse, diamond, etc.): let event bubble
+    // to the background handler so new shapes can be created over existing ones
   };
 
   return (
@@ -141,10 +144,11 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
               transformOrigin: `${(b.x ?? 0) + (b.width ?? 0) / 2}px ${(b.y ?? 0) + (b.height ?? 0) / 2}px`,
             }}
           >
-            <ShapeEl 
-              block={b} 
-              isSelected={selectedIds.has(b.id)} 
-              onPointerDown={(e) => handleShapePointerDown(e, b)} 
+            <ShapeEl
+              block={b}
+              isSelected={selectedIds.has(b.id)}
+              activeTool={activeTool}
+              onPointerDown={(e) => handleShapePointerDown(e, b)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
