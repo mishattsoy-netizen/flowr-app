@@ -79,8 +79,6 @@
       "electron/**/*",
       "package.json",
       ".next/standalone/**/*",
-      "!node_modules/**/*",
-      "!node_modules",
       ".env"
     ],
     "publish": {
