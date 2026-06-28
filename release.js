@@ -67,6 +67,14 @@ try {
   } catch (e) {}
   run(`git push origin v${newVersion}`);
 
+  // 5.6 Delete any existing GitHub Release for this tag so electron-builder can create a fresh one
+  // Deleting a tag does NOT delete the release — they are separate resources on GitHub.
+  try {
+    run(`gh release delete v${newVersion} --yes 2>nul`);
+  } catch (e) {
+    // No existing release to delete — that's fine
+  }
+
   // 6. Build and publish Electron app
   log('Packaging and publishing Electron app to GitHub Releases...');
   run('npx electron-builder --publish always');
