@@ -1,6 +1,6 @@
 {
   "name": "flowr-beta-1.5.1",
-  "version": "1.0.4",
+  "version": "1.0.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -95,6 +95,9 @@
       "node_modules/lodash.isequal/**/*",
       "node_modules/lodash.escaperegexp/**/*",
       "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/debug/**/*",
+      "node_modules/ms/**/*",
+      "node_modules/sax/**/*",
       ".env"
     ],
     "publish": {
