@@ -33,8 +33,12 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
       downloadUrl = `${baseUrl}/Flowr.AppImage`;
     }
 
-    // Open download in a new tab or trigger direct download
-    window.open(downloadUrl, '_blank');
+    // Trigger direct download without opening a new tab
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
