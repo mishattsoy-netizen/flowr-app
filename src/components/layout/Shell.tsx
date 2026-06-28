@@ -313,12 +313,15 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       {isDesktop() && <HeaderBar />}
 
       {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
-      <div className="flex-1 flex flex-row overflow-hidden relative w-full min-h-0">
+      <div className={cn(
+        "flex-1 flex flex-row overflow-hidden relative w-full min-h-0",
+        isDesktop() && "p-2 pt-0 gap-2 bg-[var(--app-dark)]"
+      )}>
         {/* 1. Left Sidebar Section */}
         <div
         className={cn(
           "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
-          (!currentSidebarCollapsed || !isTabsHeaderVisible) && "border-r border-[var(--bone-10)]",
+          (!currentSidebarCollapsed || !isTabsHeaderVisible) && !isDesktop() && "border-r border-[var(--bone-10)]",
           currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:flex"
         )}
         style={{
@@ -326,7 +329,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           transition: 'none'
         }}
       >
-        <div className="relative h-full w-full overflow-hidden">
+        <div className={cn(
+          "relative h-full w-full overflow-hidden",
+          isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm"
+        )}>
           <div className="h-full">
             <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} />
           </div>
@@ -355,9 +361,12 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       </div>
 
       {/* 2. Main Content + Right AI Sidebar Wrapper */}
-      <div className="flex-1 flex flex-row overflow-hidden relative min-w-0 h-full">
+      <div className={cn("flex-1 flex flex-row overflow-hidden relative min-w-0 h-full", isDesktop() && "gap-2")}>
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
+        <div className={cn(
+          "flex-1 flex flex-col h-full overflow-hidden relative min-w-0",
+          isDesktop() && "bg-background border border-[var(--bone-10)] rounded-2xl shadow-sm"
+        )}>
           {!isDesktop() && <HeaderBar />}
           <main className="flex-1 flex flex-col overflow-hidden relative">
             {children}
@@ -401,7 +410,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <div
           className={cn(
             "h-full bg-sidebar shrink-0 overflow-hidden transition-colors duration-200",
-            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && "border-l border-[var(--bone-10)]",
+            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && !isDesktop() && "border-l border-[var(--bone-10)]",
             isMobile 
               ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col" : "hidden")
               : "relative z-40"
@@ -411,7 +420,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
             transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          <div className="h-full shrink-0 w-full" style={{ width: isMobile ? '100%' : `${currentAiSidebarWidth}px` }}>
+          <div className={cn(
+            "h-full shrink-0 w-full",
+            isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
+          )} style={{ width: isMobile ? '100%' : `${currentAiSidebarWidth}px` }}>
             {hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat' && <AIAssistant />}
           </div>
         </div>

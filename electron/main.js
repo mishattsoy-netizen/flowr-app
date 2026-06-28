@@ -246,7 +246,7 @@ async function createWindow() {
     titleBarOverlay: {
       color: 'rgba(0,0,0,0)',
       symbolColor: '#636363', // A nice subtle color for the window controls
-      height: 32 // Matches the 32px (h-8) of the HeaderBar
+      height: 38 // Matches the 38px of the HeaderBar
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -352,6 +352,11 @@ app.whenReady().then(() => {
   ipcMain.handle('fs:deleteFile', async (_, filePath) => fsp.unlink(filePath));
   ipcMain.handle('fs:readdir', async (_, dirPath) => fsp.readdir(dirPath));
   ipcMain.handle('fs:mkdir', async (_, dirPath) => fsp.mkdir(dirPath, { recursive: true }));
+  ipcMain.handle('fs:getDefaultVaultPath', async () => {
+    const { homedir } = require('os');
+    const { join } = require('path');
+    return join(homedir(), 'Documents', 'Flowr');
+  });
   ipcMain.handle('dialog:pickVaultFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
     return result.filePaths[0] || null;

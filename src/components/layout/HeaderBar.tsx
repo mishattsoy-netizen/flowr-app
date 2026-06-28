@@ -161,30 +161,35 @@ export const HeaderBar = memo(function HeaderBar() {
 
   const btnClass = (enabled: boolean) =>
     `flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-0 [-webkit-app-region:no-drag] ${
-      isDesktopEnv ? 'w-9 h-9' : 'w-6 h-6'
+      isDesktopEnv ? 'w-7 h-7' : 'w-6 h-6'
     } ${enabled
-      ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] cursor-pointer'
+      ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer'
       : 'text-border opacity-30 cursor-default'
     }`;
 
-  const iconClass = isDesktopEnv ? "w-[20px] h-[20px]" : "w-4 h-4";
+  const iconClass = isDesktopEnv ? "w-4 h-4" : "w-4 h-4";
 
   if (!isTabsHeaderVisible) return null;
   if (activeEntityId === 'settings') return null;
 
   return (
-    <div className={cn("w-full flex items-center pl-3 pr-32 bg-sidebar border-b border-b-[var(--bone-10)] shrink-0 relative z-30 [-webkit-app-region:drag]", isDesktopEnv ? "h-[52px]" : "h-8")}>
+    <div className={cn(
+      "w-full flex items-center pl-3 pr-32 shrink-0 relative z-30 [-webkit-app-region:drag]",
+      isDesktopEnv 
+        ? "h-[38px] bg-[var(--app-dark)]" 
+        : "h-8 bg-sidebar border-b border-b-[var(--bone-10)]"
+    )}>
       {isDesktopEnv && (
         <>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button 
               onClick={toggleSidebar}
               className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-100)] opacity-70 hover:opacity-100 [-webkit-app-region:no-drag]"
             >
               {isDashboard ? (
-                <Menu strokeWidth={2} className={isDesktopEnv ? "w-[22px] h-[22px]" : "w-5 h-5"} />
+                <Menu strokeWidth={2} className="w-4 h-4" />
               ) : (
-                <ChevronLeft strokeWidth={2} className={isDesktopEnv ? "w-[22px] h-[22px]" : "w-5 h-5"} />
+                <ChevronLeft strokeWidth={2} className="w-4 h-4" />
               )}
             </button>
 
@@ -200,7 +205,7 @@ export const HeaderBar = memo(function HeaderBar() {
             </Tooltip>
             <Tooltip content="Reload">
               <button onClick={() => { }} className={btnClass(true)}>
-                <RotateCw strokeWidth={2} className={isDesktopEnv ? "w-5 h-5" : "w-3.5 h-3.5"} />
+                <RotateCw strokeWidth={2} className={iconClass} />
               </button>
             </Tooltip>
             <Tooltip content="Toggle Sidebar">
@@ -226,7 +231,7 @@ export const HeaderBar = memo(function HeaderBar() {
           </div>
 
           {/* Divider */}
-          <div className="w-px h-5 bg-[var(--bone-6)] mx-2" />
+          <div className="w-px h-4 bg-[var(--bone-6)] mx-2" />
         </>
       )}
 

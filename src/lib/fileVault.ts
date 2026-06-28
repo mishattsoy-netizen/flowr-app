@@ -16,6 +16,6 @@ export function sanitizeFileName(title: string): string {
 export async function pickVaultFolder(): Promise<string | null> {
   if (typeof window === 'undefined' || !(window as any).flowrFS) return null;
   const path = await (window as any).flowrFS.pickVaultFolder();
-  if (path) await setVaultPath(path);
+  // NOTE: does NOT auto-save — caller is responsible for calling setVaultPath
   return path;
 }
