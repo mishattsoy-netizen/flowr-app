@@ -10,6 +10,8 @@ import { Toggle } from '@/components/ui/Toggle';
 import UpdatesSection from '@/components/settings/UpdatesSection';
 import AISettingsSection from '@/components/settings/AISettingsSection';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
+import { isDesktop } from '@/lib/env';
+import { FolderOpen } from 'lucide-react';
 
 
 
@@ -58,6 +60,22 @@ export function SettingsModal() {
   }, [isVisible, modal?.kind]);
 
   const { isAdmin } = useAuth();
+
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isDesktop()) {
+      import('@/lib/fileVault').then(({ getVaultPath }) => {
+        getVaultPath().then(path => setVaultPath(path));
+      });
+    }
+  }, []);
+
+  const handleChangeVault = async () => {
+    const { pickVaultFolder } = await import('@/lib/fileVault');
+    const path = await pickVaultFolder();
+    if (path) setVaultPath(path);
+  };
 
   if (!isVisible) return null;
 
@@ -257,21 +275,43 @@ export function SettingsModal() {
               {activeTab === 'profile' && <ProfileSection />}
 
               {activeTab === 'account' && (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-20 h-20 rounded-[24px] bg-accent/5 border border-accent/10 flex items-center justify-center mb-6 overflow-hidden relative group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-accent/20 to-transparent opacity-0 group-hover:opacity-100" />
-                    <Zap strokeWidth={2} className="w-10 h-10 text-accent/60 relative z-10" />
-                  </div>
-                  <h4 className="text-2xl font-display font-semibold mb-2">Account Settings</h4>
-                  <p className="text-bone-70/80 max-max-w-sm text-[15px] leading-relaxed">
-                    This module is currently being optimized for high-fidelity performance. Stay tuned for a seamless experience.
-                  </p>
-                  <button
-                    onClick={() => setActiveTab('interface')}
-                    className="mt-8 px-6 py-2.5 rounded-full bg-white/5 border border-[var(--bone-6)] text-sm font-medium hover:bg-white/10 hover:border-muted-foreground/30"
-                  >
-                    Return to Interface
-                  </button>
+                <div className="flex flex-col h-full">
+                  {isDesktop() ? (
+                    <div className="space-y-6 py-6">
+                      <section className="flex items-center justify-between py-1">
+                        <div className="min-w-0 flex-1 pr-4">
+                          <h4 className="text-sm font-semibold text-[var(--bone-100)] font-sans">Local Directory (Vault)</h4>
+                          <p className="text-xs text-[var(--bone-70)] mt-1 truncate max-w-sm font-mono">
+                            {vaultPath ? vaultPath : 'No local directory selected.'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleChangeVault}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-all shrink-0 cursor-pointer"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          Change Directory
+                        </button>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                      <div className="w-20 h-20 rounded-[24px] bg-accent/5 border border-accent/10 flex items-center justify-center mb-6 overflow-hidden relative group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-accent/20 to-transparent opacity-0 group-hover:opacity-100" />
+                        <Zap strokeWidth={2} className="w-10 h-10 text-accent/60 relative z-10" />
+                      </div>
+                      <h4 className="text-2xl font-display font-semibold mb-2">Account Settings</h4>
+                      <p className="text-bone-70/80 max-max-w-sm text-[15px] leading-relaxed">
+                        This module is currently being optimized for high-fidelity performance. Stay tuned for a seamless experience.
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('interface')}
+                        className="mt-8 px-6 py-2.5 rounded-full bg-white/5 border border-[var(--bone-6)] text-sm font-medium hover:bg-white/10 hover:border-muted-foreground/30"
+                      >
+                        Return to Interface
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               {activeTab === 'ai' && <AISettingsSection />}

@@ -89,13 +89,16 @@
       "repo": "flowr-app"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "artifactName": "Flowr-Setup.${ext}"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "artifactName": "Flowr.${ext}"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "artifactName": "Flowr.${ext}"
     }
   }
 }

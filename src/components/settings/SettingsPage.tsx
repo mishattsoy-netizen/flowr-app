@@ -11,6 +11,8 @@ import { useTheme } from '@/components/ThemeProvider';
 import UpdatesSection from '@/components/settings/UpdatesSection';
 import AISettingsSection from '@/components/settings/AISettingsSection';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
+import { isDesktop } from '@/lib/env';
+import { FolderOpen } from 'lucide-react';
 
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader } = useStore();
@@ -27,6 +29,22 @@ export function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
   const { isAdmin } = useAuth();
+
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isDesktop()) {
+      import('@/lib/fileVault').then(({ getVaultPath }) => {
+        getVaultPath().then(path => setVaultPath(path));
+      });
+    }
+  }, []);
+
+  const handleChangeVault = async () => {
+    const { pickVaultFolder } = await import('@/lib/fileVault');
+    const path = await pickVaultFolder();
+    if (path) setVaultPath(path);
+  };
 
   const tabs: { id: SettingsTab | 'admin'; label: string; icon: ComponentType<{ className?: string }> }[] = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -222,8 +240,30 @@ export function SettingsPage() {
 
             {activeTab === 'account' && (
               <div className="space-y-10">
+                {/* Local Directory (Vault) (Desktop only) */}
+                {isDesktop() && (
+                  <section className="flex items-center justify-between py-1 max-w-2xl">
+                    <div className="min-w-0 flex-1 pr-4">
+                      <h4 className="text-sm font-semibold text-[var(--bone-100)]">Local Directory (Vault)</h4>
+                      <p className="text-xs text-[var(--bone-70)] mt-0.5 truncate max-w-md">
+                        {vaultPath ? vaultPath : 'No local directory selected.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleChangeVault}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-all shrink-0 cursor-pointer"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      Change Directory
+                    </button>
+                  </section>
+                )}
+
                 {/* Clear Local Cache */}
-                <section className="flex items-center justify-between py-1 max-w-2xl">
+                <section className={cn(
+                  "flex items-center justify-between py-1 max-w-2xl",
+                  isDesktop() && "border-t border-[var(--bone-6)] pt-8"
+                )}>
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--bone-100)]">Local Cache</h4>
                     <p className="text-xs text-[var(--bone-70)] mt-0.5">

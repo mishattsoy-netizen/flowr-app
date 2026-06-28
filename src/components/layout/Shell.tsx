@@ -15,6 +15,7 @@ import { SettingsModal } from '../modals/SettingsModal';
 import { MediaViewerModal } from '../modals/MediaViewerModal';
 import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
+import { VaultSetupModal } from '../modals/VaultSetupModal';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
@@ -430,6 +431,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       <NewWorkspaceModal key="new-workspace" />
       <SummaryPreviewModal key="summary-preview" />
       <CommandPalette key="command-palette" />
+      <VaultSetupModal key="vault-setup" />
 
 
 
