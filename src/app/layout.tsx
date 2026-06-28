@@ -1,5 +1,6 @@
 import { Literata, DM_Sans, DM_Mono } from "next/font/google";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import SupabaseProvider from "@/components/SupabaseProvider";
 import AuthProvider from "@/components/AuthProvider";
@@ -62,10 +63,8 @@ export default function RootLayout({
       className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <head suppressHydrationWarning>
-        <script
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{
-            __html: `(function() {
+        <Script id="flowr-init" strategy="beforeInteractive">
+          {`(function() {
               try {
                 const str = localStorage.getItem('flowr-storage');
                 if (str) {
@@ -89,9 +88,8 @@ export default function RootLayout({
                   }
                 }
               } catch (e) {}
-            })();`
-          }}
-        />
+            })();`}
+        </Script>
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
@@ -106,11 +104,9 @@ export default function RootLayout({
             </SupabaseProvider>
           </AuthProvider>
         </ThemeProvider>
-        <script
-          suppressHydrationWarning
+        <Script
           src="https://js.puter.com/v2/"
-          async
-          defer
+          strategy="lazyOnload"
         />
       </body>
     </html>
