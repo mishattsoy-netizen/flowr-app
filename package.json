@@ -82,6 +82,7 @@
       ".next/standalone/**/*",
       "!node_modules/**/*",
       "!node_modules",
+      ".next/standalone/node_modules/**/*",
       "node_modules/electron-updater/**/*",
       "node_modules/builder-util-runtime/**/*",
       "node_modules/lazy-val/**/*",
