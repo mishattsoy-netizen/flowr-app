@@ -168,6 +168,9 @@ async function startNextServer(port) {
       }
     }
 
+    const STDERR_LOG = path.join(os.tmpdir(), 'flowr-server-stderr.log');
+    let resolved = false;
+
     nextServer = fork(serverPath, [], {
       cwd: isPackaged ? standalonePath : appPath,
       env: {
@@ -183,27 +186,40 @@ async function startNextServer(port) {
 
     nextServer.stdout.on('data', (data) => {
       const str = data.toString();
-      debugLog('[Next.js]', str.trim());
-      if (str.includes('Ready') || str.includes('Listening on port') || str.includes('listening on port') || str.includes('ready')) {
+      debugLog('[Next.js STDOUT]', str.trim());
+      if (!resolved && (str.includes('Ready') || str.includes('Listening on port') || str.includes('listening on port') || str.includes('ready'))) {
+        resolved = true;
         resolve();
       }
     });
 
     nextServer.stderr.on('data', (data) => {
-      debugLog('[Next.js ERROR]', data.toString().trim());
+      const str = data.toString().trim();
+      debugLog('[Next.js STDERR]', str);
+      try { fs.appendFileSync(STDERR_LOG, `[${new Date().toISOString()}] ${str}\n`); } catch (_) {}
     });
 
     nextServer.on('error', (err) => {
-      debugLog('Next.js process error:', err.message);
-      reject(err);
+      debugLog('Next.js fork error:', err.message);
+      if (!resolved) { resolved = true; reject(err); }
     });
 
-    nextServer.on('exit', (code) => {
-      debugLog('Next.js process exited with code:', code);
+    nextServer.on('exit', (code, signal) => {
+      debugLog('Next.js process exited with code:', code, 'signal:', signal);
+      if (!resolved) {
+        resolved = true;
+        reject(new Error(`Next.js server exited immediately with code ${code}. Check ${STDERR_LOG} for details.`));
+      }
     });
     
-    // Safety timeout in case Next.js doesn't log the ready message
-    setTimeout(() => resolve(), 5000);
+    // Safety timeout — only resolve if server is still alive after 8s
+    setTimeout(() => {
+      if (!resolved && nextServer && !nextServer.killed) {
+        debugLog('Next.js timeout — assuming ready (no ready message received)');
+        resolved = true;
+        resolve();
+      }
+    }, 8000);
   });
 }
 
