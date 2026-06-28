@@ -24,7 +24,7 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
     const isMac = /Mac/.test(ua);
     const isLinux = /Linux/.test(ua);
     
-    const baseUrl = 'https://github.com/mishattsoy-netizen/flowr-app/releases/download/v1.0.0';
+    const baseUrl = 'https://github.com/mishattsoy-netizen/flowr-app/releases/latest/download';
     let downloadUrl = `${baseUrl}/Flowr-Setup.exe`; // Default to Windows
 
     if (isMac) {
