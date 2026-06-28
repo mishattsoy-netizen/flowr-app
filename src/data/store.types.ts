@@ -19,6 +19,8 @@ export interface SidebarSectionSettings {
 
 export type WorkspaceType = 'personal' | 'shared';
 
+export type SyncMode = 'cloud-only' | 'local-only' | 'full-sync';
+
 export interface Workspace {
   id: string;
   name: string;
@@ -27,7 +29,6 @@ export interface Workspace {
   createdAt: number;
   icon?: string;
   color?: string;
-  cloudSyncEnabled?: boolean;
   settings?: Record<string, unknown>;
 }
 
@@ -173,7 +174,7 @@ export interface Entity {
   workspaceId?: string | null;
 
   sortOrder?: number;
-  cloudSyncEnabled?: boolean;
+  syncMode: SyncMode;
 }
 
 export interface SubTask {
@@ -200,6 +201,7 @@ export interface AppTask {
   position?: number | null;
   createdAt?: number;
   completedAt?: number;
+  syncMode: SyncMode;
 }
 
 export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai';
@@ -431,7 +433,6 @@ export interface AppState {
   // Right-click context menu over a kanban task.
   taskContextMenu: { taskId: string; column: string; x: number; y: number } | null;
   lastSaved: number | null;
-  cloudSyncEnabled: boolean;
   aiSessionContext: AISessionContext | null;
   activeMode: BotMode;
   activeIntentTag: string | null;
@@ -564,8 +565,7 @@ export interface AppState {
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;
-  setCloudSyncEnabled: (enabled: boolean) => void;
-  setWorkspaceCloudSync: (rootEntityId: string, enabled: boolean) => Promise<void>;
+  setSyncMode: (entityId: string, mode: SyncMode) => void;
   setLastSaved: (time: number | null) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;

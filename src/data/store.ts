@@ -141,153 +141,14 @@ export const useStore = create<AppState>()(
       activeWorkspaceId: 'ws-personal',
       trackerFilterWorkspace: null,
       lastSaved: null,
-      cloudSyncEnabled: false,
+      syncMode: 'local-only',
       isInitialSync: true,
 
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
-      setCloudSyncEnabled: async (enabled) => {
-        set({ cloudSyncEnabled: enabled });
-        if (enabled) {
-          // Sync everything to cloud immediately, hierarchically ordered (Fix 1.3)
-          const { entities, tasks, workspaces } = get();
-
-          // Ensure all workspaces have ownerId set before upserting to avoid RLS violations
-          const { data: { user } } = await supabase!.auth.getUser();
-          const userId = user?.id;
-          const patchedWorkspaces = workspaces.map(w =>
-            !w.ownerId && userId ? { ...w, ownerId: userId } : w
-          );
-          const needsStoreUpdate = patchedWorkspaces.some((w, i) => w.ownerId !== workspaces[i].ownerId);
-          if (needsStoreUpdate) set({ workspaces: patchedWorkspaces as Workspace[] });
-
-          // Pre-sync workspaces to avoid FK violations
-          patchedWorkspaces.forEach(w => upsertWorkspace(w));
-
-          // Build parenting map for ordered traversal
-          const byParent = new Map<string | null, Entity[]>();
-          entities.forEach(e => {
-            const p = e.parentId || null;
-            if (!byParent.has(p)) byParent.set(p, []);
-            byParent.get(p)!.push(e);
-          });
-
-          const ordered: Entity[] = [];
-          const visited = new Set<string>();
-
-          const collect = (pid: string | null) => {
-            const children = byParent.get(pid) || [];
-            children.forEach(c => {
-              if (visited.has(c.id)) return;
-              ordered.push(c);
-              visited.add(c.id);
-              collect(c.id);
-            });
-          };
-          collect(null); // Begin at root
-          // Append any orphans not caught in tree
-          entities.forEach(e => { if (!visited.has(e.id)) ordered.push(e); });
-
-          // Bulk upsert hierarchically
-          ordered.forEach(e => upsertEntity(e));
-          tasks.forEach(t => upsertTask(t));
-          set({ lastSaved: Date.now() });
-        } else {
-          // Destructive: Clear cloud data when switching to local-only
-          clearAllDataFromCloud();
-        }
-      },
-      setWorkspaceCloudSync: async (rootEntityId: string, enabled: boolean): Promise<void> => {
-        const { entities, workspaces, tasks } = get();
-        const root = entities.find(e => e.id === rootEntityId);
-        if (!root) return;
-        const wsId = root.workspaceId || 'ws-personal';
-
-        // Collect root + all descendants (BFS over parentId graph).
-        // Set preserves insertion order → parent-before-child for upserts,
-        // reversed → child-before-parent for deletes.
-        const subtreeIds = new Set<string>([rootEntityId]);
-        let frontier = [rootEntityId];
-        while (frontier.length > 0) {
-          const next: string[] = [];
-          for (const id of frontier) {
-            for (const child of entities) {
-              if (child.parentId === id && !subtreeIds.has(child.id)) {
-                subtreeIds.add(child.id);
-                next.push(child.id);
-              }
-            }
-          }
-          frontier = next;
-        }
-
-        // Tasks belonging to this workspace (by workspaceId or attached to a subtree page).
-        const workspaceTasks = tasks.filter(
-          t => t.workspaceId === wsId || (t.entityId != null && subtreeIds.has(t.entityId))
-        );
-
-        // Snapshot for abort-and-revert (local state only).
-        const prevEntities = entities;
-        const prevWorkspaces = workspaces;
-        const prevTasks = tasks;
-
-        if (enabled) {
-          // ── Enable: push to cloud FIRST; flip the local flag only after all writes succeed.
-          const ts = Date.now();
-          const nextEntities = entities.map(e =>
-            subtreeIds.has(e.id) ? { ...e, cloudSyncEnabled: true, lastModified: ts } : e
-          );
-          const wsToSync = workspaces.find(w => w.id === wsId);
-
-          if (wsToSync) {
-            const { error } = await upsertWorkspace({ ...wsToSync, cloudSyncEnabled: true });
-            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
-          }
-          // Parent-before-child (subtreeIds insertion order).
-          for (const id of subtreeIds) {
-            const e = nextEntities.find(x => x.id === id);
-            if (!e) continue;
-            const { error } = await upsertEntity(e);
-            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
-          }
-          for (const t of workspaceTasks) {
-            const { error } = await upsertTask(t);
-            if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
-          }
-
-          // Commit only after every write succeeded. Orphan cloud rows from a partial
-          // failure above are intentionally left (we never reach here on failure).
-          set({
-            entities: nextEntities,
-            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: true } : w),
-            lastSaved: Date.now(),
-          });
-        } else {
-          // ── Disable: local cache is source of truth, so flip optimistically, then purge cloud.
-          set({
-            entities: entities.map(e => subtreeIds.has(e.id) ? { ...e, cloudSyncEnabled: false } : e),
-            workspaces: workspaces.map(w => w.id === wsId ? { ...w, cloudSyncEnabled: false } : w),
-          });
-
-          try {
-            // Child-before-parent for FK safety. deleteEntityFromDB marks self-delete,
-            // so the realtime DELETE echo will not wipe the local copy.
-            for (const id of [...subtreeIds].reverse()) {
-              const { error } = await deleteEntityFromDB(id);
-              if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
-            }
-            for (const t of workspaceTasks) {
-              const { error } = await deleteTaskFromDB(t.id);
-              if (error) throw error instanceof Error ? error : new Error(String(error.message ?? error));
-            }
-            set({ lastSaved: Date.now() });
-          } catch (err) {
-            // Revert to synced state.
-            set({ entities: prevEntities, workspaces: prevWorkspaces, tasks: prevTasks });
-            throw err instanceof Error ? err : new Error(String(err));
-          }
-        }
-      },
+      setSyncMode: (entityId, mode) => set(s => ({
+        entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e)
+      })),
       setLastSaved: (time) => set({ lastSaved: time }),
 
       setEntities: (entities) => set({ entities }),
@@ -445,7 +306,7 @@ export const useStore = create<AppState>()(
           icon: input.icon,
           color: input.color,
           settings: input.settings,
-          cloudSyncEnabled: input.cloudSyncEnabled ?? true,
+          syncMode: 'cloud-only',
         };
         set(s => ({ workspaces: [...s.workspaces, workspace] }));
         upsertWorkspace(workspace);
@@ -1737,16 +1598,16 @@ export const useStore = create<AppState>()(
 
         // Inherit cloudSyncEnabled default from parent or active space config
         const parentEntity = entity.parentId ? get().entities.find(e => e.id === entity.parentId) : null;
-        let defaultCloudSync = true;
+        let defaultSyncMode: import('./store.types').SyncMode = 'cloud-only';
         if (parentEntity) {
-          if (parentEntity.cloudSyncEnabled === false) {
-            defaultCloudSync = false;
+          if (parentEntity.syncMode === 'local-only') {
+            defaultSyncMode = 'local-only';
           }
         } else {
           const wsId = entity.workspaceId || activeWorkspaceId;
           const ws = get().workspaces.find(w => w.id === wsId);
-          if (ws && ws.cloudSyncEnabled === false) {
-            defaultCloudSync = false;
+          if (ws && ws.syncMode === 'local-only') {
+            defaultSyncMode = 'local-only';
           }
         }
 
@@ -1756,11 +1617,11 @@ export const useStore = create<AppState>()(
           parentId: finalParentId,
           workspaceId: entity.workspaceId || activeWorkspaceId,
           sortOrder: entity.sortOrder ?? (maxSortOrder + 1),
-          cloudSyncEnabled: entity.cloudSyncEnabled ?? defaultCloudSync,
+          syncMode: entity.syncMode ?? defaultSyncMode,
           lastModified: entity.lastModified || Date.now()
         } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));
-        if (finalEntity.cloudSyncEnabled) upsertEntity(finalEntity);
+        if (finalEntity.syncMode !== 'local-only') upsertEntity(finalEntity);
         return finalEntity.id;
       },
 
@@ -1794,7 +1655,7 @@ export const useStore = create<AppState>()(
           })
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.syncMode !== 'local-only') upsertEntity(updated);
       },
 
       reorderEntities: (orderedIds) => {
@@ -1808,7 +1669,7 @@ export const useStore = create<AppState>()(
         const freshEntities = get().entities;
         orderedIds.forEach(id => {
           const updated = freshEntities.find(e => e.id === id);
-          if (updated && updated.cloudSyncEnabled) {
+          if (updated && updated.syncMode !== 'local-only') {
             upsertEntity(updated);
           }
         });
@@ -1840,7 +1701,7 @@ export const useStore = create<AppState>()(
         };
         duplicateRecursive(rootEntity, rootEntity.parentId);
         set((state) => ({ entities: [...state.entities, ...newEntities] }));
-        newEntities.filter(e => e.cloudSyncEnabled).forEach(e => upsertEntity(e));
+        newEntities.filter(e => e.syncMode !== 'local-only').forEach(e => upsertEntity(e));
       },
 
       setEntityIcon: (id, icon) => {
@@ -1891,7 +1752,7 @@ export const useStore = create<AppState>()(
         set(s => ({ entities: [...s.entities, divider] }));
         // Inherit divider sync from parent context if applicable (cast so compiler knows it's complete)
         const typedDivider = divider as Entity;
-        if (typedDivider.cloudSyncEnabled) upsertEntity(typedDivider);
+        if (typedDivider.syncMode !== 'local-only') upsertEntity(typedDivider);
       },
       updateEntityContent: (id, content) => {
         const now = Date.now();
@@ -1902,7 +1763,7 @@ export const useStore = create<AppState>()(
 
         const updated = get().entities.find(e => e.id === id);
 
-        if (updated && updated.cloudSyncEnabled) {
+        if (updated && updated.syncMode !== 'local-only') {
           upsertEntity(updated);
         }
       },
@@ -1929,7 +1790,7 @@ export const useStore = create<AppState>()(
           blocks: [...state.blocks, block]
         }));
         const canvas = get().entities.find(e => e.id === block.canvasId);
-        if (canvas?.cloudSyncEnabled) {
+        if (canvas?.syncMode !== 'local-only') {
           upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
         }
       },
@@ -1940,7 +1801,7 @@ export const useStore = create<AppState>()(
         const block = get().blocks.find(b => b.id === id);
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
-          if (canvas?.cloudSyncEnabled) {
+          if (canvas?.syncMode !== 'local-only') {
             upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
           }
         }
@@ -1959,7 +1820,7 @@ export const useStore = create<AppState>()(
           const block = get().blocks.find(b => b.id === id);
           if (block && block.canvasId) {
             const canvas = get().entities.find(e => e.id === block.canvasId);
-            if (canvas?.cloudSyncEnabled) {
+            if (canvas?.syncMode !== 'local-only') {
               upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
             }
           }
@@ -1972,7 +1833,7 @@ export const useStore = create<AppState>()(
         }));
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
-          if (canvas?.cloudSyncEnabled) {
+          if (canvas?.syncMode !== 'local-only') {
             deleteCanvasBlockFromDB(id);
           }
         }
@@ -1993,7 +1854,7 @@ export const useStore = create<AppState>()(
         const sectionBlock = get().blocks.find(b => b.id === sectionId);
         if (sectionBlock && sectionBlock.canvasId) {
           const canvas = get().entities.find(e => e.id === sectionBlock.canvasId);
-          if (canvas?.cloudSyncEnabled) {
+          if (canvas?.syncMode !== 'local-only') {
             upsertCanvasBlock(sectionBlock, undefined, canvas.workspaceId || undefined);
 
             const childBlocks = get().blocks.filter(b => b.parentId === sectionId);
@@ -2106,7 +1967,7 @@ export const useStore = create<AppState>()(
           )
         }));
         const updated = get().entities.find(e => e.id === entityId);
-        if (updated && updated.cloudSyncEnabled) upsertEntity(updated);
+        if (updated && updated.syncMode !== 'local-only') upsertEntity(updated);
       },
 
       sortEntities: (criteria) => set((s) => ({ entities: [...s.entities].sort((a, b) => criteria === 'title' ? a.title.localeCompare(b.title) : (b.lastModified || 0) - (a.lastModified || 0)) })),
@@ -2153,7 +2014,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 17,
+      version: 18,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
