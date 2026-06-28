@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Trash2, RefreshCw } from 'lucide-react';
+import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Trash2, RefreshCw, ArrowLeft, X } from 'lucide-react';
 import { useState, useCallback, useEffect, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
@@ -15,7 +15,7 @@ import { isDesktop } from '@/lib/env';
 import { FolderOpen } from 'lucide-react';
 
 export function SettingsPage() {
-  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader } = useStore();
+  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, goBack } = useStore();
   const { theme, setTheme, resolvedTheme } = useTheme();
   
   const [isMounted, setIsMounted] = useState(false);
@@ -71,8 +71,15 @@ export function SettingsPage() {
     <div className="flex-1 flex overflow-hidden h-full bg-[var(--color-bg)]">
       {/* Settings Sub-Sidebar */}
       <div className="w-64 border-r border-[var(--bone-10)] flex flex-col p-6 bg-sidebar/30 shrink-0">
-        <div className="flex items-center gap-2 mb-8 px-2">
+        <div className="flex items-center justify-between mb-8 px-2">
           <h2 className="text-xl font-display font-semibold tracking-tight text-[var(--bone-100)]">Settings</h2>
+          <button
+            onClick={() => goBack()}
+            className="p-1 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors cursor-pointer"
+            title="Go back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto scrollbar-none">

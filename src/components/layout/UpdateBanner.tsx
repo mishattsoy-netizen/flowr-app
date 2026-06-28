@@ -58,7 +58,7 @@ export default function UpdateBanner() {
     <div className="px-4 py-2 select-none w-full animate-fade-in shrink-0">
       <button
         onClick={handleRelaunch}
-        className="w-full flex items-center justify-between p-3.5 rounded-[var(--radius-12)] border border-[var(--bone-10)] bg-[var(--bone-4)] hover:bg-[var(--bone-6)] transition-all text-left duration-200 outline-none group cursor-pointer"
+        className="w-full flex items-center justify-between p-3.5 rounded-xl border border-[var(--bone-10)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-all text-left duration-200 outline-none group cursor-pointer"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-[var(--radius-8)] bg-[var(--bone-8)] flex items-center justify-center text-[var(--bone-90)] group-hover:scale-105 transition-transform duration-200 shrink-0">

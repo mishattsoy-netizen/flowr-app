@@ -1,8 +1,14 @@
 export async function getVaultPath(): Promise<string | null> {
+  if (typeof window !== 'undefined' && (window as any).flowrFS?.getVaultPath) {
+    return await (window as any).flowrFS.getVaultPath();
+  }
   return localStorage.getItem('flowr_vault_path');
 }
 
 export async function setVaultPath(path: string): Promise<void> {
+  if (typeof window !== 'undefined' && (window as any).flowrFS?.setVaultPath) {
+    await (window as any).flowrFS.setVaultPath(path);
+  }
   localStorage.setItem('flowr_vault_path', path);
 }
 

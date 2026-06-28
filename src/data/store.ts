@@ -106,6 +106,34 @@ const getChatSessionId = (
   return fallback;
 };
 
+const TEMP_CHAT_GREETINGS = [
+  "Write like nobody's listening.",
+  "Off the record?",
+  "This conversation doesn't exist.",
+  "Gone tomorrow.",
+  "Just between us.",
+  "Self-destruct sequence ready.",
+  "No strings attached.",
+  "Here for a good time.",
+  "Whisper mode.",
+  "Under the radar.",
+  "For your eyes only.",
+  "Off the books.",
+  "Leave no trace.",
+  "No history, no worries.",
+  "Speakeasy mode.",
+  "Ghost mode.",
+  "Make it brief.",
+  "Passing thoughts.",
+  "Written on water.",
+  "Noted and forgotten."
+];
+
+function getRandomTempGreeting() {
+  const idx = Math.floor(Math.random() * TEMP_CHAT_GREETINGS.length);
+  return TEMP_CHAT_GREETINGS[idx];
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -191,10 +219,12 @@ export const useStore = create<AppState>()(
       activeChatId: null,
       newEmptyChatId: null,
       isTempChat: true,
+      showTempNotice: true,
       tempChatMessages: [],
       chatHistoryOpen: true,
       chatConversations: [],
-      isAIAssistantExtended: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_extended') === 'true'),
+      tempChatGreeting: "Write like nobody's listening.",
+      isAIAssistantExtended: true,
       isAILoading: false,
       aiCursor: null,
       aiBehaviorMode: (typeof window !== 'undefined' && localStorage.getItem('flowr_ai_behavior') as 'fast' | 'thinking' | 'auto') || 'auto',
@@ -400,6 +430,7 @@ export const useStore = create<AppState>()(
           activeMode: 'default',
           activeIntentTag: null,
           pendingAdvisorState: null,
+          tempChatGreeting: s.isTempChat ? getRandomTempGreeting() : s.tempChatGreeting,
           chatMessagesMap: {
             ...s.chatMessagesMap,
             [sid]: []
@@ -432,6 +463,7 @@ export const useStore = create<AppState>()(
       setActiveChatId: (id) => set({ activeChatId: id }),
       setIsTempChat: (temp) => set({ isTempChat: temp }),
       setChatHistoryOpen: (open) => set({ chatHistoryOpen: open }),
+      setShowTempNotice: (show) => set({ showTempNotice: show }),
 
       startTempChat: async () => {
         await get().cleanupActiveChatIfEmpty();
@@ -447,6 +479,7 @@ export const useStore = create<AppState>()(
           activeChatId: null,
           newEmptyChatId: null,
           isTempChat: true,
+          showTempNotice: true,
           tempChatMessages: [],
           aiMessages: [],
           aiSessionContext: null,
@@ -454,6 +487,7 @@ export const useStore = create<AppState>()(
           assistantInput: '',
           isAILoading: false,
           aiAbortController: null,
+          tempChatGreeting: getRandomTempGreeting(),
           chatMessagesMap: {
             ...s.chatMessagesMap,
             [sid]: []
@@ -716,13 +750,7 @@ export const useStore = create<AppState>()(
       setIsAIAssistantExtended: (extended) => set({ isAIAssistantExtended: extended }),
       setAICursor: (aiCursor) => set({ aiCursor }),
 
-      toggleAIAssistantExtended: () => {
-        set((state) => {
-          const newState = !state.isAIAssistantExtended;
-          localStorage.setItem('flowr_ai_extended', String(newState));
-          return { isAIAssistantExtended: newState };
-        });
-      },
+      toggleAIAssistantExtended: () => {},
       setAIBehaviorMode: (aiBehaviorMode) => {
         localStorage.setItem('flowr_ai_behavior', aiBehaviorMode);
         set({ aiBehaviorMode });

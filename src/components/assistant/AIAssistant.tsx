@@ -6,7 +6,7 @@ import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId, blocksToMarkdown } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock } from 'lucide-react';
+import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
@@ -62,6 +62,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const toggleAIAssistant = useStore(state => state.toggleAIAssistant);
   const setAIAssistantOpen = useStore(state => state.setAIAssistantOpen);
   const toggleAIAssistantExtended = useStore(state => state.toggleAIAssistantExtended);
+  const isTempChat = useStore(state => state.isTempChat);
+  const showTempNotice = useStore(state => state.showTempNotice);
+  const setShowTempNotice = useStore(state => state.setShowTempNotice);
+  const saveTempChat = useStore(state => state.saveTempChat);
   const aiMessages = useStore(state => state.aiMessages);
   const stopAIGeneration = useStore(state => state.stopAIGeneration);
   const openModal = useStore(state => state.openModal);
@@ -92,7 +96,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const startNewChat = useStore(state => state.startNewChat);
   const startTempChat = useStore(state => state.startTempChat);
   const openChatInPage = useStore(state => state.openChatInPage);
-  const isTempChat = useStore(state => state.isTempChat);
   const chatConversations = useStore(state => state.chatConversations);
   const loadChatConversations = useStore(state => state.loadChatConversations);
   const loadConversation = useStore(state => state.loadConversation);
@@ -197,7 +200,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const displayedTokens = (() => {
     const summary = aiSessionContext?.distilled_summary;
     const summaryTokens = summary ? Math.ceil(summary.length / 4) : 0;
-    
+
     let chars = 0;
     let imageTokens = 0;
     const filteredMsgs = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant');
@@ -212,7 +215,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
       } else if (m.role === 'user' && !m.image_description && m.attachments?.some(a => a.type === 'image' || a.type === 'pdf')) {
         text = `${text}\n[Image attached]`;
       }
-      
+
       const imageCount = m.attachments?.filter(a => a.type === 'image' || a.type === 'pdf').length || 0;
       imageTokens += imageCount * 258;
       chars += text.length;
@@ -428,9 +431,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
         if (file.type.startsWith('image/')) type = 'image';
         if (file.type.startsWith('audio/')) type = 'audio';
         if (file.type === 'application/pdf' || file.type === 'application/x-pdf' || file.name.toLowerCase().endsWith('.pdf')) type = 'pdf';
-        
+
         const tempId = Math.random().toString(36).slice(2);
-        
+
         // Add a temporary uploading object
         setAttachments(prev => [...prev, { type, url: base64Url, name: file.name, uploading: true, tempId }]);
 
@@ -443,9 +446,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
           if (res.ok) {
             const data = await res.json();
             if (data.url) {
-              setAttachments(prev => prev.map(att => 
-                att.tempId === tempId 
-                  ? { type, url: data.url, name: file.name } 
+              setAttachments(prev => prev.map(att =>
+                att.tempId === tempId
+                  ? { type, url: data.url, name: file.name }
                   : att
               ));
             }
@@ -706,12 +709,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 <History strokeWidth={2} className="w-4 h-4" />
               </button>
               <button
-                onClick={toggleAIAssistantExtended}
-                className="btn-sidebar-utility"
-              >
-                {isAIAssistantExtended ? <PanelLeft strokeWidth={2} className="w-4 h-4" /> : <PanelRight strokeWidth={2} className="w-4 h-4 rotate-180" />}
-              </button>
-              <button
                 onClick={clearAIChat}
                 className="btn-sidebar-utility"
               >
@@ -849,18 +846,82 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
           "shrink-0 relative",
           chatPageMode ? "px-0 pb-0 pt-3 border-none" : "px-6 pb-6 pt-3 bg-sidebar border-t border-[var(--bone-6)]"
         )}>
+          {/* Radial Glow (Round Fade) behind messagebar */}
+          {chatPageMode && isTempChat && (
+            <div
+              className="absolute pointer-events-none rounded-full left-1/2 -translate-x-1/2 w-[500px] h-[300px] top-1/2 -translate-y-1/2 opacity-100 blur-[150px]"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--bone-100) 40%, transparent)',
+                zIndex: 0,
+              }}
+            />
+          )}
+
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
+
+          {/* Peeking Temporary Chat Notice Bubble (Floating behind Message Bar) */}
+          {chatPageMode && isTempChat && showTempNotice && aiMessages.length > 0 && (
+            <div
+              className="dark absolute top-3 -translate-y-[39px] left-5 right-5 h-10 flex items-center justify-between px-4 border-t border-l border-r border-[var(--bone-3)] select-none rounded-t-[16px] animate-fade-in shadow-md z-0 bg-[#121212]"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <MessageCircleDashed className="w-4 h-4 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
+                <span className="text-xs font-semibold text-[var(--bone-100)] tracking-wide leading-none">
+                  Temporary Chat
+                </span>
+                <span className="text-[10px] text-[var(--bone-60)] opacity-70 tracking-wide leading-none hidden sm:inline ml-4">
+                  This chat will disappear if you don't save it.
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Clear Chat Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearAIChat();
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 cursor-pointer"
+                  title="Clear Chat"
+                >
+                  <Eraser className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
+                {/* Save Chat Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveTempChat();
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 relative group cursor-pointer"
+                  title="Save Chat"
+                >
+                  <Bookmark className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
+                {/* Close/Dismiss Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTempNotice(false);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 cursor-pointer"
+                  title="Dismiss notice"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Unified Message Bar Container */}
           <div
             className={cn(
               "border flex flex-col relative transition-colors duration-300",
               chatPageMode
-                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md`
+                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md z-10`
                 : `bg-[var(--bone-6)] ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[16px] p-3`
             )}
-            style={chatPageMode ? { backgroundColor: 'color-mix(in srgb, var(--color-panel) 70%, transparent)' } : undefined}
+            style={chatPageMode ? { backgroundColor: 'var(--color-panel)' } : undefined}
           >
+
             {attachments.length > 0 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-1 border-b border-[var(--bone-12)]">
                 {attachments.map((att, i) => (

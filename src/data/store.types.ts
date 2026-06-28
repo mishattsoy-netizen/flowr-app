@@ -456,9 +456,12 @@ export interface AppState {
   activeChatId: string | null;
   newEmptyChatId: string | null;
   isTempChat: boolean;
+  showTempNotice: boolean;
   tempChatMessages: AIMessage[];
   chatHistoryOpen: boolean;
   chatConversations: ChatConversation[];
+  tempChatGreeting: string | null;
+  setShowTempNotice: (show: boolean) => void;
 
   // Actions
   setDashboardLayout: (layout: WidgetConfig[]) => void;

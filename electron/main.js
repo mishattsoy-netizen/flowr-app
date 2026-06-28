@@ -357,6 +357,30 @@ app.whenReady().then(() => {
     const { join } = require('path');
     return join(homedir(), 'Documents', 'Flowr');
   });
+  ipcMain.handle('fs:getVaultPath', async () => {
+    const configPath = path.join(app.getPath('userData'), 'vault-config.json');
+    try {
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        return config.vaultPath || null;
+      }
+    } catch (e) {
+      debugLog('Failed to read vault path config:', e.message);
+    }
+    return null;
+  });
+  ipcMain.handle('fs:setVaultPath', async (_, vaultPath) => {
+    const configPath = path.join(app.getPath('userData'), 'vault-config.json');
+    try {
+      const config = { vaultPath };
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      debugLog('Saved vault path config:', vaultPath);
+      return true;
+    } catch (e) {
+      debugLog('Failed to write vault path config:', e.message);
+      return false;
+    }
+  });
   ipcMain.handle('dialog:pickVaultFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
     return result.filePaths[0] || null;

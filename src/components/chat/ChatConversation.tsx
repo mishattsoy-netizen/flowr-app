@@ -4,7 +4,7 @@ import { useStore } from '@/data/store';
 import { ChatMessage } from '@/components/assistant/components/ChatMessage';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { useRef, useEffect, useCallback } from 'react';
-import { Brain, ArrowRight, Image as ImageIcon, Globe, Telescope, Terminal, CheckSquare } from 'lucide-react';
+import { Brain, ArrowRight, Image as ImageIcon, Globe, Telescope, Terminal, CheckSquare, MessageCircleDashed } from 'lucide-react';
 import { StatusTyping } from '@/components/assistant/components/StatusTyping';
 import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { useAuth } from '@/components/AuthProvider';
@@ -20,6 +20,8 @@ const QUICK_ACCESS_PILLS = [
 export function ChatConversation() {
   const aiMessages = useStore(s => s.aiMessages);
   const isAILoading = useStore(s => s.isAILoading);
+  const isTempChat = useStore(s => s.isTempChat);
+  const tempChatGreeting = useStore(s => s.tempChatGreeting);
   const sendAIMessage = useStore(s => s.sendAIMessage);
   const regenerateAIMessage = useStore(s => s.regenerateAIMessage);
   const setAssistantInput = useStore(s => s.setAssistantInput);
@@ -29,12 +31,16 @@ export function ChatConversation() {
   const isCompacting = useStore(s => s.isCompacting);
   const setActiveIntentTag = useStore(s => s.setActiveIntentTag);
   const { user } = useAuth();
-  
+
   const messages = aiMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const getGreeting = () => {
+    if (isTempChat) {
+      return tempChatGreeting || "Write like nobody's listening.";
+    }
+
     const hours = new Date().getHours();
     let greet = 'Afternoon';
     if (hours >= 5 && hours < 12) greet = 'Morning';
@@ -105,13 +111,25 @@ export function ChatConversation() {
 
           {displayMessages.length === 0 && !isAILoading ? (
             <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-16 max-w-4xl mx-auto w-full px-6">
-              {/* Welcome Title */}
-              <div className="flex items-center gap-3 justify-center mb-5">
-                <AIAvatar className="w-8 h-8 opacity-100" />
-                <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
-                  {getGreeting()}
-                </h1>
-              </div>
+              {isTempChat ? (
+                <div className="flex flex-col items-center mb-7 select-none animate-fade-in">
+                  <MessageCircleDashed className="w-10 h-10 text-[var(--bone-40)] mb-4" strokeWidth={1.5} />
+                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-2">
+                    {getGreeting()}
+                  </h1>
+                  <p className="text-[13px] leading-relaxed text-[var(--bone-60)] max-w-md">
+                    This chat is temporary. It will disappear if you don't save it.
+                  </p>
+                </div>
+              ) : (
+                /* Welcome Title */
+                <div className="flex items-center gap-3 justify-center mb-5">
+                  <AIAvatar className="w-8 h-8 opacity-100" />
+                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
+                    {getGreeting()}
+                  </h1>
+                </div>
+              )}
 
               {/* Message Bar in the middle */}
               <div className="w-full">

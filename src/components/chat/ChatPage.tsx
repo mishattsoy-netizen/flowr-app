@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { ChatConversation } from './ChatConversation';
 import { AIAssistant } from '@/components/assistant/AIAssistant';
-import { Trash2 } from 'lucide-react';
+import { Eraser, Trash2, Bookmark } from 'lucide-react';
 
 export default function ChatPage() {
   const activeChatId = useStore(s => s.activeChatId);
@@ -34,28 +34,47 @@ export default function ChatPage() {
             <h2 className="text-sm font-medium truncate text-[var(--bone-100)] tracking-wide">
               {title}
             </h2>
+          </div>
+          
+          <div className="flex items-center gap-1.5 shrink-0">
             {isTempChat && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    useStore.getState().clearAIChat();
+                  }}
+                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors shrink-0 cursor-pointer"
+                  title="Clear Chat"
+                >
+                  <Eraser strokeWidth={2} className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    useStore.getState().saveTempChat();
+                  }}
+                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors shrink-0 cursor-pointer"
+                  title="Save Chat"
+                >
+                  <Bookmark strokeWidth={2} className="w-5 h-5" />
+                </button>
+              </>
+            )}
+            
+            {!isTempChat && activeChatId && (
               <button
-                onClick={() => useStore.getState().saveTempChat()}
-                className="pointer-events-auto text-[10px] font-bold px-2.5 py-1 rounded-[8px] bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useStore.getState().openModal({ kind: 'deleteConfirm', entityId: activeChatId, isChat: true });
+                }}
+                className="pointer-events-auto w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                title="Delete Chat"
               >
-                Save Chat
+                <Trash2 strokeWidth={2} className="w-4 h-4" />
               </button>
             )}
           </div>
-          
-          {!isTempChat && activeChatId && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                useStore.getState().openModal({ kind: 'deleteConfirm', entityId: activeChatId, isChat: true });
-              }}
-              className="pointer-events-auto w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
-              title="Delete Chat"
-            >
-              <Trash2 strokeWidth={2} className="w-4 h-4" />
-            </button>
-          )}
         </div>
 
         {/* Fade behind bar — same height as bar+gap, z-index below bar */}

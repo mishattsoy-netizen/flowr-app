@@ -447,10 +447,6 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
 
 
-      {/* Only render the floating assistant if we are NOT in sidebar mode */}
-      {hasHydrated && !isAIAssistantExtended && activeEntityId !== 'chat' && activeEntityId !== 'settings' && (
-        <AIAssistant key="ai-assistant-floating" isFloating />
-      )}
 
     </div>
     </TooltipOverlayProvider>

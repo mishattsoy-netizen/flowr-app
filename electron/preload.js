@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('flowrFS', {
   mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
   pickVaultFolder: () => ipcRenderer.invoke('dialog:pickVaultFolder'),
   getDefaultVaultPath: () => ipcRenderer.invoke('fs:getDefaultVaultPath'),
+  getVaultPath: () => ipcRenderer.invoke('fs:getVaultPath'),
+  setVaultPath: (path) => ipcRenderer.invoke('fs:setVaultPath', path),
 });
 
 contextBridge.exposeInMainWorld('flowrUpdater', {

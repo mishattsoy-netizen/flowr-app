@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal } from 'lucide-react';
+import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal, MessageCircleDashed } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { ChatConversation } from '@/lib/chat';
@@ -110,7 +110,7 @@ export function ChatHistoryPanel() {
                 isTempChat ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
               )}
             >
-              <Clock className="w-3.5 h-3.5" />
+              <MessageCircleDashed className="w-3.5 h-3.5" />
               Temp
             </button>
           </div>

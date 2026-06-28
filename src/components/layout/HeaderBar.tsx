@@ -170,7 +170,6 @@ export const HeaderBar = memo(function HeaderBar() {
   const iconClass = isDesktopEnv ? "w-4 h-4" : "w-4 h-4";
 
   if (!isTabsHeaderVisible) return null;
-  if (activeEntityId === 'settings') return null;
 
   return (
     <div className={cn(
