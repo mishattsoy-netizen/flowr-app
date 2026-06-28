@@ -121,7 +121,7 @@ function rowToEntity(row: Record<string, any>): Entity {
     widgetLayout: row.widget_layout ?? undefined,
     workspaceId:  row.workspace_id ?? null,
     sortOrder:    row.sort_order ?? undefined,
-    cloudSyncEnabled: true,
+    syncMode:     row.sync_mode ?? 'cloud-only',
   };
 }
 
@@ -139,6 +139,7 @@ function entityToRow(e: Entity): Record<string, any> {
   };
   if (e.widgetLayout)  row.widget_layout  = e.widgetLayout;
   if (e.workspaceId)   row.workspace_id   = e.workspaceId;
+  row.sync_mode = e.syncMode;
   return row;
 }
 
@@ -158,6 +159,7 @@ function rowToTask(row: Record<string, any>): AppTask {
     position:    row.position ?? null,
     createdAt:   parseTimestamp(row.created_at),
     completedAt: parseTimestamp(row.completed_at),
+    syncMode:    row.sync_mode ?? 'cloud-only',
   };
 }
 
@@ -191,6 +193,7 @@ function taskToRow(t: AppTask): Record<string, any> {
       ? new Date(t.completedAt).toISOString()
       : t.completedAt;
   }
+  row.sync_mode = t.syncMode;
   
   return row;
 }

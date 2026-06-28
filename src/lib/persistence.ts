@@ -29,3 +29,13 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
 
   await (window as any).flowrFS.writeFile(filePath, content);
 }
+
+export async function saveEntity(entity: Entity): Promise<void> {
+  if (entity.syncMode === 'cloud-only' || entity.syncMode === 'full-sync') {
+     const { upsertEntity } = await import('@/lib/sync'); // Avoid circular dep
+     await upsertEntity(entity);
+  }
+  if (isDesktop() && (entity.syncMode === 'local-only' || entity.syncMode === 'full-sync')) {
+     await saveEntityToFile(entity, []); // Hook up proper blocks later
+  }
+}
