@@ -33,6 +33,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
       {linkedArrows.map(block => (
         <VectorPath key={block.id} block={block}
           selected={selectedIds.has(block.id)}
+          showIndividualSelection={selectedIds.size <= 1}
           editing={editingBlockId === block.id}
           selectedPointIndex={editingBlockId === block.id ? selectedPointIndex : null}
           activeTool={activeTool}

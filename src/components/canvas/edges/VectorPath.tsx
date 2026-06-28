@@ -22,6 +22,7 @@ interface VectorPathProps {
   onDoubleClick?: () => void;
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
   onPointSelect?: (index: number | null) => void;
+  showIndividualSelection?: boolean;
 }
 
 const POSITION_MAP: Record<HandlePosition, number> = {
@@ -35,7 +36,7 @@ const POSITION_MAP: Record<HandlePosition, number> = {
   w: 7,
 };
 
-export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect, showIndividualSelection = true }: VectorPathProps) {
   const allBlocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -363,7 +364,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       </defs>
 
       {/* HTML Selection frame via portal */}
-      {selected && !editing && bounds && viewportContent && createPortal(
+      {selected && showIndividualSelection && !editing && bounds && viewportContent && createPortal(
         <div
           id={`arrow-overlay-${block.id}`}
           className="absolute pointer-events-auto select-none z-[190] cursor-move"

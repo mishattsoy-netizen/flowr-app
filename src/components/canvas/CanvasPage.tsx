@@ -8,6 +8,7 @@ import { CanvasLayersPanel } from './CanvasLayersPanel';
 import { CanvasStylePanel } from './CanvasStylePanel';
 import { CanvasConnections } from './CanvasConnections';
 import { CanvasShapeLayer } from './CanvasShapeLayer';
+import { MultiSelectionBox } from './MultiSelectionBox';
 import { VectorPath } from './edges/VectorPath';
 import { MediaUploadPopover } from './MediaUploadPopover';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
@@ -22,8 +23,10 @@ import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
+import { useDragState, activeDragOffsets } from '@/lib/canvasDragState';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import type { HandlePosition } from './ResizeHandle';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4.0;
@@ -92,6 +95,21 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const spaceHeldRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const lastCursorBroadcastRef = useRef(0);
+
+  // Group resize state
+  interface GroupResizeSnapshot {
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    points: [number, number][] | null;
+  }
+  const groupResizeRef = useRef<{
+    initBox: { x: number; y: number; w: number; h: number };
+    snapshots: GroupResizeSnapshot[];
+    handle: HandlePosition;
+  } | null>(null);
 
   const blocks = useStore(s => s.blocks);
   const addCanvasBlock = useStore(s => s.addCanvasBlock);
@@ -294,6 +312,187 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }, [selectedIds, deleteCanvasBlock, entity.id, history]);
 
+  // Template literal for history push reused in group resize
+  const commitHistory = useCallback(() => {
+    history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
+  }, [history, entity.id]);
+
+  const handleGroupResizeStart = useCallback((handle: HandlePosition, e: React.PointerEvent) => {
+    if (selectedBlocks.length < 2 || !selectionBoundingBox) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const box = selectionBoundingBox;
+    const scale = viewport.scale;
+
+    // Capture initial state of all selected blocks
+    const snapshots: GroupResizeSnapshot[] = selectedBlocks.map(b => ({
+      id: b.id,
+      x: b.x ?? 0,
+      y: b.y ?? 0,
+      w: b.width ?? 0,
+      h: b.height ?? 0,
+      points: b.points ? JSON.parse(JSON.stringify(b.points)) : null,
+    }));
+
+    groupResizeRef.current = { initBox: { ...box }, snapshots, handle };
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    // Cache DOM elements for direct manipulation during move
+    const domCache: { id: string; el: HTMLElement | SVGElement }[] = [];
+    selectedBlocks.forEach(b => {
+      const el = document.getElementById(b.id);
+      if (el) domCache.push({ id: b.id, el });
+    });
+
+    // RAF throttle for smooth updates
+    let rafId: number | null = null;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+
+        const snap = groupResizeRef.current;
+        if (!snap) return;
+
+        const dx = (moveEvent.clientX - startX) / scale;
+        const dy = (moveEvent.clientY - startY) / scale;
+        const { initBox, snapshots: snaps } = snap;
+
+        // Compute new bounding box
+        let newX = initBox.x, newY = initBox.y;
+        let newW = initBox.w, newH = initBox.h;
+
+        if (handle.includes('w')) { newX = initBox.x + dx; newW = initBox.w - dx; }
+        if (handle.includes('e')) { newW = initBox.w + dx; }
+        if (handle.includes('n')) { newY = initBox.y + dy; newH = initBox.h - dy; }
+        if (handle.includes('s')) { newH = initBox.h + dy; }
+
+        if (newW < 60) { newW = 60; }
+        if (newH < 40) { newH = 40; }
+
+        const scaleX = newW / initBox.w;
+        const scaleY = newH / initBox.h;
+
+        // Update multi-selection box border in DOM
+        const boxEl = document.getElementById('multi-selection-box');
+        if (boxEl) {
+          boxEl.style.left = `${newX}px`;
+          boxEl.style.top = `${newY}px`;
+          boxEl.style.width = `${newW}px`;
+          boxEl.style.height = `${newH}px`;
+        }
+
+        // Update each block's DOM directly
+        domCache.forEach(({ id, el }) => {
+          const s = snaps.find(x => x.id === id);
+          if (!s) return;
+
+          if (s.points) {
+            // Arrows: scale points relative to box — just store active offset for VectorPath to pick up
+            activeDragOffsets.set(id, { dx: 0, dy: 0, startPoints: s.points });
+            // SVG path elements get updated in real-time by the VectorPath component reading activeDragOffsets
+          } else {
+            // Regular blocks: scale position and size
+            const bx = newX + (s.x - initBox.x) * scaleX;
+            const by = newY + (s.y - initBox.y) * scaleY;
+            const bw = Math.max(s.w * scaleX, 10);
+            const bh = Math.max(s.h * scaleY, 10);
+
+            if (el instanceof HTMLElement && !(el instanceof SVGElement)) {
+              el.style.left = `${bx}px`;
+              el.style.top = `${by}px`;
+              el.style.width = `${bw}px`;
+              el.style.height = `${bh}px`;
+            } else if (el instanceof SVGElement) {
+              // SVG shapes: update child element attributes
+              const rectEl = el.querySelector('rect');
+              if (rectEl) {
+                rectEl.setAttribute('x', String(bx));
+                rectEl.setAttribute('y', String(by));
+                rectEl.setAttribute('width', String(bw));
+                rectEl.setAttribute('height', String(bh));
+              }
+              const ellipseEl = el.querySelector('ellipse');
+              if (ellipseEl) {
+                ellipseEl.setAttribute('cx', String(bx + bw / 2));
+                ellipseEl.setAttribute('cy', String(by + bh / 2));
+                ellipseEl.setAttribute('rx', String(bw / 2));
+                ellipseEl.setAttribute('ry', String(bh / 2));
+              }
+              const polygonEl = el.querySelector('polygon');
+              if (polygonEl) {
+                polygonEl.setAttribute('points',
+                  `${bx + bw / 2},${by} ${bx + bw},${by + bh / 2} ${bx + bw / 2},${by + bh} ${bx},${by + bh / 2}`
+                );
+              }
+            }
+          }
+        });
+      });
+    };
+
+    const handleUp = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+
+      const snap = groupResizeRef.current;
+      if (!snap) return;
+      groupResizeRef.current = null;
+
+      // Read final bounding box position from DOM
+      const boxEl = document.getElementById('multi-selection-box');
+      if (!boxEl) return;
+
+      const finalLeft = parseFloat(boxEl.style.left);
+      const finalTop = parseFloat(boxEl.style.top);
+      const finalW = parseFloat(boxEl.style.width);
+      const finalH = parseFloat(boxEl.style.height);
+      if (isNaN(finalLeft) || isNaN(finalTop) || isNaN(finalW) || isNaN(finalH) || finalW === 0 || finalH === 0) return;
+
+      // Clear active drag offsets for arrows
+      snap.snapshots.forEach(s => {
+        if (s.points) activeDragOffsets.delete(s.id);
+      });
+
+      const { initBox, snapshots: snaps } = snap;
+      const scaleX = finalW / initBox.w;
+      const scaleY = finalH / initBox.h;
+
+      // Build batch commit from final DOM state
+      const batch: { id: string; updates: Partial<EditorBlock> }[] = [];
+      snaps.forEach(s => {
+        if (s.points) {
+          const newPoints = s.points.map(p => [
+            finalLeft + (p[0] - initBox.x) * scaleX,
+            finalTop + (p[1] - initBox.y) * scaleY,
+          ] as [number, number]);
+          batch.push({ id: s.id, updates: { points: newPoints } });
+        } else {
+          const bx = finalLeft + (s.x - initBox.x) * scaleX;
+          const by = finalTop + (s.y - initBox.y) * scaleY;
+          const bw = Math.max(s.w * scaleX, 10);
+          const bh = Math.max(s.h * scaleY, 10);
+          batch.push({ id: s.id, updates: { x: bx, y: by, width: bw, height: bh } });
+        }
+      });
+
+      if (batch.length > 0) {
+        updateCanvasBlocks(batch);
+      }
+
+      commitHistory();
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+    };
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+  }, [selectedBlocks, selectionBoundingBox, viewport, updateCanvasBlocks, commitHistory]);
+
   useEffect(() => {
     const isShapeTool = ['rect', 'ellipse', 'diamond', 'freedraw', 'line', 'arrow'].includes(activeTool);
     if (selectedIds.size > 0 || isShapeTool) {
@@ -476,6 +675,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       supabase.removeChannel(channel);
     };
   }, [entity.id, cloudSyncEnabled]);
+
+  // Subscribe to activeDragOffsets for live multi-selection bounding box movement during drag
+  // Uses direct DOM manipulation (no React state updates) matching the existing drag pattern
+  useEffect(() => {
+    const unsub = useDragState.subscribe((state) => {
+      const keys = Object.keys(state.offsets);
+      const boxEl = document.getElementById('multi-selection-box');
+      if (!boxEl) return;
+
+      if (keys.length > 0) {
+        // All dragged items share the same dx/dy — read from the first one
+        const offset = state.offsets[keys[0]];
+        const dx = offset.dx || 0;
+        const dy = offset.dy || 0;
+        boxEl.style.transform = (dx || dy) ? `translate(${dx}px, ${dy}px)` : '';
+      } else {
+        boxEl.style.transform = '';
+      }
+    });
+    return unsub;
+  }, []);
 
   function handleUndo() {
     const prev = history.undo();
@@ -904,6 +1124,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   ).map(b => (
                     <VectorPath key={b.id} block={b}
                       selected={selectedIds.has(b.id)}
+                      showIndividualSelection={selectedIds.size <= 1}
                       editing={editingBlockId === b.id}
                       selectedPointIndex={editingBlockId === b.id ? selectedPointIndex : null}
                       activeTool={activeTool}
@@ -944,6 +1165,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     }}
                   />
                 ))}
+
+                {/* Multi-selection unified bounding box */}
+                <MultiSelectionBox
+                  boundingBox={selectionBoundingBox}
+                  selectedCount={selectedBlocks.length}
+                  onResizeStart={handleGroupResizeStart}
+                />
 
                  {selectionBoundingBox && activeTool === 'select' && showFloatingToolbar && (
                   <div

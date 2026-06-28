@@ -614,7 +614,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       )}
 
       {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
-      {(isSelected || isDraggingLocal || isResizing || showMenu) && (
+      {((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing || showMenu) && (
         <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
       )}
 
