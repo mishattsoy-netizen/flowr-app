@@ -2015,7 +2015,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 18,
+      version: 19,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
