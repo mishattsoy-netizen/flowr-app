@@ -143,12 +143,12 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
     const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
 
+    const canMove = activeTool === 'move' || activeTool === 'select';
     const isAlreadySelected = selectedIds?.has(block.id) ?? false;
-    if (!isInput && !isAlreadySelected) {
+    if (!isInput && !isAlreadySelected && canMove) {
       onSelect?.(block.id, e.shiftKey);
     }
 
-    const canMove = activeTool === 'move' || activeTool === 'select';
     if (!canMove) return;
     if (e.button !== 0) return;
 
