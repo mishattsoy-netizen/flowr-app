@@ -41,14 +41,31 @@ pkg.version = newVersion;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
 try {
-  // 4. Commit version bump
-  log('Staging and committing version bump...');
-  run(`git add package.json`);
-  run(`git commit -m "chore: release v${newVersion}"`);
+  // 4. Commit version bump + any other pending tracked changes
+  log('Staging and committing release changes...');
+  run(`git add -u`); // stage all tracked modified/deleted files
+  // Only commit if there's actually something staged
+  const staged = execSync('git diff --cached --name-only').toString().trim();
+  if (staged) {
+    run(`git commit -m "chore: release v${newVersion}"`);
+  } else {
+    console.log('Nothing new to commit — version already up to date.');
+  }
 
   // 5. Build Next.js
   log('Compiling Next.js frontend...');
   run('npm run build');
+
+  // 5.5 Create and push Git tag first (required for "releaseType: release" to succeed)
+  log(`Creating and pushing git tag v${newVersion}...`);
+  try {
+    run(`git tag -d v${newVersion}`);
+  } catch (e) {}
+  run(`git tag v${newVersion}`);
+  try {
+    run(`git push origin :refs/tags/v${newVersion}`);
+  } catch (e) {}
+  run(`git push origin v${newVersion}`);
 
   // 6. Build and publish Electron app
   log('Packaging and publishing Electron app to GitHub Releases...');
