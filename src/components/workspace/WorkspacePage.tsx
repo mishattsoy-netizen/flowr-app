@@ -16,8 +16,8 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
   const renameEntity = useStore(state => state.renameEntity);
   const addEntity = useStore(state => state.addEntity);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
-  const setWorkspaceCloudSync = useStore(state => state.setWorkspaceCloudSync);
-  const cloudSyncOn = !!entity.cloudSyncEnabled;
+  const setSyncMode = useStore(state => state.setSyncMode);
+  const cloudSyncOn = entity.syncMode === 'cloud-only' || entity.syncMode === 'full-sync';
 
   const [tempTitle, setTempTitle] = useState(entity.title);
   const [syncPending, setSyncPending] = useState(false);
@@ -109,7 +109,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
             if (syncPending) return;
             setSyncPending(true);
             try {
-              await setWorkspaceCloudSync(entity.id, !cloudSyncOn);
+              await setSyncMode(entity.id, !cloudSyncOn ? 'cloud-only' : 'local-only');
             } catch (err) {
               // Switch failed — store has already reverted to the prior mode, so the
               // button returns to its previous state. Log for diagnostics.

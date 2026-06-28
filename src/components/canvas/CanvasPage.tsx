@@ -85,7 +85,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   viewportRef.current = viewport;
   const [remoteCursors, setRemoteCursors] = useState<{ userId: string; name: string; x: number; y: number; color: string }[]>([]);
 
-  const cloudSyncEnabled = !!entity.cloudSyncEnabled;
+  const cloudSyncEnabled = entity.syncMode !== 'local-only';
 
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });

@@ -9,9 +9,9 @@ const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 /**
  * Merge cloud data into the store, dropping synced items that no longer exist in the cloud.
- * Entities/workspaces with cloudSyncEnabled=true (or undefined) that are absent from
+ * Entities/workspaces with syncMode !== 'local-only' that are absent from
  * the cloud were deleted on another device — remove them. Only keep items explicitly
- * marked cloudSyncEnabled=false (local-only).
+ * marked syncMode = 'local-only'.
  */
 function mergeCloudData(data: {
   entities: Entity[];
@@ -28,7 +28,7 @@ function mergeCloudData(data: {
     for (const le of localEntities) {
       const ce = byId.get(le.id);
       if (!ce) {
-        if (le.cloudSyncEnabled !== false) continue; // deleted on another device — drop
+        if (le.syncMode !== 'local-only') continue; // deleted on another device — drop
         byId.set(le.id, le);
         continue;
       }
@@ -66,7 +66,7 @@ function mergeCloudData(data: {
     const merged = [...data.workspaces];
     for (const lw of localWorkspaces) {
       if (!merged.find((mw: any) => mw.id === lw.id)) {
-        if ((lw as any).cloudSyncEnabled !== false) continue; // deleted on another device — drop
+        if ((lw as any).syncMode !== 'local-only') continue; // deleted on another device — drop
         merged.push(lw);
       }
     }

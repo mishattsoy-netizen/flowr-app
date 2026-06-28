@@ -110,19 +110,19 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       entities: [
-        { id: 'c1', title: 'Collection 1', type: 'collection', parentId: null, lastModified: initialTime, icon: 'Folder', workspaceId: 'ws-personal' },
-        { id: 'c2', title: 'Collection 2', type: 'collection', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', workspaceId: 'ws-personal' },
-        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, workspaceId: 'ws-personal' },
-        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, workspaceId: 'ws-personal' },
-        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], workspaceId: 'ws-personal' },
-        { id: 'm1', title: 'Mixed 1', type: 'mixed', parentId: 'c1', lastModified: initialTime, workspaceId: 'ws-personal' },
+        { id: 'c1', title: 'Collection 1', type: 'collection', parentId: null, lastModified: initialTime, icon: 'Folder', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'c2', title: 'Collection 2', type: 'collection', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'm1', title: 'Mixed 1', type: 'mixed', parentId: 'c1', lastModified: initialTime, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
       ],
 
       tasks: [
-        { id: 't1', title: 'Review mockups', completed: false, dueDate: new Date(Date.now() - oneDayMs).toISOString().split('T')[0], entityId: 'cv1', color: '#EF4444', workspaceId: 'ws-personal' },
-        { id: 't2', title: 'Outline next week', completed: true, dueDate: new Date().toISOString().split('T')[0], entityId: 'n1', workspaceId: 'ws-personal' },
-        { id: 't3', title: 'Design review meeting', completed: false, dueDate: new Date(Date.now() + oneDayMs).toISOString().split('T')[0], entityId: null, color: '#3B82F6', workspaceId: 'ws-personal' },
-        { id: 't4', title: 'Prepare assets', completed: false, dueDate: new Date().toISOString().split('T')[0], entityId: null, workspaceId: 'ws-personal' },
+        { id: 't1', title: 'Review mockups', completed: false, dueDate: new Date(Date.now() - oneDayMs).toISOString().split('T')[0], entityId: 'cv1', color: '#EF4444', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't2', title: 'Outline next week', completed: true, dueDate: new Date().toISOString().split('T')[0], entityId: 'n1', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't3', title: 'Design review meeting', completed: false, dueDate: new Date(Date.now() + oneDayMs).toISOString().split('T')[0], entityId: null, color: '#3B82F6', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't4', title: 'Prepare assets', completed: false, dueDate: new Date().toISOString().split('T')[0], entityId: null, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
       ],
 
       blocks: [
@@ -136,6 +136,7 @@ export const useStore = create<AppState>()(
           type: 'personal' as const,
           ownerId: null,
           createdAt: initialTime,
+          syncMode: 'cloud-only',
         },
       ],
       activeWorkspaceId: 'ws-personal',
@@ -1748,7 +1749,7 @@ export const useStore = create<AppState>()(
       }),
       insertSidebarDivider: (parentId) => {
         const id = generateId();
-        const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999 };
+        const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999, syncMode: 'cloud-only' as any };
         set(s => ({ entities: [...s.entities, divider] }));
         // Inherit divider sync from parent context if applicable (cast so compiler knows it's complete)
         const typedDivider = divider as Entity;
@@ -1790,7 +1791,7 @@ export const useStore = create<AppState>()(
           blocks: [...state.blocks, block]
         }));
         const canvas = get().entities.find(e => e.id === block.canvasId);
-        if (canvas?.syncMode !== 'local-only') {
+        if (canvas && canvas.syncMode !== 'local-only') {
           upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
         }
       },
@@ -1801,7 +1802,7 @@ export const useStore = create<AppState>()(
         const block = get().blocks.find(b => b.id === id);
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
-          if (canvas?.syncMode !== 'local-only') {
+          if (canvas && canvas.syncMode !== 'local-only') {
             upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
           }
         }
@@ -1820,7 +1821,7 @@ export const useStore = create<AppState>()(
           const block = get().blocks.find(b => b.id === id);
           if (block && block.canvasId) {
             const canvas = get().entities.find(e => e.id === block.canvasId);
-            if (canvas?.syncMode !== 'local-only') {
+            if (canvas && canvas.syncMode !== 'local-only') {
               upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
             }
           }
@@ -1833,7 +1834,7 @@ export const useStore = create<AppState>()(
         }));
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
-          if (canvas?.syncMode !== 'local-only') {
+          if (canvas && canvas.syncMode !== 'local-only') {
             deleteCanvasBlockFromDB(id);
           }
         }
@@ -1854,7 +1855,7 @@ export const useStore = create<AppState>()(
         const sectionBlock = get().blocks.find(b => b.id === sectionId);
         if (sectionBlock && sectionBlock.canvasId) {
           const canvas = get().entities.find(e => e.id === sectionBlock.canvasId);
-          if (canvas?.syncMode !== 'local-only') {
+          if (canvas && canvas.syncMode !== 'local-only') {
             upsertCanvasBlock(sectionBlock, undefined, canvas.workspaceId || undefined);
 
             const childBlocks = get().blocks.filter(b => b.parentId === sectionId);

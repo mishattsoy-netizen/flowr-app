@@ -2,6 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { Sidebar } from './Sidebar';
+import { isDesktop } from '@/lib/env';
 import { HeaderBar } from './HeaderBar';
 import { ContextMenu } from './ContextMenu';
 import { NewCollectionModal } from '../modals/NewCollectionModal';
@@ -292,6 +293,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       className={cn(
         shellClass,
         "shell-container",
+        "flex flex-col",
         !allowTransitions && "preload",
         currentSidebarCollapsed ? "sidebar-collapsed" : "sidebar-expanded",
         (isResizingLeft || isResizingRight) && "resizing-active"
@@ -306,8 +308,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
       )}
 
-      {/* 1. Left Sidebar Section */}
-      <div
+      {/* Top Header Bar spanning full width */}
+      {isDesktop() && <HeaderBar />}
+
+      {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
+      <div className="flex-1 flex flex-row overflow-hidden relative w-full min-h-0">
+        {/* 1. Left Sidebar Section */}
+        <div
         className={cn(
           "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
           (!currentSidebarCollapsed || !isTabsHeaderVisible) && "border-r border-[var(--bone-10)]",
@@ -350,7 +357,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       <div className="flex-1 flex flex-row overflow-hidden relative min-w-0 h-full">
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
-          <HeaderBar />
+          {!isDesktop() && <HeaderBar />}
           <main className="flex-1 flex flex-col overflow-hidden relative">
             {children}
           </main>
@@ -408,6 +415,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           </div>
         </div>
       </div>
+      </div> {/* End Middle Layout */}
 
       {/* Global overlays */}
       <ContextMenu />

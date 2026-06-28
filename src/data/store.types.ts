@@ -30,6 +30,7 @@ export interface Workspace {
   icon?: string;
   color?: string;
   settings?: Record<string, unknown>;
+  syncMode: SyncMode;
 }
 
 export type BlockStyle = 'title' | 'heading' | 'subheading' | 'body' | 'mono';

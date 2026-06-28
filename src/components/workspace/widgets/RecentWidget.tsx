@@ -55,7 +55,8 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           lastModified: workspace.createdAt || Date.now(),
           icon: workspace.icon,
           color: workspace.color,
-          workspaceId: workspace.id
+          workspaceId: workspace.id,
+          syncMode: workspace.syncMode
         } as Entity;
       }
       return null;
