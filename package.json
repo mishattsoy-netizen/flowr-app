@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "electron:dev": "electron electron/main.js",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "release": "node release.js"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.8.1",
@@ -84,7 +85,8 @@
     "publish": {
       "provider": "github",
       "owner": "mishattsoy-netizen",
-      "repo": "flowr-app"
+      "repo": "flowr-app",
+      "releaseType": "release"
     },
     "win": {
       "target": "nsis",
