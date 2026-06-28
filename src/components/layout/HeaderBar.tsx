@@ -29,12 +29,14 @@ import {
   PanelLeft,
   FileText,
   Frame,
-  Layers
+  Layers,
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
 import { Portal } from './Portal';
 import { stripHtml } from '@/lib/utils';
+import { isDesktop } from '@/lib/env';
 
 // Constants
 const POPUP_LEAVE_DELAY = 100; // ms to keep popup open when moving mouse
@@ -61,6 +63,7 @@ export const HeaderBar = memo(function HeaderBar() {
   const toggleToolbar = useStore(state => state.toggleToolbar);
   const isToolbarVisible = useStore(state => state.isToolbarVisible);
   const toggleSidebar = useStore(state => state.toggleSidebar);
+  const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
   const openContextMenu = useStore(state => state.openContextMenu);
   const isFullWidth = useStore(state => state.isFullWidth);
   const toggleFullWidth = useStore(state => state.toggleFullWidth);
@@ -71,7 +74,6 @@ export const HeaderBar = memo(function HeaderBar() {
   const removeTab = useStore(state => state.removeTab);
   const addTab = useStore(state => state.addTab);
   const lastSaved = useStore(state => state.lastSaved);
-  const cloudSyncEnabled = useStore(state => state.cloudSyncEnabled);
   const isTempChat = useStore(state => state.isTempChat);
   const chatConversations = useStore(state => state.chatConversations);
   const activeChatId = useStore(state => state.activeChatId);
@@ -155,60 +157,78 @@ export const HeaderBar = memo(function HeaderBar() {
     return parts;
   };
 
+  const isDesktopEnv = isDesktop();
+
   const btnClass = (enabled: boolean) =>
-    `w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-0 ${enabled
+    `flex items-center justify-center rounded-[var(--radius-small)] transition-opacity duration-0 [-webkit-app-region:no-drag] ${
+      isDesktopEnv ? 'w-9 h-9' : 'w-6 h-6'
+    } ${enabled
       ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] cursor-pointer'
       : 'text-border opacity-30 cursor-default'
     }`;
+
+  const iconClass = isDesktopEnv ? "w-[20px] h-[20px]" : "w-4 h-4";
 
   if (!isTabsHeaderVisible) return null;
   if (activeEntityId === 'settings') return null;
 
   return (
-    <div className="h-8 flex items-center px-3 bg-sidebar border-b border-b-[var(--bone-10)] shrink-0 relative z-30">
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button 
-          onClick={toggleSidebar}
-          className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-100)] opacity-70 hover:opacity-100"
-        >
-          {isDashboard ? (
-            <Menu strokeWidth={2} className="w-5 h-5" />
-          ) : (
-            <ChevronLeft strokeWidth={2} className="w-5 h-5" />
-          )}
-        </button>
+    <div className={cn("w-full flex items-center pl-3 pr-32 bg-sidebar border-b border-b-[var(--bone-10)] shrink-0 relative z-30 [-webkit-app-region:drag]", isDesktopEnv ? "h-[52px]" : "h-8")}>
+      {isDesktopEnv && (
+        <>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button 
+              onClick={toggleSidebar}
+              className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-100)] opacity-70 hover:opacity-100 [-webkit-app-region:no-drag]"
+            >
+              {isDashboard ? (
+                <Menu strokeWidth={2} className={isDesktopEnv ? "w-[22px] h-[22px]" : "w-5 h-5"} />
+              ) : (
+                <ChevronLeft strokeWidth={2} className={isDesktopEnv ? "w-[22px] h-[22px]" : "w-5 h-5"} />
+              )}
+            </button>
 
-        <Tooltip content="Go Back">
-          <button onClick={goBack} className={btnClass(true)}>
-            <ArrowLeft strokeWidth={2} className="w-4 h-4" />
-          </button>
-        </Tooltip>
-        <Tooltip content="Go Forward">
-          <button onClick={goForward} className={btnClass(true)}>
-            <ArrowRight strokeWidth={2} className="w-4 h-4" />
-          </button>
-        </Tooltip>
-        <Tooltip content="Reload">
-          <button onClick={() => { }} className={btnClass(true)}>
-            <RotateCw strokeWidth={2} className="w-3.5 h-3.5" />
-          </button>
-        </Tooltip>
-        <Tooltip content="Toggle Sidebar">
-          <button
-            onClick={toggleSidebar}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              openContextMenu('sidebar-toggle', e.clientX, e.clientY, 'sidebar-toggle');
-            }}
-            className={btnClass(true)}
-          >
-            <PanelLeft strokeWidth={2} className="w-4 h-4" />
-          </button>
-        </Tooltip>
-      </div>
+            <Tooltip content="Go Back">
+              <button onClick={goBack} className={btnClass(true)}>
+                <ArrowLeft strokeWidth={2} className={iconClass} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Go Forward">
+              <button onClick={goForward} className={btnClass(true)}>
+                <ArrowRight strokeWidth={2} className={iconClass} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Reload">
+              <button onClick={() => { }} className={btnClass(true)}>
+                <RotateCw strokeWidth={2} className={isDesktopEnv ? "w-5 h-5" : "w-3.5 h-3.5"} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Toggle Sidebar">
+              <button
+                onClick={toggleSidebar}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  openContextMenu('sidebar-toggle', e.clientX, e.clientY, 'sidebar-toggle');
+                }}
+                className={btnClass(true)}
+              >
+                <PanelLeft strokeWidth={2} className={iconClass} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Search">
+              <button
+                onClick={toggleCommandPalette}
+                className={btnClass(true)}
+              >
+                <Search strokeWidth={2} className={iconClass} />
+              </button>
+            </Tooltip>
+          </div>
 
-      {/* Divider (only if not dashboard or if we want it always) */}
-      <div className="w-px h-5 bg-[var(--bone-6)] mx-2" />
+          {/* Divider */}
+          <div className="w-px h-5 bg-[var(--bone-6)] mx-2" />
+        </>
+      )}
 
       {/* Mobile Title View */}
       <div className="flex md:hidden flex-1 items-center px-1 min-w-0 font-semibold text-sm text-[var(--bone-100)] truncate">
@@ -265,26 +285,27 @@ export const HeaderBar = memo(function HeaderBar() {
               <div
                 onClick={() => setActiveTab(tabId)}
                 className={cn(
-                  "flex items-center gap-1 h-6 rounded-[var(--radius-small)] cursor-pointer select-none min-w-0 max-w-[160px] flex-shrink",
-                  openTabIds.length > 1 ? "pl-2.5 pr-1" : "px-2.5",
+                  "flex items-center gap-1.5 rounded-[var(--radius-small)] cursor-pointer select-none min-w-0 max-w-[160px] flex-shrink [-webkit-app-region:no-drag]",
+                  isDesktopEnv ? "h-9" : "h-6",
+                  openTabIds.length > 1 ? (isDesktopEnv ? "pl-3.5 pr-1.5" : "pl-2.5 pr-1") : (isDesktopEnv ? "px-3.5" : "px-2.5"),
                   isActive 
                     ? "bg-[var(--app-dark)] text-[var(--bone-100)]" 
                     : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]",
                   "group"
                 )}
               >
-                {Icon && <Icon strokeWidth={2} className={cn("w-3.5 h-3.5 shrink-0 text-[var(--bone-100)]", isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100")} />}
-                <span className="text-[13px] font-normal truncate flex-1 min-w-0 overflow-hidden whitespace-nowrap">{stripHtml(title || '')}</span>
+                {Icon && <Icon strokeWidth={2} className={cn(isDesktopEnv ? "w-[18px] h-[18px]" : "w-3.5 h-3.5", "shrink-0 text-[var(--bone-100)]", isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100")} />}
+                <span className={cn("font-normal truncate flex-1 min-w-0 overflow-hidden whitespace-nowrap", isDesktopEnv ? "text-[14px]" : "text-[13px]")}>{stripHtml(title || '')}</span>
                 
                 {openTabIds.length > 1 && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); removeTab(tabId); }}
                     className={cn(
-                      "ml-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--app-dark)] rounded-[4px] p-0.5 shrink-0",
+                      "ml-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--app-dark)] rounded-[4px] p-1 shrink-0",
                       isActive && tabId === 'dashboard' && "opacity-100" // Always show for active dashboard if closable
                     )}
                   >
-                    <X strokeWidth={2} className="w-3 h-3" />
+                    <X strokeWidth={2} className={isDesktopEnv ? "w-3.5 h-3.5" : "w-3 h-3"} />
                   </button>
                 )}
               </div>
@@ -295,9 +316,9 @@ export const HeaderBar = memo(function HeaderBar() {
         <Tooltip content="New Tab">
           <button 
             onClick={(e) => { e.stopPropagation(); addTab('dashboard'); }} 
-            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] shrink-0 ml-1"
+            className={cn("flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] shrink-0 ml-1 [-webkit-app-region:no-drag]", isDesktopEnv ? "w-8 h-8" : "w-6 h-6")}
           >
-            <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+            <Plus strokeWidth={2} className={isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5"} />
           </button>
         </Tooltip>
       </div>
@@ -390,7 +411,7 @@ export const HeaderBar = memo(function HeaderBar() {
                   const rect = e.currentTarget.getBoundingClientRect();
                   openContextMenu(activeEntityId, rect.left - 120, rect.bottom + 4, 'sidebar');
                 }}
-                className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+                className={cn("flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] [-webkit-app-region:no-drag]", isDesktopEnv ? "w-8 h-8" : "w-6 h-6")}
               >
                 <MoreHorizontal strokeWidth={2} className="w-4 h-4" />
               </button>
@@ -411,7 +432,7 @@ export const HeaderBar = memo(function HeaderBar() {
                     <button
                       onClick={(e) => handleAction(action.id, e)}
                       className={cn(
-                        "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)]  group",
+                        cn("flex items-center justify-center rounded-[var(--radius-small)] group [-webkit-app-region:no-drag]", isDesktopEnv ? "w-8 h-8" : "w-6 h-6"),
                         action.color,
                         action.id === 'layout' && isFullWidth && "bg-accent/10"
                       )}
@@ -419,18 +440,18 @@ export const HeaderBar = memo(function HeaderBar() {
                         {action.id === 'layout' ? (
                           isFullWidth ? (
                             <div className="flex items-center justify-center -space-x-1.5 ">
-                              <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
-                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
-                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90 opacity-60 group-hover:opacity-100 " />
+                              <Minus strokeWidth={2} className={cn("rotate-90 opacity-60 group-hover:opacity-100", isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5")} />
+                            <Minus strokeWidth={2} className={cn("rotate-90", isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5")} />
+                            <Minus strokeWidth={2} className={cn("rotate-90 opacity-60 group-hover:opacity-100", isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5")} />
                           </div>
                         ) : (
                           <div className="flex items-center justify-center -space-x-0.5 ">
-                            <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                            <Minus strokeWidth={2} className={cn("rotate-90", isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5")} />
                             <Minus strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
                           </div>
                           )
                         ) : (
-                          <action.icon strokeWidth={2} className="w-4 h-4" />
+                          <action.icon strokeWidth={2} className={isDesktopEnv ? "w-[18px] h-[18px]" : "w-4 h-4"} />
                         )}
                     </button>
                   </Tooltip>
