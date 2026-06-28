@@ -10,3 +10,28 @@ contextBridge.exposeInMainWorld('flowrFS', {
   mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
   pickVaultFolder: () => ipcRenderer.invoke('dialog:pickVaultFolder'),
 });
+
+contextBridge.exposeInMainWorld('flowrUpdater', {
+  checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
+  installUpdate: () => ipcRenderer.invoke('updater:installUpdate'),
+  onUpdateAvailable: (callback) => {
+    const listener = (_, info) => callback(info);
+    ipcRenderer.on('updater:update-available', listener);
+    return () => ipcRenderer.removeListener('updater:update-available', listener);
+  },
+  onUpdateDownloaded: (callback) => {
+    const listener = (_, info) => callback(info);
+    ipcRenderer.on('updater:update-downloaded', listener);
+    return () => ipcRenderer.removeListener('updater:update-downloaded', listener);
+  },
+  onDownloadProgress: (callback) => {
+    const listener = (_, progress) => callback(progress);
+    ipcRenderer.on('updater:download-progress', listener);
+    return () => ipcRenderer.removeListener('updater:download-progress', listener);
+  },
+  onError: (callback) => {
+    const listener = (_, err) => callback(err);
+    ipcRenderer.on('updater:error', listener);
+    return () => ipcRenderer.removeListener('updater:error', listener);
+  }
+});

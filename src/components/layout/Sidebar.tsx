@@ -11,6 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { isDesktop } from '@/lib/env';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { TreeItem } from './TreeItem';
 import { ScrollArea } from './ScrollArea';
@@ -18,6 +19,7 @@ import { Tooltip } from './Tooltip';
 import { useTooltipSuppression } from './TooltipOverlayContext';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import InstallButton from '@/components/pwa/InstallButton';
+import UpdateBanner from './UpdateBanner';
 import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
 import React from 'react';
@@ -671,20 +673,21 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         activeDragId && "is-dragging"
       )}
     >
-      <div
-        className={cn(
-          "flex items-center px-[10px] pt-4 pb-2",
-          effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
-        )}
-      >
-        {effectiveCollapsed ? null : (
+      {(!isTabsHeaderVisible || !isDesktop()) && (
+        <div
+          className={cn(
+            "flex items-center px-[10px] pt-4 pb-2",
+            effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
+          )}
+        >
+          {effectiveCollapsed ? null : (
           <span className="font-serif font-normal text-[24px] text-bone-100 tracking-tight leading-none select-none pl-[8px]">
             Flowr
           </span>
         )}
 
         <div className={cn("flex items-center", effectiveCollapsed ? "" : "gap-0.5 mr-[3px]")}>
-          {!isTabsHeaderVisible && (
+          {(!isTabsHeaderVisible || !isDesktop()) && (
             <Tooltip content="Toggle Sidebar">
               <button
                 onClick={toggleSidebar}
@@ -711,6 +714,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           )}
         </div>
       </div>
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
 
@@ -766,7 +770,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </Tooltip>
           </div>
         ) : (
-          <div className="px-[10px] pt-1 mb-0 flex-none">
+          <div className={cn("px-[10px] mb-0 flex-none", isTabsHeaderVisible ? "pt-3" : "pt-1")}>
             <div className="relative flex items-center p-[4px] rounded-[10px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
               {/* Sliding Pill */}
               <div
@@ -1302,6 +1306,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           )}
         </div>
       </div>
+      {!effectiveCollapsed && <UpdateBanner />}
       <div 
         className={cn(
           "border-t border-[var(--bone-6)] flex items-center mt-auto h-[60px] select-none transition-all duration-200 justify-between",

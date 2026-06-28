@@ -5,12 +5,12 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node postbuild.js",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "electron:dev": "electron electron/main.js",
-    "electron:build": "next build && electron-builder"
+    "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^1.8.1",
@@ -32,6 +32,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.9",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",
     "html-to-image": "^1.11.13",
@@ -64,16 +65,29 @@
   "build": {
     "appId": "com.flowr.app",
     "productName": "Flowr",
-    "directories": {
-      "output": "dist-desktop"
+    "protocols": {
+      "name": "Flowr Deep Link",
+      "schemes": [
+        "flowr"
+      ]
     },
-    "asar": true,
+    "directories": {
+      "output": "dist-desktop-v3"
+    },
+    "asar": false,
     "files": [
       "electron/**/*",
       "package.json",
-      ".next/**/*",
-      "public/**/*"
+      ".next/standalone/**/*",
+      "!node_modules/**/*",
+      "!node_modules",
+      ".env"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "mishattsoy-netizen",
+      "repo": "flowr-app"
+    },
     "win": {
       "target": "nsis"
     },

@@ -1,9 +1,18 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const net = require('net');
 const os = require('os');
+
+// Configure autoUpdater
+autoUpdater.autoDownload = true;
+autoUpdater.logger = {
+  info: (msg) => debugLog('[UPDATER INFO] ' + msg),
+  warn: (msg) => debugLog('[UPDATER WARN] ' + msg),
+  error: (msg) => debugLog('[UPDATER ERROR] ' + msg),
+};
 
 // ── Global error handlers (MUST be registered before any risky requires) ────
 // These catch errors that happen before our own handlers below are set up.
@@ -26,22 +35,77 @@ process.on('unhandledRejection', (reason) => {
   app.quit();
 });
 
+// Disable hardware acceleration to fix white screen issues on some Windows machines/GPUs
+app.disableHardwareAcceleration();
+
 // ── Diagnostic logger ───────────────────────────────────────────────────────
 const LOG_FILE = path.join(os.tmpdir(), 'flowr-startup.log');
 function debugLog(...args) {
   const line = `[Flowr ${new Date().toISOString()}] ${args.join(' ')}`;
   try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (_) { /* best-effort */ }
-  console.log(line);
 }
-debugLog('=== Flowr starting ===');
+
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+console.log = (...args) => {
+  debugLog('[MAIN_LOG]', ...args);
+  originalConsoleLog(...args);
+};
+console.error = (...args) => {
+  debugLog('[MAIN_ERROR]', ...args);
+  originalConsoleError(...args);
+};
+
+console.log('=== Flowr starting ===');
 
 // Disable GPU sandbox on Windows to prevent GPU process crash under restricted folder permissions
 if (process.platform === 'win32') {
   app.commandLine.appendSwitch('disable-gpu-sandbox');
-  debugLog('GPU sandbox disabled');
+  app.commandLine.appendSwitch('no-sandbox');
+  debugLog('GPU sandbox and Main sandbox disabled');
 }
 
 let mainWindow;
+let nextPort = 3000;
+
+function handleDeepLink(url) {
+  debugLog('Received deep link: ' + url);
+  if (mainWindow) {
+    if (url.startsWith('flowr://')) {
+      const targetUrl = url.replace('flowr://', `http://127.0.0.1:${nextPort}/`);
+      mainWindow.loadURL(targetUrl);
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+    const url = commandLine.find(arg => arg.startsWith('flowr://'));
+    if (url) handleDeepLink(url);
+  });
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('flowr', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('flowr');
+}
 
 function getFreePort() {
   return new Promise((resolve) => {
@@ -68,57 +132,87 @@ let nextServer;
 async function startNextServer(port) {
   const isPackaged = app.isPackaged;
   const appPath = app.getAppPath();
+  
+  if (isPackaged) {
+    process.chdir(appPath);
+    debugLog('Changed CWD to appPath:', process.cwd());
+  }
 
   debugLog('isPackaged:', isPackaged);
   debugLog('appPath:', appPath);
 
-  // Lazy-require — this call depends on ASAR support for reading node_modules
-  let next;
-  try {
-    next = require('next');
-    debugLog('require(next) succeeded');
-  } catch (err) {
-    debugLog('FAILED to require(next):', err.message);
-    throw new Error(`Cannot load Next.js: ${err.message}`);
-  }
-
-  const { createServer } = require('http');
-
-  const nextApp = next({
-    dev: false,
-    dir: appPath,
-  });
-  const handle = nextApp.getRequestHandler();
-
-  debugLog('Calling nextApp.prepare()...');
-  await nextApp.prepare();
-  debugLog('nextApp.prepare() completed');
-
   return new Promise((resolve, reject) => {
-    nextServer = createServer((req, res) => {
-      handle(req, res);
+    const { fork } = require('child_process');
+    const standalonePath = path.join(appPath, '.next/standalone');
+    const serverPath = isPackaged 
+      ? path.join(standalonePath, 'server.js')
+      : path.join(appPath, 'node_modules/next/dist/bin/next');
+
+    // Load .env file for the standalone server
+    const envPath = path.join(appPath, '.env');
+    let envVars = {};
+    if (fs.existsSync(envPath)) {
+      try {
+        const envFile = fs.readFileSync(envPath, 'utf8');
+        envFile.split('\n').forEach(line => {
+          const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+          if (match) {
+            let val = match[2] || '';
+            val = val.trim().replace(/(^['"]|['"]$)/g, '');
+            envVars[match[1]] = val;
+          }
+        });
+        debugLog('Loaded .env variables');
+      } catch (e) {
+        debugLog('Failed to load .env: ' + e.message);
+      }
+    }
+
+    nextServer = fork(serverPath, [], {
+      cwd: isPackaged ? standalonePath : appPath,
+      env: {
+        ...process.env,
+        ...envVars,
+        PORT: port.toString(),
+        HOSTNAME: '127.0.0.1',
+        NODE_ENV: 'production',
+        ELECTRON_RUN_AS_NODE: '1'
+      },
+      stdio: 'pipe'
     });
 
-    nextServer.listen(port, () => {
-      debugLog(`Next.js server listening on port ${port}`);
-      resolve();
+    nextServer.stdout.on('data', (data) => {
+      const str = data.toString();
+      debugLog('[Next.js]', str.trim());
+      if (str.includes('Ready') || str.includes('Listening on port') || str.includes('listening on port') || str.includes('ready')) {
+        resolve();
+      }
+    });
+
+    nextServer.stderr.on('data', (data) => {
+      debugLog('[Next.js ERROR]', data.toString().trim());
     });
 
     nextServer.on('error', (err) => {
-      debugLog('Next.js server error:', err.message);
+      debugLog('Next.js process error:', err.message);
       reject(err);
     });
+
+    nextServer.on('exit', (code) => {
+      debugLog('Next.js process exited with code:', code);
+    });
+    
+    // Safety timeout in case Next.js doesn't log the ready message
+    setTimeout(() => resolve(), 5000);
   });
 }
 
 async function createWindow() {
-  let port = 3000;
-
   if (app.isPackaged) {
-    port = await getFreePort();
-    debugLog(`Selected free port: ${port}`);
+    nextPort = await getFreePort();
+    debugLog(`Selected free port: ${nextPort}`);
     try {
-      await startNextServer(port);
+      await startNextServer(nextPort);
     } catch (err) {
       debugLog('startNextServer failed:', err.message);
       throw err; // caught by the .catch() in app.whenReady
@@ -130,33 +224,70 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    backgroundColor: '#0a0a0a',
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: 'rgba(0,0,0,0)',
+      symbolColor: '#636363', // A nice subtle color for the window controls
+      height: 32 // Matches the 32px (h-8) of the HeaderBar
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
     },
+  });
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    debugLog('[CRASH] render-process-gone: ' + JSON.stringify(details));
+  });
+  mainWindow.on('unresponsive', () => {
+    debugLog('[CRASH] window unresponsive');
+  });
+  mainWindow.webContents.on('plugin-crashed', (event, name, version) => {
+    debugLog('[CRASH] plugin-crashed: ' + name);
+  });
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    debugLog(`[CONSOLE] level ${level}: ${message} (${sourceId}:${line})`);
+  });
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    debugLog(`[PAGE-ERROR] did-fail-load: ${errorCode} ${errorDescription} on ${validatedURL}`);
   });
 
   // Intercept Supabase OAuth login URLs and Google accounts sign-in
   const handleOauthRedirect = (event, url) => {
     if (url.includes('/auth/v1/authorize') || url.includes('accounts.google.com')) {
       event.preventDefault();
-      let targetUrl = url;
-      if (url.includes('redirect_to=')) {
-        targetUrl = url.replace(/redirect_to=([^&]+)/, (match, p1) => {
-          const redirectUrl = decodeURIComponent(p1);
-          const separator = redirectUrl.includes('?') ? '&' : '?';
-          const newRedirect = encodeURIComponent(`${redirectUrl}${separator}desktop=true`);
-          return `redirect_to=${newRedirect}`;
-        });
-      }
       const { shell } = require('electron');
-      shell.openExternal(targetUrl);
+      shell.openExternal(url);
     }
   };
 
   mainWindow.webContents.on('will-navigate', handleOauthRedirect);
   mainWindow.webContents.on('will-redirect', handleOauthRedirect);
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    debugLog(`[RENDERER CONSOLE] ${message} (${sourceId}:${line})`);
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    debugLog(`[WEB-CONTENTS] did-finish-load`);
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify().catch(err => {
+        debugLog('Updater: initial check failed: ' + err.message);
+      });
+    }
+  });
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    debugLog(`[WEB-CONTENTS] did-fail-load ${errorCode} ${errorDescription} ${validatedURL}`);
+  });
+
+  mainWindow.webContents.on('crashed', () => {
+    debugLog(`[WEB-CONTENTS] CRASHED!`);
+  });
 
   const { session } = require('electron');
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -164,15 +295,37 @@ async function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com",
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:* ws://127.0.0.1:* https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://js.pusher.com https: data: blob:",
         ],
       },
     });
   });
 
+  session.defaultSession.webRequest.onErrorOccurred((details) => {
+    debugLog(`[NETWORK ERROR] ${details.url} - ${details.error}`);
+  });
+
+  session.defaultSession.webRequest.onCompleted((details) => {
+    debugLog(`[HTTP] ${details.statusCode} ${details.url}`);
+  });
+
   mainWindow.webContents.openDevTools();
-  debugLog(`Loading URL: http://localhost:${port}`);
-  mainWindow.loadURL(`http://localhost:${port}`);
+  debugLog(`Loading URL: http://127.0.0.1:${nextPort}`);
+  mainWindow.loadURL(`http://127.0.0.1:${nextPort}`);
+
+  // Dump DOM after 5 seconds to debug black screen
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`
+        ({
+          body: document.body ? document.body.innerHTML.substring(0, 500) : 'null',
+          styles: document.styleSheets.length,
+          scripts: document.scripts.length,
+          url: window.location.href,
+        })
+      `).then(res => debugLog('[DOM-DUMP] ' + JSON.stringify(res))).catch(err => debugLog('[DOM-DUMP-ERR] ' + err));
+    }
+  }, 6000);
 }
 
 app.whenReady().then(() => {
@@ -188,6 +341,70 @@ app.whenReady().then(() => {
     return result.filePaths[0] || null;
   });
 
+  ipcMain.handle('updater:checkForUpdates', async () => {
+    debugLog('Updater: checkForUpdates invoked');
+    if (!app.isPackaged) {
+      debugLog('Updater: Skip checking in dev mode');
+      // Mock update-available and update-downloaded in dev mode for UI testing if user triggers check
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.webContents.send('updater:update-available', { version: '1.15962.1' });
+          setTimeout(() => {
+            if (mainWindow) {
+              mainWindow.webContents.send('updater:update-downloaded', { version: '1.15962.1' });
+            }
+          }, 3000);
+        }
+      }, 1000);
+      return null;
+    }
+    try {
+      return await autoUpdater.checkForUpdatesAndNotify();
+    } catch (err) {
+      debugLog('Updater error checking: ' + err.message);
+      return null;
+    }
+  });
+
+  ipcMain.handle('updater:installUpdate', async () => {
+    debugLog('Updater: installUpdate invoked');
+    if (!app.isPackaged) {
+      debugLog('Updater: simulating relaunch in dev mode');
+      app.relaunch();
+      app.exit(0);
+      return;
+    }
+    autoUpdater.quitAndInstall();
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    debugLog('Updater: update-available ' + JSON.stringify(info));
+    if (mainWindow) {
+      mainWindow.webContents.send('updater:update-available', info);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    debugLog('Updater: update-downloaded ' + JSON.stringify(info));
+    if (mainWindow) {
+      mainWindow.webContents.send('updater:update-downloaded', info);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    debugLog('Updater: download-progress ' + JSON.stringify(progressObj));
+    if (mainWindow) {
+      mainWindow.webContents.send('updater:download-progress', progressObj);
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    debugLog('Updater: error ' + err.message);
+    if (mainWindow) {
+      mainWindow.webContents.send('updater:error', err.message);
+    }
+  });
+
   createWindow().catch((err) => {
     debugLog('createWindow failed:', err.message);
     dialog.showErrorBox('Flowr Startup Error', err.stack || err.message);
@@ -197,7 +414,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (nextServer) {
-    nextServer.close();
+    nextServer.kill();
     debugLog('Next.js server closed');
   }
   if (process.platform !== 'darwin') app.quit();
