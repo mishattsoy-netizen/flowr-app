@@ -621,8 +621,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       {/* Edge drag trigger */}
       {!isEditing && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
 
-      {/* Resize handles (visible on hover/selection) */}
-      {block.type !== 'connection' && HANDLES.map(h => (
+      {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing) */}
+      {block.type !== 'connection' && (isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES.map(h => (
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 

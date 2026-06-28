@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef } from 'react';
 import { HandlePosition, ResizeHandle } from './ResizeHandle';
 
 const HANDLES: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -11,10 +12,24 @@ interface MultiSelectionBoxProps {
 }
 
 export function MultiSelectionBox({ boundingBox, selectedCount, onResizeStart }: MultiSelectionBoxProps) {
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // After every React render, clear any stale transform set by the drag subscription.
+  // This runs synchronously after DOM commit but before the browser paints,
+  // so there's no visible flicker/teleport. During drag there are no React renders,
+  // so this doesn't interfere with the direct DOM transform from the subscription.
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (el && el.style.transform) {
+      el.style.transform = '';
+    }
+  });
+
   if (selectedCount < 2 || !boundingBox) return null;
 
   return (
     <div
+      ref={boxRef}
       id="multi-selection-box"
       className="absolute pointer-events-none z-[2999]"
       style={{

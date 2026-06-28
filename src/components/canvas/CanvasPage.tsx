@@ -678,21 +678,20 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   // Subscribe to activeDragOffsets for live multi-selection bounding box movement during drag
   // Uses direct DOM manipulation (no React state updates) matching the existing drag pattern
+  // On drag end, NEVER clear transform here — React's re-render will fire, and
+  // MultiSelectionBox's useLayoutEffect cleans up the stale transform before paint.
+  // This avoids a teleport flicker from clearing the transform before the re-render.
   useEffect(() => {
     const unsub = useDragState.subscribe((state) => {
       const keys = Object.keys(state.offsets);
       const boxEl = document.getElementById('multi-selection-box');
-      if (!boxEl) return;
+      if (!boxEl || keys.length === 0) return;
 
-      if (keys.length > 0) {
-        // All dragged items share the same dx/dy — read from the first one
-        const offset = state.offsets[keys[0]];
-        const dx = offset.dx || 0;
-        const dy = offset.dy || 0;
-        boxEl.style.transform = (dx || dy) ? `translate(${dx}px, ${dy}px)` : '';
-      } else {
-        boxEl.style.transform = '';
-      }
+      // All dragged items share the same dx/dy — read from the first one
+      const offset = state.offsets[keys[0]];
+      const dx = offset.dx || 0;
+      const dy = offset.dy || 0;
+      boxEl.style.transform = (dx || dy) ? `translate(${dx}px, ${dy}px)` : '';
     });
     return unsub;
   }, []);
