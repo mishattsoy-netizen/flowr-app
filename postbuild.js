@@ -1,0 +1,1 @@
+const fs = require('fs'); fs.cpSync('public', '.next/standalone/public', { recursive: true, force: true }); fs.cpSync('.next/static', '.next/standalone/.next/static', { recursive: true, force: true }); console.log('Static files copied to standalone.');
