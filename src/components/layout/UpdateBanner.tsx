@@ -50,8 +50,11 @@ export default function UpdateBanner() {
   };
 
   // If there's no update or it's not ready, don't show the banner
-  // Temporary test check: bypassed to show UI
-  const displayVersion = updateVersion || "2.1.0";
+  if (!updateVersion || !isReady) {
+    return null;
+  }
+
+  const displayVersion = updateVersion;
 
   return (
     <button
