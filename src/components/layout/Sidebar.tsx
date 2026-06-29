@@ -694,7 +694,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 <button
                   onClick={toggleSidebar}
                   className={cn(
-                    "flex items-center justify-center text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors border border-transparent",
+                    "flex items-center justify-center text-[var(--bone-100)] opacity-70 hover:opacity-100 transition-colors border border-transparent",
                     effectiveCollapsed
                       ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]"
                       : "w-[26px] h-[26px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)]"
@@ -708,7 +708,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               <Tooltip content="Search">
                 <button
                   onClick={toggleCommandPalette}
-                  className="w-[26px] h-[26px] flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                  className="w-[26px] h-[26px] flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)]"
                 >
                   <Search strokeWidth={2} className="w-4 h-4" />
                 </button>
@@ -1202,7 +1202,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         openContextMenu('unsorted', rect.right, rect.top, 'sidebar-section');
                                       }}
                                       className={cn(
-                                        "btn-sidebar-utility text-[var(--bone-30)] hover:text-[var(--bone-100)]",
+                                        "btn-sidebar-utility opacity-30 hover:opacity-100",
                                         contextMenu?.entityId === 'unsorted' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >
@@ -1260,7 +1260,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         e.stopPropagation();
                                         openModal({ kind: 'newCollection' });
                                       }}
-                                      className="btn-sidebar-utility text-[var(--bone-30)] hover:text-[var(--bone-100)]"
+                                      className="btn-sidebar-utility opacity-30 hover:opacity-100"
                                     >
                                       <Plus strokeWidth={2} className="w-3.5 h-3.5" />
                                     </button>
@@ -1271,7 +1271,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         openContextMenu('workspaces', rect.right, rect.top, 'sidebar-section');
                                       }}
                                       className={cn(
-                                        "btn-sidebar-utility text-[var(--bone-30)] hover:text-[var(--bone-100)]",
+                                        "btn-sidebar-utility opacity-30 hover:opacity-100",
                                         contextMenu?.entityId === 'workspaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >

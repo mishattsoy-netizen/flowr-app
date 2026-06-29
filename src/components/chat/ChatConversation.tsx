@@ -110,7 +110,7 @@ export function ChatConversation() {
           )}
 
           {displayMessages.length === 0 && !isAILoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-28 max-w-4xl mx-auto w-full px-6">
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-36 max-w-4xl mx-auto w-full px-6">
               {isTempChat ? (
                 <div className="flex flex-col items-center mb-7 select-none animate-fade-in">
                   <MessageCircleDashed className="w-10 h-10 text-[var(--bone-40)] mb-4" strokeWidth={1.5} />

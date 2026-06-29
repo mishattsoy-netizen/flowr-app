@@ -185,7 +185,7 @@ export const HeaderBar = memo(function HeaderBar() {
           <Tooltip content="Toggle Sidebar">
             <button
               onClick={toggleSidebar}
-              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
+              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
             >
               <PanelLeft strokeWidth={2} className="w-4 h-4" />
             </button>
@@ -193,7 +193,7 @@ export const HeaderBar = memo(function HeaderBar() {
           <Tooltip content="Search">
             <button
               onClick={toggleCommandPalette}
-              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
+              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
             >
               <Search strokeWidth={2} className="w-4 h-4" />
             </button>
@@ -344,7 +344,7 @@ export const HeaderBar = memo(function HeaderBar() {
         <Tooltip content="New Tab">
           <button 
             onClick={(e) => { e.stopPropagation(); addTab('dashboard'); }} 
-            className={cn("flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] shrink-0 ml-1 [-webkit-app-region:no-drag]", isDesktopEnv ? "w-8 h-8" : "w-6 h-6")}
+            className={cn("flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] shrink-0 ml-1 [-webkit-app-region:no-drag]", isDesktopEnv ? "w-8 h-8" : "w-6 h-6")}
           >
             <Plus strokeWidth={2} className={isDesktopEnv ? "w-4 h-4" : "w-3.5 h-3.5"} />
           </button>

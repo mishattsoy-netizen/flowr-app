@@ -48,8 +48,8 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
         aria-label="Download Desktop App"
         className={cn(
           collapsed
-            ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors border border-transparent"
-            : "btn-sidebar-utility rounded-[7px] w-7 h-7 flex items-center justify-center hover:!bg-[var(--slider-pill)] hover:text-[var(--bone-100)] transition-colors duration-200 text-[var(--bone-70)]"
+            ? "w-10 h-10 flex items-center justify-center rounded-[var(--radius-8)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-colors border border-transparent"
+            : "btn-sidebar-utility rounded-[7px] w-7 h-7 flex items-center justify-center hover:!bg-[var(--slider-pill)] transition-colors duration-200"
         )}
       >
         <Download strokeWidth={2} className="w-3.5 h-3.5" />

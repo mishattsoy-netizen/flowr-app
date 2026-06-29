@@ -451,7 +451,7 @@ html[data-interface-size="big"] {
 /* Sidebar item rows active scale and styles are defined in the consolidated block below */
 
 @utility btn-sidebar-utility {
-  @apply w-[22px] h-[22px] flex items-center justify-center rounded-[var(--radius-tiny)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-none;
+  @apply w-[26px] h-[26px] flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-none;
 }
 
 @utility popup-glass-big {

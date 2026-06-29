@@ -18,6 +18,7 @@ import { ChatAudioPlayer } from './components/ChatAudioPlayer';
 import { ChatMessage } from './components/ChatMessage';
 import { ChatSkeleton } from './components/ChatSkeleton';
 import { StatusTyping } from './components/StatusTyping';
+import { useAuth } from '@/components/AuthProvider';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
 
 const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { isFloating?: boolean; chatPageMode?: boolean }) => {
   const { resolvedTheme } = useTheme();
+  const { user } = useAuth();
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const toggleAIAssistant = useStore(state => state.toggleAIAssistant);
@@ -140,6 +142,21 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyConfirmDeleteId, setHistoryConfirmDeleteId] = useState<string | null>(null);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const getGreeting = () => {
+    if (isTempChat) {
+      return tempChatGreeting || "Write like nobody's listening.";
+    }
+
+    const hours = new Date().getHours();
+    let greet = 'Afternoon';
+    if (hours >= 5 && hours < 12) greet = 'Morning';
+    else if (hours >= 12 && hours < 17) greet = 'Afternoon';
+    else greet = 'Evening';
+
+    const meta = user?.user_metadata || {};
+    const displayName = meta.display_name || meta.full_name || user?.email?.split('@')[0] || '';
+    return displayName ? `${greet}, ${displayName}` : greet;
+  };
   const plusMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [plusMenuPos, setPlusMenuPos] = useState<{ bottom: number; left: number } | null>(null);
   const contextMeterRef = useRef<HTMLDivElement>(null);
@@ -689,13 +706,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 <Pen strokeWidth={2} className="w-4 h-4" />
               </button>
               <button
-                onClick={openChatInPage}
-                className="btn-sidebar-utility"
-                title="Open in Chat"
-              >
-                <ExternalLink strokeWidth={2} className="w-4 h-4" />
-              </button>
-              <button
                 onClick={startTempChat}
                 className={cn(
                   "btn-sidebar-utility",
@@ -704,6 +714,13 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 title="Temporary chat"
               >
                 <MessageCircleDashed strokeWidth={2} className="w-4 h-4" />
+              </button>
+              <button
+                onClick={openChatInPage}
+                className="btn-sidebar-utility"
+                title="Open in Chat"
+              >
+                <ExternalLink strokeWidth={2} className="w-4 h-4" />
               </button>
               {!isTempChat && (
                 <button
@@ -778,7 +795,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 )}
                 {isTempChat ? (
                   <div className="flex flex-col items-center gap-0 relative z-0 animate-fade-in">
-                    <MessageCircleDashed className="w-10 h-10 text-[var(--bone-40)] mb-3" strokeWidth={1.5} />
+                    <MessageCircleDashed className="w-10 h-10 text-[var(--bone-100)] opacity-40 mb-3" strokeWidth={1.5} />
                     <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-1">
                       {tempChatGreeting || "Write like nobody's listening."}
                     </p>
@@ -790,7 +807,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                   <div className="flex items-center justify-center gap-3 relative z-0">
                     <AIAvatar className="w-8 h-8 opacity-100" />
                     <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
-                      How can I help you today?
+                      {getGreeting()}
                     </p>
                   </div>
                 )}
@@ -884,11 +901,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             <div
               className={cn(
                 "dark absolute top-3 -translate-y-[39px] h-10 flex items-center justify-between px-4 border-t border-l border-r border-[var(--bone-3)] select-none rounded-t-[16px] animate-fade-in shadow-md z-0 bg-[#121212]",
-                chatPageMode ? "left-5 right-5" : "left-[29px] right-[29px]"
+                chatPageMode ? "left-5 right-5" : "left-[38px] right-[38px]"
               )}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <MessageCircleDashed className="w-4 h-4 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
+                <MessageCircleDashed className="w-4 h-4 text-[var(--bone-100)] opacity-60 shrink-0" strokeWidth={2} />
                 <span className="text-xs font-semibold text-[var(--bone-100)] tracking-wide leading-none">
                   Temporary Chat
                 </span>
@@ -905,7 +922,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     e.stopPropagation();
                     clearAIChat();
                   }}
-                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 cursor-pointer"
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-100)] opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer"
                   title="Clear Chat"
                 >
                   <Eraser className="w-3.5 h-3.5" strokeWidth={2} />
@@ -916,7 +933,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     e.stopPropagation();
                     saveTempChat();
                   }}
-                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 relative group cursor-pointer"
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-100)] opacity-60 hover:opacity-100 transition-all duration-200 relative group cursor-pointer"
                   title="Save Chat"
                 >
                   <Bookmark className="w-3.5 h-3.5" strokeWidth={2} />
@@ -927,7 +944,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     e.stopPropagation();
                     setShowTempNotice(false);
                   }}
-                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all duration-200 cursor-pointer"
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-100)] opacity-60 hover:opacity-100 transition-all duration-200 cursor-pointer"
                   title="Dismiss notice"
                 >
                   <X className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -941,11 +958,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
           <div
             className={cn(
               "border flex flex-col relative transition-colors duration-300 z-10",
-              chatPageMode
-                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md`
-                : `bg-[var(--bone-6)] ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[16px] p-3`
+              `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md`
             )}
-            style={chatPageMode ? { backgroundColor: 'var(--color-panel)' } : undefined}
+            style={{ backgroundColor: 'var(--color-panel)' }}
           >
 
             {attachments.length > 0 && (

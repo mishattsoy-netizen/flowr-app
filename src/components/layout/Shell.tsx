@@ -409,10 +409,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         {/* Right AI Sidebar Wrapper */}
         <div
           className={cn(
-            "h-full bg-sidebar shrink-0 overflow-hidden transition-colors duration-200",
-            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && !isDesktop() && "border-l border-[var(--bone-10)]",
+            "h-full shrink-0 overflow-hidden transition-colors duration-200",
+            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
             isMobile 
-              ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col" : "hidden")
+              ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
               : "relative z-40"
           )}
           style={{

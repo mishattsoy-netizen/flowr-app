@@ -283,7 +283,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
           )}
           <button
             onClick={handleToggleAdding}
-            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out"
+            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-30 hover:opacity-100 hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out"
             title="Add task"
           >
             <Plus strokeWidth={2} className="w-4 h-4" />

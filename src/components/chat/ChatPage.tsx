@@ -48,7 +48,6 @@ export default function ChatPage() {
               {title}
             </h2>
           </div>
-          
           <div className="flex items-center gap-1.5 shrink-0">
             {isTempChat && (
               <>
@@ -57,7 +56,7 @@ export default function ChatPage() {
                     e.stopPropagation();
                     useStore.getState().clearAIChat();
                   }}
-                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors shrink-0 cursor-pointer"
+                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-100)] opacity-60 hover:opacity-100 transition-colors shrink-0 cursor-pointer"
                   title="Clear Chat"
                 >
                   <Eraser strokeWidth={2} className="w-5 h-5" />
@@ -67,7 +66,7 @@ export default function ChatPage() {
                     e.stopPropagation();
                     useStore.getState().saveTempChat();
                   }}
-                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors shrink-0 cursor-pointer"
+                  className="pointer-events-auto w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bone-6)] text-[var(--bone-100)] opacity-60 hover:opacity-100 transition-colors shrink-0 cursor-pointer"
                   title="Save Chat"
                 >
                   <Bookmark strokeWidth={2} className="w-5 h-5" />
@@ -81,7 +80,7 @@ export default function ChatPage() {
                   e.stopPropagation();
                   useStore.getState().openModal({ kind: 'deleteConfirm', entityId: activeChatId, isChat: true });
                 }}
-                className="pointer-events-auto w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                className="pointer-events-auto w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-30 hover:opacity-100 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
                 title="Delete Chat"
               >
                 <Trash2 strokeWidth={2} className="w-4 h-4" />

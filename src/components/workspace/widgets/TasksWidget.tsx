@@ -88,7 +88,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
             </div>
           )}
           <button onClick={() => { setIsAdding(true); setTimeout(() => inputRef.current?.focus(), 50); }}
-            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out">
+            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-30 hover:opacity-100 hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out">
             <Plus className="w-4 h-4" />
           </button>
         </div>
