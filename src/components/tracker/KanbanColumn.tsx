@@ -220,8 +220,8 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
             document.body
           )}
 
-          <button 
-            onClick={() => useStore.getState().openModal({ kind: 'newTask' })}
+          <button
+            onClick={() => useStore.getState().openModal({ kind: 'newTask', sourceColumn: id })}
             className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 export type CanvasTool =
   | 'select' | 'move'
   | 'rect' | 'ellipse' | 'diamond' | 'arrow' | 'line' | 'freedraw'
-  | 'text' | 'image' | 'comment' | 'section';
+  | 'text' | 'image' | 'comment' | 'frame';
 
 interface CanvasToolbarProps {
   activeTool: CanvasTool;
@@ -38,7 +38,7 @@ const CONTENT_TOOLS: ToolDef[] = [
   { id: 'text',    icon: <Type className="w-4 h-4 text-[var(--bone-100)]" />,              shortcut: 'T', label: 'Text' },
   { id: 'image',   icon: <Image className="w-4 h-4 text-[var(--bone-100)]" />,             shortcut: 'I', label: 'Image' },
   { id: 'comment', icon: <MessageSquarePlus className="w-4 h-4 text-[var(--bone-100)]" />, shortcut: 'C', label: 'Comment' },
-  { id: 'section', icon: <Frame className="w-4 h-4 text-[var(--bone-100)]" />,             shortcut: 'F', label: 'Section' },
+  { id: 'frame', icon: <Frame className="w-4 h-4 text-[var(--bone-100)]" />,               shortcut: 'F', label: 'Frame' },
 ];
 
 function ToolGroup({ tools, activeTool, setActiveTool }: {

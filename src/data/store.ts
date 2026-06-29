@@ -19,6 +19,8 @@ import {
 } from '@/lib/chat';
 import type { ChatConversation } from '@/lib/chat';
 import { upsertCanvasBlock, deleteCanvasBlock as deleteCanvasBlockFromDB } from '@/lib/canvasSync';
+import { computeAutoLayout } from '@/lib/frameLayout';
+import { generateGroupId } from '@/lib/groupUtils';
 
 // Re-export all types so all consumers import paths remain valid
 export type {
@@ -29,6 +31,7 @@ export type {
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
   WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
   BotMode, ShapeKind, CanvasStyleExt, ArrowBinding, ArrowheadStyle, ArrowheadType,
+  FrameLayoutDirection, FrameResizeMode, ChildResizeMode,
 } from './store.types';
 
 // Re-export helpers needed by external consumers
@@ -38,6 +41,7 @@ export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 import type {
   Entity, EditorBlock, AIMessage,
   AppState, Workspace, WidgetConfig, AppTask, BotMode,
+  FrameLayoutDirection, FrameResizeMode, ChildResizeMode,
 } from './store.types';
 
 
@@ -50,6 +54,11 @@ import { saveEntityToFile } from '@/lib/persistence';
 
 
 function migrateBlock(block: any): any {
+  // Migrate 'section' → 'frame'
+  if (block.type === 'section') {
+    return { ...block, type: 'frame' };
+  }
+
   if (block.type === 'shape' && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
     if (block.editMode) return block;
     return {
@@ -1881,29 +1890,302 @@ export const useStore = create<AppState>()(
           }
         }
       },
-      moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => {
+      moveCanvasFrame: (frameId: string, deltaX: number, deltaY: number) => {
         set((state) => ({
           blocks: state.blocks.map(b => {
-            if (b.id === sectionId) {
+            if (b.id === frameId) {
               return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
             }
-            if (b.parentId === sectionId) {
+            if (b.parentId === frameId) {
               return { ...b, x: (b.x || 0) + deltaX, y: (b.y || 0) + deltaY };
             }
             return b;
           })
         }));
 
-        const sectionBlock = get().blocks.find(b => b.id === sectionId);
-        if (sectionBlock && sectionBlock.canvasId) {
-          const canvas = get().entities.find(e => e.id === sectionBlock.canvasId);
+        const frameBlock = get().blocks.find(b => b.id === frameId);
+        if (frameBlock && frameBlock.canvasId) {
+          const canvas = get().entities.find(e => e.id === frameBlock.canvasId);
           if (canvas && canvas.syncMode !== 'local-only') {
-            upsertCanvasBlock(sectionBlock, undefined, canvas.workspaceId || undefined);
+            upsertCanvasBlock(frameBlock, undefined, canvas.workspaceId || undefined);
 
-            const childBlocks = get().blocks.filter(b => b.parentId === sectionId);
+            const childBlocks = get().blocks.filter(b => b.parentId === frameId);
             childBlocks.forEach(b => {
               upsertCanvasBlock(b, undefined, canvas.workspaceId || undefined);
             });
+          }
+        }
+      },
+      moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => {
+        get().moveCanvasFrame(sectionId, deltaX, deltaY);
+      },
+
+      // ─── Frame & Group actions ────────────────────────────────
+
+      groupBlocks: (ids: string[]) => {
+        const groupId = generateGroupId();
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            ids.includes(b.id) ? { ...b, groupId } : b,
+          ),
+        }));
+        // Persist each updated block
+        ids.forEach((id) => {
+          const block = get().blocks.find((b) => b.id === id);
+          if (block && block.canvasId) {
+            const canvas = get().entities.find((e) => e.id === block.canvasId);
+            if (canvas && canvas.syncMode !== 'local-only') {
+              upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+            }
+          }
+        });
+        return groupId;
+      },
+
+      ungroupBlocks: (groupId: string) => {
+        const members = get().blocks.filter((b) => b.groupId === groupId);
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.groupId === groupId
+              ? (({ groupId: _g, ...rest }) => rest)(b)
+              : b,
+          ),
+        }));
+        // Persist each updated block
+        members.forEach((b) => {
+          if (b.canvasId) {
+            const canvas = get().entities.find((e) => e.id === b.canvasId);
+            if (canvas && canvas.syncMode !== 'local-only') {
+              upsertCanvasBlock(b, undefined, canvas.workspaceId || undefined);
+            }
+          }
+        });
+      },
+
+      setFrameAutoLayout: (id: string, on: boolean) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, autoLayout: on } : b,
+          ),
+        }));
+        const frame = get().blocks.find((b) => b.id === id);
+        if (!frame) return;
+
+        // If enabling auto-layout, immediately re-arrange children
+        if (on && frame.autoLayout === false) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout(frame, children);
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return {
+                  blocks: s.blocks.map((b) => updated.get(b.id) ?? b),
+                };
+              });
+            }
+          }
+        }
+
+        // Persist
+        if (frame.canvasId) {
+          const canvas = get().entities.find((e) => e.id === frame.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(frame, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFrameLayoutDirection: (id: string, dir: FrameLayoutDirection) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, layoutDirection: dir } : b,
+          ),
+        }));
+        const frame = get().blocks.find((b) => b.id === id);
+        if (!frame) return;
+        // Recompute auto layout if enabled
+        if (frame.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout({ ...frame, layoutDirection: dir }, children);
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        if (frame.canvasId) {
+          const canvas = get().entities.find((e) => e.id === frame.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock({ ...frame, layoutDirection: dir }, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFrameLayoutGap: (id: string, gap: number) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, layoutGap: gap } : b,
+          ),
+        }));
+        // Recompute auto layout for children
+        const frame = get().blocks.find((b) => b.id === id);
+        if (frame?.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout({ ...frame, layoutGap: gap }, children);
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        if (frame?.canvasId) {
+          const canvas = get().entities.find((e) => e.id === frame.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock({ ...frame, layoutGap: gap }, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFramePadding: (id: string, top: number, right: number, bottom: number, left: number) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id
+              ? { ...b, layoutPaddingTop: top, layoutPaddingRight: right, layoutPaddingBottom: bottom, layoutPaddingLeft: left }
+              : b,
+          ),
+        }));
+        const frame = get().blocks.find((b) => b.id === id);
+        if (frame?.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout(
+              { ...frame, layoutPaddingTop: top, layoutPaddingRight: right, layoutPaddingBottom: bottom, layoutPaddingLeft: left },
+              children,
+            );
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        if (frame?.canvasId) {
+          const canvas = get().entities.find((e) => e.id === frame.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(frame, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFrameAlignment: (id: string, align: string, crossAlign: string) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id
+              ? { ...b, layoutAlign: align as 'start' | 'center' | 'end' | 'space-between', layoutCrossAlign: crossAlign as 'start' | 'center' | 'end' | 'stretch' }
+              : b,
+          ),
+        }));
+        const frame = get().blocks.find((b) => b.id === id);
+        if (frame?.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout(
+              { ...frame, layoutAlign: align as any, layoutCrossAlign: crossAlign as any },
+              children,
+            );
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        if (frame?.canvasId) {
+          const canvas = get().entities.find((e) => e.id === frame.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(frame, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFrameClipContent: (id: string, clip: boolean) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, clipContent: clip } : b,
+          ),
+        }));
+        const block = get().blocks.find((b) => b.id === id);
+        if (block && block.canvasId) {
+          const canvas = get().entities.find((e) => e.id === block.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setFrameResizing: (id: string, h: FrameResizeMode, v: FrameResizeMode) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, frameResizingH: h, frameResizingV: v } : b,
+          ),
+        }));
+        const block = get().blocks.find((b) => b.id === id);
+        if (block?.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === id);
+          if (children.length > 0) {
+            const result = computeAutoLayout({ ...block, frameResizingH: h, frameResizingV: v }, children);
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        if (block && block.canvasId) {
+          const canvas = get().entities.find((e) => e.id === block.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+          }
+        }
+      },
+
+      setChildResizing: (id: string, h: ChildResizeMode, v: ChildResizeMode) => {
+        set((s) => ({
+          blocks: s.blocks.map((b) =>
+            b.id === id ? { ...b, childResizingH: h, childResizingV: v } : b,
+          ),
+        }));
+        const parent = get().blocks.find((b) => {
+          const child = get().blocks.find((c) => c.id === id);
+          return child && child.parentId === b.id;
+        });
+        if (parent?.autoLayout) {
+          const children = get().blocks.filter((b) => b.parentId === parent.id);
+          if (children.length > 0) {
+            const result = computeAutoLayout(parent, children.map((c) => (c.id === id ? { ...c, childResizingH: h, childResizingV: v } : c)));
+            if (result.children.length > 0) {
+              set((s) => {
+                const updated = new Map(result.children.map((c) => [c.id, c]));
+                return { blocks: s.blocks.map((b) => updated.get(b.id) ?? b) };
+              });
+            }
+          }
+        }
+        const block = get().blocks.find((b) => b.id === id);
+        if (block && block.canvasId) {
+          const canvas = get().entities.find((e) => e.id === block.canvasId);
+          if (canvas && canvas.syncMode !== 'local-only') {
+            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
           }
         }
       },
@@ -2057,7 +2339,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 19,
+      version: 20,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
@@ -2147,6 +2429,14 @@ export const useStore = create<AppState>()(
               }
               return b;
             });
+          }
+        }
+        // Version 20: migrate 'section' blocks to 'frame'
+        if (version < 20) {
+          if (Array.isArray(state.blocks)) {
+            state.blocks = state.blocks.map((b: any) =>
+              b.type === 'section' ? { ...b, type: 'frame' } : b,
+            );
           }
         }
         return state;

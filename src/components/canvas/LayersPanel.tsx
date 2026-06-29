@@ -32,14 +32,14 @@ export function LayersPanel({ canvasId, selectedBlockId, onSelect }: LayersPanel
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
   // Group blocks by parent
-  const sections = useMemo(() => blocks.filter(b => b.type === 'section'), [blocks]);
-  const standaloneBlocks = useMemo(() => blocks.filter(b => !b.parentId && b.type !== 'section'), [blocks]);
+  const sections = useMemo(() => blocks.filter(b => b.type === 'frame'), [blocks]);
+  const standaloneBlocks = useMemo(() => blocks.filter(b => !b.parentId && b.type !== 'frame'), [blocks]);
 
   const getIcon = (type: string) => {
     switch (type) {
       case 'text': return <Type size={14} />;
       case 'image': return <Image size={14} />;
-      case 'section': return <Box size={14} />;
+      case 'frame': return <Box size={14} />;
       case 'comment': return <MessageSquare size={14} />;
       case 'connection': return <ArrowRight size={14} />;
       default: return <Layout size={14} />;

@@ -691,7 +691,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
                   {isTempChat
                     ? 'Temporary Chat'
-                    : chatConversations.find(c => c.id === activeChatId)?.title || 'New Chat'}
+                    : 'Chat'}
                 </h1>
                 <div className={cn("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
               </div>
@@ -722,23 +722,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
               >
                 <ExternalLink strokeWidth={2} className="w-4 h-4" />
               </button>
-              {!isTempChat && (
-                <button
-                  onClick={() => { loadChatConversations(); setShowHistoryModal(true); }}
-                  className="btn-sidebar-utility"
-                  title="Session history"
-                >
-                  <History strokeWidth={2} className="w-4 h-4" />
-                </button>
-              )}
-              {!isTempChat && (
-                <button
-                  onClick={clearAIChat}
-                  className="btn-sidebar-utility"
-                >
-                  <Trash2 strokeWidth={2} className="w-4 h-4" />
-                </button>
-              )}
               <button
                 onClick={() => setAIAssistantOpen(false)}
                 className="btn-sidebar-utility"
@@ -1313,17 +1296,16 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                     )}
                   </div>
 
-                  {/* Detailed Context Tooltip */}
                   {aiSessionContext && showContextTooltip && contextTooltipPos && createPortal(
                     <div
-                      className="fixed bg-[var(--color-panel)] p-4 rounded-[16px] border border-[var(--bone-12)] backdrop-blur-3xl min-w-[280px]"
+                      className="fixed bg-[var(--color-panel)] p-4 rounded-[16px] border border-[var(--bone-12)] backdrop-blur-3xl w-[220px]"
                       style={{ bottom: contextTooltipPos.bottom, right: contextTooltipPos.right, zIndex: 150 }}
                       onMouseEnter={openContextTooltip}
                       onMouseLeave={closeContextTooltip}
                     >
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center text-[11px] font-bold text-bone-80">
-                          <span className="tracking-tight">Memory Usage ({sessionId})</span>
+                          <span className="tracking-tight">Memory Usage</span>
                           <span className="text-bone-100">{Math.round((displayedTokens / aiSessionContext.context_limit) * 100)}%</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">

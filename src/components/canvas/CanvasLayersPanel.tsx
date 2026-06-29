@@ -21,7 +21,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   text:     <Type className="w-3 h-3 text-[var(--bone-100)]" />,
   image:    <Image className="w-3 h-3 text-[var(--bone-100)]" />,
   comment:  <MessageSquarePlus className="w-3 h-3 text-[var(--bone-100)]" />,
-  section:  <Frame className="w-3 h-3 text-[var(--bone-100)]" />,
+  frame:    <Frame className="w-3 h-3 text-[var(--bone-100)]" />,
   freedraw: <Pencil className="w-3 h-3 text-[var(--bone-100)]" />,
 };
 
@@ -44,14 +44,34 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
   const TAB_OPTIONS = ['layers', 'assets'] as const;
   const TAB_ICONS: Record<string, React.ReactNode> = { layers: <Layers className="w-3 h-3 text-[var(--bone-100)]" />, assets: <Package className="w-3 h-3 text-[var(--bone-100)]" /> };
 
-
   const pageBlocks = useMemo(() =>
     blocks.filter(b => b.canvasId === canvasId && b.type !== 'connection'),
     [blocks, canvasId]
   );
 
-  const sections = useMemo(() => pageBlocks.filter(b => b.type === 'section'), [pageBlocks]);
-  const loose = useMemo(() => pageBlocks.filter(b => b.type !== 'section' && !b.parentId), [pageBlocks]);
+  // Frames (blocks with type 'frame')
+  const frames = useMemo(() => pageBlocks.filter(b => b.type === 'frame'), [pageBlocks]);
+
+  // Groups: collect unique groupIds from blocks that have one and are not inside a frame
+  const groups = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { groupId: string; members: EditorBlock[] }[] = [];
+    for (const b of pageBlocks) {
+      if (b.groupId && !b.parentId && !seen.has(b.groupId)) {
+        seen.add(b.groupId);
+        result.push({ groupId: b.groupId, members: pageBlocks.filter(m => m.groupId === b.groupId && !m.parentId) });
+      }
+    }
+    return result;
+  }, [pageBlocks]);
+
+  // Loose = not a frame, not parented to a frame, not in a group
+  const loose = useMemo(() =>
+    pageBlocks.filter(b => b.type !== 'frame' && !b.parentId && !b.groupId),
+    [pageBlocks]
+  );
+
+  const hasStructure = frames.length > 0 || groups.length > 0;
 
   function toggleExpand(id: string) {
     setExpanded(prev => {
@@ -59,6 +79,12 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  function selectGroup(groupId: string, members: EditorBlock[], e: React.MouseEvent) {
+    if (members.length === 0) return;
+    onSelect(members[0].id, e.shiftKey);
+    members.slice(1).forEach(m => onSelect(m.id, true));
   }
 
   function toggleVisibility(b: EditorBlock, e: React.MouseEvent) {
@@ -81,7 +107,7 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={(e) => onSelect(block.id, e.shiftKey)}
       >
-        {block.type === 'section' ? (
+        {block.type === 'frame' ? (
           <button
             className="w-[10px] h-[10px] flex items-center justify-center text-[7px] text-[var(--bone-30)] flex-shrink-0"
             onClick={e => { e.stopPropagation(); toggleExpand(block.id); }}
@@ -103,6 +129,41 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
             <span className="opacity-30 group-hover:opacity-70">{isHidden ? <EyeOff className="w-2.5 h-2.5 text-[var(--bone-100)]" /> : <Eye className="w-2.5 h-2.5 text-[var(--bone-100)]" />}</span>
           </button>
         </div>
+      </div>
+    );
+  }
+
+  function GroupRow({ groupId, members, groupIndex }: { groupId: string; members: EditorBlock[]; groupIndex: number }) {
+    const isGroupSelected = members.some(m => selectedIds.has(m.id));
+    const isExpanded = expanded.has(groupId);
+
+    return (
+      <div>
+        <div
+          className={cn(
+            "group h-7 flex items-center gap-[5px] mx-1.5 rounded-[var(--radius-medium)] cursor-pointer select-none border border-transparent transition-all duration-150 ease-in-out",
+            isGroupSelected ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" : "text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+          )}
+          style={{ paddingLeft: 10 }}
+          onClick={(e) => selectGroup(groupId, members, e)}
+        >
+          <button
+            className="w-[10px] h-[10px] flex items-center justify-center text-[7px] text-[var(--bone-30)] flex-shrink-0"
+            onClick={e => { e.stopPropagation(); toggleExpand(groupId); }}
+          >
+            {isExpanded ? '▼' : '▶'}
+          </button>
+          <div className={cn("w-[14px] flex-shrink-0 flex items-center justify-center", isGroupSelected ? "text-[var(--bone-100)]" : "text-[var(--bone-100)] opacity-30")}>
+            <Package className="w-3 h-3" />
+          </div>
+          <div className={cn("flex-1 text-[11px] truncate", isGroupSelected ? "text-[var(--bone-100)] font-medium" : "text-[var(--bone-60)]")}>
+            Group {groupIndex + 1}
+            <span className="ml-1 text-[var(--bone-30)] font-normal">({members.length})</span>
+          </div>
+        </div>
+        {isExpanded && members.map(m => (
+          <LayerRow key={m.id} block={m} depth={1} />
+        ))}
       </div>
     );
   }
@@ -145,21 +206,36 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
       <div className="flex-1 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-[rgba(233,233,226,0.1)]">
         {tab === 'layers' && (
           <>
-            {sections.map(section => {
-              const children = pageBlocks.filter(b => b.parentId === section.id);
+            {/* Frames with their children */}
+            {frames.map(frame => {
+              const children = pageBlocks.filter(b => b.parentId === frame.id);
               return (
-                <div key={section.id}>
-                  <LayerRow block={section} depth={0} />
-                  {expanded.has(section.id) && children.map(child => (
+                <div key={frame.id}>
+                  <LayerRow block={frame} depth={0} />
+                  {expanded.has(frame.id) && children.map(child => (
                     <LayerRow key={child.id} block={child} depth={1} />
                   ))}
                 </div>
               );
             })}
-            {loose.length > 0 && sections.length > 0 && (
+
+            {/* Groups */}
+            {groups.map((g, i) => (
+              <GroupRow key={g.groupId} groupId={g.groupId} members={g.members} groupIndex={i} />
+            ))}
+
+            {/* Divider */}
+            {loose.length > 0 && hasStructure && (
               <div className="px-2.5 pt-3 pb-1 text-[10px] uppercase tracking-[0.07em] text-[rgba(233,233,226,0.3)]">Loose</div>
             )}
+
+            {/* Loose blocks */}
             {loose.map(b => <LayerRow key={b.id} block={b} depth={0} />)}
+
+            {/* Empty state */}
+            {frames.length === 0 && groups.length === 0 && loose.length === 0 && (
+              <div className="px-3 pt-4 text-[11px] text-[rgba(233,233,226,0.3)]">No layers yet</div>
+            )}
           </>
         )}
         {tab === 'assets' && (

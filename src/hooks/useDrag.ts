@@ -86,11 +86,11 @@ export function useDrag({
     const isAlreadySelected = currentSelectedIds.has(currentPrimaryBlock.id);
     const baseDragIds = isAlreadySelected ? Array.from(currentSelectedIds) : [currentPrimaryBlock.id];
 
-    // Add all children of any dragged section block so they drag along live
+    // Add all children of any dragged frame block so they drag along live
     const dragIdsSet = new Set<string>(baseDragIds);
     baseDragIds.forEach(id => {
       const b = latestBlocks.find(x => x.id === id);
-      if (b && b.type === 'section') {
+      if (b && (b.type === 'frame' || b.type === 'section')) {
         latestBlocks.forEach(child => {
           if (child.parentId === b.id) {
             dragIdsSet.add(child.id);

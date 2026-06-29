@@ -28,7 +28,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
-  const moveCanvasSection = useStore(s => s.moveCanvasSection);
+
 
   const [isDraggingLocal, setIsDraggingLocal] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -38,7 +38,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const [isOverSection, setIsOverSection] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  const isNoteBlock = block?.type !== 'section' && block?.type !== 'comment' && block?.type !== 'connection' && block?.type !== 'shape';
+  const isNoteBlock = block?.type !== 'frame' && block?.type !== 'comment' && block?.type !== 'connection' && block?.type !== 'shape';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block?.x || 0, y: block?.y || 0 });
@@ -106,7 +106,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       lastSectionCheckRef.current = now;
 
       const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-      const sectionEl = over?.closest('[data-block-type="section"]');
+      const sectionEl = over?.closest('[data-block-type="frame"]');
       const isAlreadySelected = selectedIds?.has(block.id) ?? false;
       const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
       if (sectionEl && sectionEl.id !== block.id && !groupIds.includes(sectionEl.id)) {
@@ -570,13 +570,17 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     <div
       ref={containerRef}
       id={block.id}
+      data-block-type={block.type}
       className={cn(
         "absolute group",
         isDraggingLocal && "z-[3000] opacity-90",
         isResizing && "z-[3000]",
-        !isDraggingLocal && !isResizing && (block.type === 'section' ? "z-0" : "z-10"),
+        !isDraggingLocal && !isResizing && (block.type === 'frame' ? "z-0" : "z-10"),
         !isSelected && !isDraggingLocal && !isResizing && (activeTool === 'select' || activeTool === 'move') && "hover:outline hover:outline-brand-blue/30 hover:outline-1 hover:outline-offset-[1px]",
-        block.type === 'section' && "border-2 border-dashed border-[var(--bone-100)]/40 bg-[var(--bone-10)]/5 p-4 min-w-[300px] min-h-[200px]",
+        block.type === 'frame' && cn(
+          "min-w-[120px] min-h-[80px]",
+          block.clipContent ? "overflow-hidden" : "overflow-visible"
+        ),
         (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
         showMenu && "ring-2 ring-accent/20"
       )}
@@ -585,7 +589,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         top: block.y || 0,
         width: size.width,
         height: size.height,
-        zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'section' ? 2 : 10)),
+        zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'frame' ? 2 : 10)),
         transform: (() => {
           // During drag, return undefined so React leaves useDrag's translate3d intact.
           // During re-renders triggered by state changes (setIsOverSection etc.) this prevents the translate from being wiped.
@@ -693,13 +697,34 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Empty Video</div>
           )}
         </div>
-      ) : block.type === 'section' ? (
-        <div className="w-full h-full relative">
-          <div className="absolute -top-7 left-0 flex items-center gap-1.5 px-2 py-0.5 bg-sidebar rounded-t-lg border border-b-0 border-border">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-50">Frame</span>
-            <span className="text-xs font-bold truncate max-w-[150px]">{block.content || 'Untitled'}</span>
+      ) : block.type === 'frame' ? (
+        <>
+          {/* Frame label — rendered above the block, outside its bounds, like Figma */}
+          <div
+            className="absolute pointer-events-none select-none"
+            style={{ top: -22, left: 0 }}
+          >
+            <span
+              className="text-[11px] font-medium truncate max-w-[200px] block"
+              style={{ color: 'var(--bone-50)', lineHeight: '1' }}
+            >
+              {block.content || 'Frame'}
+            </span>
           </div>
-        </div>
+          {/* Frame body — fill + border from canvasStyleExt, fallback to subtle defaults */}
+          <div
+            className="w-full h-full"
+            style={{
+              background: block.canvasStyleExt?.fill
+                ? `${block.canvasStyleExt.fill}${Math.round((block.canvasStyleExt.fillOpacity ?? 0.04) * 255).toString(16).padStart(2, '0')}`
+                : 'rgba(255,255,255,0.03)',
+              border: block.canvasStyleExt?.stroke
+                ? `${block.canvasStyleExt.strokeWidth ?? 1.5}px ${block.canvasStyleExt.strokeStyle === 'dashed' ? 'dashed' : 'solid'} ${block.canvasStyleExt.stroke}`
+                : '1.5px dashed rgba(255,255,255,0.25)',
+              borderRadius: block.canvasStyleExt?.cornerRadius ? `${block.canvasStyleExt.cornerRadius}px` : 0,
+            }}
+          />
+        </>
       ) : block.type === 'comment' ? (
         <div className="bg-[var(--bone-10)]/80 backdrop-blur-xl border border-[var(--bone-20)] rounded-2xl p-4 w-full h-full">
           <div className="flex items-center gap-2 mb-3 text-accent">

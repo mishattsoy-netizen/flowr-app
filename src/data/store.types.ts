@@ -49,9 +49,19 @@ export type BlockType =
   | 'video'
   | 'shape'
   | 'section'
+  | 'frame'
   | 'comment'
   | 'connection'
   | 'link';
+
+/** @deprecated Use 'frame' instead. Migrated on canvas load. */
+export type DeprecatedSectionType = 'section';
+
+export type FrameLayoutDirection = 'horizontal' | 'vertical' | 'grid' | 'freeform';
+
+export type FrameResizeMode = 'fixed' | 'hug' | 'fill';
+
+export type ChildResizeMode = 'fixed' | 'fill';
 
 
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'freedraw';
@@ -144,6 +154,22 @@ export interface EditorBlock {
   isFolded?: boolean;
   foldingEnabled?: boolean;
   linkUrl?: string;
+
+  // Frame / Auto Layout fields
+  autoLayout?: boolean;
+  layoutDirection?: FrameLayoutDirection;
+  layoutGap?: number;
+  layoutPaddingTop?: number;
+  layoutPaddingRight?: number;
+  layoutPaddingBottom?: number;
+  layoutPaddingLeft?: number;
+  layoutAlign?: 'start' | 'center' | 'end' | 'space-between';
+  layoutCrossAlign?: 'start' | 'center' | 'end' | 'stretch';
+  clipContent?: boolean;
+  frameResizingH?: FrameResizeMode;
+  frameResizingV?: FrameResizeMode;
+  childResizingH?: ChildResizeMode;
+  childResizingV?: ChildResizeMode;
 }
 
 /** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */
@@ -214,7 +240,7 @@ export type ModalType =
   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[]; isChat?: boolean }
   | { kind: 'moveTo'; entityId: string }
   | { kind: 'rename'; entityId: string }
-  | { kind: 'newTask'; taskId?: string }
+  | { kind: 'newTask'; taskId?: string; sourceColumn?: string }
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
@@ -548,6 +574,8 @@ export interface AppState {
   updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => void;
   updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   deleteCanvasBlock: (id: string) => void;
+  moveCanvasFrame: (frameId: string, deltaX: number, deltaY: number) => void;
+  /** @deprecated Use moveCanvasFrame instead. */
   moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => void;
   toggleFavorite: (id: string) => void;
   toggleCollapsed: (id: string) => void;
@@ -567,6 +595,18 @@ export interface AppState {
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
   sortEntities: (criteria: 'title' | 'lastModified') => void;
   sortTasks: (criteria: 'title' | 'dueDate') => void;
+  // Frame & Group actions
+  groupBlocks: (ids: string[]) => string;
+  ungroupBlocks: (groupId: string) => void;
+  setFrameAutoLayout: (id: string, on: boolean) => void;
+  setFrameLayoutDirection: (id: string, dir: FrameLayoutDirection) => void;
+  setFrameLayoutGap: (id: string, gap: number) => void;
+  setFramePadding: (id: string, top: number, right: number, bottom: number, left: number) => void;
+  setFrameAlignment: (id: string, align: string, crossAlign: string) => void;
+  setFrameClipContent: (id: string, clip: boolean) => void;
+  setFrameResizing: (id: string, h: FrameResizeMode, v: FrameResizeMode) => void;
+  setChildResizing: (id: string, h: ChildResizeMode, v: ChildResizeMode) => void;
+
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;

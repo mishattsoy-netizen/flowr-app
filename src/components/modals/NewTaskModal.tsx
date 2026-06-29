@@ -125,7 +125,7 @@ export function NewTaskModal() {
     return () => {
       const data = saveRef.current;
       if (!data.title.trim()) return; // Skip empty tasks
-      
+
       if (data.isEditing && data.taskId) {
         useStore.getState().updateTask(data.taskId, {
           title: data.title.trim(),
@@ -147,6 +147,50 @@ export function NewTaskModal() {
     };
   }, []);
 
+  const sourceColumn = modal?.kind === 'newTask' ? modal.sourceColumn : undefined;
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  // Derive display status from the current state — "today" and "overdue" are
+  // date-derived pseudo-statuses, not actual AppTask status values.
+  const displayStatus = useMemo<'todo' | 'in-progress' | 'done' | 'today' | 'overdue'>(() => {
+    if (completed) return 'done';
+    if (status === 'in-progress') return 'in-progress';
+    if (dueDate && dueDate < todayStr) return 'overdue';
+    if (dueDate === todayStr) return 'today';
+    return 'todo';
+  }, [completed, status, dueDate, todayStr]);
+
+  // Pre-fill fields based on which column's "+" button was clicked.
+  useEffect(() => {
+    if (!modal || modal.kind !== 'newTask') return;
+    if (modal.taskId) return; // Only for new tasks, not editing
+
+    switch (modal.sourceColumn) {
+      case 'today':
+        setDueDate(todayStr);
+        break;
+      case 'inProgress':
+        setDueDate('');
+        setStatus('in-progress');
+        break;
+      case 'overdue':
+        setDueDate(yesterdayStr);
+        break;
+      case 'completed':
+        setCompleted(true);
+        break;
+      case 'todo':
+      default:
+        // Keep defaults: status 'todo', no dueDate
+        break;
+    }
+  }, [modal, todayStr, yesterdayStr]);
 
   const workspaces = useMemo(() => {
     return entities.filter(e => e.type === 'workspace' || e.type === 'collection');
@@ -302,25 +346,37 @@ export function NewTaskModal() {
                   <button
                     className={cn(
                       "w-full flex items-center justify-between border-none rounded-[6px] px-3 py-1.5 text-xs font-semibold cursor-pointer transition-none",
-                      completed
-                        ? "bg-emerald-500/15 text-emerald-400"
-                        : status === 'in-progress'
-                        ? "bg-amber-500/15 text-amber-400"
-                        : "bg-blue-500/15 text-blue-400"
+                      displayStatus === 'done' ? "bg-emerald-500/15 text-emerald-400" :
+                      displayStatus === 'in-progress' ? "bg-amber-500/15 text-amber-400" :
+                      displayStatus === 'today' ? "bg-violet-500/15 text-violet-400" :
+                      displayStatus === 'overdue' ? "bg-red-500/15 text-red-400" :
+                      "bg-blue-500/15 text-blue-400"
                     )}
                   >
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "w-1.5 h-1.5 rounded-full shrink-0",
-                        completed ? "bg-emerald-400" : status === 'in-progress' ? "bg-amber-400" : "bg-blue-400"
+                        displayStatus === 'done' ? "bg-emerald-400" :
+                        displayStatus === 'in-progress' ? "bg-amber-400" :
+                        displayStatus === 'today' ? "bg-violet-400" :
+                        displayStatus === 'overdue' ? "bg-red-400" :
+                        "bg-blue-400"
                       )} />
                       <span>
-                        {completed ? 'Completed' : status === 'in-progress' ? 'In Progress' : 'To Do'}
+                        {displayStatus === 'done' ? 'Completed' :
+                         displayStatus === 'in-progress' ? 'In Progress' :
+                         displayStatus === 'today' ? 'Today' :
+                         displayStatus === 'overdue' ? 'Overdue' :
+                         'To Do'}
                       </span>
                     </div>
                     <ChevronDown className={cn(
                       "w-3.5 h-3.5 opacity-60 shrink-0 transition-none",
-                      completed ? "text-emerald-400" : status === 'in-progress' ? "text-amber-400" : "text-blue-400"
+                      displayStatus === 'done' ? "text-emerald-400" :
+                      displayStatus === 'in-progress' ? "text-amber-400" :
+                      displayStatus === 'today' ? "text-violet-400" :
+                      displayStatus === 'overdue' ? "text-red-400" :
+                      "text-blue-400"
                     )} />
                   </button>
                 </PopoverTrigger>
@@ -329,10 +385,11 @@ export function NewTaskModal() {
                     onClick={() => {
                       setCompleted(false);
                       setStatus('todo');
+                      setDueDate('');
                     }}
                     className={cn(
                       "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between cursor-pointer transition-none",
-                      (!completed && status === 'todo')
+                      displayStatus === 'todo'
                         ? "bg-blue-500/15 text-blue-400 font-semibold"
                         : "text-blue-400/70 hover:bg-blue-500/10 hover:text-blue-400"
                     )}
@@ -341,7 +398,7 @@ export function NewTaskModal() {
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
                       <span>To Do</span>
                     </div>
-                    {!completed && status === 'todo' && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                    {displayStatus === 'todo' && <Check className="w-3.5 h-3.5 text-blue-400" />}
                   </button>
                   <button
                     onClick={() => {
@@ -350,7 +407,7 @@ export function NewTaskModal() {
                     }}
                     className={cn(
                       "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between mt-0.5 cursor-pointer transition-none",
-                      (!completed && status === 'in-progress')
+                      displayStatus === 'in-progress'
                         ? "bg-amber-500/15 text-amber-400 font-semibold"
                         : "text-amber-400/70 hover:bg-amber-500/10 hover:text-amber-400"
                     )}
@@ -359,7 +416,45 @@ export function NewTaskModal() {
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                       <span>In Progress</span>
                     </div>
-                    {!completed && status === 'in-progress' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    {displayStatus === 'in-progress' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCompleted(false);
+                      setStatus('todo');
+                      setDueDate(todayStr);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between mt-0.5 cursor-pointer transition-none",
+                      (displayStatus === 'today' && !completed)
+                        ? "bg-violet-500/15 text-violet-400 font-semibold"
+                        : "text-violet-400/70 hover:bg-violet-500/10 hover:text-violet-400"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                      <span>Today</span>
+                    </div>
+                    {displayStatus === 'today' && !completed && <Check className="w-3.5 h-3.5 text-violet-400" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCompleted(false);
+                      setStatus('todo');
+                      setDueDate(yesterdayStr);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between mt-0.5 cursor-pointer transition-none",
+                      (displayStatus === 'overdue' && !completed)
+                        ? "bg-red-500/15 text-red-400 font-semibold"
+                        : "text-red-400/70 hover:bg-red-500/10 hover:text-red-400"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                      <span>Overdue</span>
+                    </div>
+                    {displayStatus === 'overdue' && !completed && <Check className="w-3.5 h-3.5 text-red-400" />}
                   </button>
                   <button
                     onClick={() => {
@@ -367,7 +462,7 @@ export function NewTaskModal() {
                     }}
                     className={cn(
                       "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between mt-0.5 cursor-pointer transition-none",
-                      completed
+                      displayStatus === 'done'
                         ? "bg-emerald-500/15 text-emerald-400 font-semibold"
                         : "text-emerald-400/70 hover:bg-emerald-500/10 hover:text-emerald-400"
                     )}
@@ -376,7 +471,7 @@ export function NewTaskModal() {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                       <span>Completed</span>
                     </div>
-                    {completed && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    {displayStatus === 'done' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                   </button>
                 </PopoverContent>
               </Popover>

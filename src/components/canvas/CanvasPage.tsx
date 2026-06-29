@@ -2,6 +2,7 @@
 
 import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download, Check } from 'lucide-react';
+import { computeAutoLayout } from '@/lib/frameLayout';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -126,13 +127,71 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
 
+  const handleDragCommit = useCallback(() => {
+    const currentBlocks = useStore.getState().blocks;
+    const canvasBlocks = currentBlocks.filter(x => x.canvasId === entity.id);
+
+    // Drop-into-frame: check each selected block against frames
+    const batch: { id: string; updates: Partial<EditorBlock> }[] = [];
+    const frames = canvasBlocks.filter(b => b.type === 'frame');
+    for (const id of selectedIds) {
+      const block = canvasBlocks.find(b => b.id === id);
+      if (!block || block.type === 'frame' || block.type === 'connection') continue;
+
+      const cx = (block.x ?? 0) + (block.width ?? 0) / 2;
+      const cy = (block.y ?? 0) + (block.height ?? 0) / 2;
+
+      // Find the innermost frame containing this block's center
+      let containedBy: string | null = null;
+      for (const f of frames) {
+        const fx = f.x ?? 0, fy = f.y ?? 0;
+        const fw = f.width ?? 0, fh = f.height ?? 0;
+        if (cx >= fx && cx < fx + fw && cy >= fy && cy < fy + fh) {
+          containedBy = f.id;
+        }
+      }
+
+      if (containedBy && block.parentId !== containedBy) {
+        batch.push({ id: block.id, updates: { parentId: containedBy } });
+      } else if (!containedBy && block.parentId) {
+        batch.push({ id: block.id, updates: { parentId: undefined } });
+      }
+    }
+
+    if (batch.length > 0) {
+      useStore.getState().updateCanvasBlocks(batch);
+    }
+
+    // Auto-layout recompute: for any frame whose children were moved
+    const frameIds = new Set(frames.map(f => f.id));
+    for (const f of frames) {
+      if (!f.autoLayout) continue;
+      const children = canvasBlocks.filter(b => b.parentId === f.id);
+      if (children.length === 0) continue;
+      // Check if any child moved (has a pending update in batch or was dragged)
+      const needsRecompute = children.some(c => batch.find(u => u.id === c.id));
+      if (needsRecompute) {
+        const result = computeAutoLayout(f, children);
+        const recomputeBatch: { id: string; updates: Partial<EditorBlock> }[] = result.children.map(ch => ({
+          id: ch.id,
+          updates: { x: ch.x, y: ch.y, width: ch.width, height: ch.height },
+        }));
+        if (recomputeBatch.length > 0) {
+          useStore.getState().updateCanvasBlocks(recomputeBatch);
+        }
+      }
+    }
+
+    history.push(currentBlocks.filter(x => x.canvasId === entity.id));
+  }, [selectedIds, entity.id, history]);
+
   const { startDrag } = useDrag({
     viewportRef,
     blocks: pageBlocks,
     selectedIds,
     snapWithObjects,
     updateCanvasBlocks,
-    onCommit: () => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id)),
+    onCommit: handleDragCommit,
   });
 
   const handleArrowDrag = useCallback((e: React.PointerEvent, block: EditorBlock) => {
@@ -729,7 +788,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         case 't': setActiveTool('text'); break;
         case 'i': setActiveTool('image'); break;
         case 'c': setActiveTool('comment'); break;
-        case 'f': setActiveTool('section'); break;
+        case 'f': setActiveTool('frame'); break;
         case ' ':
           spaceHeldRef.current = true;
           e.preventDefault();
@@ -1031,7 +1090,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       return;
     }
 
-    const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'freedraw'];
+    const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'freedraw', 'frame'];
     if (SHAPE_TOOLS.includes(activeTool) && e.button === 0) {
       const { x, y } = screenToCanvas(e.clientX, e.clientY);
       const kind = activeTool;
@@ -1080,8 +1139,22 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         }
 
         const isPoint = Math.abs(cx - currentShape.startX) < 3 && Math.abs(cy - currentShape.startY) < 3;
-        
-        if (!isPoint) {
+
+        if (kind === 'frame') {
+          // Frame: drag to set size, or click for default
+          const newBlockId = generateId();
+          addCanvasBlock({
+            id: newBlockId, type: 'frame', content: 'Frame', canvasId: entity.id,
+            x: isPoint ? currentShape.startX : finalX,
+            y: isPoint ? currentShape.startY : finalY,
+            width: isPoint ? 300 : Math.max(finalW, 60),
+            height: isPoint ? 200 : Math.max(finalH, 40),
+            autoLayout: false,
+            layoutDirection: 'freeform',
+          });
+          setSelectedIds(new Set([newBlockId]));
+          history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+        } else if (!isPoint) {
           const newBlockId = generateId();
           addCanvasBlock({
             id: newBlockId, type: 'shape', content: '', canvasId: entity.id,
@@ -1119,10 +1192,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     } else if (activeTool === 'image') {
       setMediaPopover({ x: e.clientX, y: e.clientY, canvasX: x, canvasY: y });
-    } else if (activeTool === 'section') {
-      addCanvasBlock({ id: generateId(), type: 'section', content: 'Frame', x, y, width: 300, height: 200, canvasId: entity.id });
-      setActiveTool('select');
-      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     } else if (activeTool === 'comment') {
       addCanvasBlock({ id: generateId(), type: 'comment', content: '', x, y, canvasId: entity.id });
       setActiveTool('select');
@@ -1132,14 +1201,34 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   function selectBlock(id: string, addToSelection: boolean) {
     setShowFloatingToolbar(false);
+    const block = blocks.find(b => b.id === id);
     if (addToSelection) {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
-        return next;
-      });
+      // When shift-clicking a group member, add/toggle the entire group
+      if (block?.groupId) {
+        const groupMembers = blocks.filter(b => b.groupId === block.groupId);
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          const allSelected = groupMembers.every(m => next.has(m.id));
+          groupMembers.forEach(m => allSelected ? next.delete(m.id) : next.add(m.id));
+          // Also toggle the clicked block
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      } else {
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      }
     } else {
-      setSelectedIds(new Set([id]));
+      if (block?.groupId) {
+        // Select all group members
+        const groupMembers = blocks.filter(b => b.groupId === block.groupId);
+        setSelectedIds(new Set(groupMembers.map(m => m.id)));
+      } else {
+        setSelectedIds(new Set([id]));
+      }
     }
   }
 
