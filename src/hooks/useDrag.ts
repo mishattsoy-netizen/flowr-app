@@ -573,6 +573,16 @@ export function useDrag({
 
     document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerup', handlePointerUp);
+
+    // Defer transform application to a microtask so it runs after React's
+    // DOM commit (from setIsDraggingLocal/onSelect state updates).
+    // Without this, React overwrites el.style.transform to '' between here
+    // and the first pointermove, causing the block to briefly lose rotation.
+    queueMicrotask(() => {
+      // Skip if drag already ended before the microtask runs
+      if (!isDraggingRef.current) return;
+      applyTransform();
+    });
   }, [viewportRef]);
 
   return { startDrag, isDragging: isDraggingRef.current };

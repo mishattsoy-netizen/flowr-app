@@ -456,6 +456,7 @@ export interface AppState {
   activeChatId: string | null;
   newEmptyChatId: string | null;
   isTempChat: boolean;
+  pendingNewChat: boolean;
   showTempNotice: boolean;
   tempChatMessages: AIMessage[];
   chatHistoryOpen: boolean;

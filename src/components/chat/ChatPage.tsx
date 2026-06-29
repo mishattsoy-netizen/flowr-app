@@ -20,7 +20,20 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full w-full bg-background">
-      <div className="flex-1 min-w-0 relative h-full">
+      <div className="flex-1 min-w-0 relative h-full isolate">
+
+        {/* Radial Glow — new chat: centered */}
+        {displayMessages.length === 0 && (
+          <div
+            className="absolute pointer-events-none rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] opacity-100 blur-[100px]"
+            style={{
+              backgroundColor: isTempChat
+                ? 'color-mix(in srgb, var(--bone-100) 20%, transparent)'
+                : 'color-mix(in srgb, var(--accent) 20%, transparent)',
+              zIndex: -1,
+            }}
+          />
+        )}
 
         {/* Scroll area fills entire parent — bar floats over it */}
         <ChatConversation />

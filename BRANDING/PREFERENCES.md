@@ -43,6 +43,10 @@
 - **Selection Indicators:** Prefers checkmarks (`Check` icon) on the right side of the label for nested menu options. Indicator should be subtle (`bone-60`) and brighten to `bone-100` on hover.
 - **Popup Fills:** Selected items in menus/popups should have a subtle background fill (`bone-6`) rather than just a text color change.
 - **Widget Borders:** Prefers ultra-subtle borders for widgets (`border-[var(--bone-3)]`, 3% opacity) to ensure seamless integration into the dashboard.
+- **Options Popups Layout:** Context menus and dropdown popups use a medium-compact layout with `p-1` (4px) container padding, `gap-[2px]` spacing between items, and `py-[4px]` item padding. Main menus have a minimum width of `180px` (`min-w-[180px]`), and sub-menus have a minimum width of `160px` (`min-w-[160px]`).
+- **Options Popups Hover BG:** Interactive popup items use `hover:bg-[var(--bone-6)]` for their hover highlight state to remain light and clean.
+- **Popup Dividers:** Separator lines inside popups span wider with `mx-1.5` (6px horizontal inset) and have tightened vertical margins of `my-[2px]` (2px).
+- **Sub-menu Arrow Chevron:** Right-side chevron arrows representing nested sub-menus use `ChevronRight` at `w-3.5 h-3.5 opacity-70` for optimal visibility.
 
 ## User Dislikes
 

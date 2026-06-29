@@ -9,9 +9,10 @@ interface MultiSelectionBoxProps {
   boundingBox: { x: number; y: number; w: number; h: number } | null;
   selectedCount: number;
   onResizeStart: (handle: HandlePosition, e: React.PointerEvent) => void;
+  onRotateStart?: (e: React.PointerEvent) => void;
 }
 
-export function MultiSelectionBox({ boundingBox, selectedCount, onResizeStart }: MultiSelectionBoxProps) {
+export function MultiSelectionBox({ boundingBox, selectedCount, onResizeStart, onRotateStart }: MultiSelectionBoxProps) {
   const boxRef = useRef<HTMLDivElement>(null);
 
   // After every React render, clear any stale transform set by the drag subscription.
@@ -39,6 +40,17 @@ export function MultiSelectionBox({ boundingBox, selectedCount, onResizeStart }:
         height: boundingBox.h,
       }}
     >
+      {/* Rotation handle — centered above the unified bounding box */}
+      {onRotateStart && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
+          <div
+            className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
+            onPointerDown={onRotateStart}
+          />
+          <div className="w-[1px] h-3 bg-brand-blue" />
+        </div>
+      )}
+
       {/* Blue border */}
       <div className="absolute inset-0 border-2 border-brand-blue pointer-events-none rounded-[1px]" />
 

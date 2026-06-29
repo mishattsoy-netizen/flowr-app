@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Leaf, ArrowRight } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { isDesktop } from '@/lib/env';
 
 export default function UpdateBanner() {
@@ -50,31 +50,30 @@ export default function UpdateBanner() {
   };
 
   // If there's no update or it's not ready, don't show the banner
-  if (!isReady || !updateVersion) {
-    return null;
-  }
+  // Temporary test check: bypassed to show UI
+  const displayVersion = updateVersion || "2.1.0";
 
   return (
-    <div className="px-4 py-2 select-none w-full animate-fade-in shrink-0">
-      <button
-        onClick={handleRelaunch}
-        className="w-full flex items-center justify-between p-3.5 rounded-xl border border-[var(--bone-10)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-all text-left duration-200 outline-none group cursor-pointer"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-[var(--radius-8)] bg-[var(--bone-8)] flex items-center justify-center text-[var(--bone-90)] group-hover:scale-105 transition-transform duration-200 shrink-0">
-            <Leaf className="w-5 h-5 text-[var(--bone-80)]" strokeWidth={2} />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-semibold text-[var(--bone-100)] tracking-wide leading-tight">
-              Relaunch to update
-            </span>
-            <span className="text-xs text-[var(--bone-50)] tracking-wide mt-0.5 font-medium">
-              v{updateVersion}
-            </span>
-          </div>
+    <button
+      onClick={handleRelaunch}
+      className="mx-[10px] mb-3 select-none flex items-center justify-between rounded-[10px] bg-[var(--bone-10)] p-[4px] pr-2 cursor-pointer border border-[var(--bone-3)] hover:border-[var(--bone-15)] hover:bg-[var(--bone-15)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 outline-none group text-left animate-fade-in shrink-0"
+    >
+      <div className="flex items-center text-left flex-1 min-w-0 gap-2.5 pl-2 pr-1.5 py-1">
+        <div className="!w-7 !h-7 rounded-[7px] bg-gradient-to-br from-[var(--bone-15)] to-[var(--bone-6)] flex items-center justify-center shrink-0 overflow-hidden relative">
+          <Download className="w-3.5 h-3.5 text-[var(--bone-80)]" strokeWidth={2} />
         </div>
-        <ArrowRight className="w-4 h-4 text-[var(--bone-60)] group-hover:text-[var(--bone-100)] group-hover:translate-x-0.5 transition-all duration-200 shrink-0" strokeWidth={2.5} />
-      </button>
-    </div>
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="text-[12px] font-semibold text-[var(--bone-100)] truncate tracking-wide leading-tight">
+            Relaunch to update
+          </span>
+          <span className="text-[10px] text-[var(--bone-30)] truncate tracking-wide leading-tight">
+            v{displayVersion}
+          </span>
+        </div>
+      </div>
+      <div className="btn-sidebar-utility rounded-[7px] !w-7 !h-7 flex items-center justify-center text-[var(--bone-70)] group-hover:text-[var(--bone-100)] transition-colors shrink-0">
+        <RefreshCw className="w-3.5 h-3.5 transition-transform duration-700 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:rotate-[360deg]" strokeWidth={2} />
+      </div>
+    </button>
   );
 }

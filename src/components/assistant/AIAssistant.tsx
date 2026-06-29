@@ -6,7 +6,7 @@ import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId, blocksToMarkdown } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark } from 'lucide-react';
+import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark, Pen } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
@@ -63,6 +63,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const setAIAssistantOpen = useStore(state => state.setAIAssistantOpen);
   const toggleAIAssistantExtended = useStore(state => state.toggleAIAssistantExtended);
   const isTempChat = useStore(state => state.isTempChat);
+  const pendingNewChat = useStore(state => state.pendingNewChat);
+  const activeChatId = useStore(state => state.activeChatId);
+  const tempChatGreeting = useStore(state => state.tempChatGreeting);
+  const chatConversations = useStore(state => state.chatConversations);
   const showTempNotice = useStore(state => state.showTempNotice);
   const setShowTempNotice = useStore(state => state.setShowTempNotice);
   const saveTempChat = useStore(state => state.saveTempChat);
@@ -96,11 +100,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const startNewChat = useStore(state => state.startNewChat);
   const startTempChat = useStore(state => state.startTempChat);
   const openChatInPage = useStore(state => state.openChatInPage);
-  const chatConversations = useStore(state => state.chatConversations);
   const loadChatConversations = useStore(state => state.loadChatConversations);
   const loadConversation = useStore(state => state.loadConversation);
   const deleteChatConversation = useStore(state => state.deleteChatConversation);
-  const activeChatId = useStore(state => state.activeChatId);
   const [showModeMenu, setShowModeMenu] = useState(false)
   const modeMenuBtnRef = useRef<HTMLButtonElement>(null)
   const [modeMenuPos, setModeMenuPos] = useState<{ bottom: number; right: number } | null>(null)
@@ -670,7 +672,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2.5">
                 <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
-                  Chat
+                  {isTempChat
+                    ? 'Temporary Chat'
+                    : chatConversations.find(c => c.id === activeChatId)?.title || 'New Chat'}
                 </h1>
                 <div className={cn("w-1 h-1 rounded-full mt-2", isMounted ? "bg-[#22C55E]" : "bg-[#EF4444]")} />
               </div>
@@ -682,7 +686,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 className="btn-sidebar-utility"
                 title="New chat"
               >
-                <Plus strokeWidth={2} className="w-4 h-4" />
+                <Pen strokeWidth={2} className="w-4 h-4" />
               </button>
               <button
                 onClick={openChatInPage}
@@ -699,21 +703,25 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                 )}
                 title="Temporary chat"
               >
-                <Clock strokeWidth={2} className="w-4 h-4" />
+                <MessageCircleDashed strokeWidth={2} className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => { loadChatConversations(); setShowHistoryModal(true); }}
-                className="btn-sidebar-utility"
-                title="Session history"
-              >
-                <History strokeWidth={2} className="w-4 h-4" />
-              </button>
-              <button
-                onClick={clearAIChat}
-                className="btn-sidebar-utility"
-              >
-                <Trash2 strokeWidth={2} className="w-4 h-4" />
-              </button>
+              {!isTempChat && (
+                <button
+                  onClick={() => { loadChatConversations(); setShowHistoryModal(true); }}
+                  className="btn-sidebar-utility"
+                  title="Session history"
+                >
+                  <History strokeWidth={2} className="w-4 h-4" />
+                </button>
+              )}
+              {!isTempChat && (
+                <button
+                  onClick={clearAIChat}
+                  className="btn-sidebar-utility"
+                >
+                  <Trash2 strokeWidth={2} className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={() => setAIAssistantOpen(false)}
                 className="btn-sidebar-utility"
@@ -756,13 +764,36 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             )}
 
             {aiMessages.length === 0 && !isAILoading && (
-              <div className="flex-1 flex flex-col justify-end text-center pb-5 min-h-0">
-                <div className="flex flex-col @[500px]:flex-row items-center justify-center gap-4 @[500px]:gap-6 text-center @[500px]:text-left">
-                  <AIAvatar className="w-8 h-8 opacity-100" />
-                  <p className="text-[26px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
-                    How can I help you today?
-                  </p>
-                </div>
+              <div className="flex-1 flex flex-col justify-center text-center pb-5 min-h-0 relative isolate">
+                {!chatPageMode && !isFloating && (
+                  <div
+                    className="absolute pointer-events-none rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[300px] opacity-100 blur-[100px]"
+                    style={{
+                      backgroundColor: isTempChat
+                        ? 'color-mix(in srgb, var(--bone-100) 15%, transparent)'
+                        : 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+                {isTempChat ? (
+                  <div className="flex flex-col items-center gap-0 relative z-0 animate-fade-in">
+                    <MessageCircleDashed className="w-10 h-10 text-[var(--bone-40)] mb-3" strokeWidth={1.5} />
+                    <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-1">
+                      {tempChatGreeting || "Write like nobody's listening."}
+                    </p>
+                    <p className="text-[12px] leading-relaxed text-[var(--bone-60)] max-w-xs">
+                      This chat is temporary. It will disappear if you don't save it.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-3 relative z-0">
+                    <AIAvatar className="w-8 h-8 opacity-100" />
+                    <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
+                      How can I help you today?
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').map((msg, idx, filtered) => (
@@ -844,34 +875,28 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
         <div className={cn(
           "shrink-0 relative",
-          chatPageMode ? "px-0 pb-0 pt-3 border-none" : "px-6 pb-6 pt-3 bg-sidebar border-t border-[var(--bone-6)]"
+          chatPageMode ? "px-0 pb-0 pt-3 border-none" : "px-6 pb-6 pt-3 border-none"
         )}>
-          {/* Radial Glow (Round Fade) behind messagebar */}
-          {chatPageMode && isTempChat && (
-            <div
-              className="absolute pointer-events-none rounded-full left-1/2 -translate-x-1/2 w-[500px] h-[300px] top-1/2 -translate-y-1/2 opacity-100 blur-[150px]"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--bone-100) 40%, transparent)',
-                zIndex: 0,
-              }}
-            />
-          )}
-
           <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} />
 
           {/* Peeking Temporary Chat Notice Bubble (Floating behind Message Bar) */}
-          {chatPageMode && isTempChat && showTempNotice && aiMessages.length > 0 && (
+          {isTempChat && showTempNotice && aiMessages.length > 0 && (
             <div
-              className="dark absolute top-3 -translate-y-[39px] left-5 right-5 h-10 flex items-center justify-between px-4 border-t border-l border-r border-[var(--bone-3)] select-none rounded-t-[16px] animate-fade-in shadow-md z-0 bg-[#121212]"
+              className={cn(
+                "dark absolute top-3 -translate-y-[39px] h-10 flex items-center justify-between px-4 border-t border-l border-r border-[var(--bone-3)] select-none rounded-t-[16px] animate-fade-in shadow-md z-0 bg-[#121212]",
+                chatPageMode ? "left-5 right-5" : "left-[29px] right-[29px]"
+              )}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <MessageCircleDashed className="w-4 h-4 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
                 <span className="text-xs font-semibold text-[var(--bone-100)] tracking-wide leading-none">
                   Temporary Chat
                 </span>
-                <span className="text-[10px] text-[var(--bone-60)] opacity-70 tracking-wide leading-none hidden sm:inline ml-4">
-                  This chat will disappear if you don't save it.
-                </span>
+                {chatPageMode && (
+                  <span className="text-[10px] text-[var(--bone-60)] opacity-70 tracking-wide leading-none hidden sm:inline ml-4">
+                    This chat will disappear if you don't save it.
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* Clear Chat Button */}
@@ -912,11 +937,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
           )}
 
           {/* Unified Message Bar Container */}
+          {/* Unified Message Bar Container */}
           <div
             className={cn(
-              "border flex flex-col relative transition-colors duration-300",
+              "border flex flex-col relative transition-colors duration-300 z-10",
               chatPageMode
-                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md z-10`
+                ? `backdrop-blur-xl ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[20px] p-4 shadow-md`
                 : `bg-[var(--bone-6)] ${resolvedTheme === 'light' ? 'border-[var(--bone-6)]' : 'border-[var(--bone-3)]'} hover:border-[var(--bone-12)] focus-within:border-[var(--bone-12)] rounded-[16px] p-3`
             )}
             style={chatPageMode ? { backgroundColor: 'var(--color-panel)' } : undefined}
@@ -1153,16 +1179,16 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                         onClick={() => setShowModeMenu(false)}
                       />
                       <div
-                        className="fixed z-[150] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden min-w-[200px] backdrop-blur-3xl shadow-2xl p-1.5 flex flex-col gap-0.5"
+                        className="fixed z-[150] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden min-w-[180px] backdrop-blur-3xl shadow-2xl p-1 flex flex-col gap-[2px]"
                         style={{ bottom: modeMenuPos.bottom, right: modeMenuPos.right }}
                       >
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-[2px]">
                           {MODE_OPTIONS.map(opt => (
                             <button
                               key={opt.key}
                               onClick={() => { setActiveMode(opt.key); setShowModeMenu(false) }}
                               className={cn(
-                                'w-full flex items-center px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] text-left group transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                                'w-full flex items-center px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] text-left group transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100',
                                 activeMode === opt.key && 'bg-dark text-bone-100'
                               )}
                             >
@@ -1178,7 +1204,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           <button
                             onClick={() => setThinkingEnabled(!thinkingEnabled)}
                             className={cn(
-                              'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                              'w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100',
                               thinkingEnabled && 'text-bone-100'
                             )}
                           >
@@ -1197,7 +1223,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                           <button
                             onClick={() => setAdvisorEnabled(!advisorEnabled)}
                             className={cn(
-                              'w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100',
+                              'w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100',
                               advisorEnabled && 'text-bone-100'
                             )}
                           >
@@ -1221,7 +1247,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
                                   openModal({ kind: 'summaryPreview', summary: aiSessionContext.distilled_summary! });
                                   setShowModeMenu(false);
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100"
+                                className="w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100"
                               >
                                 <Brain className="w-4 h-4 shrink-0 opacity-60 text-accent animate-pulse" strokeWidth={2} />
                                 <div className="flex flex-col items-start">
@@ -1419,25 +1445,25 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
             {/* Command Menu Portal (Local to container) */}
             {showCommandMenu && filteredCommands.length > 0 && (
               <div className={cn(
-                "absolute left-0 right-0 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1.5 flex flex-col gap-0.5",
+                "absolute left-0 right-0 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1 flex flex-col gap-[2px]",
                 isNewChatEmpty ? "top-full mt-4" : "bottom-full mb-4"
               )}>
-                <div className="px-3 pt-1 pb-2">
+                <div className="px-3 pt-1 pb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--bone-30)] opacity-80">
                     Actions & Commands
                   </span>
                 </div>
-                <div className="max-h-80 overflow-y-auto scrollbar-none flex flex-col gap-0.5">
+                <div className="max-h-80 overflow-y-auto scrollbar-none flex flex-col gap-[2px]">
                   {filteredCommands.map((cmd, i) => (
                     <button
                       key={cmd.id}
                       onClick={() => handleCommandSelect(cmd)}
                       onMouseEnter={() => setActiveCommandIndex(i)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-left group transition-none",
+                        "w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-left group transition-none",
                         i === activeCommandIndex
-                          ? "bg-white/[0.08] text-[var(--bone-100)]"
-                          : "text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-[var(--bone-100)]"
+                          ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
+                          : "text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
                       )}
                     >
                       <div className={cn(

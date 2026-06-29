@@ -727,6 +727,8 @@ export function CanvasStylePanel({
   const displayX = activeDrag ? (activeDrag.resizeX ?? ((activeDrag.startX ?? ref?.x ?? 0) + activeDrag.dx)) : (ref?.x ?? 0);
   const displayY = activeDrag ? (activeDrag.resizeY ?? ((activeDrag.startY ?? ref?.y ?? 0) + activeDrag.dy)) : (ref?.y ?? 0);
   const displayRotation = activeDrag?.rotation ?? style.rotation ?? 0;
+  const rotationsMixed = hasSelection && selected.length > 1 && !activeDrag &&
+    new Set(selected.map(b => b.canvasStyleExt?.rotation ?? 0)).size > 1;
 
   const isArrow = ref?.shapeKind === 'arrow' || ref?.shapeKind === 'line' || ref?.shapeKind === 'freedraw';
   let arrowBounds: { x: number; y: number; w: number; h: number } | null = null;
@@ -744,20 +746,64 @@ export function CanvasStylePanel({
 
   function updateStyle(patch: Partial<CanvasStyleExt>) {
     if (hasSelection) {
-      selected.forEach(b => {
-        let extra = {};
-        if ('rotation' in patch && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')) {
-          const resolved = resolvePoints(b, blocks);
-          const { minX, minY, maxX, maxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
-          const pad = 6;
-          const cx = minX - pad + Math.max(maxX - minX + pad * 2, 1) / 2;
-          const cy = minY - pad + Math.max(maxY - minY + pad * 2, 1) / 2;
-          if (!b.canvasStyleExt?.pivot) {
-            extra = { pivot: [cx, cy] };
-          }
+      if ('rotation' in patch && selected.length > 1) {
+        // Group rotation: orbit all blocks around the group's center
+        const firstRotation = selected[0].canvasStyleExt?.rotation ?? 0;
+        const newRotation = patch.rotation ?? 0;
+        const deltaDeg = newRotation - firstRotation;
+        if (deltaDeg !== 0) {
+          // Compute group bounding box center from current positions
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          selected.forEach(b => {
+            const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+            const s = b.canvasStyleExt ?? {};
+            const sw = (s.strokeWidth ?? 1.5) / 2;
+            let l = bx - sw, t = by - sw, r = bx + bw + sw, bt = by + bh + sw;
+            if (l < minX) minX = l;
+            if (t < minY) minY = t;
+            if (r > maxX) maxX = r;
+            if (bt > maxY) maxY = bt;
+          });
+          const groupCx = (minX + maxX) / 2;
+          const groupCy = (minY + maxY) / 2;
+
+          const rad = (deltaDeg * Math.PI) / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+
+          selected.forEach(b => {
+            const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
+            const relCx = bx + bw / 2 - groupCx;
+            const relCy = by + bh / 2 - groupCy;
+            const newRelCx = relCx * cos - relCy * sin;
+            const newRelCy = relCx * sin + relCy * cos;
+
+            let blockRotation = ((b.canvasStyleExt?.rotation ?? 0) + deltaDeg) % 360;
+            if (blockRotation > 180) blockRotation -= 360;
+
+            updateCanvasBlock(b.id, {
+              x: groupCx + newRelCx - bw / 2,
+              y: groupCy + newRelCy - bh / 2,
+              canvasStyleExt: { ...(b.canvasStyleExt ?? {}), rotation: blockRotation },
+            });
+          });
         }
-        updateCanvasBlock(b.id, { canvasStyleExt: { ...(b.canvasStyleExt ?? {}), ...patch, ...extra } });
-      });
+      } else {
+        selected.forEach(b => {
+          let extra = {};
+          if ('rotation' in patch && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')) {
+            const resolved = resolvePoints(b, blocks);
+            const { minX, minY, maxX, maxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
+            const pad = 6;
+            const cx = minX - pad + Math.max(maxX - minX + pad * 2, 1) / 2;
+            const cy = minY - pad + Math.max(maxY - minY + pad * 2, 1) / 2;
+            if (!b.canvasStyleExt?.pivot) {
+              extra = { pivot: [cx, cy] };
+            }
+          }
+          updateCanvasBlock(b.id, { canvasStyleExt: { ...(b.canvasStyleExt ?? {}), ...patch, ...extra } });
+        });
+      }
     }
     onChangeActiveStyle({ ...activeStyle, ...patch });
   }
@@ -962,7 +1008,7 @@ export function CanvasStylePanel({
                           <path d="M8 14A6 6 0 0 0 2 8" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       }
-                      value={`${Math.round(displayRotation)}°`}
+                      value={rotationsMixed ? 'Mixed' : `${Math.round(displayRotation)}°`}
                       onChange={v => {
                         const num = parseInt(v.replace(/[^0-9-]/g, '')) || 0;
                         let d = (num % 360 + 360) % 360;
@@ -970,7 +1016,7 @@ export function CanvasStylePanel({
                         updateStyle({ rotation: d });
                       }}
                       scrub={{
-                        value: displayRotation,
+                        value: rotationsMixed ? (style.rotation ?? 0) : displayRotation,
                         onChange: v => {
                           let d = (Math.round(v) % 360 + 360) % 360;
                           if (d > 180) d -= 360;

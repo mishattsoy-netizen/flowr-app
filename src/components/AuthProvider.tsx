@@ -40,6 +40,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = useRef<ReturnType<typeof createClient> | null>(null)
   try { supabase.current = createClient() } catch {}
   const checkedAdmin = useRef(false)
+  const prevUserIdRef = useRef<string | null>(null)
 
   const router = useRouter()
   const pathname = usePathname()
@@ -105,6 +106,15 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((_event, s) => {
+      // If the auth user changed (different person signed in/out), purge stale
+      // localStorage cache to prevent the previous user's data from leaking.
+      const newUserId = s?.user?.id ?? null
+      const prevUserId = prevUserIdRef.current
+      prevUserIdRef.current = newUserId
+      if (prevUserId && prevUserId !== newUserId && typeof window !== 'undefined') {
+        try { localStorage.removeItem('flowr-storage') } catch {}
+      }
+
       setSession(s)
       setUser(s?.user ?? null)
       if (s?.access_token) {

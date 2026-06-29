@@ -28,7 +28,7 @@ export function ChatPlusMenu({ onClose, onMediaClick, position }: ChatPlusMenuPr
   const menu = (
     <div
       ref={ref}
-      className="min-w-[200px] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden backdrop-blur-3xl shadow-2xl p-1.5 flex flex-col gap-0.5"
+      className="min-w-[180px] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden backdrop-blur-3xl shadow-2xl p-1 flex flex-col gap-[2px]"
       style={position
         ? { position: 'fixed', bottom: position.bottom, left: position.left, zIndex: 150 }
         : { position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', zIndex: 50 }}
@@ -36,15 +36,15 @@ export function ChatPlusMenu({ onClose, onMediaClick, position }: ChatPlusMenuPr
       {/* Media upload */}
       <button
         onClick={() => { onMediaClick(); onClose(); }}
-        className="w-full flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-white/[0.08] hover:text-bone-100"
+        className="w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100"
       >
         <ImageIcon className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
         <span className="tracking-wide">Upload Media</span>
       </button>
 
       {/* Extensions — stubs */}
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] text-[var(--bone-40)] cursor-not-allowed opacity-50">
+      <div className="flex flex-col gap-[2px]">
+        <div className="flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] text-[var(--bone-40)] cursor-not-allowed opacity-50">
           <Plug className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
           <div className="flex flex-col">
             <p className="tracking-wide text-[var(--bone-70)]">Extensions</p>
@@ -56,7 +56,7 @@ export function ChatPlusMenu({ onClose, onMediaClick, position }: ChatPlusMenuPr
       <div className="popup-divider" />
 
       {/* Design Mode — stub */}
-      <div className="flex items-center gap-3 px-3 py-1.5 rounded-[var(--radius-medium)] text-[13.5px] text-[var(--bone-40)] cursor-not-allowed opacity-50">
+      <div className="flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] text-[var(--bone-40)] cursor-not-allowed opacity-50">
         <Wand2 className="w-4 h-4 shrink-0 opacity-60" strokeWidth={2} />
         <div className="flex flex-col">
           <p className="tracking-wide text-[var(--bone-70)]">Design Mode</p>

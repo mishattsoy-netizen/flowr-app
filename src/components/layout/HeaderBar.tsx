@@ -77,6 +77,7 @@ export const HeaderBar = memo(function HeaderBar() {
   const isTempChat = useStore(state => state.isTempChat);
   const chatConversations = useStore(state => state.chatConversations);
   const activeChatId = useStore(state => state.activeChatId);
+  const isSidebarCollapsed = useStore(state => state.isSidebarCollapsed);
 
   const canGoBack = true;
   const canGoForward = true;
@@ -178,6 +179,29 @@ export const HeaderBar = memo(function HeaderBar() {
         ? "h-[38px] bg-[var(--app-dark)]" 
         : "h-8 bg-sidebar border-b border-b-[var(--bone-10)]"
     )}>
+      {/* Sidebar toggle and search buttons for web mode (when left sidebar is collapsed) */}
+      {!isDesktopEnv && isSidebarCollapsed && (
+        <div className="flex items-center gap-1 shrink-0 mr-2">
+          <Tooltip content="Toggle Sidebar">
+            <button
+              onClick={toggleSidebar}
+              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
+            >
+              <PanelLeft strokeWidth={2} className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Search">
+            <button
+              onClick={toggleCommandPalette}
+              className="flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] w-6 h-6 shrink-0 [-webkit-app-region:no-drag] cursor-pointer"
+            >
+              <Search strokeWidth={2} className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <div className="w-px h-4 bg-[var(--bone-6)] mx-1" />
+        </div>
+      )}
+
       {isDesktopEnv && (
         <>
           <div className="flex items-center gap-1 shrink-0">
@@ -339,8 +363,8 @@ export const HeaderBar = memo(function HeaderBar() {
               left: Math.max(8, hoveredTab.rect.left)
             }}
           >
-            <div className="popup-glass-small backdrop-blur-xl p-1.5 min-w-[180px] flex flex-col gap-[3px]">
-              <div className="flex flex-col gap-0.5">
+            <div className="popup-glass-small backdrop-blur-xl p-1 min-w-[180px] flex flex-col gap-[2px]">
+              <div className="flex flex-col gap-[2px]">
                 {hoveredTab.path.length > 1 && hoveredTab.path.slice(0, -1).map((p) => (
                   <button 
                     key={p.id} 
@@ -355,7 +379,7 @@ export const HeaderBar = memo(function HeaderBar() {
                 
                 {hoveredTab.path.length > 1 && <div className="popup-divider" />}
 
-                <div className="flex items-center gap-3 px-3 py-1.5 text-[13.5px] font-semibold text-[var(--bone-100)]">
+                <div className="flex items-center gap-3 px-3 py-[4px] text-[13.5px] font-semibold text-[var(--bone-100)]">
                   {(() => { 
                     const last = hoveredTab.path[hoveredTab.path.length - 1];
                     let LastIcon: any = FileText;

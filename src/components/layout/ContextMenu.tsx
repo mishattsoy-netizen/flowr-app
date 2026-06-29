@@ -90,7 +90,7 @@ function MenuItemComponent({
       <button
         onClick={handleToggle}
         className={cn(
-          "popup-item group w-full flex items-center gap-2 px-3 py-1.5 text-sm",
+          "popup-item group w-full flex items-center gap-2 px-3 py-[4px] text-sm",
           item.danger && "popup-item-danger",
           isOpen && "bg-[var(--app-dark)] text-[var(--bone-100)]",
           item.selected && "bg-[var(--app-dark)]"
@@ -99,12 +99,12 @@ function MenuItemComponent({
         {item.icon && <div className="w-4 h-4 shrink-0">{item.icon}</div>}
         <span className="flex-1 text-left font-medium tracking-wide">{item.label}</span>
         {item.selected && <Check strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-70)] group-hover:text-[var(--bone-100)] shrink-0" />}
-        {item.children && <ChevronRight strokeWidth={2} className={cn("w-3 h-3 opacity-50", isOpen && "rotate-90")} />}
+        {item.children && <ChevronRight strokeWidth={2} className={cn("w-3.5 h-3.5 opacity-70", isOpen && "rotate-90")} />}
       </button>
 
       {item.children && isOpen && (
         <div 
-          className="fixed z-[310] popup-glass-small min-w-[180px] p-1.5 flex flex-col gap-[3px]"
+          className="fixed z-[310] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
           style={{ 
             left: subMenuPos.x, 
             top: subMenuPos.y 
@@ -426,14 +426,14 @@ export function ContextMenu() {
         <div
           ref={ref}
           className={cn(
-            "fixed z-[300] popup-glass-small min-w-[200px] p-1.5 flex flex-col gap-[3px]",
+            "fixed z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]",
             adjustedPos.x === 0 && "opacity-0"
           )}
           style={{ 
             left: adjustedPos.x, 
             top: adjustedPos.y,
             // We set this CSS variable so children can position themselves relative to the menu width
-            '--menu-width': 'var(--menu-width, 200px)'
+            '--menu-width': 'var(--menu-width, 180px)'
           } as React.CSSProperties}
           onMouseEnter={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();

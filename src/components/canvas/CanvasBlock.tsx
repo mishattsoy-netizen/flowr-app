@@ -602,8 +602,8 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       onContextMenu={handleContextMenu}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Rotation handle */}
-      {isSelected && block.type !== 'connection' && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
+      {/* Rotation handle — hidden during multi-selection, shown on unified bounding box instead */}
+      {isSelected && (!selectedIds || selectedIds.size <= 1) && block.type !== 'connection' && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
             className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"

@@ -59,3 +59,5 @@ Flowr-1.0/
 
 # Electron build outputs
 /dist-desktop/
+/dist-desktop-v3/
+/test-server/

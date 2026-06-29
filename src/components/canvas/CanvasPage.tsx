@@ -229,10 +229,37 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         if (sMaxY > maxY) maxY = sMaxY;
       } else {
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
-        if (bx < minX) minX = bx;
-        if (by < minY) minY = by;
-        if (bx + bw > maxX) maxX = bx + bw;
-        if (by + bh > maxY) maxY = by + bh;
+        const style = b.canvasStyleExt ?? {};
+        const sw = (style.strokeWidth ?? 1.5) / 2;
+        const rotation = style.rotation ?? 0;
+
+        // Start with stroke-padded bounds (stroke renders half-outside geometry)
+        let left = bx - sw;
+        let top = by - sw;
+        let right = bx + bw + sw;
+        let bottom = by + bh + sw;
+
+        // Account for rotation — compute axis-aligned bounding box of rotated rectangle
+        if (rotation !== 0) {
+          const cx = (left + right) / 2;
+          const cy = (top + bottom) / 2;
+          const hw = (right - left) / 2;
+          const hh = (bottom - top) / 2;
+          const rad = (rotation * Math.PI) / 180;
+          const cos = Math.abs(Math.cos(rad));
+          const sin = Math.abs(Math.sin(rad));
+          const vhw = hw * cos + hh * sin;
+          const vhh = hw * sin + hh * cos;
+          left = cx - vhw;
+          right = cx + vhw;
+          top = cy - vhh;
+          bottom = cy + vhh;
+        }
+
+        if (left < minX) minX = left;
+        if (top < minY) minY = top;
+        if (right > maxX) maxX = right;
+        if (bottom > maxY) maxY = bottom;
       }
     });
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
@@ -485,6 +512,169 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
 
       commitHistory();
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+    };
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+  }, [selectedBlocks, selectionBoundingBox, viewport, updateCanvasBlocks, commitHistory]);
+
+  const handleGroupRotateStart = useCallback((e: React.PointerEvent) => {
+    if (selectedBlocks.length < 2 || !selectionBoundingBox) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const box = selectionBoundingBox;
+    const scale = viewport.scale;
+    const vx = viewport.x;
+    const vy = viewport.y;
+
+    // Group center in canvas space
+    const groupCx = box.x + box.w / 2;
+    const groupCy = box.y + box.h / 2;
+
+    // Capture each block's initial state and its offset from group center
+    const snapshots: {
+      id: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      rotation: number;
+      relCx: number; // center X relative to group center
+      relCy: number; // center Y relative to group center
+    }[] = selectedBlocks.map(b => {
+      const bx = b.x ?? 0, by = b.y ?? 0;
+      const bw = b.width ?? 0, bh = b.height ?? 0;
+      return {
+        id: b.id,
+        x: bx, y: by, w: bw, h: bh,
+        rotation: b.canvasStyleExt?.rotation ?? 0,
+        relCx: bx + bw / 2 - groupCx,
+        relCy: by + bh / 2 - groupCy,
+      };
+    });
+
+    // Screen-space center of group for angle calculation
+    const screenCx = groupCx * scale + vx;
+    const screenCy = groupCy * scale + vy;
+    const startAngle = Math.atan2(e.clientY - screenCy, e.clientX - screenCx) + Math.PI / 2;
+
+    // Cache DOM elements for direct manipulation — SVG <g> (shape) AND HTML <div> (tooltips/content)
+    const domCache: { id: string; el: HTMLElement | SVGElement }[] = [];
+    selectedBlocks.forEach(b => {
+      const all = document.querySelectorAll(`[id="${b.id}"]`);
+      all.forEach(el => {
+        if (el instanceof HTMLElement || el instanceof SVGElement) {
+          domCache.push({ id: b.id, el });
+        }
+      });
+    });
+
+    let rafId: number | null = null;
+    const finalDeltaRef = { deg: 0 };
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+
+        const currentAngle = Math.atan2(moveEvent.clientY - screenCy, moveEvent.clientX - screenCx) + Math.PI / 2;
+        let deltaDeg = ((currentAngle - startAngle) * 180) / Math.PI;
+        if (moveEvent.shiftKey) deltaDeg = Math.round(deltaDeg / 45) * 45;
+        finalDeltaRef.deg = deltaDeg;
+
+        // Pre-compute trig once per frame (not per block)
+        const rad = (deltaDeg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        // Update each block's DOM element — use single transform to avoid layout thrashing
+        domCache.forEach(({ id, el }) => {
+          const snap = snapshots.find(s => s.id === id);
+          if (!snap) return;
+
+          // Rotate block center around group center
+          const newRelCx = snap.relCx * cos - snap.relCy * sin;
+          const newRelCy = snap.relCx * sin + snap.relCy * cos;
+
+          // New position and rotation for this block
+          const newX = groupCx + newRelCx - snap.w / 2;
+          const newY = groupCy + newRelCy - snap.h / 2;
+          let newRotation = (snap.rotation + deltaDeg) % 360;
+
+          // Combine translation and rotation in one transform (avoids layout thrashing)
+          const dx = newX - snap.x;
+          const dy = newY - snap.y;
+          el.style.transform = `translate(${dx}px, ${dy}px) rotate(${newRotation}deg)`;
+
+          // Update activeDragOffsets so the style panel shows live rotation
+          if (el instanceof HTMLElement) {
+            activeDragOffsets.set(id, { dx: 0, dy: 0, rotation: newRotation });
+          }
+        });
+
+        // Update rotation label tooltips and multi-selection box transform
+        const boxEl = document.getElementById('multi-selection-box');
+        if (boxEl) {
+          boxEl.style.transform = `rotate(${deltaDeg}deg)`;
+        }
+
+        // Update rotation labels in the HTML block containers
+        domCache.forEach(({ id, el }) => {
+          const snap = snapshots.find(s => s.id === id);
+          if (!snap) return;
+          if (el instanceof HTMLElement && el.tagName === 'DIV') {
+            const label = el.querySelector('.rotation-label');
+            if (label) {
+              const newRotation = (snap.rotation + deltaDeg) % 360;
+              label.textContent = `${Math.round(((newRotation % 360) + 360) % 360)}°`;
+            }
+          }
+        });
+      });
+    };
+
+    const handleUp = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+
+      // Pre-compute trig once
+      const rad = (finalDeltaRef.deg * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+
+      // Build batch commit with both position and rotation
+      const batch: { id: string; updates: Partial<EditorBlock> }[] = [];
+      snapshots.forEach(s => {
+        const newRelCx = s.relCx * cos - s.relCy * sin;
+        const newRelCy = s.relCx * sin + s.relCy * cos;
+        const newX = groupCx + newRelCx - s.w / 2;
+        const newY = groupCy + newRelCy - s.h / 2;
+        let newRotation = ((s.rotation + finalDeltaRef.deg) % 360 + 360) % 360;
+        if (newRotation > 180) newRotation -= 360;
+
+        const block = selectedBlocks.find(b => b.id === s.id);
+        batch.push({
+          id: s.id,
+          updates: {
+            x: newX,
+            y: newY,
+            canvasStyleExt: {
+              ...(block?.canvasStyleExt ?? {}),
+              rotation: newRotation,
+            },
+          },
+        });
+      });
+
+      if (batch.length > 0) updateCanvasBlocks(batch);
+      commitHistory();
+
+      // Clean up activeDragOffsets set during move
+      snapshots.forEach(s => activeDragOffsets.delete(s.id));
+
       document.removeEventListener('pointermove', handleMove);
       document.removeEventListener('pointerup', handleUp);
     };
@@ -1170,6 +1360,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   boundingBox={selectionBoundingBox}
                   selectedCount={selectedBlocks.length}
                   onResizeStart={handleGroupResizeStart}
+                  onRotateStart={handleGroupRotateStart}
                 />
 
                  {selectionBoundingBox && activeTool === 'select' && showFloatingToolbar && (

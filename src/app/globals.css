@@ -2,11 +2,13 @@
 @import "tailwindcss";
 
 /* Unified letter-spacing: dark mode 0.03em, light mode -0.01em (DM Sans only, mono excluded) */
-.dark body, .dark body *:not(code):not(pre):not(kbd):not(samp):not(.font-mono) {
+.dark body,
+.dark body *:not(code):not(pre):not(kbd):not(samp):not(.font-mono) {
   letter-spacing: 0.04em;
 }
 
-:root body, :root body *:not(code):not(pre):not(kbd):not(samp):not(.font-mono) {
+:root body,
+:root body *:not(code):not(pre):not(kbd):not(samp):not(.font-mono) {
   letter-spacing: -0.01em;
 }
 
@@ -74,8 +76,8 @@
 }
 
 .dark {
-  --app-background: #1F1F1E;
-  --app-panel: #262626;
+  --app-background: #1b1b1a;
+  --app-panel: #2A2A28;
   --app-dark: #121212;
   --sys-color: #1E1E1D;
   --slider-pill: var(--bone-12);
@@ -160,7 +162,11 @@
 }
 
 /* Mono: always 0 letter-spacing, no weight changes */
-code, pre, kbd, samp, .font-mono {
+code,
+pre,
+kbd,
+samp,
+.font-mono {
   letter-spacing: 0 !important;
 }
 
@@ -441,6 +447,7 @@ html[data-interface-size="big"] {
     @apply bg-[var(--bone-10)] text-[var(--bone-100)];
   }
 }
+
 /* Sidebar item rows active scale and styles are defined in the consolidated block below */
 
 @utility btn-sidebar-utility {
@@ -460,11 +467,11 @@ html[data-interface-size="big"] {
 }
 
 @utility popup-item {
-  @apply flex items-center gap-3 w-full px-3 py-1.5 text-[13.5px] cursor-pointer whitespace-nowrap text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] rounded-[var(--radius-medium)] transition-none;
+  @apply flex items-center gap-3 w-full px-3 py-[4px] text-[13.5px] cursor-pointer whitespace-nowrap text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-medium)] transition-none;
 }
 
 @utility popup-divider {
-  @apply h-px bg-[var(--bone-6)] my-[3px] mx-3;
+  @apply h-px bg-[var(--bone-6)] my-[2px] mx-1.5;
 }
 
 @utility popup-item-danger {
@@ -1119,6 +1126,7 @@ html {
 .sidebar-spacer-hit-target {
   pointer-events: none;
 }
+
 .is-dragging .sidebar-spacer-hit-target {
   pointer-events: auto;
 }
@@ -1282,8 +1290,14 @@ body.is-dragging-widget [data-widget-id] * {
       #000 calc(100% - var(--fade-bottom)),
       transparent 100%);
 }
-.scroll-fade[data-fade-top="true"] { --fade-top: 20px; }
-.scroll-fade[data-fade-bottom="true"] { --fade-bottom: 20px; }
+
+.scroll-fade[data-fade-top="true"] {
+  --fade-top: 20px;
+}
+
+.scroll-fade[data-fade-bottom="true"] {
+  --fade-bottom: 20px;
+}
 
 /* Command Palette Animations */
 .palette-enter {
@@ -1521,6 +1535,7 @@ table:not(.rdp-table) tr:last-child td {
   from {
     transform: translateX(100%);
   }
+
   to {
     transform: translateX(0);
   }
@@ -1576,7 +1591,7 @@ table:not(.rdp-table) tr:last-child td {
   color: var(--bone-100) !important;
 }
 
-.inline-link-btn > span:last-child {
+.inline-link-btn>span:last-child {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1599,6 +1614,7 @@ a:focus:not(:focus-visible),
     stroke-dashoffset: -20;
   }
 }
+
 .snap-guide-line {
   stroke-dasharray: 4 3;
   animation: guide-dash-crawl 0.8s linear infinite;

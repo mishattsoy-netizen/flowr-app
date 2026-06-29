@@ -219,6 +219,7 @@ export const useStore = create<AppState>()(
       activeChatId: null,
       newEmptyChatId: null,
       isTempChat: true,
+      pendingNewChat: false,
       showTempNotice: true,
       tempChatMessages: [],
       chatHistoryOpen: true,
@@ -479,6 +480,7 @@ export const useStore = create<AppState>()(
           activeChatId: null,
           newEmptyChatId: null,
           isTempChat: true,
+          pendingNewChat: false,
           showTempNotice: true,
           tempChatMessages: [],
           aiMessages: [],
@@ -522,29 +524,19 @@ export const useStore = create<AppState>()(
 
       startNewChat: async () => {
         await get().cleanupActiveChatIfEmpty();
-        try {
-          const conv = await createConversation('New Chat');
-          if (conv) {
-            set({
-              activeChatId: conv.id,
-              newEmptyChatId: conv.id,
-              isTempChat: false,
-              tempChatMessages: [],
-              aiMessages: [],
-              aiSessionContext: null,
-              pendingAdvisorState: null,
-              assistantInput: '',
-              isAILoading: false,
-              aiAbortController: null,
-              chatConversations: [conv, ...get().chatConversations],
-            });
-          } else {
-            await get().startTempChat();
-          }
-        } catch (e) {
-          console.error('Failed to create conversation', e);
-          await get().startTempChat();
-        }
+        set({
+          activeChatId: null,
+          newEmptyChatId: null,
+          isTempChat: false,
+          pendingNewChat: true,
+          tempChatMessages: [],
+          aiMessages: [],
+          aiSessionContext: null,
+          pendingAdvisorState: null,
+          assistantInput: '',
+          isAILoading: false,
+          aiAbortController: null,
+        });
       },
 
       loadConversation: async (id: string) => {
@@ -557,6 +549,7 @@ export const useStore = create<AppState>()(
           set({
             activeChatId: id,
             isTempChat: false,
+            pendingNewChat: false,
             tempChatMessages: [],
             aiMessages: get().chatMessagesMap[id] || [],
             aiSessionContext: get().sessionContextsMap[id] || null,
@@ -584,6 +577,7 @@ export const useStore = create<AppState>()(
           set(s => ({
             activeChatId: id,
             isTempChat: false,
+            pendingNewChat: false,
             tempChatMessages: [],
             aiMessages: aiMsgs,
             chatMessagesMap: { ...s.chatMessagesMap, [id]: aiMsgs },
@@ -776,6 +770,26 @@ export const useStore = create<AppState>()(
       },
 
       sendAIMessage: async (content, attachments = [], pageContext) => {
+        // Create pending new chat on first message
+        if (get().pendingNewChat) {
+          const conv = await createConversation('New Chat');
+          if (conv) {
+            const title = content.slice(0, 60);
+            await updateConversationTitle(conv.id, title);
+            conv.title = title;
+            set({
+              activeChatId: conv.id,
+              newEmptyChatId: null,
+              pendingNewChat: false,
+              isTempChat: false,
+              chatConversations: [conv, ...get().chatConversations],
+            });
+            await get().fetchAISessionContext(conv.id);
+          } else {
+            set({ pendingNewChat: false, isTempChat: true });
+          }
+        }
+
         const { aiMessages, activeReplyMessage } = get();
         const isTemp = get().isTempChat;
         const activeChatId = get().activeChatId;

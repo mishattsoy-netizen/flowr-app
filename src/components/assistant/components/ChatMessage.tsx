@@ -1864,8 +1864,8 @@ export const ChatMessage = memo(({
                                   </DropdownMenu.Portal>
                                 </DropdownMenu.Root>
                               </div>
-                              {/* Copy Transcript - only in dev/localhost */}
-                              {(process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) && (
+                              {/* Copy Transcript - only in dev server */}
+                              {process.env.NODE_ENV === 'development' && (
                                 (msg as any).transcript_md ? (
                                   <>
                                     <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
@@ -1910,11 +1910,7 @@ export const ChatMessage = memo(({
                         </div>
                       </div>
                     )}
-                    {isLast && (
-                      <div className="mt-3 flex items-center select-none">
-                        <AIAvatar isTyping={isAILoading} className="w-3.5 h-3.5" />
-                      </div>
-                    )}
+
                   </div>
                 )
               )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal, MessageCircleDashed } from 'lucide-react';
+import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal, MessageCircleDashed, Pen } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { ChatConversation } from '@/lib/chat';
@@ -37,6 +37,7 @@ export function ChatHistoryPanel() {
   const deleteChatConversation = useStore(s => s.deleteChatConversation);
   const renameChatConversation = useStore(s => s.renameChatConversation);
   const isTempChat = useStore(s => s.isTempChat);
+  const pendingNewChat = useStore(s => s.pendingNewChat);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -98,9 +99,12 @@ export function ChatHistoryPanel() {
           <div className="flex items-center gap-1 mb-3 px-1">
             <button
               onClick={startNewChat}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-hover transition-colors"
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                pendingNewChat ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
+              )}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Pen className="w-3.5 h-3.5" />
               New Chat
             </button>
             <button
@@ -199,7 +203,7 @@ export function ChatHistoryPanel() {
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setMenuOpenId(null)} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1.5 flex flex-col gap-[3px]"
+            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
             <button
