@@ -325,7 +325,7 @@ async function createWindow() {
     debugLog(`[HTTP] ${details.statusCode} ${details.url}`);
   });
 
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
   debugLog(`Loading URL: http://127.0.0.1:${nextPort}`);
   mainWindow.loadURL(`http://127.0.0.1:${nextPort}`);
 

@@ -106,7 +106,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [chatMenuOpenId, setChatMenuOpenId] = useState<string | null>(null);
   const [chatMenuPos, setChatMenuPos] = useState({ x: 0, y: 0 });
   const [newPagePopupPos, setNewPagePopupPos] = useState<{ x: number, y: number } | null>(null);
-  const [profilePopupPos, setProfilePopupPos] = useState<{ x: number, y: number, width: number } | null>(null);
+  const [profilePopupPos, setProfilePopupPos] = useState<{ x: number, y?: number, bottom?: number, width: number } | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState<Record<string, boolean>>({});
   const chatEditInputRef = useRef<HTMLInputElement>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -1320,7 +1320,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             return;
           }
           const rect = e.currentTarget.getBoundingClientRect();
-          setProfilePopupPos({ x: rect.left, y: rect.top - 143, width: rect.width });
+          setProfilePopupPos({ x: rect.left, bottom: window.innerHeight - rect.top + 8, width: rect.width });
         }}
         className={cn(
           "select-none transition-all duration-200 flex items-center mt-auto",
@@ -1473,7 +1473,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           <div className="fixed inset-0 z-[299]" onClick={() => setProfilePopupPos(null)} />
           <div
             className="fixed z-[300] popup-glass-small p-1 flex flex-col gap-[2px]"
-            style={{ left: profilePopupPos.x, top: profilePopupPos.y, width: profilePopupPos.width }}
+            style={{ left: profilePopupPos.x, bottom: profilePopupPos.bottom, width: profilePopupPos.width }}
           >
             {user?.email && (
               <div className="px-3 pt-1 pb-1 text-[11px] font-medium text-[var(--bone-30)] select-none truncate">
@@ -1518,16 +1518,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             {isDesktop() && (
               <>
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     setProfilePopupPos(null);
-                    const updater = (window as any).flowrUpdater;
-                    if (updater) {
-                      try {
-                        await updater.checkForUpdates();
-                      } catch (err) {
-                        console.error('Failed to trigger update check:', err);
-                      }
-                    }
+                    window.dispatchEvent(new CustomEvent('flowr:check-updates'));
                   }}
                   className="popup-item !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
                 >
