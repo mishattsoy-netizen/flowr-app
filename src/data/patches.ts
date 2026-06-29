@@ -21,8 +21,8 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
-    version: '1.0.3',
-    build: '1003',
+    version: '1.0.5',
+    build: '1005',
     date: '2026-06-29',
     title: 'Multi-Selection Bounding Box & Desktop Design Update',
     sections: [
