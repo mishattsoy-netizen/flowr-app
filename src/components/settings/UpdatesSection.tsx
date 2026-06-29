@@ -1,9 +1,10 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { PATCHES, PatchType } from '@/data/patches';
 import { Sparkles, CheckCircle, RefreshCw, PlusCircle, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isDesktop } from '@/lib/env';
 
 const typeConfig: Record<PatchType, { label: string; color: string; icon: any }> = {
   added: {
@@ -31,11 +32,53 @@ const typeConfig: Record<PatchType, { label: string; color: string; icon: any }>
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
 
 export default function UpdatesSection() {
+  const [checking, setChecking] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const handleCheck = async () => {
+    if (!isDesktop()) return;
+    setChecking(true);
+    setStatus('Checking for updates...');
+    const updater = (window as any).flowrUpdater;
+    if (updater) {
+      try {
+        await updater.checkForUpdates();
+        setStatus('Update check completed.');
+        setTimeout(() => setStatus(null), 3000);
+      } catch (err: any) {
+        setStatus(`Check failed: ${err.message || err}`);
+        setTimeout(() => setStatus(null), 5000);
+      }
+    } else {
+      setStatus('Updater not available.');
+      setTimeout(() => setStatus(null), 3000);
+    }
+    setChecking(false);
+  };
+
   return (
     <OverlayScrollbar 
       className="h-full flex-1 min-h-0 w-full animate-fade-in" 
       scrollClassName="space-y-6 px-1 pt-4 pb-8"
     >
+      {isDesktop() && (
+        <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--bone-6)] bg-[var(--color-panel)] mb-2">
+          <div className="text-left">
+            <h4 className="text-sm font-semibold text-[var(--bone-100)]">App Updates</h4>
+            <p className="text-xs text-[var(--bone-40)] mt-0.5">
+              {status || "Check if a new version is available for installation."}
+            </p>
+          </div>
+          <button
+            onClick={handleCheck}
+            disabled={checking}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-all shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", checking && "animate-spin")} />
+            Check for Updates
+          </button>
+        </div>
+      )}
       {PATCHES.map((patch) => (
         <div 
           key={patch.version}

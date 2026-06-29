@@ -6,7 +6,7 @@ import type { EntityType, Entity, SidebarSectionId } from '@/data/store';
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
 
-import { Search, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, Layers, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageSquare, Calendar, Clock, Trash2, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut } from 'lucide-react';
+import { Search, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, Layers, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageSquare, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
@@ -1514,6 +1514,29 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </button>
 
             <div className="h-px bg-[var(--bone-6)] my-[3px]" />
+
+            {isDesktop() && (
+              <>
+                <button
+                  onClick={async () => {
+                    setProfilePopupPos(null);
+                    const updater = (window as any).flowrUpdater;
+                    if (updater) {
+                      try {
+                        await updater.checkForUpdates();
+                      } catch (err) {
+                        console.error('Failed to trigger update check:', err);
+                      }
+                    }
+                  }}
+                  className="popup-item !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
+                >
+                  <RefreshCw strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <span className="flex-1 text-left font-medium tracking-wide">Check for Updates</span>
+                </button>
+                <div className="h-px bg-[var(--bone-6)] my-[3px]" />
+              </>
+            )}
 
             <button
               onClick={() => {
