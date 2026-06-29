@@ -21,6 +21,35 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.0.6',
+    build: '1006',
+    date: '2026-06-29',
+    title: 'Manual Update Control & Vector Stroke Optimizations',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added an interactive manual update checking mechanism with a checking/refreshing animation inside the updates popup and settings.',
+          'Added manual "Check for updates" buttons in both the suggestion card and settings tab.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Resized and aligned AI assistant sidebar header utility buttons to match left sidebar brand actions.',
+          'Refined temporary chat notice bubble widths and layout offsets in sidebar mode.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed vector stacked/overlapping stroke artifacts globally across translucent icons (search, download, sidebar toggles, bento widgets, and headers).',
+          'Resolved double-rendered dashed bubble strokes in temporary chat onboarding greetings.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.5',
     build: '1005',
     date: '2026-06-29',
