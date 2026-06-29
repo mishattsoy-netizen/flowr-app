@@ -24,28 +24,28 @@ export const PATCHES: Patch[] = [
     version: '1.0.3',
     build: '1003',
     date: '2026-06-29',
-    title: 'Multi-Selection Box & Desktop Enhancements',
+    title: 'Multi-Selection Bounding Box & Desktop Design Update',
     sections: [
       {
         type: 'added',
         items: [
-          'Added a Figma-style unified selection bounding box when dragging or selecting multiple canvas items.',
-          'Added a custom frameless title bar with integrated window control buttons for the desktop app.',
-          'Added a sidebar collapse toggle button and quick search controls in web mode.'
+          'Added Figma-style multi-selection boxes so you can select, drag, and style multiple canvas items at once.',
+          'Added a clean, frameless title bar that seamlessly blends into the app interface.',
+          'Added quick buttons to collapse the sidebar or search your workspace in one click.'
         ]
       },
       {
         type: 'improved',
         items: [
-          'Redesigned the app update suggestion banner with springy refresh animations, hover scaling, and clean bone glows.',
-          'Refined context menus, submenu chevrons, and user profile popups to use a medium-compact layout.'
+          'Polished the app update suggestion banner with smoother transitions, interactive hover effects, and premium ambient lighting.',
+          'Refined context menus and popups to feel more compact and lightweight.'
         ]
       },
       {
         type: 'fixed',
         items: [
-          'Fixed blank white screen issues and infinite redirect loops in the packaged desktop Electron app.',
-          'Hardened database security by dropping anonymous full access policy configurations.'
+          'Fixed startup issues that caused blank white screens or login redirect loops on desktop.',
+          'Hardened overall database connection security to keep your personal data safe.'
         ]
       }
     ]
