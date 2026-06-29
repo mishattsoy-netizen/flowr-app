@@ -21,6 +21,36 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.0.3',
+    build: '1003',
+    date: '2026-06-29',
+    title: 'Multi-Selection Box & Desktop Enhancements',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added a Figma-style unified selection bounding box when dragging or selecting multiple canvas items.',
+          'Added a custom frameless title bar with integrated window control buttons for the desktop app.',
+          'Added a sidebar collapse toggle button and quick search controls in web mode.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Redesigned the app update suggestion banner with springy refresh animations, hover scaling, and clean bone glows.',
+          'Refined context menus, submenu chevrons, and user profile popups to use a medium-compact layout.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed blank white screen issues and infinite redirect loops in the packaged desktop Electron app.',
+          'Hardened database security by dropping anonymous full access policy configurations.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.2',
     build: '1002',
     date: '2026-06-28',
