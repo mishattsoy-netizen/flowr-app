@@ -404,8 +404,8 @@ export function TaskInspectorPanel() {
 
   return (
     <>
-      <style>{`@keyframes taskPanelFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
-      <div className="h-full w-full flex flex-col bg-sidebar overflow-hidden" style={{ animation: 'taskPanelFadeIn 250ms ease-out 120ms both' }}>
+      <style>{`@keyframes taskPanelSlideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+      <div className="h-full w-full flex flex-col bg-sidebar overflow-hidden" style={{ animation: 'taskPanelSlideIn 200ms ease-out 80ms both' }}>
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--bone-6)] shrink-0">
         <span className="text-xs font-semibold text-[var(--bone-40)] tracking-wide uppercase">Task</span>
