@@ -21,6 +21,26 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.0.7',
+    build: '1007',
+    date: '2026-06-30',
+    title: 'macOS & Linux Desktop Downloads',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added macOS and Linux CI build runners so the desktop app is now downloadable as a .dmg (Mac) and .AppImage (Linux) — no more 404 errors when clicking the download button on a Mac.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'macOS: if Gatekeeper says "Flowr can\'t be verified", right-click the app → Open, or run: xattr -dr com.apple.quarantine /Applications/Flowr.app'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.6',
     build: '1006',
     date: '2026-06-29',

@@ -10,8 +10,18 @@ on:
 
 jobs:
   release:
-    name: Build & Publish Electron App
-    runs-on: windows-latest
+    name: Build & Publish (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            platform-flag: --win
+          - os: macos-latest
+            platform-flag: --mac
+          - os: ubuntu-latest
+            platform-flag: --linux
 
     steps:
       - name: Checkout Repository
@@ -32,7 +42,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
-      - name: Build and Publish Desktop Installers
-        run: npx electron-builder --publish always
+      - name: Build and Publish Desktop Installer
+        run: npx electron-builder ${{ matrix.platform-flag }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # macOS: skip code signing (no Apple Developer account needed).
+          # The DMG will show "can't be verified" — right-click → Open works.
+          # To fully remove the warning, run: xattr -dr com.apple.quarantine /Applications/Flowr.app
+          CSC_IDENTITY_AUTO_DISCOVERY: false
