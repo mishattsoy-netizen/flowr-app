@@ -421,37 +421,43 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           </div>
         )}
 
-        {/* Right AI / Task Panel Wrapper */}
+        {/* Right AI Panel Wrapper - width transition (unchanged behavior) */}
         <div
           className={cn(
             "h-full shrink-0 overflow-hidden transition-colors duration-200",
-            (isTaskPanelVisible || isAiPanelOpen) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
+            isAiPanelOpen && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
             isMobile
-              ? ((isTaskPanelVisible || isAIAssistantOpen) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
+              ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
               : "relative z-40"
           )}
           style={{
-            width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
+            width: isMobile ? undefined : (isAiPanelOpen ? `${currentAiSidebarWidth}px` : '0px'),
             transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <div className={cn(
             "h-full shrink-0 w-full",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
-          )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-            {/* Pre-mount both panels, toggle with hidden class to match AI panel behavior:
-                AI panel stays mounted (display:none when closed) so content is ready
-                when width transition starts. Task panel needs the same treatment. */}
-            <div className={cn("h-full w-full", !isTaskPanelVisible && "hidden")}>
-              <TaskInspectorPanel />
-            </div>
-            {isAiPanelMounted && (
-              <div className={cn("h-full w-full", isTaskPanelVisible && "hidden")}>
-                <AIAssistant />
-              </div>
-            )}
+          )} style={{ width: isMobile ? '100%' : `${currentAiSidebarWidth}px` }}>
+            {isAiPanelMounted && <AIAssistant />}
           </div>
         </div>
+
+        {/* Task Panel - absolute overlay with translateX slide (whole panel slides left-right) */}
+        {isDesktop() && (
+          <div
+            className="absolute right-0 top-0 h-full z-50"
+            style={{
+              width: currentTaskPanelWidth,
+              transform: isTaskPanelVisible ? 'translateX(0)' : 'translateX(calc(100% + 16px))',
+              transition: (isResizingRight || isResizingLeft) ? 'transform 0ms' : 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
+            <div className="h-full w-full bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden">
+              <TaskInspectorPanel />
+            </div>
+          </div>
+        )}
       </div>
       </div> {/* End Middle Layout */}
 
