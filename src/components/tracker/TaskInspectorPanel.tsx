@@ -403,7 +403,9 @@ export function TaskInspectorPanel() {
   if (!activeTaskId) return null;
 
   return (
-    <div className="h-full w-full flex flex-col bg-sidebar overflow-hidden">
+    <>
+      <style>{`@keyframes taskPanelFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+      <div className="h-full w-full flex flex-col bg-sidebar overflow-hidden" style={{ animation: 'taskPanelFadeIn 250ms ease-out 120ms both' }}>
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--bone-6)] shrink-0">
         <span className="text-xs font-semibold text-[var(--bone-40)] tracking-wide uppercase">Task</span>
@@ -418,5 +420,6 @@ export function TaskInspectorPanel() {
         <TaskPanelContent taskId={activeTaskId} closePanel={closeTaskPanel} />
       </div>
     </div>
+    </>
   );
 }
