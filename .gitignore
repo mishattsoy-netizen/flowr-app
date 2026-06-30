@@ -50,6 +50,7 @@ gha-creds-*.json
 # archived versions
 Flowr-1.0/
 .claude/worktrees/
+.worktrees/
 
 # transcripts
 /transcripts/
@@ -61,3 +62,10 @@ Flowr-1.0/
 /dist-desktop/
 /dist-desktop-v3/
 /test-server/
+
+# design-sync (staged scripts + generated output)
+/.ds-sync/
+/ds-bundle/
+/.design-sync/.cache/
+/.design-sync/learnings/
+/.design-sync/node_modules
