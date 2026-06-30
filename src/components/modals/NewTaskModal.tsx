@@ -201,6 +201,11 @@ export function NewTaskModal() {
 
   if (!modal || modal.kind !== 'newTask') return null;
 
+  // Desktop fallback: existing tasks open in the floating TaskInspectorPanel instead
+  // On mobile (<768px), the full-page modal is used.
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  if (taskId && !isMobile) return null;
+
   // Manual Save handler
   const handleSaveAndClose = () => {
     const t = title.trim();

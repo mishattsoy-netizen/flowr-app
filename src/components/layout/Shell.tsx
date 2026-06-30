@@ -19,6 +19,7 @@ import { VaultSetupModal } from '../modals/VaultSetupModal';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
+import { TaskInspectorPanel } from '../tracker/TaskInspectorPanel';
 import { CommandPalette } from './CommandPalette';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -44,6 +45,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const goForward = useStore(state => state.goForward);
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
+  const isTaskPanelOpen = useStore(state => state.isTaskPanelOpen);
+  const activeTaskId = useStore(state => state.activeTaskId);
+  const taskPanelWidth = useStore(state => state.taskPanelWidth);
+  const setTaskPanelWidth = useStore(state => state.setTaskPanelWidth);
   const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
   const isInternalNavRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -256,7 +261,12 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           setSidebarWidth(Math.min(Math.max(e.clientX, 250), 400));
         }
         if (isResizingRightRef.current) {
-          setAiSidebarWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
+          const s = useStore.getState();
+          if (s.isTaskPanelOpen && s.activeTaskId) {
+            setTaskPanelWidth(Math.min(Math.max(window.innerWidth - e.clientX, 350), 600));
+          } else {
+            setAiSidebarWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
+          }
         }
       });
     };
@@ -281,11 +291,15 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       window.removeEventListener('mouseup', stopResize);
       window.removeEventListener('mouseleave', stopResize);
     };
-  }, [setSidebarWidth, setAiSidebarWidth]);
+  }, [setSidebarWidth, setAiSidebarWidth, setTaskPanelWidth]);
 
   const shellClass = "h-screen w-full overflow-hidden bg-background text-foreground";
 
   const currentAiSidebarWidth = hasHydrated ? Math.min(aiSidebarWidth, 500) : 400;
+  const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !!activeTaskId;
+  const isAiPanelVisible = hasHydrated && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat';
+  const currentTaskPanelWidth = hasHydrated ? Math.min(Math.max(taskPanelWidth, 350), 600) : 500;
+  const currentRightPanelWidth = isTaskPanelVisible ? currentTaskPanelWidth : currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
 
   return (
@@ -374,15 +388,15 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         </div>
 
         {/* Right AI Sidebar Backdrop */}
-        {isMobile && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat' && (
-          <div 
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" 
-            onClick={() => useStore.getState().setAIAssistantOpen(false)} 
+        {isMobile && (isAiPanelVisible) && (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer"
+            onClick={() => useStore.getState().setAIAssistantOpen(false)}
           />
         )}
 
         {/* Right Resizer Handle */}
-        {!isMobile && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat' && (
+        {!isMobile && (isTaskPanelVisible || isAiPanelVisible) && (
           <div
             onMouseDown={() => {
               isResizingRightRef.current = true;
@@ -395,7 +409,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
             )}
             style={{
-              left: `calc(100% - ${currentAiSidebarWidth}px - 4px)`,
+              left: `calc(100% - ${currentRightPanelWidth}px - 4px)`,
               pointerEvents: 'auto'
             }}
           >
@@ -406,25 +420,25 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           </div>
         )}
 
-        {/* Right AI Sidebar Wrapper */}
+        {/* Right AI / Task Panel Wrapper */}
         <div
           className={cn(
             "h-full shrink-0 overflow-hidden transition-colors duration-200",
-            (isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
-            isMobile 
-              ? (isAIAssistantOpen ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
+            (isTaskPanelVisible || isAiPanelVisible) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
+            isMobile
+              ? ((isTaskPanelVisible || isAIAssistantOpen) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
               : "relative z-40"
           )}
           style={{
-            width: isMobile ? undefined : ((isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat') ? `${currentAiSidebarWidth}px` : '0px'),
+            width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelVisible) ? `${currentRightPanelWidth}px` : '0px'),
             transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <div className={cn(
             "h-full shrink-0 w-full",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
-          )} style={{ width: isMobile ? '100%' : `${currentAiSidebarWidth}px` }}>
-            {hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat' && <AIAssistant />}
+          )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
+            {isTaskPanelVisible ? <TaskInspectorPanel /> : (isAiPanelVisible && <AIAssistant />)}
           </div>
         </div>
       </div>

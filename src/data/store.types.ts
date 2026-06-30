@@ -441,6 +441,10 @@ export interface AppState {
   aiApiKey: string | null;
   isAIAssistantOpen: boolean;
   isAIAssistantExtended: boolean;
+  isTaskPanelOpen: boolean;
+  activeTaskId: string | null;
+  taskPanelWidth: number;
+  aiWasOpenBeforeTaskPanel: boolean;
   isAILoading: boolean;
   aiCursor: AICursor | null;
   aiBehaviorMode: 'fast' | 'thinking' | 'auto';
@@ -518,6 +522,9 @@ export interface AppState {
   setAIKey: (key: string | null) => void;
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
+  openTaskPanel: (taskId: string) => void;
+  closeTaskPanel: () => void;
+  setTaskPanelWidth: (width: number) => void;
   clearAIChat: () => void;
   compactAIChat: () => Promise<void>;
   saveTempChat: () => Promise<void>;

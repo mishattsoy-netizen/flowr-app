@@ -53,9 +53,9 @@ export function TaskCardUI({
   const today = new Date().toISOString().split('T')[0];
   const isOverdue = !task.completed && task.dueDate && task.dueDate < today;
 
-  const openModal = useStore(s => s.openModal);
+  const openTaskPanel = useStore(s => s.openTaskPanel);
   const onClick = () => {
-    openModal({ kind: 'newTask', taskId: task.id });
+    openTaskPanel(task.id);
   };
 
   return (
