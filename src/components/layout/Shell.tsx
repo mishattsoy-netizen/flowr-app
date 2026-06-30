@@ -263,7 +263,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         if (isResizingRightRef.current) {
           const s = useStore.getState();
           if (s.isTaskPanelOpen && s.activeTaskId) {
-            setTaskPanelWidth(Math.min(Math.max(window.innerWidth - e.clientX, 350), 600));
+            setTaskPanelWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
           } else {
             setAiSidebarWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
           }
@@ -299,7 +299,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !!activeTaskId;
   const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat';
   const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
-  const currentTaskPanelWidth = hasHydrated ? Math.min(Math.max(taskPanelWidth, 350), 600) : 500;
+  const currentTaskPanelWidth = hasHydrated ? Math.min(Math.max(taskPanelWidth, 400), 500) : 500;
   const currentRightPanelWidth = isTaskPanelVisible ? currentTaskPanelWidth : currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
 
