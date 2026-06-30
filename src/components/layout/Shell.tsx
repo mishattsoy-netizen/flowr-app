@@ -297,7 +297,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
   const currentAiSidebarWidth = hasHydrated ? Math.min(aiSidebarWidth, 500) : 400;
   const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !!activeTaskId;
-  const isAiPanelVisible = hasHydrated && isAIAssistantExtended && isAIAssistantOpen && activeEntityId !== 'chat';
+  const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat';
+  const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
   const currentTaskPanelWidth = hasHydrated ? Math.min(Math.max(taskPanelWidth, 350), 600) : 500;
   const currentRightPanelWidth = isTaskPanelVisible ? currentTaskPanelWidth : currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
@@ -388,7 +389,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         </div>
 
         {/* Right AI Sidebar Backdrop */}
-        {isMobile && (isAiPanelVisible) && (
+        {isMobile && (isAiPanelOpen) && (
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer"
             onClick={() => useStore.getState().setAIAssistantOpen(false)}
@@ -396,7 +397,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         )}
 
         {/* Right Resizer Handle */}
-        {!isMobile && (isTaskPanelVisible || isAiPanelVisible) && (
+        {!isMobile && (isTaskPanelVisible || isAiPanelOpen) && (
           <div
             onMouseDown={() => {
               isResizingRightRef.current = true;
@@ -424,13 +425,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <div
           className={cn(
             "h-full shrink-0 overflow-hidden transition-colors duration-200",
-            (isTaskPanelVisible || isAiPanelVisible) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
+            (isTaskPanelVisible || isAiPanelOpen) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
             isMobile
               ? ((isTaskPanelVisible || isAIAssistantOpen) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
               : "relative z-40"
           )}
           style={{
-            width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelVisible) ? `${currentRightPanelWidth}px` : '0px'),
+            width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
             transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
@@ -438,7 +439,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
             "h-full shrink-0 w-full",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
           )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-            {isTaskPanelVisible ? <TaskInspectorPanel /> : (isAiPanelVisible && <AIAssistant />)}
+            {isTaskPanelVisible ? <TaskInspectorPanel /> : (isAiPanelMounted && <AIAssistant />)}
           </div>
         </div>
       </div>
