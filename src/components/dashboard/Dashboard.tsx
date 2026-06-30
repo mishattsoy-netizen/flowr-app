@@ -4,6 +4,11 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Plus, Search, FileText, Frame, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore, Entity, EditorBlock } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
+import { useTheme } from '@/components/ThemeProvider';
+import { TasksWidget } from '@/components/workspace/widgets/TasksWidget';
+import { ShortcutsWidget } from '@/components/workspace/widgets/ShortcutsWidget';
+import { loadBentoLayout, saveBentoLayout } from '@/lib/bento-sync';
+import type { BentoLayoutItem } from '@/components/bento/types';
 
 function formatAge(ts: number) {
   if (!ts) return '';
@@ -77,6 +82,7 @@ export function Dashboard() {
   const setCommandPaletteOpen = useStore(state => state.setCommandPaletteOpen);
   const openModal = useStore(state => state.openModal);
   const now = new Date();
+  const { resolvedTheme } = useTheme();
 
   // Recents state
   const recentEntityIds = useStore(state => state.recentEntityIds);
@@ -85,10 +91,59 @@ export function Dashboard() {
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setActiveWorkspaceId = useStore(state => state.setActiveWorkspaceId);
 
+  // Layout shortcuts state
+  const [dashboardLayout, setDashboardLayout] = useState<BentoLayoutItem[]>([]);
   const [showPlusPopup, setShowPlusPopup] = useState(false);
   const plusPopupRef = useRef<HTMLDivElement>(null);
   const plusButtonRef = useRef<HTMLButtonElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadBentoLayout('dashboard').then(saved => {
+      if (saved && saved.items) {
+        setDashboardLayout(saved.items);
+      } else {
+        const defaults = [
+          { i: 'dashboard-recent',         type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
+          { i: 'dashboard-tasks-today',    type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
+          { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
+        ];
+        setDashboardLayout(defaults);
+      }
+    });
+  }, []);
+
+  const shortcutsItem = useMemo(() => {
+    return dashboardLayout.find(it => it.type === 'shortcuts');
+  }, [dashboardLayout]);
+
+  const shortcutsData = useMemo(() => {
+    return shortcutsItem?.data || { shortcuts: [] };
+  }, [shortcutsItem]);
+
+  const handleUpdateShortcuts = (newData: any) => {
+    const updated = dashboardLayout.map(it => {
+      if (it.type === 'shortcuts') {
+        return { ...it, data: newData };
+      }
+      return it;
+    });
+
+    if (!dashboardLayout.some(it => it.type === 'shortcuts')) {
+      updated.push({
+        i: 'dashboard-shortcuts',
+        type: 'shortcuts',
+        row: 2,
+        order: 0,
+        w: 4,
+        h: 2,
+        data: newData
+      });
+    }
+
+    setDashboardLayout(updated);
+    saveBentoLayout('dashboard', updated, [6, 6, 6, 6]);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -284,9 +339,32 @@ export function Dashboard() {
           </div>
         </section>
 
-        {/* Placeholder content for bottom widgets */}
-        <div className="flex-grow flex items-center justify-center text-muted-foreground text-sm">
-          Bottom Widgets Placeholder
+        {/* Bottom widgets grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow min-h-0 select-none pb-10">
+          {/* Tasks (2/3 width) */}
+          <div className="md:col-span-2 flex flex-col min-h-[360px] relative rounded-[var(--radius-big)] overflow-hidden">
+            <div className="flex-1 min-h-0">
+              <TasksWidget contextId="dashboard" />
+            </div>
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+              style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+            />
+          </div>
+
+          {/* Shortcuts (1/3 width) */}
+          <div className="flex flex-col min-h-[360px] relative rounded-[var(--radius-big)] overflow-hidden">
+            <div className="flex-1 min-h-0">
+              <ShortcutsWidget
+                data={shortcutsData}
+                onUpdateData={handleUpdateShortcuts}
+              />
+            </div>
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+              style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+            />
+          </div>
         </div>
       </div>
     </div>
