@@ -55,6 +55,39 @@ export function NewTaskModal() {
   const [completed, setCompleted] = useState(false);
   const [status, setStatus] = useState<'todo' | 'in-progress' | 'done'>('todo');
 
+  // Sync form state synchronously when modal opens/closes/switches tasks.
+  // This prevents a one-frame flash of stale data from a previous edit
+  // when opening the new-task form (useEffect runs after paint, too late).
+  const prevModalKey = useRef<string | null>(null);
+  const modalKey = modal?.kind === 'newTask' ? (modal.taskId || 'new') : null;
+  if (modalKey !== prevModalKey.current) {
+    prevModalKey.current = modalKey;
+    if (isEditing && activeTask) {
+      setTitle(activeTask.title || '');
+      setDescription(activeTask.description || activeTask.note || '');
+      setDueDate(activeTask.dueDate || '');
+      // @ts-ignore
+      setDueTime(activeTask.dueTime || '');
+      setPriority(activeTask.priority || null);
+      setColor(activeTask.color || '');
+      setWorkspaceId(activeTask.workspaceId || null);
+      setSubtasks(activeTask.subtasks || []);
+      setCompleted(activeTask.completed || false);
+      setStatus(activeTask.status || 'todo');
+    } else {
+      setTitle('');
+      setDescription('');
+      setDueDate('');
+      setDueTime('');
+      setPriority(null);
+      setColor('');
+      setWorkspaceId(trackerFilterWorkspace || null);
+      setSubtasks([]);
+      setCompleted(false);
+      setStatus('todo');
+    }
+  }
+
   // Ref for unmount autosave logic (Fix 3.1)
   const saveRef = useRef({
     taskId,
