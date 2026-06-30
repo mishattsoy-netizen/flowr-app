@@ -1,9 +1,75 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Plus, Search, FileText, Frame, Layers } from 'lucide-react';
-import { useStore } from '@/data/store';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Plus, Search, FileText, Frame, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useStore, Entity, EditorBlock } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
+
+function formatAge(ts: number) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function getNotePreviewData(entity: Entity) {
+  const bulletPoints: string[] = [];
+  let footerSentence = '';
+
+  if (!entity.content || !Array.isArray(entity.content)) {
+    return { bulletPoints, footerSentence };
+  }
+
+  const traverse = (blocks: EditorBlock[]) => {
+    for (const b of blocks) {
+      if (bulletPoints.length >= 4 && footerSentence) break;
+
+      if (['text', 'checklist', 'bulletList', 'dashedList', 'numberedList', 'quote'].includes(b.type) && b.content && b.content.trim()) {
+        const text = b.content.trim();
+        if (bulletPoints.length < 4) {
+          const cleanText = text.replace(/^[-*+]\s+|^\[[ x]\]\s+|^[0-9]+\.\s+/, '');
+          bulletPoints.push(cleanText);
+        } else if (!footerSentence) {
+          footerSentence = text;
+        }
+      }
+
+      if (b.children) {
+        traverse(b.children);
+      }
+    }
+  };
+
+  traverse(entity.content);
+  return { bulletPoints, footerSentence };
+}
+
+function getCanvasPreviewData(entity: Entity) {
+  const bulletPoints: string[] = [];
+  let footerSentence = '';
+
+  if (entity.content && Array.isArray(entity.content)) {
+    const textElements = entity.content
+      .filter(b => b.content && b.content.trim())
+      .map(b => b.content.trim());
+
+    for (let i = 0; i < Math.min(textElements.length, 4); i++) {
+      bulletPoints.push(textElements[i]);
+    }
+
+    if (textElements.length > 4) {
+      footerSentence = textElements[4];
+    } else {
+      footerSentence = `Board contains ${entity.content.length} elements.`;
+    }
+  } else {
+    footerSentence = 'Empty canvas board.';
+  }
+
+  return { bulletPoints, footerSentence };
+}
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -11,10 +77,18 @@ export function Dashboard() {
   const setCommandPaletteOpen = useStore(state => state.setCommandPaletteOpen);
   const openModal = useStore(state => state.openModal);
   const now = new Date();
-  
+
+  // Recents state
+  const recentEntityIds = useStore(state => state.recentEntityIds);
+  const entities = useStore(state => state.entities);
+  const workspaces = useStore(state => state.workspaces);
+  const setActiveEntityId = useStore(state => state.setActiveEntityId);
+  const setActiveWorkspaceId = useStore(state => state.setActiveWorkspaceId);
+
   const [showPlusPopup, setShowPlusPopup] = useState(false);
   const plusPopupRef = useRef<HTMLDivElement>(null);
   const plusButtonRef = useRef<HTMLButtonElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -29,9 +103,33 @@ export function Dashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const recentEntities = useMemo(() => {
+    return recentEntityIds
+      .map(id => entities.find(e => e.id === id))
+      .filter((e): e is Entity => !!e && (e.type === 'note' || e.type === 'canvas'))
+      .slice(0, 10);
+  }, [recentEntityIds, entities]);
+
+  const scrollSlider = (direction: 'left' | 'right') => {
+    if (sliderRef.current) {
+      const scrollAmount = 360;
+      sliderRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleCardClick = (entity: Entity) => {
+    if (entity.workspaceId) {
+      setActiveWorkspaceId(entity.workspaceId);
+    }
+    setActiveEntityId(entity.id);
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto px-10 py-8 flex flex-col h-full bg-background">
-      <div className="max-w-5xl mx-auto w-full flex flex-col gap-6 flex-grow">
+    <div className="flex-1 overflow-y-auto px-10 py-8 flex flex-col h-full bg-background select-none">
+      <div className="max-w-5xl mx-auto w-full flex flex-col gap-8 flex-grow">
         {/* Header */}
         <header className="flex items-center justify-between py-2 border-b border-[var(--bone-6)] select-none">
           <div className="flex-1 min-w-0">
@@ -92,9 +190,103 @@ export function Dashboard() {
           </div>
         </header>
 
-        {/* Placeholder content for widgets */}
+        {/* Recents Section */}
+        <section className="flex flex-col gap-3 relative group/slider">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-ui-label text-muted-foreground tracking-[0.06em] uppercase">Recents</h2>
+            {recentEntities.length > 3 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => scrollSlider('left')}
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] border border-[var(--bone-10)] hover:bg-[var(--bone-5)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => scrollSlider('right')}
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] border border-[var(--bone-10)] hover:bg-[var(--bone-5)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div
+            ref={sliderRef}
+            className="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar pr-10 pb-2 scroll-smooth"
+          >
+            {recentEntities.length > 0 ? (
+              recentEntities.map(entity => {
+                const isNote = entity.type === 'note';
+                const Icon = isNote ? FileText : Frame;
+                const { bulletPoints, footerSentence } = isNote
+                  ? getNotePreviewData(entity)
+                  : getCanvasPreviewData(entity);
+                const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
+
+                return (
+                  <button
+                    key={entity.id}
+                    onClick={() => handleCardClick(entity)}
+                    className="flex-shrink-0 w-[280px] h-[220px] snap-start bg-panel/40 backdrop-blur-xl border border-[var(--bone-5)] rounded-[var(--radius-big)] p-5 text-left flex flex-col justify-between hover:border-[var(--bone-20)] transition-all duration-200 cursor-pointer"
+                  >
+                    <div className="flex flex-col gap-3 w-full">
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <Icon className="w-3.5 h-3.5 text-[var(--bone-30)]" />
+                          <span>{isNote ? 'Note' : 'Canvas'}</span>
+                          {ws && (
+                            <>
+                              <span>·</span>
+                              <span className="truncate max-w-[85px]">{ws.name}</span>
+                            </>
+                          )}
+                        </div>
+                        <span>{formatAge(entity.lastModified)}</span>
+                      </div>
+
+                      {/* Card Title */}
+                      <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1">
+                        {entity.title || 'Untitled'}
+                      </h3>
+
+                      {/* Bullet Previews */}
+                      <ul className="flex flex-col gap-1 text-[12px] text-[var(--bone-70)] leading-tight">
+                        {bulletPoints.length > 0 ? (
+                          bulletPoints.slice(0, 3).map((pt, idx) => (
+                            <li key={idx} className="truncate pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-[var(--bone-30)]">
+                              {pt}
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-[var(--bone-30)] italic">No preview content</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    {/* Card Footer Preview text */}
+                    {footerSentence && (
+                      <p className="text-[11px] text-[var(--bone-30)] truncate w-full pt-2 border-t border-[var(--bone-3)] font-sans">
+                        {footerSentence}
+                      </p>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="w-full h-[180px] flex flex-col items-center justify-center gap-2 border border-dashed border-[var(--bone-10)] rounded-[var(--radius-big)] text-center p-4">
+                <span className="text-sm font-semibold text-muted-foreground">No recent documents</span>
+                <span className="text-xs text-muted-foreground/60 max-w-[280px]">Your recently updated Notes and Canvases will appear here.</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Placeholder content for bottom widgets */}
         <div className="flex-grow flex items-center justify-center text-muted-foreground text-sm">
-          Widgets Placeholder
+          Bottom Widgets Placeholder
         </div>
       </div>
     </div>
