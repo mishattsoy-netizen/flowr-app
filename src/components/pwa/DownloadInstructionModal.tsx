@@ -28,10 +28,20 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
   const [mounted, setMounted] = useState(false);
+  const [noTransition, setNoTransition] = useState(true);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Suppress CSS transitions on first render so elements don't animate in
+  useEffect(() => {
+    if (mounted && open) {
+      const raf = requestAnimationFrame(() => setNoTransition(false));
+      return () => cancelAnimationFrame(raf);
+    }
+    setNoTransition(true);
+  }, [mounted, open]);
 
   // Reset state on open
   useEffect(() => {
@@ -118,12 +128,10 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   // ————— macOS content —————
   const macContent = (
     <>
-      <div className="flex items-start gap-4 mb-6">
-        <div className="p-3 rounded-full bg-[var(--bone-6)] mt-0.5">
-          <Apple strokeWidth={2} className="w-5 h-5 text-[var(--bone-70)]" />
-        </div>
+      <div className="grid grid-cols-[36px_1fr] gap-3 items-center mb-6">
+        <Apple strokeWidth={1.5} className="w-9 h-9 text-[var(--bone-70)] mt-1 shrink-0 justify-self-center" />
         <div>
-          <h2 className="text-2xl font-semibold text-[var(--foreground)] tracking-tight">Instructions</h2>
+          <h2 className="text-3xl font-medium font-serif text-[var(--foreground)]">Instructions</h2>
           <p className="text-xs text-[var(--bone-60)] mt-0.5">{osLabel}</p>
         </div>
       </div>
@@ -162,12 +170,10 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   // ————— Windows content —————
   const windowsContent = (
     <>
-      <div className="flex items-start gap-4 mb-6">
-        <div className="p-3 rounded-full bg-danger/10 mt-0.5">
-          <ShieldAlert strokeWidth={2} className="w-5 h-5 text-danger" />
-        </div>
+      <div className="grid grid-cols-[36px_1fr] gap-3 items-center mb-6">
+        <ShieldAlert strokeWidth={1.5} className="w-9 h-9 text-danger mt-1 shrink-0 justify-self-center" />
         <div>
-          <h2 className="text-2xl font-semibold text-[var(--foreground)] tracking-tight">Instructions</h2>
+          <h2 className="text-3xl font-medium font-serif text-[var(--foreground)]">Instructions</h2>
           <p className="text-xs text-[var(--bone-60)] mt-0.5">{osLabel}</p>
         </div>
       </div>
@@ -194,7 +200,8 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
       <div
         className={cn(
           "bg-panel border border-[var(--bone-12)] rounded-[1.5rem] p-7 w-[460px] shadow-2xl",
-          "transform transition-all duration-300",
+          "transform",
+          noTransition ? "" : "transition-all duration-300",
           visible ? "scale-100 opacity-100" : "scale-95 opacity-0"
         )}
         onClick={e => e.stopPropagation()}
@@ -204,7 +211,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
           onClick={handleClose}
           disabled={!minTimeElapsed}
           className={cn(
-            "absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full transition-all duration-300",
+            "absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300",
             minTimeElapsed
               ? "text-[var(--bone-60)] hover:text-[var(--foreground)] hover:bg-[var(--bone-10)] cursor-pointer"
               : "text-transparent cursor-default"
@@ -216,51 +223,46 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
         {/* OS-specific content */}
         {platform === 'mac' ? macContent : windowsContent}
 
-        {/* Progress bar — fades out when complete so spacing stays */}
-        <div className={cn("transition-all duration-500 overflow-hidden", minTimeElapsed ? "opacity-0 max-h-0 mt-0 mb-0" : "opacity-100 max-h-16 mt-6 mb-0")}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-[var(--bone-60)] tracking-wide">Please read above...</span>
-            <span className="text-xs font-medium text-[var(--bone-70)] tabular-nums">{Math.floor(5 - Math.min(elapsed, 5))}s</span>
-          </div>
-          <div className="h-1.5 bg-[var(--bone-10)] rounded-full overflow-hidden">
-            <div
-              className={cn("h-full rounded-full bg-[var(--bone-30)]", elapsed > 0 && "transition-all duration-150 ease-linear")}
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="h-4" />
-
-        {/* Checkbox */}
-        <label
-          onClick={handleCheckboxChange}
-          className={cn(
-            "flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 cursor-pointer mb-5",
-            minTimeElapsed
-              ? "border-[var(--bone-12)] hover:border-[var(--bone-30)] hover:bg-[var(--bone-6)]"
-              : "border-[var(--bone-6)] opacity-40 cursor-not-allowed"
+        {/* Progress bar / Checkbox section */}
+        <div className="mb-5 mt-4 min-h-[40px]">
+          {!minTimeElapsed ? (
+            <div className="py-1">
+              <div className="max-w-[95%] mx-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-[var(--bone-60)] tracking-wide">Please read above...</span>
+                  <span className="text-xs font-medium text-[var(--bone-70)] tabular-nums">{Math.floor(5 - Math.min(elapsed, 5))}s</span>
+                </div>
+                <div className="h-1.5 bg-[var(--bone-10)] rounded-full">
+                  <div
+                    className={cn("h-full rounded-full bg-[var(--bone-30)]", elapsed > 0 && "transition-all duration-150 ease-linear")}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-1">
+              <div
+                onClick={handleCheckboxChange}
+                className="grid grid-cols-[36px_1fr] gap-3 items-center"
+              >
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-md border-2 flex items-center justify-center justify-self-center",
+                    checked
+                      ? "bg-[var(--foreground)] border-[var(--foreground)] text-[var(--app-background)]"
+                      : "border-[var(--bone-30)]"
+                  )}
+                >
+                  {checked && <Check strokeWidth={3} className="w-3" />}
+                </div>
+                <span className="text-sm leading-[1.35] tracking-wide text-[var(--foreground)]">
+                  I&apos;ve read the instructions and understand why the warning appears
+                </span>
+              </div>
+            </div>
           )}
-        >
-          <div
-            className={cn(
-              "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200",
-              checked
-                ? "bg-[var(--foreground)] border-[var(--foreground)] text-[var(--app-background)]"
-                : minTimeElapsed
-                  ? "border-[var(--bone-30)]"
-                  : "border-[var(--bone-12)]"
-            )}
-          >
-            {checked && <Check strokeWidth={3} className="w-3 h-3" />}
-          </div>
-          <span className={cn(
-            "text-sm transition-all leading-[1.35] tracking-wide",
-            minTimeElapsed ? "text-[var(--foreground)]" : "text-[var(--bone-60)]"
-          )}>
-            I&apos;ve read the instructions and understand why the warning appears
-          </span>
-        </label>
+        </div>
 
         {/* Download button */}
         <button
@@ -285,11 +287,11 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
 function Step({ number, text, children }: { number: number; text?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex gap-4 items-start">
-      <div className="shrink-0 w-6 h-6 rounded-full bg-[var(--bone-10)] text-[var(--bone-70)] flex items-center justify-center text-xs font-semibold mt-[2.5px]">
+    <div className="grid grid-cols-[36px_1fr] gap-3 items-center">
+      <div className="w-6 h-6 rounded-full bg-[var(--bone-10)] text-[var(--bone-70)] flex items-center justify-center text-xs font-semibold justify-self-center mt-0.5">
         {number}
       </div>
-      <div className="text-sm text-[var(--foreground)] leading-[1.35] tracking-wide">
+      <div className="text-sm text-[var(--foreground)] leading-[1.35] tracking-wide mt-[2.5px]">
         {text && <div>{text}</div>}
         {children}
       </div>
