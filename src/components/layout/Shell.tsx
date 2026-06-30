@@ -444,7 +444,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         </div>
 
         {/* Task Panel - absolute overlay with translateX slide (whole panel slides left-right) */}
-        {isDesktop() && (
+        {!isMobile && (
           <div
             className="absolute right-0 top-0 h-full z-50"
             style={{
