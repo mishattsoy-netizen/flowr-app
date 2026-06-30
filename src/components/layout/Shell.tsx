@@ -466,7 +466,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
       <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
       <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
-      <NewTaskModal key="new-task" />
+      <NewTaskModal key={modal?.kind === 'newTask' ? (modal.taskId || 'new-task-new') : 'new-task-closed'} />
       <SettingsModal key="settings-modal" />
       <MediaViewerModal key="media-viewer" />
       <NewWorkspaceModal key="new-workspace" />
