@@ -225,6 +225,10 @@ export const useStore = create<AppState>()(
       aiApiKey: null,
       imageProvider: (typeof window !== 'undefined' && localStorage.getItem('flowr_image_provider') as 'pollinations' | 'puter') || 'pollinations',
       isAIAssistantOpen: false,
+      isTaskPanelOpen: false,
+      activeTaskId: null as string | null,
+      taskPanelWidth: 500,
+      aiWasOpenBeforeTaskPanel: false,
       activeChatId: null,
       newEmptyChatId: null,
       isTempChat: true,
@@ -376,8 +380,25 @@ export const useStore = create<AppState>()(
         else localStorage.removeItem('flowr_ai_key');
         set({ aiApiKey });
       },
-      toggleAIAssistant: () => set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),
+      toggleAIAssistant: () => set((state) => ({
+        isAIAssistantOpen: !state.isAIAssistantOpen,
+        isTaskPanelOpen: state.isAIAssistantOpen ? state.isTaskPanelOpen : false,
+        activeTaskId: state.isAIAssistantOpen ? state.activeTaskId : null,
+      })),
       setAIAssistantOpen: (open) => set({ isAIAssistantOpen: open }),
+      openTaskPanel: (taskId: string) => set((state) => ({
+        isTaskPanelOpen: true,
+        activeTaskId: taskId,
+        aiWasOpenBeforeTaskPanel: state.isAIAssistantOpen,
+        isAIAssistantOpen: false,
+      })),
+      closeTaskPanel: () => set((state) => ({
+        isTaskPanelOpen: false,
+        activeTaskId: null,
+        isAIAssistantOpen: state.aiWasOpenBeforeTaskPanel,
+        aiWasOpenBeforeTaskPanel: false,
+      })),
+      setTaskPanelWidth: (width) => set({ taskPanelWidth: width }),
       setAISessionContext: (context) => set({ aiSessionContext: context }),
       
       fetchAISessionContext: async (chatId) => {
@@ -2482,6 +2503,7 @@ export const useStore = create<AppState>()(
         toolbarPosition: state.toolbarPosition,
         sidebarWidth: state.sidebarWidth,
         aiSidebarWidth: state.aiSidebarWidth,
+        taskPanelWidth: state.taskPanelWidth,
         mixedLayoutSplit: state.mixedLayoutSplit,
         isFullWidth: state.isFullWidth,
         isTabsHeaderVisible: state.isTabsHeaderVisible,
