@@ -432,7 +432,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           )}
           style={{
             width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
-            transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+            transition: (isResizingRight || isResizingLeft || isTaskPanelVisible) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <div className={cn(
