@@ -190,6 +190,7 @@ export const useStore = create<AppState>()(
       setLastSaved: (time) => set({ lastSaved: time }),
 
       setEntities: (entities) => set({ entities }),
+      setRecentEntityIds: (recentEntityIds) => set({ recentEntityIds }),
 
 
       activeEntityId: 'dashboard',
@@ -331,8 +332,9 @@ export const useStore = create<AppState>()(
       setActiveWorkspaceId: (id) => {
         set({ activeWorkspaceId: id });
         if (id && id !== 'dashboard') {
-          const nextRecent = [id, ...get().recentEntityIds.filter(rid => rid !== id)].slice(0, 8);
+          const nextRecent = [id, ...get().recentEntityIds.filter(rid => rid !== id)].slice(0, 10);
           set({ recentEntityIds: nextRecent });
+          import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
         }
       },
 
@@ -1548,7 +1550,8 @@ export const useStore = create<AppState>()(
         // Update Recent Entities (exclude dashboard)
         let nextRecent = [...state.recentEntityIds];
         if (id && id !== 'dashboard') {
-          nextRecent = [id, ...nextRecent.filter(rid => rid !== id)].slice(0, 8);
+          nextRecent = [id, ...nextRecent.filter(rid => rid !== id)].slice(0, 10);
+          import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
         }
 
         let nextTabs = [...state.openTabIds];
@@ -2324,7 +2327,13 @@ export const useStore = create<AppState>()(
 
       setTasks: (tasks) => set({ tasks }),
 
-      openModal: (modal) => set({ modal, contextMenu: null }),
+      openModal: (modal) => set({
+        modal,
+        contextMenu: null,
+        // Close the TaskInspectorPanel so its content doesn't show behind the modal
+        isTaskPanelOpen: false,
+        activeTaskId: null,
+      }),
       closeModal: () => set({ modal: null }),
 
       toggleCommandPalette: () => set(s => ({ isCommandPaletteOpen: !s.isCommandPaletteOpen })),
