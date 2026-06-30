@@ -113,15 +113,18 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
   if (!mounted || !open) return null;
 
+  const osLabel = platform === 'mac' ? 'macOS' : platform === 'windows' ? 'Windows' : 'Linux';
+
   // ————— macOS content —————
   const macContent = (
     <>
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 rounded-full bg-[var(--accent)]/10">
-          <Apple strokeWidth={2} className="w-5 h-5 text-[var(--accent)]" />
+      <div className="flex items-start gap-4 mb-6">
+        <div className="p-3 rounded-full bg-[var(--bone-6)] mt-0.5">
+          <Apple strokeWidth={2} className="w-5 h-5 text-[var(--bone-70)]" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">macOS Instructions</h2>
+          <h2 className="text-2xl font-semibold text-[var(--foreground)] tracking-tight">Instructions</h2>
+          <p className="text-xs text-[var(--bone-60)] mt-0.5">{osLabel}</p>
         </div>
       </div>
 
@@ -139,7 +142,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
               className={cn(
                 "shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200",
                 copied
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                  ? "bg-[var(--bone-12)] text-[var(--foreground)]"
                   : "bg-[var(--bone-6)] hover:bg-[var(--bone-12)] text-[var(--bone-70)] hover:text-[var(--foreground)]"
               )}
               title="Copy command"
@@ -159,12 +162,13 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   // ————— Windows content —————
   const windowsContent = (
     <>
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 rounded-full bg-danger/10">
+      <div className="flex items-start gap-4 mb-6">
+        <div className="p-3 rounded-full bg-danger/10 mt-0.5">
           <ShieldAlert strokeWidth={2} className="w-5 h-5 text-danger" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Windows Instructions</h2>
+          <h2 className="text-2xl font-semibold text-[var(--foreground)] tracking-tight">Instructions</h2>
+          <p className="text-xs text-[var(--bone-60)] mt-0.5">{osLabel}</p>
         </div>
       </div>
 
@@ -184,7 +188,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div
@@ -216,11 +220,11 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
         <div className={cn("transition-all duration-500 overflow-hidden", minTimeElapsed ? "opacity-0 max-h-0 mt-0 mb-0" : "opacity-100 max-h-16 mt-6 mb-0")}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[var(--bone-60)] tracking-wide">Please read above...</span>
-            <span className="text-xs font-medium text-[var(--bone-70)] tabular-nums">{Math.floor(elapsed)}s</span>
+            <span className="text-xs font-medium text-[var(--bone-70)] tabular-nums">{Math.floor(5 - Math.min(elapsed, 5))}s</span>
           </div>
           <div className="h-1.5 bg-[var(--bone-10)] rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-[var(--bone-30)] transition-all duration-150 ease-linear"
+              className={cn("h-full rounded-full bg-[var(--bone-30)]", elapsed > 0 && "transition-all duration-150 ease-linear")}
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -234,7 +238,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
           className={cn(
             "flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 cursor-pointer mb-5",
             minTimeElapsed
-              ? "border-[var(--bone-12)] hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/5"
+              ? "border-[var(--bone-12)] hover:border-[var(--bone-30)] hover:bg-[var(--bone-6)]"
               : "border-[var(--bone-6)] opacity-40 cursor-not-allowed"
           )}
         >
@@ -242,7 +246,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
             className={cn(
               "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200",
               checked
-                ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                ? "bg-[var(--foreground)] border-[var(--foreground)] text-[var(--app-background)]"
                 : minTimeElapsed
                   ? "border-[var(--bone-30)]"
                   : "border-[var(--bone-12)]"
@@ -251,7 +255,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
             {checked && <Check strokeWidth={3} className="w-3 h-3" />}
           </div>
           <span className={cn(
-            "text-sm transition-all leading-relaxed tracking-wide",
+            "text-sm transition-all leading-[1.35] tracking-wide",
             minTimeElapsed ? "text-[var(--foreground)]" : "text-[var(--bone-60)]"
           )}>
             I&apos;ve read the instructions and understand why the warning appears
@@ -265,7 +269,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
           className={cn(
             "w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-medium text-sm transition-all duration-200",
             checked
-              ? "bg-[var(--accent)] text-white hover:opacity-90 shadow-lg shadow-[var(--accent)]/20"
+              ? "bg-[var(--foreground)] text-[var(--app-background)] hover:opacity-80"
               : "bg-[var(--bone-6)] text-[var(--bone-30)] cursor-not-allowed"
           )}
         >
@@ -281,11 +285,11 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
 function Step({ number, text, children }: { number: number; text?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex gap-4">
-      <div className="shrink-0 w-6 h-6 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center text-xs font-semibold mt-0.5">
+    <div className="flex gap-4 items-start">
+      <div className="shrink-0 w-6 h-6 rounded-full bg-[var(--bone-10)] text-[var(--bone-70)] flex items-center justify-center text-xs font-semibold mt-[2.5px]">
         {number}
       </div>
-      <div className="text-sm text-[var(--foreground)] leading-relaxed tracking-wide">
+      <div className="text-sm text-[var(--foreground)] leading-[1.35] tracking-wide">
         {text && <div>{text}</div>}
         {children}
       </div>
@@ -296,7 +300,7 @@ function Step({ number, text, children }: { number: number; text?: string; child
 function WhyBox({ children }: { children: React.ReactNode }) {
   return (
     <div className="p-4 rounded-xl bg-[var(--bone-5)] border border-[var(--bone-10)]">
-      <p className="text-xs text-[var(--bone-60)] leading-relaxed tracking-wide">
+      <p className="text-xs text-[var(--bone-60)] leading-[1.35] tracking-wide">
         <span className="font-medium text-[var(--bone-70)]">Why this happens: </span>
         {children}
       </p>

@@ -3,17 +3,18 @@
 import { useStore } from '@/data/store';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X, Check, Play } from 'lucide-react';
+import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X, Check, Play, ArrowUpRight } from 'lucide-react';
 import { stripHtml } from '@/lib/utils';
 import type { WidgetProps } from './types';
 import type { AppTask } from '@/data/store.types';
+import { getTaskImplicitPosition } from '@/components/tracker/dragLogic';
 
 const ALL_TABS = [
-  { id: 'today', label: 'Today', icon: Clock, color: 'text-accent' },
-  { id: 'todo', label: 'To do', icon: Calendar, color: 'text-blue-400' },
-  { id: 'inProgress', label: 'In Progress', icon: Play, color: 'text-amber-400' },
-  { id: 'overdue', label: 'Overdue', icon: AlertCircle, color: 'text-red-400' },
-  { id: 'completed', label: 'Done', icon: CheckCircle2, color: 'text-emerald-400' },
+  { id: 'todo', label: 'To do', icon: Calendar, color: 'text-blue-400', dotColor: '#3B82F6' },
+  { id: 'inProgress', label: 'In progress', icon: Play, color: 'text-amber-400', dotColor: '#F59E0B' },
+  { id: 'today', label: 'Today', icon: Clock, color: 'text-accent', dotColor: '#8B5CF6' },
+  { id: 'overdue', label: 'Overdue', icon: AlertCircle, color: 'text-red-400', dotColor: '#EF4444' },
+  { id: 'completed', label: 'Done', icon: CheckCircle2, color: 'text-emerald-400', dotColor: '#10B981' },
 ] as const;
 
 type TabId = typeof ALL_TABS[number]['id'];
@@ -37,6 +38,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
   const addTask = useStore(state => state.addTask);
   const entities = useStore(state => state.entities);
   const activeWorkspaceId = useStore(state => state.activeWorkspaceId);
+  const addTab = useStore(state => state.addTab);
 
   const filteredTasks = useMemo(() => {
     if (!contextId || contextId === 'dashboard') {
@@ -83,28 +85,66 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
   const tasksByTab = useMemo(() => {
     const todayStr = getLocalDateStr();
 
+    const getAutomaticTier = (t: AppTask): number => {
+      if (t.dueDate) return 1;
+      if (t.priority) return 2;
+      if (t.color && t.color !== '') return 3;
+      return 4;
+    };
+
+    const sortAutomatic = (a: AppTask, b: AppTask) => {
+      const tierA = getAutomaticTier(a);
+      const tierB = getAutomaticTier(b);
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+
+      if (tierA === 1) {
+        const dateA = a.dueDate!;
+        const dateB = b.dueDate!;
+        const dateCompare = dateA.localeCompare(dateB);
+        if (dateCompare !== 0) return dateCompare;
+      }
+
+      const priorityVal = (p: string | null | undefined) => {
+        if (p === 'high') return 3;
+        if (p === 'medium') return 2;
+        if (p === 'low') return 1;
+        return 0;
+      };
+      const prioA = priorityVal(a.priority);
+      const prioB = priorityVal(b.priority);
+      if (prioA !== prioB) {
+        return prioB - prioA;
+      }
+
+      const colorA = a.color || '';
+      const colorB = b.color || '';
+      const colorCompare = colorA.localeCompare(colorB);
+      if (colorCompare !== 0) return colorCompare;
+
+      const posA = getTaskImplicitPosition(a);
+      const posB = getTaskImplicitPosition(b);
+      if (posA !== posB) return posA - posB;
+      return a.id.localeCompare(b.id);
+    };
+
     return {
       today: filteredTasks
-        .filter(t => t.dueDate === todayStr && t.status !== 'in-progress')
-        .sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0)),
+        .filter(t => !t.completed && t.dueDate === todayStr && t.status !== 'in-progress')
+        .sort(sortAutomatic),
       todo: filteredTasks
-        .filter(t => (!t.dueDate || t.dueDate > todayStr) && t.status !== 'in-progress')
-        .sort((a, b) => {
-          if (a.completed !== b.completed) {
-            return (a.completed ? 1 : 0) - (b.completed ? 1 : 0);
-          }
-          if (!a.dueDate && b.dueDate) return 1;
-          if (a.dueDate && !b.dueDate) return -1;
-          return (a.dueDate || '').localeCompare(b.dueDate || '');
-        }),
+        .filter(t => !t.completed && t.status !== 'in-progress' && (!t.dueDate || t.dueDate > todayStr))
+        .sort(sortAutomatic),
       inProgress: filteredTasks
-        .filter(t => t.status === 'in-progress')
-        .sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0)),
+        .filter(t => !t.completed && t.status === 'in-progress')
+        .sort(sortAutomatic),
       overdue: filteredTasks
-        .filter(t => t.dueDate && t.dueDate < todayStr && t.status !== 'in-progress')
-        .sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0)),
+        .filter(t => !t.completed && t.dueDate && t.dueDate < todayStr && t.status !== 'in-progress')
+        .sort(sortAutomatic),
       completed: filteredTasks
-        .filter(t => t.completed),
+        .filter(t => t.completed)
+        .sort(sortAutomatic),
     };
   }, [filteredTasks]);
 
@@ -113,7 +153,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
     : (visibleTabs[0]?.id ?? 'today');
 
   const activeTabDef = ALL_TABS.find(t => t.id === activeId)!;
-  const displayTasks = tasksByTab[activeId]?.slice(0, 7) ?? [];
+  const displayTasks = tasksByTab[activeId]?.slice(0, 10) ?? [];
 
   function handleTabSwitch(tabId: TabId) {
     setInternalTab(tabId);
@@ -223,10 +263,11 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                 <button
                   onClick={() => handleTabSwitch(tab.id)}
                   className={cn(
-                    "flex items-center justify-center py-1 transition-colors duration-200 ease-in-out",
+                    "flex items-center justify-center gap-1.5 py-1 transition-colors duration-200 ease-in-out",
                     activeId === tab.id ? "text-[var(--bone-100)]" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tab.dotColor }} />
                   <span className="text-[11px] font-semibold">{tab.label}</span>
                 </button>
                 {/* X to hide this tab — visible on hover in edit mode */}
@@ -276,9 +317,9 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
 
         {/* Right side: add-task button */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {displayTasks.length > 0 && (
+          {tasksByTab[activeId]?.length > 0 && (
             <div className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] bg-[var(--bone-6)] select-none text-[11px] font-semibold text-[var(--bone-70)] font-mono">
-              {displayTasks.length}
+              {tasksByTab[activeId].length}
             </div>
           )}
           <button
@@ -291,29 +332,78 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-none hover:scrollbar-thin transition-all">
+      <div className="flex-1 overflow-hidden transition-all">
         {displayTasks.length > 0 ? (
           <div className="space-y-1">
-            {displayTasks.map(t => (
-              <div
-                key={t.id}
-                className={cn(
-                  "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out",
-                  t.completed && "opacity-35 line-through decoration-[var(--bone-30)]"
-                )}
-              >
-                <button
-                  onClick={() => toggleTask(t.id)}
-                  className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
+            {displayTasks.map(t => {
+              const workspaceName = entities.find(e => e.id === t.workspaceId)?.title || null;
+              const todayStr = getLocalDateStr();
+              const isOverdue = !t.completed && t.dueDate && t.dueDate < todayStr;
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out",
+                    t.completed && "opacity-35 line-through decoration-[var(--bone-30)]"
+                  )}
                 >
-                  {t.completed && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
-                </button>
-                <span className="flex-1 text-sm text-foreground/90 font-medium truncate tracking-wide">{stripHtml(t.title || '')}</span>
-                {t.dueDate && (
-                  <span className="text-[11px] text-[var(--bone-30)] font-medium tabular-nums shrink-0">{formatDate(t.dueDate)}</span>
-                )}
-              </div>
-            ))}
+                  <button
+                    onClick={() => toggleTask(t.id)}
+                    className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
+                  >
+                    {t.completed && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 min-w-0">
+                    <span className="text-sm text-foreground/90 font-medium truncate tracking-wide">{stripHtml(t.title || '')}</span>
+                    {t.color && (
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: t.completed ? 'var(--bone-20)' : t.color }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 select-none">
+                    {t.priority && (
+                      <div className={cn(
+                        "px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0 leading-none",
+                        t.priority === 'high' ? "bg-red-500/15 text-red-400" :
+                          t.priority === 'medium' ? "bg-amber-500/15 text-amber-400" :
+                            "bg-blue-500/15 text-blue-400"
+                      )}>
+                        {t.priority}
+                      </div>
+                    )}
+                    {workspaceName && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] shrink-0 capitalize leading-none">
+                        {workspaceName}
+                      </span>
+                    )}
+                    {t.dueDate && (
+                      <div className="flex items-center gap-1 text-[var(--bone-30)] group-hover:text-[var(--bone-60)] transition-colors">
+                        <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
+                        <span className={cn(
+                          "text-[10px] font-medium tabular-nums shrink-0 leading-none",
+                          isOverdue ? "text-red-400 font-semibold" : "text-[var(--bone-40)]"
+                        )}>
+                          {formatDate(t.dueDate)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {tasksByTab[activeId]?.length > 10 && (
+              <button
+                onClick={() => addTab('tracker')}
+                className="w-full text-left group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-50)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out cursor-pointer"
+              >
+                <div className="w-4 h-4 flex items-center justify-center shrink-0 text-[var(--bone-40)] group-hover:text-[var(--bone-100)] transition-colors">
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 text-xs text-foreground/75 font-semibold tracking-wide">Show more</span>
+              </button>
+            )}
           </div>
         ) : !adding ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">

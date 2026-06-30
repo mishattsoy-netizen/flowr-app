@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@/lib/utils": ["src/lib/utils.ts"],
+      "@/*": ["src/*"],
+      "crypto": [".design-sync/stubs/crypto"],
+      "fs": [".design-sync/stubs/fs"],
+      "path": [".design-sync/stubs/path"],
+      "@opentelemetry/api": [".design-sync/stubs/otel"],
+      "framer-motion": [".design-sync/stubs/framer-motion"],
+      "recharts": [".design-sync/stubs/recharts"]
+    }
+  }
+}

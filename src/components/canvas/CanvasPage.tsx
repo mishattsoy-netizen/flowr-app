@@ -2,7 +2,7 @@
 
 import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download, Check } from 'lucide-react';
-import { computeAutoLayout } from '@/lib/frameLayout';
+import { computeAutoLayout, computeGroupBounds } from '@/lib/frameLayout';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -41,6 +41,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [hoveredFrameId, setHoveredFrameId] = useState<string | null>(null);
+  const hoveredFrameRef = useRef<string | null>(null);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [canvasBgColor, setCanvasBgColor] = useState('default');
   const [canvasBgOpacity, setCanvasBgOpacity] = useState(1);
@@ -123,11 +125,33 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     [blocks, entity.id]
   );
 
+  // Compute groups from pageBlocks for group overlay hit areas
+  const groupOverlays = useMemo(() => {
+    const groupMap = new Map<string, EditorBlock[]>();
+    for (const b of pageBlocks) {
+      if (b.groupId) {
+        if (!groupMap.has(b.groupId)) groupMap.set(b.groupId, []);
+        groupMap.get(b.groupId)!.push(b);
+      }
+    }
+    const overlays: { groupId: string; members: EditorBlock[]; bounds: { x: number; y: number; width: number; height: number } }[] = [];
+    for (const [groupId, members] of groupMap) {
+      if (members.length > 0) {
+        overlays.push({ groupId, members, bounds: computeGroupBounds(members) });
+      }
+    }
+    return overlays;
+  }, [pageBlocks]);
+
   const history = useCanvasHistory(pageBlocks);
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
 
   const handleDragCommit = useCallback(() => {
+    // Reset frame drag-over highlight
+    hoveredFrameRef.current = null;
+    setHoveredFrameId(null);
+
     const currentBlocks = useStore.getState().blocks;
     const canvasBlocks = currentBlocks.filter(x => x.canvasId === entity.id);
 
@@ -136,18 +160,23 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const frames = canvasBlocks.filter(b => b.type === 'frame');
     for (const id of selectedIds) {
       const block = canvasBlocks.find(b => b.id === id);
-      if (!block || block.type === 'frame' || block.type === 'connection') continue;
+      if (!block || block.type === 'connection') continue;
 
       const cx = (block.x ?? 0) + (block.width ?? 0) / 2;
       const cy = (block.y ?? 0) + (block.height ?? 0) / 2;
 
       // Find the innermost frame containing this block's center
       let containedBy: string | null = null;
+      let smallestArea = Infinity;
       for (const f of frames) {
         const fx = f.x ?? 0, fy = f.y ?? 0;
         const fw = f.width ?? 0, fh = f.height ?? 0;
         if (cx >= fx && cx < fx + fw && cy >= fy && cy < fy + fh) {
-          containedBy = f.id;
+          const area = fw * fh;
+          if (area < smallestArea) {
+            smallestArea = area;
+            containedBy = f.id;
+          }
         }
       }
 
@@ -162,11 +191,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       useStore.getState().updateCanvasBlocks(batch);
     }
 
-    // Auto-layout recompute: for any frame whose children were moved
-    const frameIds = new Set(frames.map(f => f.id));
+    // Auto-layout recompute: read the store again so parentId changes are reflected
+    const updatedBlocks = useStore.getState().blocks;
+    const updatedCanvasBlocks = updatedBlocks.filter(x => x.canvasId === entity.id);
     for (const f of frames) {
       if (!f.autoLayout) continue;
-      const children = canvasBlocks.filter(b => b.parentId === f.id);
+      const children = updatedCanvasBlocks.filter(b => b.parentId === f.id);
       if (children.length === 0) continue;
       // Check if any child moved (has a pending update in batch or was dragged)
       const needsRecompute = children.some(c => batch.find(u => u.id === c.id));
@@ -182,8 +212,37 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     }
 
-    history.push(currentBlocks.filter(x => x.canvasId === entity.id));
+    history.push(updatedBlocks.filter(x => x.canvasId === entity.id));
   }, [selectedIds, entity.id, history]);
+
+  // Drag-over detection for frame drop target highlighting
+  const handleDragMove = useCallback((_dx: number, _dy: number, e: PointerEvent) => {
+    const currentHovered = hoveredFrameRef.current;
+    const rect = canvasContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const vp = viewportRef.current;
+    const cx = (e.clientX - rect.left - vp.x) / vp.scale;
+    const cy = (e.clientY - rect.top - vp.y) / vp.scale;
+    const allBlocks = useStore.getState().blocks;
+    const frames = allBlocks.filter(b => b.canvasId === entity.id && b.type === 'frame');
+    // Find the innermost frame (smallest area containing the cursor) — like Figma
+    let found: string | null = null;
+    let smallestArea = Infinity;
+    for (const f of frames) {
+      const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
+      if (cx >= fx && cx < fx + fw && cy >= fy && cy < fy + fh) {
+        const area = fw * fh;
+        if (area < smallestArea) {
+          smallestArea = area;
+          found = f.id;
+        }
+      }
+    }
+    if (found !== currentHovered) {
+      hoveredFrameRef.current = found;
+      setHoveredFrameId(found);
+    }
+  }, [entity.id]);
 
   const { startDrag } = useDrag({
     viewportRef,
@@ -192,6 +251,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     snapWithObjects,
     updateCanvasBlocks,
     onCommit: handleDragCommit,
+    onDragMove: handleDragMove,
+    onDragEnd: () => {
+      hoveredFrameRef.current = null;
+      setHoveredFrameId(null);
+    },
   });
 
   const handleArrowDrag = useCallback((e: React.PointerEvent, block: EditorBlock) => {
@@ -1151,6 +1215,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             height: isPoint ? 200 : Math.max(finalH, 40),
             autoLayout: false,
             layoutDirection: 'freeform',
+            canvasStyleExt: {
+              fill: undefined,
+              fillOpacity: 0,
+              stroke: undefined,
+              strokeWidth: 1,
+              cornerRadius: 0,
+            },
           });
           setSelectedIds(new Set([newBlockId]));
           history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
@@ -1223,14 +1294,31 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     } else {
       if (block?.groupId) {
-        // Select all group members
         const groupMembers = blocks.filter(b => b.groupId === block.groupId);
-        setSelectedIds(new Set(groupMembers.map(m => m.id)));
+        const allSelected = selectedIds.size > 0 && groupMembers.every(m => selectedIds.has(m.id));
+        if (allSelected) {
+          // Group is fully selected → clicking an individual selects just that item
+          setSelectedIds(new Set([id]));
+        } else {
+          // Select all group members
+          setSelectedIds(new Set(groupMembers.map(m => m.id)));
+        }
       } else {
         setSelectedIds(new Set([id]));
       }
     }
   }
+
+  // Group overlay: click anywhere in the group bounding box to select & drag all members
+  const handleGroupOverlayPointerDown = useCallback((e: React.PointerEvent, members: EditorBlock[]) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    // Select all group members immediately
+    setSelectedIds(new Set(members.map(m => m.id)));
+    // Start drag on the first member; fix #12 in useDrag ensures all group members are included
+    startDrag(e, members[0]);
+  }, [startDrag]);
 
   const handleBlockContextMenu = useCallback((e: React.MouseEvent, blockId: string) => {
     e.preventDefault();
@@ -1331,12 +1419,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
                 {drawingShape && (
                   <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none z-[4998]">
-                    {(drawingShape.kind === 'rect') && (
+                    {(['rect', 'frame'].includes(drawingShape.kind)) && (
                       <rect x={drawingShape.x} y={drawingShape.y} width={drawingShape.w} height={drawingShape.h}
                         fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
                         stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
                         strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined}
-                        rx={activeStyle.cornerRadius ?? 0} />
+                        rx={drawingShape.kind === 'frame' ? 0 : (activeStyle.cornerRadius ?? 0)} />
                     )}
                     {(drawingShape.kind === 'ellipse') && (
                       <ellipse cx={drawingShape.x + drawingShape.w/2} cy={drawingShape.y + drawingShape.h/2}
@@ -1426,11 +1514,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     isSelected={selectedIds.has(b.id)}
                     selectedIds={selectedIds}
                     onSelect={selectBlock}
-                    onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
+                    onCommit={handleDragCommit}
                     onContextMenu={handleBlockContextMenu}
+                    hoveredFrameId={hoveredFrameId}
+                    onDragMove={handleDragMove}
                     onConnectStart={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
-                      
+
                       const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
                       // Immediate initialization directly tied into the clicked coordinate
                       if (!isDrawing) {
@@ -1441,6 +1531,24 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                         commitFlowConnection();
                       }
                     }}
+                  />
+                ))}
+
+                {/* Group bounding box drag overlays — transparent hit areas to drag groups by empty space */}
+                {groupOverlays.map(({ groupId, members, bounds }) => (
+                  <div
+                    key={groupId}
+                    className="absolute cursor-move"
+                    style={{
+                      left: bounds.x,
+                      top: bounds.y,
+                      width: bounds.width,
+                      height: bounds.height,
+                      zIndex: 1,
+                      pointerEvents: 'auto',
+                      touchAction: 'none',
+                    }}
+                    onPointerDown={(e) => handleGroupOverlayPointerDown(e, members)}
                   />
                 ))}
 

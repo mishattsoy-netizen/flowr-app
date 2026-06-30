@@ -432,14 +432,24 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           )}
           style={{
             width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
-            transition: (isResizingRight || isResizingLeft || isTaskPanelVisible) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+            transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <div className={cn(
             "h-full shrink-0 w-full",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
           )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-            {isTaskPanelVisible ? <TaskInspectorPanel /> : (isAiPanelMounted && <AIAssistant />)}
+            {/* Pre-mount both panels, toggle with hidden class to match AI panel behavior:
+                AI panel stays mounted (display:none when closed) so content is ready
+                when width transition starts. Task panel needs the same treatment. */}
+            <div className={cn("h-full w-full", !isTaskPanelVisible && "hidden")}>
+              <TaskInspectorPanel />
+            </div>
+            {isAiPanelMounted && (
+              <div className={cn("h-full w-full", isTaskPanelVisible && "hidden")}>
+                <AIAssistant />
+              </div>
+            )}
           </div>
         </div>
       </div>

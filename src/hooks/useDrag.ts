@@ -84,7 +84,11 @@ export function useDrag({
     // Identify all elements to drag as a group using the latest selection state
     const { selectedIds: currentSelectedIds } = optionsRef.current;
     const isAlreadySelected = currentSelectedIds.has(currentPrimaryBlock.id);
-    const baseDragIds = isAlreadySelected ? Array.from(currentSelectedIds) : [currentPrimaryBlock.id];
+    const baseDragIds = isAlreadySelected
+      ? Array.from(currentSelectedIds)
+      : currentPrimaryBlock.groupId
+        ? latestBlocks.filter(b => b.groupId === currentPrimaryBlock.groupId).map(b => b.id)
+        : [currentPrimaryBlock.id];
 
     // Add all children of any dragged frame block so they drag along live
     const dragIdsSet = new Set<string>(baseDragIds);

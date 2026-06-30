@@ -1,0 +1,14 @@
+{
+  "projectId": "8984e1f0-6f2d-4e10-97ce-5412cf33a3ca",
+  "shape": "package",
+  "pkg": "flowr-beta-1.5.1",
+  "globalName": "Flowr",
+  "srcDir": "src/components",
+  "cssEntry": "src/app/globals.css",
+  "tsconfig": ".design-sync/tsconfig.ds.json",
+  "provider": {
+    "component": "ThemeProvider",
+    "props": { "defaultTheme": "dark" }
+  },
+  "runtimeFontPrefixes": ["Anonymous Pro", "Literata"]
+}

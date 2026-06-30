@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Plus, Search, FileText, Frame, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useStore, Entity, EditorBlock } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { TasksWidget } from '@/components/workspace/widgets/TasksWidget';
+import { SmartTaskStackWidget } from '@/components/workspace/widgets/SmartTaskStackWidget';
 import { ShortcutsWidget } from '@/components/workspace/widgets/ShortcutsWidget';
 import { loadBentoLayout, saveBentoLayout } from '@/lib/bento-sync';
+import { HorizontalOverlayScrollbar } from '@/components/tracker/HorizontalOverlayScrollbar';
 import type { BentoLayoutItem } from '@/components/bento/types';
 
 function formatAge(ts: number) {
@@ -17,6 +19,126 @@ function formatAge(ts: number) {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+
+/** Strip HTML tags and markdown syntax from a string */
+function stripHtml(str: string): string {
+  return str
+    .replace(/<[^>]+>/g, '')       // strip html tags
+    .replace(/\*\*(.+?)\*\*/g, '$1') // bold
+    .replace(/\*(.+?)\*/g, '$1')    // italic
+    .replace(/`(.+?)`/g, '$1')      // inline code
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1') // links [text](url)
+    .replace(/^[-*+]\s+/, '')       // list markers
+    .replace(/^[0-9]+\.\s+/, '')    // numbered list markers
+    .replace(/^\[[ x]\]\s+/, '')    // checklist markers
+    .trim();
+}
+
+function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
+  if (!blocks || blocks.length === 0) {
+    return <span className="text-[11px] text-[var(--bone-30)] italic">No preview content</span>;
+  }
+
+  // Flatten top-level blocks, skip canvas-only types, cap at 4 rows
+  const previewBlocks = blocks
+    .filter(b => !['shape', 'frame', 'comment', 'connection', 'column'].includes(b.type))
+    .slice(0, 4);
+
+  const rows: React.ReactNode[] = previewBlocks.map((b, i) => {
+    const text = stripHtml(b.content || '');
+
+    switch (b.type) {
+      case 'text': {
+        if (!text) return null;
+        // Detect heading by style or content starting with #
+        const isH = b.style === 'title' || b.style === 'heading' || b.style === 'subheading';
+        const isMono = b.style === 'mono';
+        return (
+          <div key={i} className={cn(
+            'truncate',
+            isH ? 'font-semibold text-[12px] text-[var(--bone-80)]' :
+            isMono ? 'font-mono text-[10px] text-[var(--bone-50)] bg-black/20 px-1.5 py-[1px] rounded' :
+            'text-[11px] text-[var(--bone-60)]'
+          )}>
+            {text}
+          </div>
+        );
+      }
+      case 'bulletList':
+      case 'dashedList':
+        return (
+          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="mt-[3px] w-1 h-1 rounded-full bg-[var(--bone-30)] flex-shrink-0" />
+            <span className="truncate">{text || '…'}</span>
+          </div>
+        );
+      case 'numberedList':
+        return (
+          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="text-[var(--bone-30)] flex-shrink-0 font-mono">{i + 1}.</span>
+            <span className="truncate">{text || '…'}</span>
+          </div>
+        );
+      case 'checklist':
+        return (
+          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="mt-[2px] w-2.5 h-2.5 rounded-[2px] border border-[var(--bone-20)] flex-shrink-0" />
+            <span className="truncate">{text || '…'}</span>
+          </div>
+        );
+      case 'quote':
+        return (
+          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-50)] italic">
+            <div className="w-[2px] h-3 bg-[var(--bone-30)] rounded-full flex-shrink-0 mt-[1px]" />
+            <span className="truncate">{text || '…'}</span>
+          </div>
+        );
+      case 'table':
+        return (
+          <div key={i} className="flex flex-col gap-[2px] w-full">
+            <div className="h-[5px] w-full rounded-[1px] bg-[var(--bone-10)]" />
+            <div className="h-[4px] w-4/5 rounded-[1px] bg-[var(--bone-6)]" />
+            <div className="h-[4px] w-4/5 rounded-[1px] bg-[var(--bone-6)]" />
+          </div>
+        );
+      case 'image':
+      case 'video':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[10px] text-[var(--bone-40)]">
+            <span>{b.type === 'image' ? '🖼' : '▶'}</span>
+            <span>{b.type === 'image' ? 'Image' : 'Video'}</span>
+          </div>
+        );
+      case 'link':
+        return (
+          <div key={i} className="flex items-center gap-1 text-[11px] text-[var(--bone-40)] truncate">
+            <span className="text-[9px]">🔗</span>
+            <span className="truncate underline underline-offset-2">{text || 'Link'}</span>
+          </div>
+        );
+      case 'divider':
+        return <div key={i} className="w-full h-[1px] bg-[var(--bone-6)] my-[1px]" />;
+      case 'columns':
+        return (
+          <div key={i} className="flex gap-1 w-full">
+            <div className="h-[5px] flex-1 rounded-[1px] bg-[var(--bone-10)]" />
+            <div className="h-[5px] flex-1 rounded-[1px] bg-[var(--bone-10)]" />
+          </div>
+        );
+      default:
+        if (!text) return null;
+        return (
+          <div key={i} className="truncate text-[11px] text-[var(--bone-50)]">{text}</div>
+        );
+    }
+  }).filter(Boolean);
+
+  if (rows.length === 0) {
+    return <span className="text-[11px] text-[var(--bone-30)] italic">No preview content</span>;
+  }
+
+  return <div className="flex flex-col gap-[5px] w-full">{rows}</div>;
 }
 
 function getNotePreviewData(entity: Entity) {
@@ -76,6 +198,89 @@ function getCanvasPreviewData(entity: Entity) {
   return { bulletPoints, footerSentence };
 }
 
+function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
+  const visualBlocks = canvasBlocks.filter(b => typeof b.x === 'number' && typeof b.y === 'number');
+
+  if (visualBlocks.length === 0) {
+    return (
+      <div className="relative w-full h-[90px] bg-black/15 border border-[var(--bone-6)] rounded overflow-hidden flex items-center justify-center">
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage: 'radial-gradient(var(--bone-100) 0.5px, transparent 0.5px)',
+            backgroundSize: '8px 8px',
+          }}
+        />
+        <span className="text-[10px] font-medium text-[var(--bone-40)] select-none">Empty board</span>
+      </div>
+    );
+  }
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  visualBlocks.forEach(b => {
+    const x = b.x ?? 0;
+    const y = b.y ?? 0;
+    const w = b.width ?? 100;
+    const h = b.height ?? 80;
+    if (x < minX) minX = x;
+    if (x + w > maxX) maxX = x + w;
+    if (y < minY) minY = y;
+    if (y + h > maxY) maxY = y + h;
+  });
+
+  const mapW = maxX - minX;
+  const mapH = maxY - minY;
+  const targetW = 248 - 12;
+  const targetH = 90 - 12;
+
+  const scale = Math.min(targetW / (mapW || 1), targetH / (mapH || 1), 0.15);
+  const offsetX = 6 + (targetW - mapW * scale) / 2;
+  const offsetY = 6 + (targetH - mapH * scale) / 2;
+
+  return (
+    <div className="relative w-full h-[90px] bg-black/15 border border-[var(--bone-6)] rounded overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        style={{
+          backgroundImage: 'radial-gradient(var(--bone-100) 0.5px, transparent 0.5px)',
+          backgroundSize: '8px 8px',
+        }}
+      />
+      {visualBlocks.map(b => {
+        const left = offsetX + ((b.x ?? 0) - minX) * scale;
+        const top = offsetY + ((b.y ?? 0) - minY) * scale;
+        const width = Math.max((b.width ?? 100) * scale, 1.5);
+        const height = Math.max((b.height ?? 80) * scale, 1.5);
+
+        const fill = b.canvasStyleExt?.fill || b.bgColor || 'var(--bone-20)';
+        const isCircle = b.shapeKind === 'ellipse';
+        const isLine = b.shapeKind === 'line' || b.shapeKind === 'arrow' || b.type === 'connection';
+
+        if (isLine) {
+          return (
+            <div
+              key={b.id}
+              className="absolute bg-[var(--bone-30)] opacity-60"
+              style={{ left, top, width, height, borderRadius: 1 }}
+            />
+          );
+        }
+
+        return (
+          <div
+            key={b.id}
+            className={cn(
+              "absolute border-[0.5px] border-white/10 opacity-70",
+              isCircle ? "rounded-full" : "rounded-[1.5px]"
+            )}
+            style={{ left, top, width, height, backgroundColor: fill }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { user } = useAuth();
   const displayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
@@ -87,9 +292,11 @@ export function Dashboard() {
   // Recents state
   const recentEntityIds = useStore(state => state.recentEntityIds);
   const entities = useStore(state => state.entities);
+  const allBlocks = useStore(state => state.blocks);
   const workspaces = useStore(state => state.workspaces);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setActiveWorkspaceId = useStore(state => state.setActiveWorkspaceId);
+  const isFullWidth = useStore(state => state.isFullWidth);
 
   // Layout shortcuts state
   const [dashboardLayout, setDashboardLayout] = useState<BentoLayoutItem[]>([]);
@@ -183,8 +390,8 @@ export function Dashboard() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-10 py-8 flex flex-col h-full bg-background select-none">
-      <div className="max-w-5xl mx-auto w-full flex flex-col gap-8 flex-grow">
+    <div className="flex-1 overflow-y-auto px-8 py-5 flex flex-col h-full bg-background select-none">
+      <div className={cn("w-full flex flex-col gap-4 flex-grow", isFullWidth ? "w-full" : "max-w-[1200px] mx-auto")}>
         {/* Header */}
         <header className="flex items-center justify-between py-2 border-b border-[var(--bone-6)] select-none">
           <div className="flex-1 min-w-0">
@@ -245,12 +452,12 @@ export function Dashboard() {
           </div>
         </header>
 
-        {/* Recents Section */}
-        <section className="flex flex-col gap-3 relative group/slider">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[13px] font-ui-label text-muted-foreground tracking-[0.06em] uppercase">Recents</h2>
+        {/* Recents Widget */}
+        <section className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Recents</h2>
             {recentEntities.length > 3 && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 no-drag select-none">
                 <button
                   onClick={() => scrollSlider('left')}
                   className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] border border-[var(--bone-10)] hover:bg-[var(--bone-5)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
@@ -267,9 +474,9 @@ export function Dashboard() {
             )}
           </div>
 
-          <div
-            ref={sliderRef}
-            className="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar pr-10 pb-2 scroll-smooth"
+          <HorizontalOverlayScrollbar
+            scrollRef={node => { sliderRef.current = node; }}
+            scrollClassName="flex gap-4 pb-1.5 scroll-smooth pr-10"
           >
             {recentEntities.length > 0 ? (
               recentEntities.map(entity => {
@@ -279,12 +486,14 @@ export function Dashboard() {
                   ? getNotePreviewData(entity)
                   : getCanvasPreviewData(entity);
                 const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
+                const parentEntity = entity.parentId ? entities.find(e => e.id === entity.parentId) : null;
+                const locationLabel = parentEntity?.title || 'Unsorted';
 
                 return (
                   <button
                     key={entity.id}
                     onClick={() => handleCardClick(entity)}
-                    className="flex-shrink-0 w-[280px] h-[220px] snap-start bg-panel/40 backdrop-blur-xl border border-[var(--bone-5)] rounded-[var(--radius-big)] p-5 text-left flex flex-col justify-between hover:border-[var(--bone-20)] transition-all duration-200 cursor-pointer"
+                    className="flex-shrink-0 w-[280px] h-[185px] bg-[var(--bone-3)] border border-[var(--bone-10)] rounded-xl p-4 text-left flex flex-col justify-between hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer"
                   >
                     <div className="flex flex-col gap-3 w-full">
                       {/* Card Header */}
@@ -292,12 +501,8 @@ export function Dashboard() {
                         <div className="flex items-center gap-1.5">
                           <Icon className="w-3.5 h-3.5 text-[var(--bone-30)]" />
                           <span>{isNote ? 'Note' : 'Canvas'}</span>
-                          {ws && (
-                            <>
-                              <span>·</span>
-                              <span className="truncate max-w-[85px]">{ws.name}</span>
-                            </>
-                          )}
+                          <span>·</span>
+                          <span className="truncate max-w-[85px]">{locationLabel}</span>
                         </div>
                         <span>{formatAge(entity.lastModified)}</span>
                       </div>
@@ -307,22 +512,16 @@ export function Dashboard() {
                         {entity.title || 'Untitled'}
                       </h3>
 
-                      {/* Bullet Previews */}
-                      <ul className="flex flex-col gap-1 text-[12px] text-[var(--bone-70)] leading-tight">
-                        {bulletPoints.length > 0 ? (
-                          bulletPoints.slice(0, 3).map((pt, idx) => (
-                            <li key={idx} className="truncate pl-3 relative before:absolute before:left-0 before:top-1.5 before:w-1 before:h-1 before:rounded-full before:bg-[var(--bone-30)]">
-                              {pt}
-                            </li>
-                          ))
-                        ) : (
-                          <li className="text-[var(--bone-30)] italic">No preview content</li>
-                        )}
-                      </ul>
+                      {/* Visual previews: semantic block renderer for notes, visual minimap for canvases */}
+                      {isNote ? (
+                        <NoteBlockPreview blocks={(entity.content || []).filter(b => !['shape','frame','comment','connection','column'].includes(b.type)).slice(0,4)} />
+                      ) : (
+                        <CanvasMiniPreview canvasBlocks={allBlocks.filter(b => b.canvasId === entity.id)} />
+                      )}
                     </div>
 
-                    {/* Card Footer Preview text */}
-                    {footerSentence && (
+                    {/* Card Footer — only for notes */}
+                    {isNote && footerSentence && (
                       <p className="text-[11px] text-[var(--bone-30)] truncate w-full pt-2 border-t border-[var(--bone-3)] font-sans">
                         {footerSentence}
                       </p>
@@ -336,15 +535,19 @@ export function Dashboard() {
                 <span className="text-xs text-muted-foreground/60 max-w-[280px]">Your recently updated Notes and Canvases will appear here.</span>
               </div>
             )}
-          </div>
+          </HorizontalOverlayScrollbar>
+          <div
+            className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+            style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+          />
         </section>
 
         {/* Bottom widgets grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow min-h-0 select-none pb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow min-h-0 select-none pb-4">
           {/* Tasks (2/3 width) */}
-          <div className="md:col-span-2 flex flex-col min-h-[360px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="md:col-span-2 flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
-              <TasksWidget contextId="dashboard" />
+              <SmartTaskStackWidget contextId="dashboard" />
             </div>
             <div
               className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
@@ -353,7 +556,7 @@ export function Dashboard() {
           </div>
 
           {/* Shortcuts (1/3 width) */}
-          <div className="flex flex-col min-h-[360px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
               <ShortcutsWidget
                 data={shortcutsData}

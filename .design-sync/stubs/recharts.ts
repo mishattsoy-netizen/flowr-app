@@ -1,0 +1,13 @@
+const noop = () => null;
+export const LineChart = noop; export const BarChart = noop; export const PieChart = noop;
+export const AreaChart = noop; export const RadarChart = noop; export const ScatterChart = noop;
+export const ComposedChart = noop; export const RadialBarChart = noop;
+export const Line = noop; export const Bar = noop; export const Pie = noop; export const Area = noop;
+export const Scatter = noop; export const Radar = noop; export const RadialBar = noop;
+export const XAxis = noop; export const YAxis = noop; export const ZAxis = noop;
+export const CartesianGrid = noop; export const Tooltip = noop; export const Legend = noop;
+export const Cell = noop; export const LabelList = noop; export const Label = noop;
+export const ResponsiveContainer = noop; export const ReferenceLine = noop; export const ReferenceDot = noop;
+export const PolarGrid = noop; export const PolarAngleAxis = noop; export const PolarRadiusAxis = noop;
+export const Brush = noop; export const ErrorBar = noop; export const Funnel = noop; export const FunnelChart = noop;
+export default { LineChart, BarChart, PieChart, AreaChart, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer };

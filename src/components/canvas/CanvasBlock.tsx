@@ -2,7 +2,7 @@
 
 import { EditorBlock, useStore } from '@/data/store';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
@@ -21,9 +21,11 @@ interface CanvasBlockProps {
   snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
   snapForResize?: (x: number, y: number, w: number, h: number, handle: string, excludeId: string) => { x: number; y: number; width: number; height: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
+  hoveredFrameId?: string | null;
+  onDragMove?: (dx: number, dy: number, e: PointerEvent) => void;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -35,7 +37,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const [isRotating, setIsRotating] = useState(false);
   const [size, setSize] = useState(() => ({ width: block?.width || 280, height: block?.height || undefined as number | undefined }));
   const [showMenu, setShowMenu] = useState(false);
-  const [isOverSection, setIsOverSection] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   const isNoteBlock = block?.type !== 'frame' && block?.type !== 'comment' && block?.type !== 'connection' && block?.type !== 'shape';
@@ -43,15 +44,17 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block?.x || 0, y: block?.y || 0 });
   const finalSizeRef = useRef({ w: block?.width || 280, h: block?.height || 150 });
-  const lastSectionCheckRef = useRef(0);
 
   const viewportRef = useRef(viewport);
   useEffect(() => {
     viewportRef.current = viewport;
   }, [viewport]);
 
-  useEffect(() => {
-    if (!isSelected) setIsEditing(false);
+  useLayoutEffect(() => {
+    if (!isSelected) {
+      setIsEditing(false);
+      setShowMenu(false);
+    }
   }, [isSelected]);
 
   // Sync from store when not interacting
@@ -98,40 +101,11 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     selectedIds: selectedIds || new Set(),
     snapWithObjects,
     updateCanvasBlocks,
-    onCommit,
-    onDragMove: (dx, dy, moveEvent) => {
-      if (!block) return;
-      const now = Date.now();
-      if (now - lastSectionCheckRef.current < 150) return;
-      lastSectionCheckRef.current = now;
-
-      const over = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-      const sectionEl = over?.closest('[data-block-type="frame"]');
-      const isAlreadySelected = selectedIds?.has(block.id) ?? false;
-      const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
-      if (sectionEl && sectionEl.id !== block.id && !groupIds.includes(sectionEl.id)) {
-        setIsOverSection(sectionEl.id);
-      } else {
-        setIsOverSection(null);
-      }
-    },
-    onDragEnd: (dx, dy, upEvent) => {
+    onCommit: () => {
       setIsDraggingLocal(false);
-      if (!block) return;
-      const movedDist = Math.hypot(dx, dy);
-
-      const isAlreadySelected = selectedIds?.has(block.id) ?? false;
-      const groupIds = isAlreadySelected && selectedIds ? Array.from(selectedIds) : [block.id];
-
-      // useDrag handles updating section and children coordinate records in the store, avoiding double-shift bugs
-
-      if (isOverSection) {
-        updateCanvasBlocks(groupIds.filter(id => id !== isOverSection).map(id => ({
-          id, updates: { parentId: isOverSection }
-        })));
-      }
-      setIsOverSection(null);
-    }
+      onCommit?.();
+    },
+    onDragMove,
   });
 
   if (!block) return null;
@@ -145,7 +119,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
 
     const canMove = activeTool === 'move' || activeTool === 'select';
     const isAlreadySelected = selectedIds?.has(block.id) ?? false;
-    if (!isInput && !isAlreadySelected && canMove) {
+    if (!isInput && canMove && (!isAlreadySelected || block.groupId)) {
       onSelect?.(block.id, e.shiftKey);
     }
 
@@ -155,7 +129,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     e.stopPropagation();
     setIsDraggingLocal(true);
     setShowMenu(false);
-    lastSectionCheckRef.current = Date.now();
 
     // If was selected and clicked without distinct drag movement, handlePointerUp inside useDrag checks it,
     // but we can also trigger select here.
@@ -542,6 +515,12 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
+    // When block is in a group and part of a multi-selection, double-click should
+    // select individual (already handled by pointerdown) instead of entering text edit
+    if (block.groupId && selectedIds && selectedIds.has(block.id) && selectedIds.size > 1) {
+      e.stopPropagation();
+      return;
+    }
     if (
       block.type === 'text' ||
       block.type === 'comment' ||
@@ -576,13 +555,12 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         isDraggingLocal && "z-[3000] opacity-90",
         isResizing && "z-[3000]",
         !isDraggingLocal && !isResizing && (block.type === 'frame' ? "z-0" : "z-10"),
-        !isSelected && !isDraggingLocal && !isResizing && (activeTool === 'select' || activeTool === 'move') && "hover:outline hover:outline-brand-blue/30 hover:outline-1 hover:outline-offset-[1px]",
+        false && "", // reserved for hover indicator
         block.type === 'frame' && cn(
           "min-w-[120px] min-h-[80px]",
-          block.clipContent ? "overflow-hidden" : "overflow-visible"
+          "overflow-visible"
         ),
-        (isOverSection === block.id) && "ring-2 ring-accent ring-inset",
-        showMenu && "ring-2 ring-accent/20"
+        false && "" // reserved for context menu ring
       )}
       style={{
         left: block.x || 0,
@@ -592,7 +570,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'frame' ? 2 : 10)),
         transform: (() => {
           // During drag, return undefined so React leaves useDrag's translate3d intact.
-          // During re-renders triggered by state changes (setIsOverSection etc.) this prevents the translate from being wiped.
           if (isDraggingLocal) return undefined;
           const rotation = block.canvasStyleExt?.rotation ?? 0;
           const flipH = block.canvasStyleExt?.flipH ? ' scaleX(-1)' : '';
@@ -618,7 +595,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       )}
 
       {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
-      {((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing || showMenu) && (
+      {((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing) && (
         <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
       )}
 
@@ -701,29 +678,55 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         <>
           {/* Frame label — rendered above the block, outside its bounds, like Figma */}
           <div
-            className="absolute pointer-events-none select-none"
+            className="absolute pointer-events-none select-none flex items-center gap-1.5"
             style={{ top: -22, left: 0 }}
           >
             <span
-              className="text-[11px] font-medium truncate max-w-[200px] block"
-              style={{ color: 'var(--bone-50)', lineHeight: '1' }}
+              className="text-[11px] font-medium truncate max-w-[180px] block"
+              style={{ color: 'var(--bone-60)', lineHeight: '1' }}
             >
               {block.content || 'Frame'}
             </span>
+            {(() => {
+              const childCount = useStore.getState().blocks.filter(b => b.parentId === block.id).length;
+              return childCount > 0 ? (
+                <span
+                  className="text-[10px] font-medium px-1 rounded-[3px]"
+                  style={{ color: 'var(--bone-40)', background: 'var(--bone-8)', lineHeight: '1.2' }}
+                >
+                  {childCount}
+                </span>
+              ) : null;
+            })()}
           </div>
-          {/* Frame body — fill + border from canvasStyleExt, fallback to subtle defaults */}
-          <div
-            className="w-full h-full"
-            style={{
-              background: block.canvasStyleExt?.fill
-                ? `${block.canvasStyleExt.fill}${Math.round((block.canvasStyleExt.fillOpacity ?? 0.04) * 255).toString(16).padStart(2, '0')}`
-                : 'rgba(255,255,255,0.03)',
-              border: block.canvasStyleExt?.stroke
-                ? `${block.canvasStyleExt.strokeWidth ?? 1.5}px ${block.canvasStyleExt.strokeStyle === 'dashed' ? 'dashed' : 'solid'} ${block.canvasStyleExt.stroke}`
-                : '1.5px dashed rgba(255,255,255,0.25)',
-              borderRadius: block.canvasStyleExt?.cornerRadius ? `${block.canvasStyleExt.cornerRadius}px` : 0,
-            }}
-          />
+          {/* Frame body — fill + border. Figma-like: no border when idle, show on select/drag-over, transparent when no fill */}
+          {(() => {
+            const hasFill = block.canvasStyleExt?.fill && block.canvasStyleExt.fill !== 'transparent';
+            const fillColor = hasFill
+              ? `${block.canvasStyleExt!.fill}${Math.round((block.canvasStyleExt!.fillOpacity ?? 1) * 255).toString(16).padStart(2, '0')}`
+              : 'transparent';
+            const isFrameHovered = hoveredFrameId === block.id;
+            const strokeStyle = block.canvasStyleExt?.strokeStyle === 'dashed' ? 'dashed' : 'solid';
+            let borderStyle: string;
+            if (block.canvasStyleExt?.stroke) {
+              borderStyle = `${block.canvasStyleExt.strokeWidth ?? 1.5}px ${strokeStyle} ${block.canvasStyleExt.stroke}`;
+            } else if (isFrameHovered) {
+              borderStyle = `2px solid rgba(255,255,255,0.5)`; // highlighted drag-over indicator
+            } else {
+              borderStyle = 'none';
+            }
+            return (
+              <div
+                className={cn("w-full h-full", block.clipContent && "overflow-hidden")}
+                style={{
+                  background: fillColor,
+                  border: borderStyle,
+                  borderRadius: block.canvasStyleExt?.cornerRadius ? `${block.canvasStyleExt.cornerRadius}px` : 0,
+                  transition: isFrameHovered ? 'border-color 0.15s ease' : undefined,
+                }}
+              />
+            );
+          })()}
         </>
       ) : block.type === 'comment' ? (
         <div className="bg-[var(--bone-10)]/80 backdrop-blur-xl border border-[var(--bone-20)] rounded-2xl p-4 w-full h-full">

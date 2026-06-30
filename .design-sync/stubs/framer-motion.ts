@@ -1,0 +1,17 @@
+import React from 'react';
+type Props = Record<string, any>;
+const fwd = (tag: string) => React.forwardRef<any, Props>((props, ref) => React.createElement(tag as any, { ...props, ref }));
+export const motion: any = new Proxy({}, { get: (_, tag) => fwd(String(tag)) });
+export const AnimatePresence = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);
+export const useAnimation = () => ({ start: () => {}, stop: () => {}, set: () => {} });
+export const useMotionValue = (v: any) => ({ get: () => v, set: () => {}, subscribe: () => () => {} });
+export const useTransform = (v: any) => v;
+export const useSpring = (v: any) => v;
+export const useScroll = () => ({ scrollY: { get: () => 0 }, scrollX: { get: () => 0 } });
+export const useInView = () => false;
+export const useCycle = (...vals: any[]) => [vals[0], () => {}] as const;
+export const useReducedMotion = () => false;
+export const LayoutGroup = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);
+export const LazyMotion = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);
+export const domAnimation: any = {};
+export default { motion, AnimatePresence };

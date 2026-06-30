@@ -12,7 +12,7 @@ import { ColorPickerPopover } from './ColorPickerPopover';
 import { Eye, EyeOff, Check, Scan, ChevronDown, Camera, Copy, Download } from 'lucide-react';
 import { toPng, toJpeg } from 'html-to-image';
 import { createPortal } from 'react-dom';
-import { computeGroupSpacing } from '@/lib/frameLayout';
+import { computeGroupSpacing, computeGroupBounds } from '@/lib/frameLayout';
 
 interface Props {
   selectedIds: Set<string>;
@@ -824,6 +824,7 @@ export function CanvasStylePanel({
 }: Props) {
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
+  const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const setFrameAutoLayout = useStore(s => s.setFrameAutoLayout);
   const setFrameLayoutDirection = useStore(s => s.setFrameLayoutDirection);
   const setFrameLayoutGap = useStore(s => s.setFrameLayoutGap);
@@ -836,6 +837,10 @@ export function CanvasStylePanel({
   const outerRef = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const [hiddenColors, setHiddenColors] = useState<Record<string, boolean>>({});
+  const prevFillRef = useRef<string>('#ffffff');
+  const prevFillOpacityRef = useRef<number>(1);
+  const prevStrokeRef = useRef<string>('#ffffff');
+  const prevStrokeOpacityRef = useRef<number>(1);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewSize, setPreviewSize] = useState<{w: number; h: number} | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -1594,32 +1599,62 @@ export function CanvasStylePanel({
                 </PanelSection>
               )}
 
-              {isGroupSelection && (
-                <PanelSection title="Layout">
-                  <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Dimensions</div>
-                  <div className="flex gap-2">
-                    <SidebarInput
-                      prefix={<span className="text-[10px]">W</span>}
-                      value={Math.round(computeGroupSpacing(selected) ?? 0)}
-                      onChange={() => {}}
-                    />
-                    <SidebarInput
-                      prefix={<span className="text-[10px]">H</span>}
-                      value={Math.round(0)}
-                      onChange={() => {}}
-                    />
-                  </div>
-                  {groupSpacing !== null && (
-                    <PropRow label="Spacing">
+              {isGroupSelection && (() => {
+                const bounds = computeGroupBounds(selected);
+                return (
+                  <PanelSection title="Layout">
+                    <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Dimensions</div>
+                    <div className="flex gap-2">
                       <SidebarInput
-                        prefix={<span className="text-[10px]">≡</span>}
-                        value={groupSpacing}
-                        onChange={v => setFrameLayoutGap(ref!.id, Number(v) || 0)}
+                        prefix={<span className="text-[10px]">W</span>}
+                        value={Math.round(bounds.width)}
+                        onChange={() => {}}
                       />
-                    </PropRow>
-                  )}
-                </PanelSection>
-              )}
+                      <SidebarInput
+                        prefix={<span className="text-[10px]">H</span>}
+                        value={Math.round(bounds.height)}
+                        onChange={() => {}}
+                      />
+                    </div>
+                    {groupSpacing !== null && (
+                      <PropRow label="Spacing">
+                        <SidebarInput
+                          prefix={<span className="text-[10px]">≡</span>}
+                          value={groupSpacing}
+                          onChange={v => {
+                            const newGap = Number(v) || 0;
+                            // Redistribute group members with the new gap
+                            const yVals = selected.map(m => m.y ?? 0);
+                            const ySpread = Math.max(...yVals) - Math.min(...yVals);
+                            const isHorizontal = ySpread < 20;
+                            const sorted = [...selected].sort((a, b) =>
+                              isHorizontal ? (a.x ?? 0) - (b.x ?? 0) : (a.y ?? 0) - (b.y ?? 0)
+                            );
+                            // First block stays, shift subsequent blocks by newGap
+                            const batch: { id: string; updates: Partial<EditorBlock> }[] = [];
+                            let cursor = isHorizontal ? (sorted[0].x ?? 0) : (sorted[0].y ?? 0);
+                            sorted.forEach((m, i) => {
+                              const pos = isHorizontal ? (m.x ?? 0) : (m.y ?? 0);
+                              const size = isHorizontal ? (m.width ?? 0) : (m.height ?? 0);
+                              if (i === 0) {
+                                cursor = pos + size + newGap;
+                              } else {
+                                if (isHorizontal && (m.x ?? 0) !== cursor) {
+                                  batch.push({ id: m.id, updates: { x: cursor } });
+                                } else if (!isHorizontal && (m.y ?? 0) !== cursor) {
+                                  batch.push({ id: m.id, updates: { y: cursor } });
+                                }
+                                cursor += size + newGap;
+                              }
+                            });
+                            if (batch.length > 0) updateCanvasBlocks(batch);
+                          }}
+                        />
+                      </PropRow>
+                    )}
+                  </PanelSection>
+                );
+              })()}
 
               {isChildOfAutoLayoutFrame && ref && !isSingleFrame && (
                 <PanelSection title="Layout">
@@ -1763,7 +1798,19 @@ export function CanvasStylePanel({
               >%</span>
             </div>
             <button
-              onClick={() => setHiddenColors(prev => ({ ...prev, fill: !prev['fill'] }))}
+              onClick={() => {
+                const isNowHidden = !hiddenColors['fill'];
+                if (isNowHidden) {
+                  // Hide fill — save current and set transparent
+                  prevFillRef.current = style.fill && style.fill !== 'transparent' ? style.fill : '#ffffff';
+                  prevFillOpacityRef.current = style.fillOpacity ?? 1;
+                  updateStyle({ fill: 'transparent', fillOpacity: 0 });
+                } else {
+                  // Show fill — restore saved
+                  updateStyle({ fill: prevFillRef.current, fillOpacity: prevFillOpacityRef.current });
+                }
+                setHiddenColors(prev => ({ ...prev, fill: isNowHidden }));
+              }}
               className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
               title={hiddenColors['fill'] ? 'Show fill' : 'Hide fill'}
             >
@@ -1832,7 +1879,19 @@ export function CanvasStylePanel({
               >%</span>
             </div>
             <button
-              onClick={() => setHiddenColors(prev => ({ ...prev, border: !prev['border'] }))}
+              onClick={() => {
+                const isNowHidden = !hiddenColors['border'];
+                if (isNowHidden) {
+                  // Hide border — save current and set transparent
+                  prevStrokeRef.current = style.stroke && style.stroke !== 'transparent' ? style.stroke : '#ffffff';
+                  prevStrokeOpacityRef.current = style.strokeOpacity ?? 1;
+                  updateStyle({ stroke: 'transparent', strokeOpacity: 0 });
+                } else {
+                  // Show border — restore saved
+                  updateStyle({ stroke: prevStrokeRef.current, strokeOpacity: prevStrokeOpacityRef.current });
+                }
+                setHiddenColors(prev => ({ ...prev, border: isNowHidden }));
+              }}
               className="w-7 h-7 rounded-[var(--radius-small)] flex items-center justify-center border border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-100)] flex-shrink-0"
               title={hiddenColors['border'] ? 'Show border' : 'Hide border'}
             >

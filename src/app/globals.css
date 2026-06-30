@@ -60,7 +60,7 @@
   --dim-foreground: var(--bone-70);
   --foreground: var(--bone-100);
 
-  --accent: #d67a3c;
+  --accent: #e48921;
   --on-accent: #FFFFFF;
   --color-danger: #ff6060;
 
@@ -109,7 +109,7 @@
   --icon-active: var(--bone-70);
   --dim-foreground: var(--bone-70);
   --foreground: var(--bone-100);
-  --accent: #d67a3c;
+  --accent: #e48921;
   --on-accent: #242423;
   --color-danger: #ff6060;
   --radius-big: 24px;
@@ -1297,6 +1297,29 @@ body.is-dragging-widget [data-widget-id] * {
 
 .scroll-fade[data-fade-bottom="true"] {
   --fade-bottom: 20px;
+}
+
+@utility horizontal-scroll-fade {
+  --fade-left: 0px;
+  --fade-right: 0px;
+  mask-image: linear-gradient(to right,
+      transparent 0%,
+      #000 var(--fade-left),
+      #000 calc(100% - var(--fade-right)),
+      transparent 100%);
+  -webkit-mask-image: linear-gradient(to right,
+      transparent 0%,
+      #000 var(--fade-left),
+      #000 calc(100% - var(--fade-right)),
+      transparent 100%);
+}
+
+.horizontal-scroll-fade[data-fade-left="true"] {
+  --fade-left: 24px;
+}
+
+.horizontal-scroll-fade[data-fade-right="true"] {
+  --fade-right: 24px;
 }
 
 /* Command Palette Animations */

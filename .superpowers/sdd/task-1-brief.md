@@ -1,99 +1,60 @@
-# Task 1: Create TooltipOverlayContext
+# Task 1: Add task panel state to Zustand store
 
-**Goal:** Create a React context that tracks active overlays so tooltips can suppress when any overlay is active.
+**Files:**
+- Modify: `src/data/store.ts`
 
-**File to create:**
-- `src/components/layout/TooltipOverlayContext.tsx`
+**Context:** This is the first task of the Task Inspector Panel feature. Add Zustand store state for a floating task inspection panel that replaces the AI assistant panel on the right side when a task card is clicked.
 
-**Code to write (exact content):**
+## What to do
 
-```tsx
-'use client';
-
-import React, { createContext, useContext, useCallback, useRef, useState, useEffect, useMemo } from 'react';
-import { useStore } from '@/data/store';
-
-interface TooltipOverlayContextValue {
-  isSuppressed: boolean;
-  registerOverlay: (id: string) => void;
-  unregisterOverlay: (id: string) => void;
-}
-
-const TooltipOverlayContext = createContext<TooltipOverlayContextValue>({
-  isSuppressed: false,
-  registerOverlay: () => {},
-  unregisterOverlay: () => {},
-});
-
-export function useTooltipOverlay() {
-  return useContext(TooltipOverlayContext);
-}
-
-/**
- * Register an overlay ID while `active` is true. The overlay is unregistered
- * when `active` becomes false or the component unmounts.
- */
-export function useTooltipSuppression(active: boolean) {
-  const { registerOverlay, unregisterOverlay } = useTooltipOverlay();
-  const idRef = useRef<string>('');
-
-  useEffect(() => {
-    if (active) {
-      if (!idRef.current) {
-        idRef.current = `overlay-${Math.random().toString(36).slice(2, 9)}`;
-      }
-      registerOverlay(idRef.current);
-      return () => unregisterOverlay(idRef.current);
-    }
-  }, [active, registerOverlay, unregisterOverlay]);
-}
-
-export function TooltipOverlayProvider({ children }: { children: React.ReactNode }) {
-  const [overlayIds, setOverlayIds] = useState<Set<string>>(new Set());
-
-  // Auto-track global store overlays (modals, context menus)
-  const modal = useStore(s => s.modal);
-  const contextMenu = useStore(s => s.contextMenu);
-  const taskContextMenu = useStore(s => s.taskContextMenu);
-  const hasGlobalOverlay = !!(modal || contextMenu || taskContextMenu);
-
-  useEffect(() => {
-    if (hasGlobalOverlay) {
-      setOverlayIds(prev => new Set(prev).add('__global__'));
-      return () => {
-        setOverlayIds(prev => {
-          const next = new Set(prev);
-          next.delete('__global__');
-          return next;
-        });
-      };
-    }
-  }, [hasGlobalOverlay]);
-
-  const registerOverlay = useCallback((id: string) => {
-    setOverlayIds(prev => new Set(prev).add(id));
-  }, []);
-
-  const unregisterOverlay = useCallback((id: string) => {
-    setOverlayIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const value = useMemo<TooltipOverlayContextValue>(() => ({
-    isSuppressed: overlayIds.size > 0,
-    registerOverlay,
-    unregisterOverlay,
-  }), [overlayIds.size, registerOverlay, unregisterOverlay]);
-
-  return (
-    <TooltipOverlayContext.Provider value={value}>
-      {children}
-    </TooltipOverlayContext.Provider>
-  );
-}
+### Step 1: Add initial state fields (~line 227)
+Find `isAIAssistantOpen: false,`. Add right after it:
+```typescript
+isTaskPanelOpen: false,
+activeTaskId: null as string | null,
+taskPanelWidth: 500,
+aiWasOpenBeforeTaskPanel: false,
 ```
 
-**Verification:** Run `npx tsc --noEmit --pretty 2>&1 | head -30` and confirm no type errors.
+### Step 2: Add actions (~line 379)
+Find `toggleAIAssistant`/`setAIAssistantOpen` block. Add right after `setAIAssistantOpen`:
+```typescript
+openTaskPanel: (taskId) => set((state) => ({
+  isTaskPanelOpen: true,
+  activeTaskId: taskId,
+  aiWasOpenBeforeTaskPanel: state.isAIAssistantOpen,
+  isAIAssistantOpen: false,
+})),
+closeTaskPanel: () => set((state) => ({
+  isTaskPanelOpen: false,
+  activeTaskId: null,
+  isAIAssistantOpen: state.aiWasOpenBeforeTaskPanel,
+  aiWasOpenBeforeTaskPanel: false,
+})),
+setTaskPanelWidth: (width) => set({ taskPanelWidth: width }),
+```
+
+### Additional: Update toggleAIAssistant
+Update `toggleAIAssistant: () => set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),` to also close task panel when opening AI:
+```typescript
+toggleAIAssistant: () => set((state) => ({
+  isAIAssistantOpen: !state.isAIAssistantOpen,
+  isTaskPanelOpen: state.isAIAssistantOpen ? state.isTaskPanelOpen : false,
+  activeTaskId: state.isAIAssistantOpen ? state.activeTaskId : null,
+})),
+```
+
+### Step 3: Add to partialize (~line 2484)
+Find `partialize:` block. Add `taskPanelWidth` after `aiSidebarWidth`:
+```typescript
+taskPanelWidth: state.taskPanelWidth,
+```
+
+### Step 4: Commit
+```bash
+git add src/data/store.ts
+git commit -m "feat: add task panel state to store (isTaskPanelOpen, activeTaskId, taskPanelWidth)"
+```
+
+## Global constraints
+- taskPanelWidth defaults to 500, persisted via partialize
