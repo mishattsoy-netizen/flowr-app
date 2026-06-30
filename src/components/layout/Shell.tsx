@@ -47,8 +47,6 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const isTaskPanelOpen = useStore(state => state.isTaskPanelOpen);
   const activeTaskId = useStore(state => state.activeTaskId);
-  const taskPanelWidth = useStore(state => state.taskPanelWidth);
-  const setTaskPanelWidth = useStore(state => state.setTaskPanelWidth);
   const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
   const isInternalNavRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -261,12 +259,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           setSidebarWidth(Math.min(Math.max(e.clientX, 250), 400));
         }
         if (isResizingRightRef.current) {
-          const s = useStore.getState();
-          if (s.isTaskPanelOpen && s.activeTaskId) {
-            setTaskPanelWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
-          } else {
-            setAiSidebarWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
-          }
+          // Both panels share the same width, so always write to aiSidebarWidth
+          setAiSidebarWidth(Math.min(Math.max(window.innerWidth - e.clientX, 400), 500));
         }
       });
     };
@@ -291,7 +285,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       window.removeEventListener('mouseup', stopResize);
       window.removeEventListener('mouseleave', stopResize);
     };
-  }, [setSidebarWidth, setAiSidebarWidth, setTaskPanelWidth]);
+  }, [setSidebarWidth, setAiSidebarWidth]);
 
   const shellClass = "h-screen w-full overflow-hidden bg-background text-foreground";
 
@@ -299,8 +293,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !!activeTaskId;
   const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat';
   const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
-  const currentTaskPanelWidth = hasHydrated ? Math.min(Math.max(taskPanelWidth, 400), 500) : 500;
-  const currentRightPanelWidth = isTaskPanelVisible ? currentTaskPanelWidth : currentAiSidebarWidth;
+  // Task panel and AI panel share the same width — no jump when switching
+  const currentRightPanelWidth = currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
 
   return (
