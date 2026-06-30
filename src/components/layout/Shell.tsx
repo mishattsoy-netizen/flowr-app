@@ -438,7 +438,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           <div className={cn(
             "h-full shrink-0 w-full",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
-          )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
+          )} style={{
+            width: isMobile ? '100%' : `${currentRightPanelWidth}px`,
+            ...(isTaskPanelVisible ? { opacity: 1, transition: 'opacity 120ms ease-in-out 180ms' } : {})
+          }}>
             {isTaskPanelVisible ? <TaskInspectorPanel /> : (isAiPanelMounted && <AIAssistant />)}
           </div>
         </div>
