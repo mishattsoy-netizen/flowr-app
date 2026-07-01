@@ -348,7 +348,13 @@ app.whenReady().then(() => {
   debugLog('app.whenReady');
 
   ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
-  ipcMain.handle('fs:writeFile', async (_, filePath, content) => fsp.writeFile(filePath, content, 'utf-8'));
+  ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      await fsp.mkdir(dir, { recursive: true });
+    }
+    return fsp.writeFile(filePath, content, 'utf-8');
+  });
   ipcMain.handle('fs:deleteFile', async (_, filePath) => fsp.unlink(filePath));
   ipcMain.handle('fs:readdir', async (_, dirPath) => fsp.readdir(dirPath));
   ipcMain.handle('fs:mkdir', async (_, dirPath) => fsp.mkdir(dirPath, { recursive: true }));
@@ -375,6 +381,10 @@ app.whenReady().then(() => {
       const config = { vaultPath };
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
       debugLog('Saved vault path config:', vaultPath);
+      if (vaultPath && !fs.existsSync(vaultPath)) {
+        fs.mkdirSync(vaultPath, { recursive: true });
+        debugLog('Created vault directory:', vaultPath);
+      }
       return true;
     } catch (e) {
       debugLog('Failed to write vault path config:', e.message);

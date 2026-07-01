@@ -36,6 +36,6 @@ export async function saveEntity(entity: Entity): Promise<void> {
      await upsertEntity(entity);
   }
   if (isDesktop() && (entity.syncMode === 'local-only' || entity.syncMode === 'full-sync')) {
-     await saveEntityToFile(entity, []); // Hook up proper blocks later
+     await saveEntityToFile(entity, entity.type === 'canvas' ? [] : (entity.content || []));
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bold, Italic, Underline, Strikethrough, Highlighter, Link, Check, Trash } from 'lucide-react';
+import { Bold, Italic, Underline, Strikethrough, Highlighter, Link, Check, Trash, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
@@ -272,7 +272,7 @@ export function SelectionToolbar({ editorRef }: { editorRef: React.RefObject<HTM
             <Tooltip content="Link"><Link strokeWidth={2} className="w-3.5 h-3.5" /></Tooltip>
           </button>
           {showLinkPopover && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small p-1.5 min-w-[240px] flex gap-2 items-center">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small p-1.5 min-w-[240px] flex items-center justify-between gap-2">
               <input
                 ref={linkInputRef}
                 type="text"
@@ -280,14 +280,16 @@ export function SelectionToolbar({ editorRef }: { editorRef: React.RefObject<HTM
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyLink()}
-                className="bg-background border border-border rounded-[var(--radius-medium)] px-2 py-1.5 text-xs flex-1 outline-none focus:border-accent"
+                className="flex-1 bg-[var(--bone-5)] border border-[var(--bone-12)] focus:border-[var(--bone-30)] outline-none rounded-[6px] px-2 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] font-sans"
               />
-              <button onClick={applyLink} className="p-1.5 rounded-[var(--radius-small)] hover:bg-accent/10 text-accent">
-                <Check strokeWidth={2} className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={removeLink} className="p-1.5 rounded-[var(--radius-small)] hover:bg-danger/10 text-danger">
-                <Trash strokeWidth={2} className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={applyLink} className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-green-500 hover:text-green-400 cursor-pointer">
+                  <Check strokeWidth={2.5} className="w-3 h-3" />
+                </button>
+                <button onClick={removeLink} className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bone-5)] text-red-500 hover:text-red-400 cursor-pointer">
+                  <X strokeWidth={2.5} className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           )}
         </div>

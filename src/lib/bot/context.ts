@@ -40,6 +40,18 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     }
   }
 
+  if (!supabase) {
+    return {
+      chat_id: chatId,
+      distilled_summary: null,
+      token_usage_total: 0,
+      context_limit: config.context_limit,
+      compaction_threshold: config.compaction_threshold,
+      last_summarized_at: new Date(0).toISOString(),
+      status_messages: settings.statusMessages
+    }
+  }
+
   const sessionResult = await supabase
     .from('bot_session_states')
     .select('*')
@@ -70,6 +82,7 @@ export async function updateSessionState(chatId: string, updates: Partial<Sessio
   if (chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp')) {
     return
   }
+  if (!supabase) return
   const { context_limit, compaction_threshold, ...dbUpdates } = updates as any
   const { error } = await supabase
     .from('bot_session_states')
@@ -81,6 +94,7 @@ export async function clearSessionState(chatId: string): Promise<void> {
   if (chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp')) {
     return
   }
+  if (!supabase) return
   const { error } = await supabase
     .from('bot_session_states')
     .delete()

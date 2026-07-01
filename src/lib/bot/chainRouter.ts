@@ -44,6 +44,7 @@ function logCost(cost: {
 }
 
 async function trackModelUsage(p_model_id: string, p_provider: string) {
+  if (!supabaseAdmin) return
   try {
     const today = new Date().toISOString().split('T')[0]
 

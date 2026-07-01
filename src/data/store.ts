@@ -2369,9 +2369,13 @@ export const useStore = create<AppState>()(
       setSelectedSidebarIds: (ids) => set({ selectedSidebarIds: ids }),
       clearSelectedSidebarIds: () => set({ selectedSidebarIds: [] }),
 
-      setShortcuts: (contextId, list) => set(s => ({
-        shortcuts: { ...s.shortcuts, [contextId]: list }
-      })),
+      setShortcutsState: (shortcuts) => set({ shortcuts }),
+
+      setShortcuts: (contextId, list) => set(s => {
+        const nextShortcuts = { ...s.shortcuts, [contextId]: list };
+        import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', nextShortcuts));
+        return { shortcuts: nextShortcuts };
+      }),
 
       addShortcut: (contextId, label, value, type) => set(s => {
         const list = s.shortcuts[contextId] || [];
@@ -2381,22 +2385,22 @@ export const useStore = create<AppState>()(
           label,
           value
         };
-        return {
-          shortcuts: {
-            ...s.shortcuts,
-            [contextId]: [...list, newShortcut].slice(0, 12)
-          }
+        const nextShortcuts = {
+          ...s.shortcuts,
+          [contextId]: [...list, newShortcut].slice(0, 12)
         };
+        import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', nextShortcuts));
+        return { shortcuts: nextShortcuts };
       }),
 
       removeShortcut: (contextId, id) => set(s => {
         const list = s.shortcuts[contextId] || [];
-        return {
-          shortcuts: {
-            ...s.shortcuts,
-            [contextId]: list.filter(item => item.id !== id)
-          }
+        const nextShortcuts = {
+          ...s.shortcuts,
+          [contextId]: list.filter(item => item.id !== id)
         };
+        import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', nextShortcuts));
+        return { shortcuts: nextShortcuts };
       }),
 
       setCachedDisplayName: (cachedDisplayName) => set({ cachedDisplayName }),
@@ -2581,9 +2585,13 @@ if (isDesktop()) {
     // Basic detection for M3: if lastModified changed, save it
     // In M4 this will be replaced by direct calls to saveEntity() on store actions
     for (const entity of state.entities) {
+      if (entity.type !== 'note' && entity.type !== 'canvas' && entity.type !== 'mixed') continue;
       const prev = prevState.entities.find(e => e.id === entity.id);
       if (!prev || prev.lastModified !== entity.lastModified) {
-        saveEntityToFile(entity, state.blocks.filter(b => b.canvasId === entity.id));
+        const blocks = entity.type === 'canvas'
+          ? state.blocks.filter(b => b.canvasId === entity.id)
+          : (entity.content || []);
+        saveEntityToFile(entity, blocks);
       }
     }
   });

@@ -299,190 +299,190 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
   return (
     <TooltipOverlayProvider>
-    <div
-      className={cn(
-        shellClass,
-        "shell-container",
-        "flex flex-col",
-        !allowTransitions && "preload",
-        currentSidebarCollapsed ? "sidebar-collapsed" : "sidebar-expanded",
-        (isResizingLeft || isResizingRight) && "resizing-active"
-      )}
-      style={{
-        transition: 'none'
-      } as React.CSSProperties}
-    >
-      <SmoothScroll />
-      {/* Mobile Sidebar Backdrop */}
-      {!currentSidebarCollapsed && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
-      )}
-
-      {/* Top Header Bar spanning full width */}
-      {isDesktop() && <HeaderBar />}
-
-      {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
-      <div className={cn(
-        "flex-1 flex flex-row overflow-hidden relative w-full min-h-0",
-        isDesktop() && "p-2 pt-0 gap-2 bg-[var(--app-dark)]"
-      )}>
-        {/* 1. Left Sidebar Section */}
-        <div
+      <div
         className={cn(
-          "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
-          (!currentSidebarCollapsed || !isTabsHeaderVisible) && !isDesktop() && "border-r border-[var(--bone-10)]",
-          currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:flex"
+          shellClass,
+          "shell-container",
+          "flex flex-col",
+          !allowTransitions && "preload",
+          currentSidebarCollapsed ? "sidebar-collapsed" : "sidebar-expanded",
+          (isResizingLeft || isResizingRight) && "resizing-active"
         )}
         style={{
-          width: isMobile ? (currentSidebarCollapsed ? '0px' : '280px') : 'var(--sidebar-w, 280px)',
           transition: 'none'
-        }}
+        } as React.CSSProperties}
       >
-        <div className={cn(
-          "relative h-full w-full overflow-hidden",
-          isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm"
-        )}>
-          <div className="h-full">
-            <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} />
-          </div>
-        </div>
-
-        {/* Left Resizer Handle */}
-        {!isSidebarCollapsed && (
-          <div
-            onMouseDown={() => {
-              isResizingLeftRef.current = true;
-              setIsResizingLeft(true);
-              document.body.style.cursor = 'col-resize';
-              document.body.style.userSelect = 'none';
-            }}
-            className={cn(
-              "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors duration-200 group",
-              isResizingLeft ? "bg-[var(--bone-15)]" : ""
-            )}
-          >
-            <div className={cn(
-              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
-              isResizingLeft ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
-            )} />
-          </div>
-        )}
-      </div>
-
-      {/* 2. Main Content + Right AI Sidebar Wrapper */}
-      <div className={cn("flex-1 flex flex-row overflow-hidden relative min-w-0 h-full", isDesktop() && "gap-2")}>
-        {/* Main Content Area */}
-        <div className={cn(
-          "flex-1 flex flex-col h-full overflow-hidden relative min-w-0",
-          isDesktop() && "bg-background border border-[var(--bone-10)] rounded-2xl shadow-sm"
-        )}>
-          {!isDesktop() && <HeaderBar />}
-          <main className="flex-1 flex flex-col overflow-hidden relative">
-            {children}
-          </main>
-        </div>
-
-        {/* Right AI Sidebar Backdrop */}
-        {isMobile && (isAiPanelOpen) && (
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer"
-            onClick={() => useStore.getState().setAIAssistantOpen(false)}
-          />
+        <SmoothScroll />
+        {/* Mobile Sidebar Backdrop */}
+        {!currentSidebarCollapsed && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
         )}
 
-        {/* Right Resizer Handle */}
-        {!isMobile && (isTaskPanelVisible || isAiPanelOpen) && (
+        {/* Top Header Bar spanning full width */}
+        {isDesktop() && <HeaderBar />}
+
+        {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
+        <div className={cn(
+          "flex-1 flex flex-row overflow-hidden relative w-full min-h-0",
+          isDesktop() && "p-2 pt-0 gap-2 bg-[var(--app-dark)]"
+        )}>
+          {/* 1. Left Sidebar Section */}
           <div
-            onMouseDown={() => {
-              isResizingRightRef.current = true;
-              setIsResizingRight(true);
-              document.body.style.cursor = 'col-resize';
-              document.body.style.userSelect = 'none';
-            }}
             className={cn(
-              "w-2 h-full cursor-col-resize absolute left-0 z-50 transition-colors duration-200 group",
-              isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
+              "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
+              (!currentSidebarCollapsed || !isTabsHeaderVisible) && !isDesktop() && "border-r border-[var(--bone-10)]",
+              currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:flex"
             )}
             style={{
-              left: `calc(100% - ${currentRightPanelWidth}px - 4px)`,
-              pointerEvents: 'auto'
+              width: isMobile ? (currentSidebarCollapsed ? '0px' : '280px') : 'var(--sidebar-w, 280px)',
+              transition: 'none'
             }}
           >
             <div className={cn(
-              "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
-              isResizingRight ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
-            )} />
-          </div>
-        )}
+              "relative h-full w-full overflow-hidden",
+              isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm"
+            )}>
+              <div className="h-full">
+                <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} />
+              </div>
+            </div>
 
-        {/* Right Panel - combined AI/Task wrapper with width transition.
+            {/* Left Resizer Handle */}
+            {!isSidebarCollapsed && (
+              <div
+                onMouseDown={() => {
+                  isResizingLeftRef.current = true;
+                  setIsResizingLeft(true);
+                  document.body.style.cursor = 'col-resize';
+                  document.body.style.userSelect = 'none';
+                }}
+                className={cn(
+                  "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors duration-200 group",
+                  isResizingLeft ? "bg-[var(--bone-15)]" : ""
+                )}
+              >
+                <div className={cn(
+                  "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
+                  isResizingLeft ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
+                )} />
+              </div>
+            )}
+          </div>
+
+          {/* 2. Main Content + Right AI Sidebar Wrapper */}
+          <div className={cn("flex-1 flex flex-row overflow-hidden relative min-w-0 h-full", isDesktop() && "gap-2")}>
+            {/* Main Content Area */}
+            <div className={cn(
+              "flex-1 flex flex-col h-full overflow-hidden relative min-w-0",
+              isDesktop() && "bg-background border border-[var(--bone-10)] rounded-2xl shadow-sm"
+            )}>
+              {!isDesktop() && <HeaderBar />}
+              <main className="flex-1 flex flex-col overflow-hidden relative">
+                {children}
+              </main>
+            </div>
+
+            {/* Right AI Sidebar Backdrop */}
+            {isMobile && (isAiPanelOpen) && (
+              <div
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer"
+                onClick={() => useStore.getState().setAIAssistantOpen(false)}
+              />
+            )}
+
+            {/* Right Resizer Handle */}
+            {!isMobile && (isTaskPanelVisible || isAiPanelOpen) && (
+              <div
+                onMouseDown={() => {
+                  isResizingRightRef.current = true;
+                  setIsResizingRight(true);
+                  document.body.style.cursor = 'col-resize';
+                  document.body.style.userSelect = 'none';
+                }}
+                className={cn(
+                  "w-2 h-full cursor-col-resize absolute left-0 z-50 transition-colors duration-200 group",
+                  isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
+                )}
+                style={{
+                  left: `calc(100% - ${currentRightPanelWidth}px - 4px)`,
+                  pointerEvents: 'auto'
+                }}
+              >
+                <div className={cn(
+                  "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
+                  isResizingRight ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
+                )} />
+              </div>
+            )}
+
+            {/* Right Panel - combined AI/Task wrapper with width transition.
             Both panels share the same wrapper so the main content reflows
             smoothly with a single width transition (no layout shift when
             swapping between panels). TaskInspectorPanel is pre-mounted with
             hidden class toggling (same as AIAssistant's display:none/flex
             pattern), so content stays in the DOM at all times. */}
-        <div
-          className={cn(
-            "h-full shrink-0 overflow-hidden transition-colors duration-200",
-            (isAiPanelOpen || isTaskPanelVisible) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
-            isMobile
-              ? ((isAIAssistantOpen || isTaskPanelVisible) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
-              : "relative z-40"
-          )}
-          style={{
-            width: isMobile ? undefined : `${currentRightPanelWidth}px`,
-            maxWidth: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
-            transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-        >
-          <div className={cn(
-            "h-full shrink-0",
-            isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
-          )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-            {/* Both panels occupy the same area via absolute positioning.
+            <div
+              className={cn(
+                "h-full shrink-0 overflow-hidden transition-colors duration-200",
+                (isAiPanelOpen || isTaskPanelVisible) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
+                isMobile
+                  ? ((isAIAssistantOpen || isTaskPanelVisible) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
+                  : "relative z-40"
+              )}
+              style={{
+                width: isMobile ? undefined : `${currentRightPanelWidth}px`,
+                maxWidth: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
+                transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              <div className={cn(
+                "h-full shrink-0",
+                isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
+              )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
+                {/* Both panels occupy the same area via absolute positioning.
                 Content is always laid out at fixed width (never display:none)
                 so the outer wrapper's width transition reveals it without a
                 layout-then-transition race. visibility toggles which one shows. */}
-            <div className="relative h-full w-full">
-              <div
-                className="absolute inset-0"
-                style={{ visibility: isTaskPanelVisible ? 'visible' : 'hidden' }}
-              >
-                <TaskInspectorPanel />
-              </div>
-              {isAiPanelMounted && (
-                <div
-                  className="absolute inset-0"
-                  style={{ visibility: isTaskPanelVisible ? 'hidden' : 'visible' }}
-                >
-                  <AIAssistant />
+                <div className="relative h-full w-full">
+                  <div
+                    className="absolute inset-0"
+                    style={{ visibility: isTaskPanelVisible ? 'visible' : 'hidden' }}
+                  >
+                    <TaskInspectorPanel />
+                  </div>
+                  {isAiPanelMounted && (
+                    <div
+                      className="absolute inset-0"
+                      style={{ visibility: isTaskPanelVisible ? 'hidden' : 'visible' }}
+                    >
+                      <AIAssistant />
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        </div> {/* End Middle Layout */}
+
+        {/* Global overlays */}
+        <ContextMenu />
+        <NewCollectionModal key="new-collection" />
+        <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
+        <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
+        <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
+        <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
+        <NewTaskModal key={modal?.kind === 'newTask' ? (modal.taskId || 'new-task-new') : 'new-task-closed'} />
+        <SettingsModal key="settings-modal" />
+        <MediaViewerModal key="media-viewer" />
+        <NewWorkspaceModal key="new-workspace" />
+        <SummaryPreviewModal key="summary-preview" />
+        <CommandPalette key="command-palette" />
+        <VaultSetupModal key="vault-setup" />
+
+
+
+
       </div>
-      </div> {/* End Middle Layout */}
-
-      {/* Global overlays */}
-      <ContextMenu />
-      <NewCollectionModal key="new-collection" />
-      <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
-      <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
-      <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
-      <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
-      <NewTaskModal key={modal?.kind === 'newTask' ? (modal.taskId || 'new-task-new') : 'new-task-closed'} />
-      <SettingsModal key="settings-modal" />
-      <MediaViewerModal key="media-viewer" />
-      <NewWorkspaceModal key="new-workspace" />
-      <SummaryPreviewModal key="summary-preview" />
-      <CommandPalette key="command-palette" />
-      <VaultSetupModal key="vault-setup" />
-
-
-
-
-    </div>
     </TooltipOverlayProvider>
   );
 }

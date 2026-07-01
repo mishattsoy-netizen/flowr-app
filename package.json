@@ -1,6 +1,6 @@
 {
-  "name": "flowr-beta-1.5.1",
-  "version": "1.0.8",
+  "name": "flowr-beta",
+  "version": "1.0.9",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -65,7 +65,7 @@
   },
   "build": {
     "appId": "com.flowr.app",
-    "productName": "Flowr",
+    "productName": "Flowr Beta",
     "protocols": {
       "name": "Flowr Deep Link",
       "schemes": [

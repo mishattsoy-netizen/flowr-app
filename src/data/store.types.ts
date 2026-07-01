@@ -497,6 +497,7 @@ export interface AppState {
   setShowTempNotice: (show: boolean) => void;
 
   // Actions
+  setShortcutsState: (shortcuts: Record<string, Shortcut[]>) => void;
   setShortcuts: (contextId: string, list: Shortcut[]) => void;
   addShortcut: (contextId: string, label: string, value: string, type: 'url' | 'entity') => void;
   removeShortcut: (contextId: string, id: string) => void;

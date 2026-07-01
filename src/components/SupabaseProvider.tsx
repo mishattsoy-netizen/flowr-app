@@ -142,6 +142,11 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         useStore.getState().setRecentEntityIds(merged.slice(0, 10));
       }
 
+      // 5. Restore cross-device shortcuts
+      if (data.settings?.shortcuts) {
+        useStore.getState().setShortcutsState(data.settings.shortcuts);
+      }
+
       useStore.getState().setInitialSync(false);
     }).catch(err => {
       console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);

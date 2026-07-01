@@ -22,6 +22,10 @@ const BRAIN_CATEGORY_LABELS: Record<string, string> = {
 }
 
 export async function recompilePrompt(mode: BotMode = 'default'): Promise<void> {
+  if (!supabase) {
+    logger.warn('[compilePrompt] Skipping recompilePrompt: Database not available');
+    return;
+  }
   const [settingsResult, brainResult] = await Promise.all([
     supabase
       .from('bot_settings')
@@ -85,36 +89,47 @@ export async function getCompiledPrompt(mode: BotMode = 'default'): Promise<stri
   if (cached) return cached
 
   // 1. Supabase primary
-  try {
-    const { data, error } = await supabase
-      .from('bot_compiled_prompt')
-      .select('content, global_enabled')
-      .eq('mode', mode)
-      .limit(1)
-      .single()
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('bot_compiled_prompt')
+        .select('content, global_enabled')
+        .eq('mode', mode)
+        .limit(1)
+        .single()
 
-    if (!error && data && data.global_enabled && data.content?.trim()) {
-      const content = data.content.trim()
-      setCachedCompiledPrompt(mode, content)
-      return content
+      if (!error && data && data.global_enabled && data.content?.trim()) {
+        const content = data.content.trim()
+        setCachedCompiledPrompt(mode, content)
+        return content
+      }
+      if (error) logger.warn(`getCompiledPrompt: DB error [${mode}]: ${error.message}`)
+    } catch (err) {
+      logger.error(`getCompiledPrompt: Exception loading from DB: ${err}`)
     }
-    if (error) logger.warn(`getCompiledPrompt: DB error [${mode}]: ${error.message}`)
-  } catch (err) {
-    logger.error(`getCompiledPrompt: Exception loading from DB: ${err}`)
   }
 
-  // 2. Local file fallback
+  // 2. Local file fallback from 'Final prompts(active)'
   try {
-    const filePath = path.join(process.cwd(), 'bot prompts(premission to edit needed!)', `mode-${mode}.txt`)
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf8')
-      if (content?.trim()) {
-        logger.info(`Loaded fallback prompt from ${filePath}`)
-        return content.trim()
+    const parts: string[] = [];
+    const settingsOrder = ['core_rules', 'personality', 'answer_style', 'thinking_pattern', 'restrictions'];
+    for (const cat of settingsOrder) {
+      const filePath = path.join(process.cwd(), 'Final prompts(active)', 'modes', mode, `${cat}.txt`);
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        if (content?.trim()) {
+          parts.push(`[${CATEGORY_LABELS[cat] ?? cat.toUpperCase()}]\n${content.trim()}`);
+        }
       }
     }
+    if (parts.length > 0) {
+      const compiled = parts.join('\n\n');
+      logger.info(`Loaded combined fallback prompt from Final prompts(active)/modes/${mode}`);
+      setCachedCompiledPrompt(mode, compiled);
+      return compiled;
+    }
   } catch (err) {
-    logger.warn(`Failed to read fallback mode file: ${err}`)
+    logger.warn(`Failed to read fallback mode files: ${err}`)
   }
 
   return ''
@@ -126,21 +141,23 @@ export async function getInternalPrompt(chainType: string, mode: BotMode = 'defa
   if (cached) return cached[chainType] ?? ''
 
   // 1. Supabase primary
-  try {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'pipeline_internal_prompts')
-      .limit(1)
-      .maybeSingle()
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'pipeline_internal_prompts')
+        .limit(1)
+        .maybeSingle()
 
-    if (!error && data) {
-      const customPrompts = (data.value as Record<string, string>) ?? {}
-      setCachedInternalPrompts(customPrompts)
-      return customPrompts[chainType] ?? ''
+      if (!error && data) {
+        const customPrompts = (data.value as Record<string, string>) ?? {}
+        setCachedInternalPrompts(customPrompts)
+        return customPrompts[chainType] ?? ''
+      }
+    } catch (err) {
+      logger.warn(`getInternalPrompt: DB error: ${err}`)
     }
-  } catch (err) {
-    logger.warn(`getInternalPrompt: DB error: ${err}`)
   }
 
   return ''

@@ -2,7 +2,8 @@
 
 import { Entity, useStore, generateId, EditorBlock } from '@/data/store';
 import { useState, useSyncExternalStore, useRef, useEffect, useMemo } from 'react';
-import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff, Loader2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff, Loader2, ChevronLeft, ChevronRight, ChevronDown, HardDrive } from 'lucide-react';
+import { isDesktop } from '@/lib/env';
 import { getEntityIcon } from '@/data/icons';
 import { IconPicker } from '@/components/layout/IconPicker';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -244,6 +245,8 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
   const allBlocks = useStore(state => state.blocks);
   const [recentSort, setRecentSort] = useState<'opened' | 'edited'>('opened');
   const [showSortPicker, setShowSortPicker] = useState(false);
+  const [showSyncPicker, setShowSyncPicker] = useState(false);
+  const syncPickerRef = useRef<HTMLDivElement | null>(null);
 
   // Layout & shortcuts state
   const [dashboardLayout, setDashboardLayout] = useState<BentoLayoutItem[]>(() => {
@@ -308,6 +311,9 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
     const handleClickOutside = (e: MouseEvent) => {
       if (sortPickerRef.current && !sortPickerRef.current.contains(e.target as Node)) {
         setShowSortPicker(false);
+      }
+      if (syncPickerRef.current && !syncPickerRef.current.contains(e.target as Node)) {
+        setShowSyncPicker(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -424,32 +430,72 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
             </div>
 
             <div className="flex items-center gap-3">
-              <Tooltip content={cloudSyncOn ? 'Cloud sync ON — toggle off to keep this workspace local-only' : 'Cloud sync OFF — toggle on to sync this workspace and all its content'}>
+              <div ref={syncPickerRef} className="relative">
                 <button
                   disabled={syncPending}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (syncPending) return;
-                    setSyncPending(true);
-                    try {
-                      await setSyncMode(entity.id, !cloudSyncOn ? 'cloud-only' : 'local-only');
-                    } catch (err) {
-                      console.error('[Flowr] cloud sync toggle failed:', err);
-                    } finally {
-                      setSyncPending(false);
-                    }
-                  }}
-                  className="group w-9 h-9 flex items-center justify-center rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={() => setShowSyncPicker(p => !p)}
+                  className="flex items-center gap-2 pl-3 pr-2.5 h-9 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-90)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 text-xs font-semibold select-none disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {syncPending ? (
-                    <Loader2 className="w-5 h-5 animate-spin opacity-60" strokeWidth={1.5} />
-                  ) : cloudSyncOn ? (
-                    <Cloud className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin opacity-60" strokeWidth={2} />
+                  ) : entity.syncMode === 'full-sync' ? (
+                    <Cloud className="w-3.5 h-3.5 text-blue-400" strokeWidth={2} />
+                  ) : entity.syncMode === 'cloud-only' ? (
+                    <Cloud className="w-3.5 h-3.5 text-purple-400" strokeWidth={2} />
                   ) : (
-                    <CloudOff className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                    <HardDrive className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
                   )}
+                  <span>
+                    {entity.syncMode === 'full-sync' && 'Full Sync'}
+                    {entity.syncMode === 'cloud-only' && 'Cloud Only'}
+                    {entity.syncMode === 'local-only' && 'Local Only'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" strokeWidth={2} />
                 </button>
-              </Tooltip>
+
+                {showSyncPicker && (
+                  <div className="absolute right-0 mt-1.5 z-[300] popup-glass-small min-w-[180px] p-1.5 flex flex-col gap-[2px] shadow-lg">
+                    {(
+                      isDesktop()
+                        ? [
+                            { mode: 'full-sync', label: 'Full Sync', desc: 'Local file + Database', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
+                            { mode: 'local-only', label: 'Local Only', desc: 'Local file only, no DB sync', icon: <HardDrive className="w-3.5 h-3.5 text-emerald-400" /> },
+                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Database only, no local file', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
+                          ]
+                        : [
+                            { mode: 'full-sync', label: 'Full Sync', desc: 'Local file + Database', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
+                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Database only, no local file', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
+                          ]
+                    ).map(({ mode, label, desc, icon }) => (
+                      <button
+                        key={mode}
+                        onClick={async () => {
+                          setShowSyncPicker(false);
+                          if (syncPending) return;
+                          setSyncPending(true);
+                          try {
+                            await setSyncMode(entity.id, mode as any);
+                          } catch (err) {
+                            console.error('[Flowr] set sync mode failed:', err);
+                          } finally {
+                            setSyncPending(false);
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-start w-full px-3 py-1.5 rounded-[var(--radius-medium)] text-left transition-colors cursor-pointer hover:bg-[var(--bone-6)]",
+                          entity.syncMode === mode ? "text-[var(--bone-100)] bg-[var(--app-dark)]" : "text-[var(--bone-60)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 font-medium text-xs">
+                          {icon}
+                          <span>{label}</span>
+                        </div>
+                        <span className="text-[10px] text-[var(--bone-40)] font-normal pl-5.5 mt-0.5">{desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="relative">
                 <button
@@ -625,10 +671,8 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
             style={{ left: newItemPopupPos.x, top: newItemPopupPos.y }}
           >
             {[
-              { type: 'folder' as const, label: 'Folder', icon: Folder },
               { type: 'note' as const, label: 'Note', icon: FileText },
               { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-              { type: 'mixed' as const, label: 'Mixed', icon: Layers }
             ].map(opt => (
               <button
                 key={opt.type}
@@ -641,9 +685,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
                     parentId: entity.id,
                     lastModified: Date.now()
                   });
-                  if (opt.type !== 'folder') {
-                    setActiveEntityId(newId);
-                  }
+                  setActiveEntityId(newId);
                   setNewItemPopupPos(null);
                 }}
                 className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"

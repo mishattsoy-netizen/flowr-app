@@ -385,9 +385,11 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     // 1. Entity Switch Protection
     if (entity.id !== lastEntityId.current) {
        // Flush any pending debounced save for the previous entity before switching
-       if (syncTimeoutRef.current && isUserModified.current) {
-         clearTimeout(syncTimeoutRef.current);
-         syncTimeoutRef.current = null;
+       if (isUserModified.current) {
+         if (syncTimeoutRef.current) {
+           clearTimeout(syncTimeoutRef.current);
+           syncTimeoutRef.current = null;
+         }
          updateEntityContent(lastEntityId.current, blocksRef.current);
        }
 
@@ -428,8 +430,10 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   // Flush sync on unmount or entity change
   useEffect(() => {
     return () => {
-      if (syncTimeoutRef.current && isUserModified.current) {
-        clearTimeout(syncTimeoutRef.current);
+      if (isUserModified.current) {
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+        }
         updateEntityContent(lastEntityId.current, blocksRef.current);
       }
     };

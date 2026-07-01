@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { saveAiUserDescription, getAiUserDescription } from '@/app/settings/ai/actions';
+import { supabase } from '@/lib/supabase';
 
 export default function AISettingsSection() {
   const { user } = useAuth();
@@ -15,30 +15,54 @@ export default function AISettingsSection() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
-    if (!user?.id) {
+    const userId = user?.id;
+    if (!userId) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
-    getAiUserDescription(user.id).then((userDesc) => {
-      const userText = userDesc ?? '';
-      setDescription(userText);
-      setSavedDescription(userText);
-      setIsLoading(false);
-    }).catch(() => {
-      setIsLoading(false);
-    });
+    
+    async function loadBio() {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'ai_user_description')
+          .eq('owner_id', userId)
+          .maybeSingle();
+
+        if (error) throw error;
+        const userText = (data?.value as { description?: string })?.description ?? '';
+        setDescription(userText);
+        setSavedDescription(userText);
+      } catch (err) {
+        console.error('[AISettingsSection] Failed to load bio:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadBio();
   }, [user?.id]);
 
   const handleSave = useCallback(async () => {
     if (!user?.id) return;
     setIsSaving(true);
     setSaveStatus('idle');
-    const result = await saveAiUserDescription(user.id, description);
-    if (result.success) {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({
+        key: 'ai_user_description',
+        value: { description, updated_at: new Date().toISOString() },
+        owner_id: user.id,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'owner_id,key' });
+
+    if (!error) {
       setSavedDescription(description);
       setSaveStatus('saved');
     } else {
+      console.error('[AISettingsSection] Failed to save bio:', error);
       setSaveStatus('error');
     }
     setIsSaving(false);

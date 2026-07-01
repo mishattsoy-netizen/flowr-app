@@ -684,7 +684,7 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
   };
 
   const handleMouseLeave = () => {
-    timerRef.current = setTimeout(() => setIsOpen(false), 100);
+    timerRef.current = setTimeout(() => setIsOpen(false), 300);
   };
 
   const handleCopy = (e: React.MouseEvent) => {

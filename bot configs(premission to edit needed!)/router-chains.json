@@ -242,10 +242,11 @@
         "completion_cost": null
       },
       {
-        "id": "gemini-3-flash-preview",
-        "_key": "iocag5cg3",
-        "provider": "gemini",
+        "id": "anthropic/claude-sonnet-5",
+        "_key": "ynm75kun5",
+        "provider": "openrouter",
         "is_enabled": true,
+        "openrouter_provider": "anthropic",
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null

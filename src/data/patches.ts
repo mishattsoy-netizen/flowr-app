@@ -21,6 +21,36 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.0.9',
+    build: '1009',
+    date: '2026-07-01',
+    title: 'Robust Offline File Sync & Hover Link Preview Overhaul',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Added a robust new three-way sync selector (Full Sync, Local Only, Cloud Only) inside Workspace settings to control exactly where your data is stored.',
+          'Added instant sync mode visual indicators showing whether a workspace is currently saved to the cloud, local database, or local file system.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Redesigned the inline link creation popup in the editor toolbar to match the slick design of the link hover popup.',
+          'Refined the quick-create plus button popup layout globally across the sidebar, folders, and workspace header to focus on Note and Canvas creation.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed note content saving inconsistencies to guarantee edits are saved persistently when switching pages.',
+          'Fixed hover popups for standard underlined markdown text links in both chat and note editor.',
+          'Fixed position of the sidebar plus button popup to appear directly below the button.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.8',
     build: '1008',
     date: '2026-07-01',

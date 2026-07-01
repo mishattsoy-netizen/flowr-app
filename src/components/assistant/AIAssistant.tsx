@@ -80,6 +80,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
   const clearAIChat = useStore(state => state.clearAIChat);
   const isAILoading = useStore(state => state.isAILoading);
   const activeEntityId = useStore(state => state.activeEntityId);
+  const isTaskPanelOpen = useStore(state => state.isTaskPanelOpen);
+  const activeTaskId = useStore(state => state.activeTaskId);
   const updateEntityContent = useStore(state => state.updateEntityContent);
   const aiApiKey = useStore(state => state.aiApiKey);
   const aiSessionContext = useStore(state => state.aiSessionContext);
@@ -579,7 +581,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
 
   return (
     <>
-      {!isAIAssistantOpen && !chatPageMode && activeEntityId !== 'settings' && (
+      {/* Portaled to body: the right-panel wrapper in Shell uses transform (for the
+          slide), which would otherwise make it the containing block for this fixed
+          button and clip it away when no panel is open. */}
+      {!isAIAssistantOpen && !chatPageMode && activeEntityId !== 'settings' && !(isTaskPanelOpen && activeTaskId) && typeof document !== 'undefined' && createPortal(
         <div className="fixed bottom-8 right-8 z-[90]">
           <button
             onClick={toggleAIAssistant}
@@ -589,7 +594,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
           >
             <AIAvatar className="w-12 h-12" />
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showMicSettings && (

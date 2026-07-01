@@ -336,10 +336,8 @@ export function FolderView({ entity }: FolderViewProps) {
             style={{ left: newItemPopupPos.x, top: newItemPopupPos.y }}
           >
             {[
-              { type: 'folder' as const, label: 'Folder', icon: Folder },
               { type: 'note' as const, label: 'Note', icon: FileText },
               { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-              { type: 'mixed' as const, label: 'Mixed', icon: Layers }
             ].map(opt => (
               <button
                 key={opt.type}
@@ -352,9 +350,7 @@ export function FolderView({ entity }: FolderViewProps) {
                     parentId: entity.id,
                     lastModified: Date.now()
                   });
-                  if (opt.type !== 'folder') {
-                    setActiveEntityId(newId);
-                  }
+                  setActiveEntityId(newId);
                   setNewItemPopupPos(null);
                 }}
                 className="popup-item group w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-none"

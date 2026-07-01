@@ -8,36 +8,20 @@ import path from 'path'
 
 const DEFAULT_DAILY_LIMIT = 1000
 
-async function checkAndIncrementQuota(authUserId: string): Promise<{ allowed: boolean }> {
-  if (!supabaseAdmin) return { allowed: true } // Skip quota if admin is not configured
-  const today = new Date().toISOString().split('T')[0]
-
-  const { data: existing } = await supabaseAdmin
-    .from('user_quotas')
-    .select('messages_used_today, last_reset_date')
-    .eq('auth_user_id', authUserId)
-    .maybeSingle()
-
-  const needsReset = !existing || existing.last_reset_date < today
-  const currentCount = needsReset ? 0 : existing.messages_used_today
-
-  if (currentCount >= DEFAULT_DAILY_LIMIT) {
-    return { allowed: false }
+async function checkAndIncrementQuota(supabaseClient: any): Promise<{ allowed: boolean }> {
+  if (!supabaseClient) return { allowed: true } // Skip quota if client is not configured
+  
+  const { data: allowed, error } = await supabaseClient.rpc('increment_my_quota')
+  if (error) {
+    console.error('[checkAndIncrementQuota] error:', error)
+    return { allowed: true } // Graceful fallback on database error
   }
-
-  await supabaseAdmin
-    .from('user_quotas')
-    .upsert({
-      auth_user_id: authUserId,
-      messages_used_today: currentCount + 1,
-      last_reset_date: today
-    })
-
-  return { allowed: true }
+  return { allowed: !!allowed }
 }
 
 export async function POST(req: NextRequest) {
   let user = null;
+  let supabaseClient = null;
 
   if (isSupabaseEnabled) {
     const supabase = createClient(
@@ -47,6 +31,7 @@ export async function POST(req: NextRequest) {
     )
     const { data } = await supabase.auth.getUser()
     user = data.user
+    supabaseClient = supabase;
   }
 
   const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext } = await req.json()
@@ -61,8 +46,8 @@ export async function POST(req: NextRequest) {
 
   const userId = user?.id || 'anonymous'
   
-  if (user) {
-    const { allowed } = await checkAndIncrementQuota(user.id)
+  if (user && supabaseClient) {
+    const { allowed } = await checkAndIncrementQuota(supabaseClient)
     if (!allowed) {
       return NextResponse.json(
         { error: 'Daily message limit reached. Try again tomorrow.', model: 'system' },

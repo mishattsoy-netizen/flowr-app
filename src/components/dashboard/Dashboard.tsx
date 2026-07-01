@@ -567,7 +567,7 @@ export function Dashboard() {
         {/* Bottom widgets grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow min-h-0 select-none">
           {/* Tasks (2/3 width) */}
-          <div className="md:col-span-2 flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="md:col-span-2 flex flex-col min-h-[360px] max-h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
               <SmartTaskStackWidget contextId="dashboard" />
             </div>
@@ -578,7 +578,7 @@ export function Dashboard() {
           </div>
 
           {/* Shortcuts (1/3 width) */}
-          <div className="flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="flex flex-col min-h-[360px] max-h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
               <ShortcutsWidget contextId="dashboard" />
             </div>

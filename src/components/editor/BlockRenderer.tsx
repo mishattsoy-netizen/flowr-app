@@ -225,6 +225,7 @@ export function BlockRenderer({
     const inlineBtn = target.closest('.inline-link-btn') as HTMLAnchorElement;
     if (inlineBtn) {
       if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
+      inlineHoverTimeout.current = null;
       const rect = inlineBtn.getBoundingClientRect();
       const url = inlineBtn.getAttribute('data-url') || inlineBtn.getAttribute('href') || '';
       const label = inlineBtn.getAttribute('data-label') || inlineBtn.textContent || '';
@@ -237,12 +238,31 @@ export function BlockRenderer({
           label
         });
       }
-    } else if (activeInlineBtn) {
-      if (!inlineHoverTimeout.current) {
-        inlineHoverTimeout.current = setTimeout(() => {
-          setActiveInlineBtn(null);
-          inlineHoverTimeout.current = null;
-        }, 300);
+    } else {
+      // Also detect plain anchor tags (standard markdown underlined links)
+      const anchor = target.closest('a') as HTMLAnchorElement;
+      if (anchor && !anchor.classList.contains('inline-link-btn') && contentRef.current?.contains(anchor)) {
+        if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
+        inlineHoverTimeout.current = null;
+        const rect = anchor.getBoundingClientRect();
+        const url = anchor.getAttribute('href') || '';
+        const label = anchor.textContent || '';
+        if (!activeInlineBtn || activeInlineBtn.element !== anchor) {
+          setActiveInlineBtn({
+            element: anchor,
+            rect,
+            url,
+            label,
+            isStandardLink: true
+          });
+        }
+      } else if (activeInlineBtn) {
+        if (!inlineHoverTimeout.current) {
+          inlineHoverTimeout.current = setTimeout(() => {
+            setActiveInlineBtn(null);
+            inlineHoverTimeout.current = null;
+          }, 300);
+        }
       }
     }
   };
@@ -625,10 +645,11 @@ export function BlockRenderer({
   }, [activeInlineBtn, block.id, onUpdate]);
 
   const renderInlineLinkPopover = () => {
-    if (!activeInlineBtn) return null;
     const blockRect = elementRef.current?.getBoundingClientRect();
-    const triggerLeft = blockRect ? activeInlineBtn.rect.left - blockRect.left : 0;
-    const triggerTop = blockRect ? activeInlineBtn.rect.top - blockRect.top : 0;
+    const triggerLeft = blockRect && activeInlineBtn ? activeInlineBtn.rect.left - blockRect.left : 0;
+    const triggerTop = blockRect && activeInlineBtn ? activeInlineBtn.rect.top - blockRect.top : 0;
+    const triggerWidth = activeInlineBtn ? activeInlineBtn.rect.width : 0;
+    const triggerHeight = activeInlineBtn ? activeInlineBtn.rect.height : 0;
 
     return (
       <Popover 
@@ -645,20 +666,23 @@ export function BlockRenderer({
               position: 'absolute',
               left: triggerLeft,
               top: triggerTop,
-              width: activeInlineBtn.rect.width,
-              height: activeInlineBtn.rect.height,
+              width: triggerWidth,
+              height: triggerHeight,
               pointerEvents: 'none',
               zIndex: -1,
             }}
           />
         </PopoverTrigger>
-        <PopoverContent
+        {activeInlineBtn && (
+          <PopoverContent
           side="top"
           align="start"
           sideOffset={8}
           className="z-[500] w-[260px] p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl"
           onMouseEnter={handleInlineMouseEnter}
           onMouseLeave={handleInlineMouseLeave}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <div className="flex flex-col gap-2">
             {/* Section 1: Icon and Label */}
@@ -883,6 +907,7 @@ export function BlockRenderer({
             </div>
           </div>
         </PopoverContent>
+        )}
       </Popover>
     );
   };

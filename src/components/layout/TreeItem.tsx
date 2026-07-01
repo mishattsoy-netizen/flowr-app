@@ -877,7 +877,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const handlePlusClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
-    setPlusPopupPos({ x: rect.right + 4, y: rect.top });
+    setPlusPopupPos({ x: rect.left, y: rect.bottom + 4 });
   };
 
   const handleOptionsClick = (e: React.MouseEvent) => {
@@ -1131,10 +1131,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             onClick={(e) => e.stopPropagation()}
           >
             {[
-              { type: 'folder' as const, label: 'Folder', icon: Folder },
               { type: 'note' as const, label: 'Note', icon: FileText },
               { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-              { type: 'mixed' as const, label: 'Mixed', icon: Layers }
             ].map(opt => (
               <button
                 key={opt.type}
@@ -1147,9 +1145,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
                     parentId: entity.id,
                     lastModified: Date.now()
                   });
-                  if (opt.type !== 'folder') {
-                    setActiveEntityId(newId);
-                  }
+                  setActiveEntityId(newId);
                   setPlusPopupPos(null);
                 }}
                 className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
