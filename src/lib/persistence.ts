@@ -19,7 +19,7 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
     const meta = {
       id: entity.id,
       title: entity.title,
-      syncMode: 'full-sync', // M3 default
+      syncMode: entity.syncMode || 'full-sync',
       lastModified: entity.lastModified,
       version: 1,
       blocks: needsBlockBackup(blocks) ? blocks : undefined

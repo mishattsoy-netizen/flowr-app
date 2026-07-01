@@ -186,9 +186,22 @@ export const useStore = create<AppState>()(
 
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
-      setSyncMode: (entityId, mode) => set(s => ({
-        entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e)
-      })),
+      setSyncMode: (entityId, mode) => {
+        set(s => ({
+          entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
+          workspaces: s.workspaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
+        }));
+        const ws = get().workspaces.find(w => w.id === entityId);
+        if (ws) {
+          upsertWorkspace(ws);
+        }
+        const entity = get().entities.find(e => e.id === entityId);
+        if (entity) {
+          import('@/lib/persistence').then(({ saveEntity }) => {
+            saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
+          });
+        }
+      },
       setLastSaved: (time) => set({ lastSaved: time }),
 
       setEntities: (entities) => set({ entities }),
