@@ -13,6 +13,7 @@ import AISettingsSection from '@/components/settings/AISettingsSection';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { isDesktop } from '@/lib/env';
 import { FolderOpen } from 'lucide-react';
+import { PATCHES } from '@/data/patches';
 
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, goBack } = useStore();
@@ -112,7 +113,7 @@ export function SettingsPage() {
 
         {/* Version Info */}
         <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta 1.0.8 - Build 1008</p>
+          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta {PATCHES[0].version} - Build {PATCHES[0].build}</p>
         </div>
       </div>
 

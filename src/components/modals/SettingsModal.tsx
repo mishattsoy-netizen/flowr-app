@@ -12,6 +12,7 @@ import AISettingsSection from '@/components/settings/AISettingsSection';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { isDesktop } from '@/lib/env';
 import { FolderOpen } from 'lucide-react';
+import { PATCHES } from '@/data/patches';
 
 
 
@@ -143,7 +144,7 @@ export function SettingsModal() {
 
           {/* Version Info */}
           <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta 1.0.0 - Build 1000</p>
+            <p className="text-[10px] text-bone-70 uppercase tracking-widest text-center">Flowr Beta {PATCHES[0].version} - Build {PATCHES[0].build}</p>
           </div>
         </div>
 
