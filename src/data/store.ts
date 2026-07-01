@@ -2599,6 +2599,7 @@ if (isDesktop()) {
     // In M4 this will be replaced by direct calls to saveEntity() on store actions
     for (const entity of state.entities) {
       if (entity.type !== 'note' && entity.type !== 'canvas' && entity.type !== 'mixed') continue;
+      if (entity.syncMode === 'cloud-only') continue;
       const prev = prevState.entities.find(e => e.id === entity.id);
       if (!prev || prev.lastModified !== entity.lastModified) {
         const blocks = entity.type === 'canvas'
