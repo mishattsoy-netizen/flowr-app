@@ -21,6 +21,45 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.1.0',
+    build: '1100',
+    date: '2026-07-02',
+    title: 'Smoother Panels & Cloud-Only Sync Cleanup',
+    sections: [
+      {
+        type: 'improved',
+        items: [
+          'Task and chat side panels now slide open and closed smoothly instead of snapping, with content sliding along with the panel rather than popping in or vanishing mid-animation.',
+          'Switching directly between the task panel and chat panel is now instant, with no flicker.',
+          'Sidebar collapse/expand now animates in lockstep with the header instead of detaching partway through.',
+          'Creating a task from the sidebar, command palette, or a kanban column now opens the task panel directly instead of a separate popup.',
+          'Improved proportional widget sizing on the dashboard and workspace pages.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed a bug where notes and canvases set to "Cloud Only" could still end up with a local file on disk, mismatched with your actual sync setting.',
+          'Fixed local files sometimes being saved with the wrong sync mode written into them.',
+          'The app now checks your vault folder on startup and flags any leftover local files that no longer belong there, so you can clean them up in one click.'
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          'Added a confirmation popup when switching a note to "Cloud Only" if a local copy already exists — choose to delete it or keep it as an offline snapshot.',
+          'Your choice to keep a local copy is now remembered, so you won\'t be asked about the same file again.'
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          'Removed the old standalone "new task" popup in favor of opening the task panel directly.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.9',
     build: '1009',
     date: '2026-07-01',
