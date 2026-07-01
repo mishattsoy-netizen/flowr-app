@@ -23,6 +23,7 @@
   --app-background: #F8F8F6;
   --app-panel: #FFFFFF;
   --app-dark: #EFEEEB;
+  --card-bg: #F0F0F0;
   --sys-color: #F7F7F6;
   --slider-pill: var(--app-panel);
   --slider-track: var(--bone-6);
@@ -60,7 +61,7 @@
   --dim-foreground: var(--bone-70);
   --foreground: var(--bone-100);
 
-  --accent: #e48921;
+  --accent: #FA6A2B;
   --on-accent: #FFFFFF;
   --color-danger: #ff6060;
 
@@ -79,6 +80,7 @@
   --app-background: #1b1b1a;
   --app-panel: #2A2A28;
   --app-dark: #121212;
+  --card-bg: #363633;
   --sys-color: #1E1E1D;
   --slider-pill: var(--bone-12);
   --slider-pill-shadow: none;
@@ -467,7 +469,7 @@ html[data-interface-size="big"] {
 }
 
 @utility popup-item {
-  @apply flex items-center gap-3 w-full px-3 py-[4px] text-[13.5px] cursor-pointer whitespace-nowrap text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-medium)] transition-none;
+  @apply flex items-center gap-3 w-full px-3 py-[4px] text-[13.5px] cursor-pointer whitespace-nowrap text-[var(--bone-100)]/70 hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] rounded-[var(--radius-medium)] transition-none;
 }
 
 @utility popup-divider {
@@ -1450,6 +1452,27 @@ body.is-dragging-widget [data-widget-id] * {
 
 @media (prefers-reduced-motion: reduce) {
   .task-drop-settle {
+    animation: none;
+  }
+}
+
+/* Shortcut card drop-settle — same feel as task-drop-settle in kanban */
+.shortcut-drop-settle {
+  animation: shortcut-drop-settle 0.7s ease-out forwards !important;
+}
+
+@keyframes shortcut-drop-settle {
+  from {
+    background-color: var(--app-dark);
+  }
+
+  to {
+    background-color: var(--card-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shortcut-drop-settle {
     animation: none;
   }
 }

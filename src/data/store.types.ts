@@ -481,6 +481,8 @@ export interface AppState {
   abortControllersMap: Record<string, AbortController | null>;
   chatMessagesMap: Record<string, AIMessage[]>;
   sessionContextsMap: Record<string, any>;
+  shortcuts: Record<string, Shortcut[]>;
+  cachedDisplayName: string;
 
   // Chat page state
   activeChatId: string | null;
@@ -495,6 +497,10 @@ export interface AppState {
   setShowTempNotice: (show: boolean) => void;
 
   // Actions
+  setShortcuts: (contextId: string, list: Shortcut[]) => void;
+  addShortcut: (contextId: string, label: string, value: string, type: 'url' | 'entity') => void;
+  removeShortcut: (contextId: string, id: string) => void;
+  setCachedDisplayName: (name: string) => void;
   setDashboardLayout: (layout: WidgetConfig[]) => void;
   setIsDashboardEditing: (editing: boolean) => void;
   resetDashboardLayout: () => void;
@@ -514,6 +520,7 @@ export interface AppState {
   toggleTabsHeader: () => void;
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
+  setRecentEntityIds: (ids: string[]) => void;
   setActiveWorkspaceId: (id: string | null) => void;
   setTrackerFilterWorkspace: (id: string | null) => void;
   createWorkspace: (input: Partial<Workspace>) => string;
@@ -641,5 +648,13 @@ export interface AppState {
   loadChatConversations: () => Promise<void>;
   openChatInPage: () => void;
   setInitialSync: (isInitialSync: boolean) => void;
+}
+
+export interface Shortcut {
+  id: string;
+  type: 'url' | 'entity';
+  label: string;
+  value: string;
+  icon?: string;
 }
 

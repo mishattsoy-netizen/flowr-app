@@ -36,6 +36,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
   const tasks = useStore(state => state.tasks);
   const toggleTask = useStore(state => state.toggleTask);
   const addTask = useStore(state => state.addTask);
+  const openTaskPanel = useStore(state => state.openTaskPanel);
   const entities = useStore(state => state.entities);
   const activeWorkspaceId = useStore(state => state.activeWorkspaceId);
   const addTab = useStore(state => state.addTab);
@@ -212,7 +213,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
   }
 
   const tabContainerRef = useRef<HTMLDivElement>(null);
-  const [pillStyle, setPillStyle] = useState({ left: 3, width: 80 });
+  const [pillStyle, setPillStyle] = useState<{ left: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!tabContainerRef.current) return;
@@ -221,7 +222,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
       if (activeEl) {
         const next = { left: activeEl.offsetLeft, width: activeEl.offsetWidth };
         setPillStyle(prev =>
-          prev.left === next.left && prev.width === next.width ? prev : next
+          prev?.left === next.left && prev?.width === next.width ? prev : next
         );
       }
     };
@@ -245,15 +246,17 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
         {/* Tab switcher */}
         {visibleTabs.length > 0 ? (
           <div ref={tabContainerRef} className="relative flex items-center p-[3px] rounded-[8px] no-drag overflow-hidden w-fit" style={{ background: 'var(--slider-track)' }}>
-            {/* Sliding pill */}
-            <div
-              className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
-              style={{
-                left: `${pillStyle.left}px`,
-                width: `${pillStyle.width}px`,
-                boxShadow: 'var(--slider-pill-shadow)'
-              }}
-            />
+            {/* Sliding pill — hidden until first measurement to avoid shifting from initial guess */}
+            {pillStyle && (
+              <div
+                className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--slider-pill)] transition-[left,width] duration-300 ease-out"
+                style={{
+                  left: `${pillStyle.left}px`,
+                  width: `${pillStyle.width}px`,
+                  boxShadow: 'var(--slider-pill-shadow)'
+                }}
+              />
+            )}
             {visibleTabs.map(tab => (
               <div
                 key={tab.id}
@@ -317,14 +320,15 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
 
         {/* Right side: add-task button */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {tasksByTab[activeId]?.length > 0 && (
-            <div className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] bg-[var(--bone-6)] select-none text-[11px] font-semibold text-[var(--bone-70)] font-mono">
-              {tasksByTab[activeId].length}
-            </div>
-          )}
+          <div className={cn(
+            "w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] bg-[var(--bone-6)] select-none text-[11px] font-semibold text-[var(--bone-70)] font-mono shrink-0",
+            (tasksByTab[activeId]?.length ?? 0) === 0 && "invisible"
+          )}>
+            {tasksByTab[activeId]?.length ?? 0}
+          </div>
           <button
             onClick={handleToggleAdding}
-            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-30 hover:opacity-100 hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out"
+            className="no-drag w-6 h-6 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-30 hover:opacity-100 hover:bg-[var(--app-dark)] transition-[background-color,opacity] duration-200 ease-in-out"
             title="Add task"
           >
             <Plus strokeWidth={2} className="w-4 h-4" />
@@ -332,7 +336,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden transition-all">
+      <div className="flex-1 overflow-hidden">
         {displayTasks.length > 0 ? (
           <div className="space-y-1">
             {displayTasks.map(t => {
@@ -342,13 +346,14 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
               return (
                 <div
                   key={t.id}
+                  onClick={() => openTaskPanel(t.id)}
                   className={cn(
-                    "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out",
+                    "group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-[background-color,color,opacity] duration-200 ease-in-out cursor-pointer",
                     t.completed && "opacity-35 line-through decoration-[var(--bone-30)]"
                   )}
                 >
                   <button
-                    onClick={() => toggleTask(t.id)}
+                    onClick={e => { e.stopPropagation(); toggleTask(t.id); }}
                     className="w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
                   >
                     {t.completed && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
@@ -396,7 +401,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
             {tasksByTab[activeId]?.length > 10 && (
               <button
                 onClick={() => addTab('tracker')}
-                className="w-full text-left group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-50)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all duration-200 ease-in-out cursor-pointer"
+                className="w-full text-left group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-50)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-[background-color,color] duration-200 ease-in-out cursor-pointer"
               >
                 <div className="w-4 h-4 flex items-center justify-center shrink-0 text-[var(--bone-40)] group-hover:text-[var(--bone-100)] transition-colors">
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -406,14 +411,14 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
             )}
           </div>
         ) : !adding ? (
-          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
+          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-[background-color,color] duration-200">
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">All caught up!</p>
               <p className="text-xs text-bone-70 opacity-40 mt-1 leading-snug text-balance">No tasks to display in {activeTabDef.label}. Enjoy your day!</p>
             </div>
             <button
               onClick={() => setAdding(true)}
-              className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium transition-all duration-300"
+              className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium transition-[background-color,color] duration-200"
             >
               + New Task
             </button>

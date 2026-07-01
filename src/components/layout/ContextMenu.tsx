@@ -299,7 +299,7 @@ export function ContextMenu() {
         { isDivider: true },
         {
           label: 'New space',
-          icon: <Plus className="w-4 h-4" />,
+          icon: <Plus strokeWidth={2} className="w-4 h-4" />,
           onClick: () => { openModal({ kind: 'newWorkspace' }); closeContextMenu(); }
         }
       ];
@@ -324,7 +324,7 @@ export function ContextMenu() {
       const id = contextMenu.entityId;
       return [
         {
-          icon: <ExternalLink className="w-4 h-4" />,
+          icon: <ExternalLink strokeWidth={2} className="w-4 h-4" />,
           label: 'Open in new tab',
           onClick: () => { if (id) addTab(id); closeContextMenu(); },
         }
@@ -362,7 +362,7 @@ export function ContextMenu() {
         },
       },
       {
-        icon: <Edit2 className="w-4 h-4" />,
+        icon: <Edit2 strokeWidth={2} className="w-4 h-4" />,
         label: 'Rename',
         onClick: () => { setEditingEntityId(entity!.id, contextMenu.source); closeContextMenu(); },
       },
@@ -370,7 +370,7 @@ export function ContextMenu() {
 
     if (isCollection) {
       items.push({
-        icon: <Palette className="w-4 h-4" />,
+        icon: <Palette strokeWidth={2} className="w-4 h-4" />,
         label: 'Change icon',
         onClick: () => { setPickerEntityId(entity!.id); },
       });
@@ -380,17 +380,17 @@ export function ContextMenu() {
     
     items.push(
       {
-        icon: <Link2 className="w-4 h-4" />,
+        icon: <Link2 strokeWidth={2} className="w-4 h-4" />,
         label: 'Copy link',
         onClick: handleCopyLink,
       },
       {
-        icon: <Copy className="w-4 h-4" />,
+        icon: <Copy strokeWidth={2} className="w-4 h-4" />,
         label: 'Duplicate',
         onClick: () => { duplicateEntity(entity!.id); closeContextMenu(); },
       },
       {
-        icon: <ExternalLink className="w-4 h-4" />,
+        icon: <ExternalLink strokeWidth={2} className="w-4 h-4" />,
         label: 'Open in new tab',
         onClick: () => { addTab(entity!.id); closeContextMenu(); },
       }
@@ -398,7 +398,7 @@ export function ContextMenu() {
 
     items.push({ isDivider: true });
     items.push({
-      icon: <Trash2 className="w-4 h-4" />,
+      icon: <Trash2 strokeWidth={2} className="w-4 h-4" />,
       label: 'Delete',
       onClick: () => { openModal({ kind: 'deleteConfirm', entityId: entity!.id }); },
       danger: true,
@@ -407,7 +407,7 @@ export function ContextMenu() {
     // Show "Delete All" when multiple sidebar items are selected
     if (selectedSidebarIds.length > 1) {
       items.push({
-        icon: <Trash2 className="w-4 h-4" />,
+        icon: <Trash2 strokeWidth={2} className="w-4 h-4" />,
         label: `Delete All (${selectedSidebarIds.length})`,
         onClick: () => {
           openModal({ kind: 'deleteConfirm', entityIds: [...selectedSidebarIds] });

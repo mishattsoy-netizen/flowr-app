@@ -178,6 +178,8 @@ export const useStore = create<AppState>()(
       ],
       activeWorkspaceId: 'ws-personal',
       trackerFilterWorkspace: null,
+      shortcuts: {},
+      cachedDisplayName: '',
       lastSaved: null,
       syncMode: 'local-only',
       isInitialSync: true,
@@ -2366,6 +2368,38 @@ export const useStore = create<AppState>()(
 
       setSelectedSidebarIds: (ids) => set({ selectedSidebarIds: ids }),
       clearSelectedSidebarIds: () => set({ selectedSidebarIds: [] }),
+
+      setShortcuts: (contextId, list) => set(s => ({
+        shortcuts: { ...s.shortcuts, [contextId]: list }
+      })),
+
+      addShortcut: (contextId, label, value, type) => set(s => {
+        const list = s.shortcuts[contextId] || [];
+        const newShortcut = {
+          id: Math.random().toString(36).substring(2, 9),
+          type,
+          label,
+          value
+        };
+        return {
+          shortcuts: {
+            ...s.shortcuts,
+            [contextId]: [...list, newShortcut].slice(0, 12)
+          }
+        };
+      }),
+
+      removeShortcut: (contextId, id) => set(s => {
+        const list = s.shortcuts[contextId] || [];
+        return {
+          shortcuts: {
+            ...s.shortcuts,
+            [contextId]: list.filter(item => item.id !== id)
+          }
+        };
+      }),
+
+      setCachedDisplayName: (cachedDisplayName) => set({ cachedDisplayName }),
     }),
     {
       name: 'flowr-storage',
@@ -2535,6 +2569,8 @@ export const useStore = create<AppState>()(
         chatInputs: state.chatInputs,
         chatMessagesMap: state.chatMessagesMap,
         sessionContextsMap: state.sessionContextsMap,
+        shortcuts: state.shortcuts,
+        cachedDisplayName: state.cachedDisplayName,
       }),
     }
   )

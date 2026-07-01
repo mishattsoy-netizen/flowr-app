@@ -628,7 +628,7 @@ export function TrackerPage() {
         </div>
       </header>
 
-        <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin min-h-0">
+        <div className="flex-1 overflow-x-auto min-h-0 pb-3">
           <div className="flex gap-3 h-full min-w-max">
             <div className="w-4 shrink-0" />
             {COLUMN_KEYS.map((id) => {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, X, ExternalLink, FileText, Layout, Edit2, Trash2, Link2, Check } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { Plus, X, ExternalLink, File, FileText, Layout, Edit2, Trash2, Link2, Check, ChevronDown, Folder, Frame, Layers, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getEntityIcon } from '@/data/icons';
 import { cn } from '@/lib/utils';
@@ -16,65 +16,74 @@ interface Shortcut {
   icon?: string;
 }
 
-export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'> & { data?: { shortcuts?: Shortcut[] }; onUpdateData: (newData: any) => void }) {
-  const shortcuts = data?.shortcuts || [];
+const EMPTY_SHORTCUTS: Shortcut[] = [];
+
+export function ShortcutsWidget({ contextId }: { contextId: string }) {
+  const shortcuts = useStore(state => state.shortcuts[contextId] || EMPTY_SHORTCUTS);
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
+  const setShortcuts = useStore(state => state.setShortcuts);
+  const addShortcut = useStore(state => state.addShortcut);
+  const removeShortcut = useStore(state => state.removeShortcut);
 
-  // Grid is always 2 columns minimum, 4 rows tall. Each shortcut occupies a
-  // half-column block (1 col x 2 rows), so 4 shortcuts fill the widget. When
-  // more are added we densify each block to 1 row, allowing up to 8, then add
-  // a third column for up to 12.
-  const numCols = shortcuts.length > 8 ? 3 : 2;
-  // Rows each shortcut spans: 2 while there's room (<=4 in 2-col), else 1.
-  const rowSpan = shortcuts.length <= numCols * 2 ? 2 : 1;
+  // Grid layout adjusts cols dynamically. Each shortcut spans exactly 1 row
+  // in a 3-row layout, occupying 1/3 of the widget height.
+  const numCols = shortcuts.length > 9 ? 4 : shortcuts.length > 6 ? 3 : 2;
+  const rowSpan = 1;
+
+  const totalSlots = numCols * 3;
+  const placeholdersCount = Math.max(0, totalSlots - shortcuts.length);
+  const placeholders = Array.from({ length: placeholdersCount });
 
   const [isAdding, setIsAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newValue, setNewValue] = useState('');
   const [type, setType] = useState<'url' | 'entity'>('url');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const dragIdx = useRef<number | null>(null);
+  const [showPageDropdown, setShowPageDropdown] = useState(false);
+  const [entitySearch, setEntitySearch] = useState('');
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [justDropped, setJustDropped] = useState<{ id: string; nonce: number } | null>(null);
 
-  const handleDragStart = (idx: number) => { dragIdx.current = idx; };
+  const handleDragStart = (idx: number) => { setDragIdx(idx); };
+  const handleDragEnter = (idx: number) => { setDragOverIdx(idx); };
+  const handleDragEnd = () => { setDragIdx(null); setDragOverIdx(null); };
   const handleDrop = (targetIdx: number) => {
-    if (dragIdx.current === null || dragIdx.current === targetIdx) return;
+    if (dragIdx === null || dragIdx === targetIdx) { handleDragEnd(); return; }
     const reordered = [...shortcuts];
-    const [moved] = reordered.splice(dragIdx.current, 1);
-    reordered.splice(targetIdx, 0, moved);
-    onUpdateData({ shortcuts: reordered });
-    dragIdx.current = null;
+    [reordered[dragIdx], reordered[targetIdx]] = [reordered[targetIdx], reordered[dragIdx]];
+    const droppedId = shortcuts[dragIdx].id;
+    setShortcuts(contextId, reordered);
+    setJustDropped({ id: droppedId, nonce: Date.now() });
+    handleDragEnd();
+    setTimeout(() => setJustDropped(null), 800);
   };
 
   const handleAdd = () => {
     if (!newValue.trim()) return;
     const label = newLabel.trim() || (type === 'entity' ? entities.find(e => e.id === newValue)?.title : 'Link') || 'Link';
 
-    let newShortcuts;
     if (editingId) {
-      newShortcuts = shortcuts.map(s => s.id === editingId ? { ...s, type, label, value: newValue.trim() } : s);
+      const updated = shortcuts.map(s => s.id === editingId ? { ...s, type, label, value: newValue.trim() } : s);
+      setShortcuts(contextId, updated);
     } else {
-      newShortcuts = [...shortcuts, {
-        id: crypto.randomUUID(),
-        type,
-        label,
-        value: newValue.trim()
-      }].slice(0, 12);
+      addShortcut(contextId, label, newValue.trim(), type);
     }
 
-    onUpdateData({ shortcuts: newShortcuts });
     setNewLabel('');
     setNewValue('');
     setIsAdding(false);
     setEditingId(null);
+    setShowPageDropdown(false);
   };
 
-  const removeShortcut = (id: string) => {
-    onUpdateData({ shortcuts: shortcuts.filter(s => s.id !== id) });
+  const handleRemove = (id: string) => {
+    removeShortcut(contextId, id);
   };
 
   return (
-    <section className="bg-panel group/widget px-5 pb-5 pt-4 widget-shadow h-full flex flex-col">
+    <section className="bg-panel group/widget px-5 pb-5 pt-4 widget-shadow h-full flex flex-col relative">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">
           Shortcuts
@@ -89,80 +98,27 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
         )}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col no-scrollbar">
-        {isAdding ? (
-          <div className="space-y-3 p-3 bg-[var(--bone-5)] rounded-xl border border-[var(--bone-3)]">
-            <div className="flex gap-1 p-0.5 bg-[var(--bone-10)] rounded-md">
-              <button
-                onClick={() => setType('url')}
-                className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'url' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
-              >URL</button>
-              <button
-                onClick={() => setType('entity')}
-                className={cn("flex-1 px-2 py-1 text-[10px] rounded", type === 'entity' ? "bg-[var(--bone-20)] text-[var(--bone-100)]" : "text-muted-foreground")}
-              >Entity</button>
-            </div>
-
-            {type === 'entity' ? (
-              <select
-                value={newValue}
-                onChange={e => setNewValue(e.target.value)}
-                className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
-              >
-                <option value="">Select Page...</option>
-                {entities.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
-              </select>
-            ) : (
-              <input
-                placeholder="https://..."
-                value={newValue}
-                onChange={e => setNewValue(e.target.value)}
-                className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
-              />
-            )}
-
-            <input
-              placeholder="Label (optional)"
-              value={newLabel}
-              onChange={e => setNewLabel(e.target.value)}
-              className="w-full bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-md px-2 py-1.5 text-xs outline-none text-foreground"
-            />
-
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setIsAdding(false);
-                  setEditingId(null);
-                  setNewLabel('');
-                  setNewValue('');
-                }}
-                className="text-[10px] text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button onClick={handleAdd} className="text-[10px] text-accent font-semibold">
-                {editingId ? 'Save' : 'Add'}
-              </button>
-            </div>
-          </div>
-        ) : shortcuts.length > 0 ? (
+      <div className="flex-1 min-h-0 flex flex-col no-scrollbar relative">
+        {shortcuts.length > 0 ? (
           <div
-            className="grid gap-2 flex-1 grid-flow-row"
+            className={cn(
+              "grid gap-2 flex-1 grid-flow-row transition-opacity duration-200",
+              isAdding && "opacity-20 pointer-events-none"
+            )}
             style={{
               gridTemplateColumns: `repeat(${numCols}, minmax(0, 1fr))`,
-              gridTemplateRows: 'repeat(4, minmax(0, 1fr))',
+              gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
               gridAutoRows: 'minmax(0, 1fr)',
             }}
           >
-            {shortcuts.map(s => (
+            {shortcuts.map((s, i) => (
               <ShortcutItem
                 key={s.id}
                 rowSpan={rowSpan}
                 shortcut={s}
                 entities={entities}
                 onSelectEntity={setActiveEntityId}
-                onRemove={removeShortcut}
+                onRemove={handleRemove}
                 onEdit={(shortcutToEdit) => {
                   setEditingId(shortcutToEdit.id);
                   setNewLabel(shortcutToEdit.label);
@@ -170,17 +126,34 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
                   setType(shortcutToEdit.type);
                   setIsAdding(true);
                 }}
+                isDragging={dragIdx === i}
+                isDragOver={dragOverIdx === i && dragIdx !== i}
+                dropNonce={justDropped?.id === s.id ? justDropped.nonce : 0}
                 dragProps={{
                   draggable: true,
-                  onDragStart: () => handleDragStart(shortcuts.indexOf(s)),
+                  onDragStart: () => handleDragStart(i),
+                  onDragEnter: (e: any) => { e.preventDefault(); handleDragEnter(i); },
                   onDragOver: (e: any) => e.preventDefault(),
-                  onDrop: () => handleDrop(shortcuts.indexOf(s))
+                  onDrop: () => handleDrop(i),
+                  onDragEnd: handleDragEnd,
                 }}
               />
             ))}
+            {placeholders.map((_, idx) => (
+              <button
+                key={`placeholder-${idx}`}
+                onClick={() => setIsAdding(true)}
+                className="w-full h-full min-h-[76px] flex items-center justify-center p-3 rounded-[10px] border border-dashed border-[var(--bone-10)] bg-transparent opacity-[0.08] hover:opacity-25 hover:bg-[var(--bone-5)] hover:border-[var(--bone-20)] transition-all duration-200 cursor-pointer"
+              >
+                <Plus strokeWidth={1.5} className="w-4 h-4 text-[var(--bone-100)]" />
+              </button>
+            ))}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px]">
+          <div className={cn(
+            "h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-opacity duration-200",
+            isAdding && "opacity-20 pointer-events-none"
+          )}>
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">Get started with Shortcuts</p>
               <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Add quick links to your favorite apps, sites, and documents.</p>
@@ -193,7 +166,143 @@ export function ShortcutsWidget({ data, onUpdateData }: Omit<WidgetProps, 'data'
             </button>
           </div>
         )}
+
       </div>
+
+      {isAdding && (
+        <div className="absolute inset-0 bg-transparent flex items-center justify-center p-5 z-40 transition-all duration-200 ease-in-out">
+          <div className="w-full max-w-[280px] space-y-2 p-2.5 bg-[var(--card-bg)] rounded-xl border border-[var(--bone-10)] relative shadow-2xl">
+            <div className="flex p-[3px] rounded-[8px]" style={{ background: 'var(--slider-track)' }}>
+              <button
+                type="button"
+                onClick={() => { setType('url'); setNewValue(''); }}
+                className={cn(
+                  "flex-1 px-3.5 py-1 text-[11px] font-semibold rounded-[6px] transition-all duration-200 outline-none focus:outline-none cursor-pointer",
+                  type === 'url'
+                    ? "bg-[var(--slider-pill)] text-[var(--bone-100)] shadow-[var(--slider-pill-shadow)]"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                URL
+              </button>
+              <button
+                type="button"
+                onClick={() => { setType('entity'); setNewValue(''); }}
+                className={cn(
+                  "flex-1 px-3.5 py-1 text-[11px] font-semibold rounded-[6px] transition-all duration-200 outline-none focus:outline-none cursor-pointer",
+                  type === 'entity'
+                    ? "bg-[var(--slider-pill)] text-[var(--bone-100)] shadow-[var(--slider-pill-shadow)]"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Entity
+              </button>
+            </div>
+
+            {type === 'entity' ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowPageDropdown(p => !p)}
+                  className="w-full flex items-center justify-between bg-[var(--slider-track)] border border-[var(--bone-6)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-left text-[var(--bone-100)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
+                >
+                  <span className={cn(!newValue && "text-[var(--bone-30)]")}>
+                    {newValue ? (entities.find(e => e.id === newValue)?.title || 'Select Page...') : 'Select Page...'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                </button>
+                {showPageDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-[199]" onClick={() => { setShowPageDropdown(false); setEntitySearch(''); }} />
+                    <div className="absolute left-0 right-0 mt-1 z-[200] popup-glass-small flex flex-col">
+                      <div className="p-1.5 border-b border-[var(--bone-6)]">
+                        <input
+                          autoFocus
+                          placeholder="Search pages..."
+                          value={entitySearch}
+                          onChange={e => setEntitySearch(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-full bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
+                        />
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto p-1 flex flex-col gap-[2px]">
+                        {entities
+                          .filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase()))
+                          .map(e => {
+                            const Icon = e.icon ? getEntityIcon(e.icon) : (() => {
+                              if (e.type === 'note') return FileText;
+                              if (e.type === 'canvas') return Frame;
+                              if (e.type === 'mixed') return Layers;
+                              return Folder;
+                            })();
+                            return (
+                              <button
+                                key={e.id}
+                                type="button"
+                                onClick={() => { setNewValue(e.id); setShowPageDropdown(false); setEntitySearch(''); }}
+                                className="popup-item flex items-center justify-between text-left w-full outline-none focus:outline-none"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <Icon className="w-4 h-4 opacity-70 shrink-0 text-current" />
+                                  <span className="truncate flex-1">{e.title}</span>
+                                </div>
+                                {newValue === e.id && (
+                                  <Check className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        {entities.filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase())).length === 0 && (
+                          <p className="text-[11px] text-[var(--bone-30)] text-center py-3">No pages found</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <input
+                placeholder="https://..."
+                value={newValue}
+                onChange={e => setNewValue(e.target.value)}
+                className="w-full bg-[var(--slider-track)] border border-[var(--bone-6)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
+              />
+            )}
+
+            <input
+              placeholder="Label (optional)"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              className="w-full bg-[var(--slider-track)] border border-[var(--bone-6)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
+            />
+
+            <div className="flex gap-2 justify-end pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdding(false);
+                  setEditingId(null);
+                  setNewLabel('');
+                  setNewValue('');
+                  setShowPageDropdown(false);
+                }}
+                className="px-2.5 py-1 text-[11px] font-semibold text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors cursor-pointer outline-none focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!newValue.trim()}
+                onClick={handleAdd}
+                className="h-6 text-[10px] px-4 font-semibold rounded-[var(--radius-small)] bg-[var(--bone-100)] text-[var(--app-background)] enabled:hover:bg-[var(--app-dark)] enabled:hover:text-[var(--bone-100)] transition-colors duration-200 outline-none focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1"
+              >
+                {!editingId && <Plus strokeWidth={2.5} className="w-3 h-3" />}
+                {editingId ? 'Save' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -205,10 +314,13 @@ interface ShortcutItemProps {
   onSelectEntity: (id: string) => void;
   onRemove: (id: string) => void;
   onEdit: (s: Shortcut) => void;
+  isDragging: boolean;
+  isDragOver: boolean;
+  dropNonce: number;
   dragProps: any;
 }
 
-function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, onEdit, dragProps }: ShortcutItemProps) {
+function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, onEdit, isDragging, isDragOver, dropNonce, dragProps }: ShortcutItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
@@ -257,7 +369,21 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
 
   if (isInternal) {
     const ent = entities.find(e => e.id === shortcut.value);
-    Icon = ent ? getEntityIcon(ent.icon) : FileText;
+    if (ent) {
+      if (ent.icon) {
+        Icon = getEntityIcon(ent.icon);
+      } else if (ent.type === 'note') {
+        Icon = File;
+      } else if (ent.type === 'canvas') {
+        Icon = Frame;
+      } else if (ent.type === 'mixed') {
+        Icon = Layers;
+      } else {
+        Icon = File;
+      }
+    } else {
+      Icon = File;
+    }
     displaySubtitle = 'Document';
   } else {
     try {
@@ -270,13 +396,36 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
     }
   }
 
+
+  const handleDragStartWithImage = (e: React.DragEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    const clone = target.cloneNode(true) as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    clone.style.cssText = [
+      `width:${rect.width}px`,
+      `height:${rect.height}px`,
+      'position:fixed',
+      'top:-9999px',
+      'left:-9999px',
+      'border-radius:10px',
+      'overflow:hidden',
+      'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(clone);
+    e.dataTransfer.setDragImage(clone, rect.width / 2, rect.height / 2);
+    requestAnimationFrame(() => document.body.removeChild(clone));
+    dragProps.onDragStart?.(e);
+  };
+
   return (
     <div
-      className="relative group/shortcut cursor-grab h-full"
+      className="relative group/shortcut h-full rounded-[10px] overflow-hidden cursor-grab"
       style={{ gridRow: `span ${rowSpan}` }}
       {...dragProps}
+      onDragStart={handleDragStartWithImage}
     >
       <button
+        key={dropNonce > 0 ? `drop-${dropNonce}` : shortcut.id}
         onClick={() => {
           if (isInternal) {
             onSelectEntity(shortcut.value);
@@ -285,27 +434,45 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
           }
         }}
         onContextMenu={handleContextMenu}
-        className="relative w-full h-full flex items-center gap-3 pl-4 pr-5 py-3 rounded-[10px] bg-[var(--bone-5)] hover:bg-[var(--app-dark)] active:bg-[var(--bone-10)] text-left cursor-pointer group transition-colors duration-200 ease-in-out"
-      >
-        {!isInternal && faviconUrl && !imgError ? (
-          <img
-            src={faviconUrl}
-            alt=""
-            className="w-6 h-6 object-contain shrink-0 rounded-sm"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <Icon className="w-6 h-6 text-[var(--bone-60)] group-hover/shortcut:text-[var(--bone-100)] shrink-0 transition-colors duration-200 ease-in-out" />
+        className={cn(
+          "w-full h-full flex flex-col items-start p-3 rounded-[10px] border text-left cursor-[inherit] group/item transition-colors duration-200 ease-in-out relative",
+          isDragging
+            ? "bg-[var(--app-dark)] border-transparent"
+            : isDragOver
+              ? "bg-[var(--app-dark)] border-[var(--bone-30)]"
+              : "bg-[var(--card-bg)] border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
+          dropNonce > 0 && "shortcut-drop-settle"
         )}
-        <div className="min-w-0 flex-1 leading-normal pr-4">
-          <span className="text-[12px] font-semibold text-[var(--bone-80)] group-hover/shortcut:text-[var(--bone-100)] truncate block">
-            {shortcut.label}
-          </span>
-          <span className="text-[10px] text-[var(--bone-40)] group-hover/shortcut:text-[var(--bone-60)] truncate block mt-0.5">
-            {displaySubtitle}
-          </span>
+      >
+        <div className="absolute top-3 right-3 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out">
+          {isInternal ? (
+            <ChevronRight strokeWidth={2} className="w-3.5 h-3.5" />
+          ) : (
+            <ExternalLink strokeWidth={2} className="w-3.5 h-3.5" />
+          )}
         </div>
-        <ExternalLink className="absolute right-5 top-1/2 w-3 h-3 text-[var(--bone-30)] opacity-0 -translate-x-1 -translate-y-1/2 group-hover/shortcut:opacity-100 group-hover/shortcut:translate-x-0 transition-[opacity,translate] duration-200 ease-in-out" />
+
+        <div className="opacity-40 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out text-[var(--bone-100)]">
+          {!isInternal && faviconUrl && !imgError ? (
+            <img
+              src={faviconUrl}
+              alt=""
+              className="w-5 h-5 object-contain rounded-sm"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <Icon strokeWidth={2} className="w-5 h-5" />
+          )}
+        </div>
+
+        <div className="min-w-0 w-full mt-2">
+          <div className="text-[12.5px] font-semibold leading-tight truncate text-[var(--bone-100)]">
+            {shortcut.label}
+          </div>
+          <div className="text-[10px] text-[var(--bone-30)] truncate mt-0.5">
+            {displaySubtitle}
+          </div>
+        </div>
       </button>
 
       {showMenu && createPortal(

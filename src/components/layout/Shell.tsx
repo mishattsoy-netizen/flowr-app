@@ -430,24 +430,35 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               : "relative z-40"
           )}
           style={{
-            width: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
-            transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+            width: isMobile ? undefined : `${currentRightPanelWidth}px`,
+            maxWidth: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
+            transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <div className={cn(
-            "h-full shrink-0 w-full",
+            "h-full shrink-0",
             isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
           )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-            {/* Task panel - pre-mounted, toggled with hidden class */}
-            <div className={cn("h-full w-full", !isTaskPanelVisible && "hidden")}>
-              <TaskInspectorPanel />
-            </div>
-            {/* AI panel - pre-mounted when active */}
-            {isAiPanelMounted && (
-              <div className={cn("h-full w-full", isTaskPanelVisible && "hidden")}>
-                <AIAssistant />
+            {/* Both panels occupy the same area via absolute positioning.
+                Content is always laid out at fixed width (never display:none)
+                so the outer wrapper's width transition reveals it without a
+                layout-then-transition race. visibility toggles which one shows. */}
+            <div className="relative h-full w-full">
+              <div
+                className="absolute inset-0"
+                style={{ visibility: isTaskPanelVisible ? 'visible' : 'hidden' }}
+              >
+                <TaskInspectorPanel />
               </div>
-            )}
+              {isAiPanelMounted && (
+                <div
+                  className="absolute inset-0"
+                  style={{ visibility: isTaskPanelVisible ? 'hidden' : 'visible' }}
+                >
+                  <AIAssistant />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

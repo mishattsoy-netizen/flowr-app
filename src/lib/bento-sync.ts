@@ -147,6 +147,34 @@ export async function loadBentoLayout(contextId: string): Promise<BentoLayout | 
   return parseAndMigrate(data.layout);
 }
 
+export function loadBentoLayoutSync(contextId: string): BentoLayout | null {
+  const localKey = `bento-layout-${contextId}`;
+
+  const parseAndMigrate = (json: any): BentoLayout => {
+    if (json && !Array.isArray(json) && 'items' in json) {
+      return {
+        items: migrateLegacyLayout(json.items),
+        rowHeights: json.rowHeights || DEFAULT_ROW_HEIGHTS
+      };
+    }
+    return {
+      items: migrateLegacyLayout(Array.isArray(json) ? json : []),
+      rowHeights: DEFAULT_ROW_HEIGHTS
+    };
+  };
+
+  if (typeof window === 'undefined') return null;
+  const local = localStorage.getItem(localKey);
+  if (!local) return null;
+  try {
+    const parsed = JSON.parse(local);
+    return parseAndMigrate(parsed);
+  } catch (e) {
+    return null;
+  }
+}
+
+
 export async function saveBentoLayout(contextId: string, items: BentoLayoutItem[], rowHeights: number[]): Promise<void> {
   const localKey = `bento-layout-${contextId}`;
   const layout = { items, rowHeights };

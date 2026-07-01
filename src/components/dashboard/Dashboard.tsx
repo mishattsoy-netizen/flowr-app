@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, Search, FileText, Frame, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, FileText, Frame, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore, Entity, EditorBlock } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { SmartTaskStackWidget } from '@/components/workspace/widgets/SmartTaskStackWidget';
 import { ShortcutsWidget } from '@/components/workspace/widgets/ShortcutsWidget';
-import { loadBentoLayout, saveBentoLayout } from '@/lib/bento-sync';
+import { loadBentoLayout, saveBentoLayout, loadBentoLayoutSync } from '@/lib/bento-sync';
 import { HorizontalOverlayScrollbar } from '@/components/tracker/HorizontalOverlayScrollbar';
 import type { BentoLayoutItem } from '@/components/bento/types';
 
@@ -21,18 +21,58 @@ function formatAge(ts: number) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-/** Strip HTML tags and markdown syntax from a string */
-function stripHtml(str: string): string {
+function decodeEntities(str: string): string {
   return str
-    .replace(/<[^>]+>/g, '')       // strip html tags
-    .replace(/\*\*(.+?)\*\*/g, '$1') // bold
-    .replace(/\*(.+?)\*/g, '$1')    // italic
-    .replace(/`(.+?)`/g, '$1')      // inline code
-    .replace(/\[(.+?)\]\(.+?\)/g, '$1') // links [text](url)
-    .replace(/^[-*+]\s+/, '')       // list markers
-    .replace(/^[0-9]+\.\s+/, '')    // numbered list markers
-    .replace(/^\[[ x]\]\s+/, '')    // checklist markers
-    .trim();
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
+
+/** Strip HTML tags, markdown syntax, and decode HTML entities */
+function stripHtml(str: string): string {
+  return decodeEntities(str
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^[0-9]+\.\s+/, '')
+    .replace(/^\[[ x]\]\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim());
+}
+
+/**
+ * Parse a block's HTML content into React nodes, rendering inline-link-btn
+ * anchors as underlined text spans and everything else as plain text.
+ */
+function parseInlineContent(html: string): React.ReactNode {
+  // Split on inline-link-btn anchors, capture their inner text
+  const parts = html.split(/(<a\b[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*>[\s\S]*?<\/a>)/gi);
+  if (parts.length === 1) {
+    // No inline links — plain text after entity decode
+    const plain = decodeEntities(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    return plain || null;
+  }
+  return parts.map((part, idx) => {
+    if (/inline-link-btn/i.test(part)) {
+      // Extract data-label or inner text
+      const labelMatch = part.match(/data-label="([^"]*)"/i);
+      const innerMatch = part.match(/>([^<]*)</);
+      const label = decodeEntities((labelMatch?.[1] || innerMatch?.[1] || 'link').trim());
+      if (!label) return null;
+      return (
+        <span key={idx} className="underline underline-offset-2 decoration-[var(--bone-30)] text-[var(--bone-50)]">
+          {label}
+        </span>
+      );
+    }
+    const plain = decodeEntities(part.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    return plain || null;
+  });
 }
 
 function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
@@ -40,20 +80,18 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
     return <span className="text-[11px] text-[var(--bone-30)] italic">No preview content</span>;
   }
 
-  // Flatten top-level blocks, skip canvas-only types, cap at 4 rows
   const previewBlocks = blocks
-    .filter(b => !['shape', 'frame', 'comment', 'connection', 'column'].includes(b.type))
-    .slice(0, 4);
+    .filter(b => !['shape', 'frame', 'comment', 'connection', 'column'].includes(b.type));
 
   const rows: React.ReactNode[] = previewBlocks.map((b, i) => {
     const text = stripHtml(b.content || '');
 
     switch (b.type) {
       case 'text': {
-        if (!text) return null;
-        // Detect heading by style or content starting with #
         const isH = b.style === 'title' || b.style === 'heading' || b.style === 'subheading';
         const isMono = b.style === 'mono';
+        const content = parseInlineContent(b.content || '');
+        if (!content) return null;
         return (
           <div key={i} className={cn(
             'truncate',
@@ -61,36 +99,42 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
             isMono ? 'font-mono text-[10px] text-[var(--bone-50)] bg-black/20 px-1.5 py-[1px] rounded' :
             'text-[11px] text-[var(--bone-60)]'
           )}>
-            {text}
+            {content}
           </div>
         );
       }
       case 'bulletList':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-[5px] h-[5px] rounded-full bg-[var(--bone-30)] flex-shrink-0" />
+            <span className="truncate">{text || '…'}</span>
+          </div>
+        );
       case 'dashedList':
         return (
-          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
-            <span className="mt-[3px] w-1 h-1 rounded-full bg-[var(--bone-30)] flex-shrink-0" />
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-[8px] h-[1.5px] bg-[var(--bone-30)] flex-shrink-0" />
             <span className="truncate">{text || '…'}</span>
           </div>
         );
       case 'numberedList':
         return (
-          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
             <span className="text-[var(--bone-30)] flex-shrink-0 font-mono">{i + 1}.</span>
             <span className="truncate">{text || '…'}</span>
           </div>
         );
       case 'checklist':
         return (
-          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-60)]">
-            <span className="mt-[2px] w-2.5 h-2.5 rounded-[2px] border border-[var(--bone-20)] flex-shrink-0" />
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-2.5 h-2.5 rounded-[2px] border border-[var(--bone-20)] flex-shrink-0 translate-y-[0.5px]" />
             <span className="truncate">{text || '…'}</span>
           </div>
         );
       case 'quote':
         return (
-          <div key={i} className="flex items-start gap-1.5 text-[11px] text-[var(--bone-50)] italic">
-            <div className="w-[2px] h-3 bg-[var(--bone-30)] rounded-full flex-shrink-0 mt-[1px]" />
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-50)] italic">
+            <div className="w-[2px] h-3 bg-[var(--bone-30)] rounded-full flex-shrink-0" />
             <span className="truncate">{text || '…'}</span>
           </div>
         );
@@ -110,15 +154,18 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
             <span>{b.type === 'image' ? 'Image' : 'Video'}</span>
           </div>
         );
-      case 'link':
+      case 'link': {
+        let label = '';
+        try { if (b.linkUrl) label = new URL(b.linkUrl).hostname; } catch {}
+        if (!label) label = stripHtml(b.content || '') || 'Link';
         return (
-          <div key={i} className="flex items-center gap-1 text-[11px] text-[var(--bone-40)] truncate">
-            <span className="text-[9px]">🔗</span>
-            <span className="truncate underline underline-offset-2">{text || 'Link'}</span>
-          </div>
+          <span key={i} className="truncate text-[11px] text-[var(--bone-50)] underline underline-offset-2 decoration-[var(--bone-30)]">
+            {label}
+          </span>
         );
+      }
       case 'divider':
-        return <div key={i} className="w-full h-[1px] bg-[var(--bone-6)] my-[1px]" />;
+        return <div key={i} className="w-full h-[1px] bg-[var(--bone-6)] my-[3px]" />;
       case 'columns':
         return (
           <div key={i} className="flex gap-1 w-full">
@@ -141,73 +188,17 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
   return <div className="flex flex-col gap-[5px] w-full">{rows}</div>;
 }
 
-function getNotePreviewData(entity: Entity) {
-  const bulletPoints: string[] = [];
-  let footerSentence = '';
-
-  if (!entity.content || !Array.isArray(entity.content)) {
-    return { bulletPoints, footerSentence };
-  }
-
-  const traverse = (blocks: EditorBlock[]) => {
-    for (const b of blocks) {
-      if (bulletPoints.length >= 4 && footerSentence) break;
-
-      if (['text', 'checklist', 'bulletList', 'dashedList', 'numberedList', 'quote'].includes(b.type) && b.content && b.content.trim()) {
-        const text = b.content.trim();
-        if (bulletPoints.length < 4) {
-          const cleanText = text.replace(/^[-*+]\s+|^\[[ x]\]\s+|^[0-9]+\.\s+/, '');
-          bulletPoints.push(cleanText);
-        } else if (!footerSentence) {
-          footerSentence = text;
-        }
-      }
-
-      if (b.children) {
-        traverse(b.children);
-      }
-    }
-  };
-
-  traverse(entity.content);
-  return { bulletPoints, footerSentence };
-}
-
-function getCanvasPreviewData(entity: Entity) {
-  const bulletPoints: string[] = [];
-  let footerSentence = '';
-
-  if (entity.content && Array.isArray(entity.content)) {
-    const textElements = entity.content
-      .filter(b => b.content && b.content.trim())
-      .map(b => b.content.trim());
-
-    for (let i = 0; i < Math.min(textElements.length, 4); i++) {
-      bulletPoints.push(textElements[i]);
-    }
-
-    if (textElements.length > 4) {
-      footerSentence = textElements[4];
-    } else {
-      footerSentence = `Board contains ${entity.content.length} elements.`;
-    }
-  } else {
-    footerSentence = 'Empty canvas board.';
-  }
-
-  return { bulletPoints, footerSentence };
-}
 
 function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
   const visualBlocks = canvasBlocks.filter(b => typeof b.x === 'number' && typeof b.y === 'number');
 
   if (visualBlocks.length === 0) {
     return (
-      <div className="relative w-full h-[90px] bg-black/15 border border-[var(--bone-6)] rounded overflow-hidden flex items-center justify-center">
+      <div className="relative w-full h-full bg-[color-mix(in_srgb,black_15%,var(--card-bg))] border border-[var(--bone-6)] rounded-md overflow-hidden flex items-center justify-center">
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.01]"
           style={{
-            backgroundImage: 'radial-gradient(var(--bone-100) 0.5px, transparent 0.5px)',
+            backgroundImage: 'linear-gradient(to right, var(--bone-100) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-100) 1px, transparent 1px)',
             backgroundSize: '8px 8px',
           }}
         />
@@ -231,18 +222,18 @@ function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
   const mapW = maxX - minX;
   const mapH = maxY - minY;
   const targetW = 248 - 12;
-  const targetH = 90 - 12;
+  const targetH = 120 - 12;
 
   const scale = Math.min(targetW / (mapW || 1), targetH / (mapH || 1), 0.15);
   const offsetX = 6 + (targetW - mapW * scale) / 2;
   const offsetY = 6 + (targetH - mapH * scale) / 2;
 
   return (
-    <div className="relative w-full h-[90px] bg-black/15 border border-[var(--bone-6)] rounded overflow-hidden">
+    <div className="relative w-full h-full bg-[color-mix(in_srgb,black_15%,var(--card-bg))] border border-[var(--bone-6)] rounded-md overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.01]"
         style={{
-          backgroundImage: 'radial-gradient(var(--bone-100) 0.5px, transparent 0.5px)',
+          backgroundImage: 'linear-gradient(to right, var(--bone-100) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-100) 1px, transparent 1px)',
           backgroundSize: '8px 8px',
         }}
       />
@@ -283,7 +274,19 @@ function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
 
 export function Dashboard() {
   const { user } = useAuth();
-  const displayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+  const cachedDisplayName = useStore(state => state.cachedDisplayName);
+  const setCachedDisplayName = useStore(state => state.setCachedDisplayName);
+  const displayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || cachedDisplayName || '';
+
+  useEffect(() => {
+    if (user) {
+      const name = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      if (name && name !== cachedDisplayName) {
+        setCachedDisplayName(name);
+      }
+    }
+  }, [user, cachedDisplayName, setCachedDisplayName]);
+
   const setCommandPaletteOpen = useStore(state => state.setCommandPaletteOpen);
   const openModal = useStore(state => state.openModal);
   const now = new Date();
@@ -297,60 +300,47 @@ export function Dashboard() {
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setActiveWorkspaceId = useStore(state => state.setActiveWorkspaceId);
   const isFullWidth = useStore(state => state.isFullWidth);
+  const [recentSort, setRecentSort] = useState<'opened' | 'edited'>('opened');
+  const [showSortPicker, setShowSortPicker] = useState(false);
 
   // Layout shortcuts state
-  const [dashboardLayout, setDashboardLayout] = useState<BentoLayoutItem[]>([]);
+  const [dashboardLayout, setDashboardLayout] = useState<BentoLayoutItem[]>(() => {
+    const cached = loadBentoLayoutSync('dashboard');
+    if (cached && cached.items) {
+      return cached.items;
+    }
+    return [
+      { i: 'dashboard-recent',         type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
+      { i: 'dashboard-tasks-today',    type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
+      { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
+    ];
+  });
   const [showPlusPopup, setShowPlusPopup] = useState(false);
   const plusPopupRef = useRef<HTMLDivElement>(null);
   const plusButtonRef = useRef<HTMLButtonElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const sortPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const cached = loadBentoLayoutSync('dashboard');
+    if (cached && cached.items) {
+      setDashboardLayout(cached.items);
+    } else {
+      setDashboardLayout([
+        { i: 'dashboard-recent',         type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
+        { i: 'dashboard-tasks-today',    type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
+        { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
+      ]);
+    }
+
     loadBentoLayout('dashboard').then(saved => {
       if (saved && saved.items) {
         setDashboardLayout(saved.items);
-      } else {
-        const defaults = [
-          { i: 'dashboard-recent',         type: 'recent',      row: 0, order: 0, w: 2, h: 4 },
-          { i: 'dashboard-tasks-today',    type: 'smart-tasks', row: 0, order: 1, w: 4, h: 2 },
-          { i: 'dashboard-shortcuts',      type: 'shortcuts',   row: 2, order: 0, w: 4, h: 2 },
-        ];
-        setDashboardLayout(defaults);
       }
     });
   }, []);
 
-  const shortcutsItem = useMemo(() => {
-    return dashboardLayout.find(it => it.type === 'shortcuts');
-  }, [dashboardLayout]);
 
-  const shortcutsData = useMemo(() => {
-    return shortcutsItem?.data || { shortcuts: [] };
-  }, [shortcutsItem]);
-
-  const handleUpdateShortcuts = (newData: any) => {
-    const updated = dashboardLayout.map(it => {
-      if (it.type === 'shortcuts') {
-        return { ...it, data: newData };
-      }
-      return it;
-    });
-
-    if (!dashboardLayout.some(it => it.type === 'shortcuts')) {
-      updated.push({
-        i: 'dashboard-shortcuts',
-        type: 'shortcuts',
-        row: 2,
-        order: 0,
-        w: 4,
-        h: 2,
-        data: newData
-      });
-    }
-
-    setDashboardLayout(updated);
-    saveBentoLayout('dashboard', updated, [6, 6, 6, 6]);
-  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -360,17 +350,24 @@ export function Dashboard() {
       ) {
         setShowPlusPopup(false);
       }
+      if (sortPickerRef.current && !sortPickerRef.current.contains(e.target as Node)) {
+        setShowSortPicker(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const recentEntities = useMemo(() => {
-    return recentEntityIds
+    const list = recentEntityIds
       .map(id => entities.find(e => e.id === id))
       .filter((e): e is Entity => !!e && (e.type === 'note' || e.type === 'canvas'))
       .slice(0, 10);
-  }, [recentEntityIds, entities]);
+    if (recentSort === 'edited') {
+      return [...list].sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
+    }
+    return list; // 'opened' order is preserved from recentEntityIds
+  }, [recentEntityIds, entities, recentSort]);
 
   const scrollSlider = (direction: 'left' | 'right') => {
     if (sliderRef.current) {
@@ -390,10 +387,10 @@ export function Dashboard() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-5 flex flex-col h-full bg-background select-none">
+    <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col h-full bg-background select-none items-center justify-center">
       <div className={cn("w-full flex flex-col gap-4 flex-grow", isFullWidth ? "w-full" : "max-w-[1200px] mx-auto")}>
         {/* Header */}
-        <header className="flex items-center justify-between py-2 border-b border-[var(--bone-6)] select-none">
+        <header className="flex items-center justify-between py-2 select-none h-16 shrink-0">
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-display font-medium text-foreground mb-0.5">
               Welcome back{displayName ? `, ${displayName}` : ''}
@@ -407,10 +404,10 @@ export function Dashboard() {
           <div className="flex-1 max-w-[280px] mx-4 relative">
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="w-full flex items-center gap-2 px-3 h-9 rounded-[var(--radius-medium)] border border-[var(--bone-10)] bg-[var(--bone-5)] text-muted-foreground hover:border-[var(--bone-20)] text-xs text-left transition-all duration-200"
+              className="group w-full flex items-center gap-2 px-3 h-9 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] text-[var(--bone-100)] text-xs text-left transition-all duration-200"
             >
-              <Search className="w-3.5 h-3.5 text-[var(--bone-30)]" />
-              <span>Search...</span>
+              <Search className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+              <span className="opacity-60 group-hover:opacity-100 transition-opacity">Search...</span>
             </button>
           </div>
 
@@ -419,21 +416,20 @@ export function Dashboard() {
             <button
               ref={plusButtonRef}
               onClick={() => setShowPlusPopup(!showPlusPopup)}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--bone-100)] hover:opacity-90 transition-opacity border-none shadow-none"
+              className="group w-9 h-9 flex items-center justify-center rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 shadow-none"
             >
-              <Plus className="w-5 h-5 text-dark" strokeWidth={2.5} />
+              <Plus className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={2} />
             </button>
 
             {/* Quick add popup */}
             {showPlusPopup && (
               <div
                 ref={plusPopupRef}
-                className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]"
+                className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
               >
                 {[
                   { type: 'note' as const, label: 'Note', icon: FileText },
                   { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-                  { type: 'mixed' as const, label: 'Mixed', icon: Layers }
                 ].map(opt => (
                   <button
                     key={opt.type}
@@ -441,10 +437,10 @@ export function Dashboard() {
                       openModal({ kind: 'newItem', initialType: opt.type, defaultToFirstCollection: true });
                       setShowPlusPopup(false);
                     }}
-                    className="popup-item group w-full flex items-center gap-2 px-3 py-[6px] text-sm text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-none text-left rounded-[var(--radius-small)]"
+                    className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
                   >
-                    <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-30)] group-hover:text-[var(--bone-100)]" />
-                    <span className="flex-1 font-medium tracking-wide">{opt.label}</span>
+                    <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
+                    <span className="flex-1 text-left font-medium tracking-wide">{opt.label}</span>
                   </button>
                 ))}
               </div>
@@ -456,35 +452,61 @@ export function Dashboard() {
         <section className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Recents</h2>
-            {recentEntities.length > 3 && (
-              <div className="flex items-center gap-1.5 no-drag select-none">
+            <div className="flex items-center gap-1.5 no-drag select-none">
+              {/* Sort picker */}
+              <div ref={sortPickerRef} className="relative">
                 <button
-                  onClick={() => scrollSlider('left')}
-                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] border border-[var(--bone-10)] hover:bg-[var(--bone-5)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
+                  onClick={() => setShowSortPicker(p => !p)}
+                  className="flex items-center gap-1 pl-3 pr-2 h-7 rounded-[var(--radius-small)] text-[11px] font-medium text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  {recentSort === 'opened' ? 'Last opened' : 'Last edited'}
+                  <ChevronDown className="w-3 h-3" />
                 </button>
-                <button
-                  onClick={() => scrollSlider('right')}
-                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] border border-[var(--bone-10)] hover:bg-[var(--bone-5)] text-[var(--bone-70)] hover:text-[var(--bone-100)] transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                {showSortPicker && (
+                  <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] p-1 flex flex-col gap-[2px]">
+                    {([['opened', 'Last opened'], ['edited', 'Last edited']] as const).map(([val, label]) => (
+                      <button
+                        key={val}
+                        onClick={() => { setRecentSort(val); setShowSortPicker(false); }}
+                        className={cn(
+                          "popup-item",
+                          recentSort === val && "text-[var(--bone-100)] bg-[var(--app-dark)]"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              {/* Scroll arrows */}
+              {recentEntities.length > 3 && (
+                <>
+                  <button
+                    onClick={() => scrollSlider('left')}
+                    className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => scrollSlider('right')}
+                    className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          <HorizontalOverlayScrollbar
-            scrollRef={node => { sliderRef.current = node; }}
-            scrollClassName="flex gap-4 pb-1.5 scroll-smooth pr-10"
-          >
-            {recentEntities.length > 0 ? (
-              recentEntities.map(entity => {
+          {recentEntities.length > 0 ? (
+            <HorizontalOverlayScrollbar
+              scrollRef={node => { sliderRef.current = node; }}
+              scrollClassName="flex gap-4 pb-1.5 pr-10"
+            >
+              {recentEntities.map(entity => {
                 const isNote = entity.type === 'note';
                 const Icon = isNote ? FileText : Frame;
-                const { bulletPoints, footerSentence } = isNote
-                  ? getNotePreviewData(entity)
-                  : getCanvasPreviewData(entity);
                 const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
                 const parentEntity = entity.parentId ? entities.find(e => e.id === entity.parentId) : null;
                 const locationLabel = parentEntity?.title || 'Unsorted';
@@ -493,49 +515,49 @@ export function Dashboard() {
                   <button
                     key={entity.id}
                     onClick={() => handleCardClick(entity)}
-                    className="flex-shrink-0 w-[280px] h-[185px] bg-[var(--bone-3)] border border-[var(--bone-10)] rounded-xl p-4 text-left flex flex-col justify-between hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer"
+                    className="group flex-shrink-0 w-[280px] h-[185px] bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
+                    style={{ paddingTop: '0.875rem', paddingLeft: '1rem', paddingRight: '1rem', paddingBottom: isNote ? 0 : '1rem' }}
                   >
-                    <div className="flex flex-col gap-3 w-full">
-                      {/* Card Header */}
-                      <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium">
-                        <div className="flex items-center gap-1.5">
-                          <Icon className="w-3.5 h-3.5 text-[var(--bone-30)]" />
-                          <span>{isNote ? 'Note' : 'Canvas'}</span>
-                          <span>·</span>
-                          <span className="truncate max-w-[85px]">{locationLabel}</span>
-                        </div>
-                        <span>{formatAge(entity.lastModified)}</span>
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium shrink-0 mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Icon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30" />
+                        <span>{isNote ? 'Note' : 'Canvas'}</span>
+                        <span>·</span>
+                        <span className="truncate max-w-[85px]">{locationLabel}</span>
                       </div>
+                      <span>{formatAge(entity.lastModified)}</span>
+                    </div>
 
-                      {/* Card Title */}
-                      <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1">
-                        {entity.title || 'Untitled'}
-                      </h3>
+                    {/* Card Title */}
+                    <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 shrink-0 mb-2.5">
+                      {entity.title || 'Untitled'}
+                    </h3>
 
-                      {/* Visual previews: semantic block renderer for notes, visual minimap for canvases */}
+                    {/* Preview — fills remaining space with fade-out */}
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
                       {isNote ? (
-                        <NoteBlockPreview blocks={(entity.content || []).filter(b => !['shape','frame','comment','connection','column'].includes(b.type)).slice(0,4)} />
+                        <NoteBlockPreview blocks={(entity.content || []).filter(b => !['shape','frame','comment','connection','column'].includes(b.type))} />
                       ) : (
                         <CanvasMiniPreview canvasBlocks={allBlocks.filter(b => b.canvasId === entity.id)} />
                       )}
+                      {isNote && (
+                        <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none bg-gradient-to-b from-transparent to-[var(--card-bg)] group-hover:to-[var(--app-dark)] transition-colors duration-200" />
+                      )}
                     </div>
 
-                    {/* Card Footer — only for notes */}
-                    {isNote && footerSentence && (
-                      <p className="text-[11px] text-[var(--bone-30)] truncate w-full pt-2 border-t border-[var(--bone-3)] font-sans">
-                        {footerSentence}
-                      </p>
-                    )}
                   </button>
                 );
-              })
-            ) : (
-              <div className="w-full h-[180px] flex flex-col items-center justify-center gap-2 border border-dashed border-[var(--bone-10)] rounded-[var(--radius-big)] text-center p-4">
-                <span className="text-sm font-semibold text-muted-foreground">No recent documents</span>
-                <span className="text-xs text-muted-foreground/60 max-w-[280px]">Your recently updated Notes and Canvases will appear here.</span>
+              })}
+            </HorizontalOverlayScrollbar>
+          ) : (
+            <div className="w-full h-[180px] flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+              <div className="text-center max-w-[320px]">
+                <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
+                <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases will appear here.</p>
               </div>
-            )}
-          </HorizontalOverlayScrollbar>
+            </div>
+          )}
           <div
             className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
             style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
@@ -543,7 +565,7 @@ export function Dashboard() {
         </section>
 
         {/* Bottom widgets grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow min-h-0 select-none pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow min-h-0 select-none">
           {/* Tasks (2/3 width) */}
           <div className="md:col-span-2 flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
@@ -558,10 +580,7 @@ export function Dashboard() {
           {/* Shortcuts (1/3 width) */}
           <div className="flex flex-col h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
-              <ShortcutsWidget
-                data={shortcutsData}
-                onUpdateData={handleUpdateShortcuts}
-              />
+              <ShortcutsWidget contextId="dashboard" />
             </div>
             <div
               className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"

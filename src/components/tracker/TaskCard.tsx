@@ -90,7 +90,7 @@ export function TaskCardUI({
           // Selected = persistent hover fill (no ring); otherwise plain with hover fill.
           : isSelected
             ? "bg-[var(--app-dark)] cursor-pointer active:cursor-grabbing"
-            : "bg-[var(--bone-3)] cursor-pointer active:cursor-grabbing hover:bg-[var(--app-dark)]",
+            : "bg-[var(--card-bg)] cursor-pointer active:cursor-grabbing hover:bg-[var(--app-dark)]",
         justDropped && "task-drop-settle"
       )}
     >

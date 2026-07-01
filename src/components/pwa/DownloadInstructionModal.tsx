@@ -28,20 +28,10 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
   const [mounted, setMounted] = useState(false);
-  const [noTransition, setNoTransition] = useState(true);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Suppress CSS transitions on first render so elements don't animate in
-  useEffect(() => {
-    if (mounted && open) {
-      const raf = requestAnimationFrame(() => setNoTransition(false));
-      return () => cancelAnimationFrame(raf);
-    }
-    setNoTransition(true);
-  }, [mounted, open]);
 
   // Reset state on open
   useEffect(() => {
@@ -194,15 +184,13 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay backdrop-blur-sm cursor-default"
       onClick={handleBackdropClick}
     >
       <div
         className={cn(
           "bg-panel border border-[var(--bone-12)] rounded-[1.5rem] p-7 w-[460px] shadow-2xl",
-          "transform",
-          noTransition ? "" : "transition-all duration-300",
-          visible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          "scale-100 opacity-100"
         )}
         onClick={e => e.stopPropagation()}
       >
@@ -213,8 +201,8 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
           className={cn(
             "absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300",
             minTimeElapsed
-              ? "text-[var(--bone-60)] hover:text-[var(--foreground)] hover:bg-[var(--bone-10)] cursor-pointer"
-              : "text-transparent cursor-default"
+              ? "text-[var(--foreground)] opacity-60 hover:opacity-100 hover:bg-[var(--app-dark)] cursor-pointer"
+              : "opacity-0 cursor-default"
           )}
         >
           <X strokeWidth={2} className="w-4 h-4" />
@@ -224,7 +212,7 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
         {platform === 'mac' ? macContent : windowsContent}
 
         {/* Progress bar / Checkbox section */}
-        <div className="mb-5 mt-4 min-h-[40px]">
+        <div className="mb-5 mt-4 min-h-[46px]">
           {!minTimeElapsed ? (
             <div className="py-1">
               <div className="max-w-[95%] mx-auto">
@@ -244,17 +232,14 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
             <div className="py-1">
               <div
                 onClick={handleCheckboxChange}
-                className="grid grid-cols-[36px_1fr] gap-3 items-center"
+                className="grid grid-cols-[36px_1fr] gap-3 items-center cursor-pointer"
               >
                 <div
                   className={cn(
-                    "w-5 h-5 rounded-md border-2 flex items-center justify-center justify-self-center",
-                    checked
-                      ? "bg-[var(--foreground)] border-[var(--foreground)] text-[var(--app-background)]"
-                      : "border-[var(--bone-30)]"
+                    "w-[18px] h-[18px] rounded-[4px] border flex items-center justify-center justify-self-center border-[var(--bone-30)] bg-[var(--bone-6)] hover:border-[var(--bone-70)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out"
                   )}
                 >
-                  {checked && <Check strokeWidth={3} className="w-3" />}
+                  {checked && <Check strokeWidth={3} className="w-[12px] h-[12px] text-[var(--bone-100)]" />}
                 </div>
                 <span className="text-sm leading-[1.35] tracking-wide text-[var(--foreground)]">
                   I&apos;ve read the instructions and understand why the warning appears
@@ -271,12 +256,12 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
           className={cn(
             "w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-medium text-sm transition-all duration-200",
             checked
-              ? "bg-[var(--foreground)] text-[var(--app-background)] hover:opacity-80"
-              : "bg-[var(--bone-6)] text-[var(--bone-30)] cursor-not-allowed"
+              ? "bg-[var(--foreground)] text-[var(--app-background)] hover:bg-[var(--app-dark)] hover:text-[var(--foreground)]"
+              : "bg-[var(--bone-10)] text-[var(--foreground)] opacity-30 cursor-not-allowed"
           )}
         >
           <Download strokeWidth={2} className="w-4 h-4" />
-          Start Download
+          Download
         </button>
       </div>
     </div>

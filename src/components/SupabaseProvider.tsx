@@ -130,6 +130,18 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       // 3. Merge cloud + local data
       mergeCloudData(data);
 
+      // 4. Restore cross-device recent items (prefer cloud if it has more entries)
+      if (Array.isArray(data.settings?.recentEntityIds)) {
+        const cloudRecent: string[] = data.settings.recentEntityIds;
+        const localRecent = useStore.getState().recentEntityIds;
+        // Merge: cloud items first (most recently opened across devices), then local-only ids
+        const merged = [...cloudRecent];
+        for (const id of localRecent) {
+          if (!merged.includes(id)) merged.push(id);
+        }
+        useStore.getState().setRecentEntityIds(merged.slice(0, 10));
+      }
+
       useStore.getState().setInitialSync(false);
     }).catch(err => {
       console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);

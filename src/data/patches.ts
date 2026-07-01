@@ -21,6 +21,44 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.0.8',
+    build: '1008',
+    date: '2026-07-01',
+    title: 'Smarter Shortcuts, Crisper Note Previews & Cross-Device Recents',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Your shortcuts are now remembered — pin your favorite pages and links once and they stay put instead of disappearing on reload.',
+          'You can rearrange shortcuts by dragging them, with a smooth little animation when you drop one in place.',
+          'When adding a shortcut to a page, you can now search for the page by typing its name instead of scrolling through a long list.',
+          'The shortcuts grid now grows neatly to fit more items, so your board stays tidy as you add more.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Note previews on your dashboard now show links and text the way they actually look — cleaner, more readable, and no more weird stray symbols.',
+          'Your recently opened pages now follow you across devices, so switching computers keeps your shortcuts and recents right where you left them.',
+          'The little highlight bar that slides between tabs no longer flashes or jumps when you open a page — it waits until it knows where to go.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed a glitch where some sidebar and widget icons looked like they had a doubled, fuzzy outline — they\'re now crisp and clean.',
+          'Fixed your name briefly showing as "Guest" in the sidebar for a moment when the app loads.'
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          'Refreshed the app\'s accent color and card backgrounds for a tighter, more consistent look in both light and dark mode.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.0.7',
     build: '1007',
     date: '2026-06-30',

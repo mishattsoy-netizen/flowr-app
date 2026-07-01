@@ -79,7 +79,19 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const addEntity = useStore(state => state.addEntity);
 
   const { user, signOut } = useAuth();
-  const sidebarDisplayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest';
+  const cachedDisplayName = useStore(state => state.cachedDisplayName);
+  const setCachedDisplayName = useStore(state => state.setCachedDisplayName);
+  const sidebarDisplayName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || cachedDisplayName || 'Guest';
+
+  useEffect(() => {
+    if (user) {
+      const name = user.user_metadata?.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
+      if (name && name !== cachedDisplayName) {
+        setCachedDisplayName(name);
+      }
+    }
+  }, [user, cachedDisplayName, setCachedDisplayName]);
+
   const sidebarInitial = sidebarDisplayName.charAt(0).toUpperCase();
   const sidebarAvatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || '';
 
@@ -1132,8 +1144,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         openContextMenu('pinned', rect.right, rect.top, 'sidebar-section');
                                       }}
                                       className={cn(
-                                        "btn-sidebar-utility text-[var(--bone-30)] hover:text-[var(--bone-100)]",
-                                        contextMenu?.entityId === 'pinned' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                                        "btn-sidebar-utility text-[var(--bone-100)] opacity-30 hover:opacity-100",
+                                        contextMenu?.entityId === 'pinned' && "!bg-dark !opacity-100"
                                       )}
                                     >
                                       <Settings2 strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
@@ -1443,7 +1455,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             {[
               { type: 'note' as const, label: 'Note', icon: FileText },
               { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-              { type: 'mixed' as const, label: 'Mixed', icon: Layers }
             ].map(opt => (
               <button
                 key={opt.type}
@@ -1461,7 +1472,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 }}
                 className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
               >
-                <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                 <span className="flex-1 text-left font-medium tracking-wide">{opt.label}</span>
               </button>
             ))}
@@ -1489,7 +1500,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               }}
               className="popup-item !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
             >
-              <Settings strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+              <Settings strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
               <span className="flex-1 text-left font-medium tracking-wide">Settings</span>
             </button>
 
@@ -1502,12 +1513,12 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             >
               {theme === 'dark' ? (
                 <>
-                  <Sun strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <Sun strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Light Mode</span>
                 </>
               ) : (
                 <>
-                  <Moon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <Moon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Dark Mode</span>
                 </>
               )}
@@ -1524,7 +1535,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                   }}
                   className="popup-item !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
                 >
-                  <RefreshCw strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <RefreshCw strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Check for Updates</span>
                 </button>
                 <div className="h-px bg-[var(--bone-6)] my-[3px]" />
