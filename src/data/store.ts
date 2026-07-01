@@ -186,7 +186,11 @@ export const useStore = create<AppState>()(
 
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
-      setSyncMode: (entityId, mode) => {
+      setSyncMode: async (entityId, mode) => {
+        const prevEntity = get().entities.find(e => e.id === entityId);
+        const switchingToCloudOnly = mode === 'cloud-only' &&
+          prevEntity && (prevEntity.syncMode === 'local-only' || prevEntity.syncMode === 'full-sync');
+
         set(s => ({
           entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
           workspaces: s.workspaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
@@ -200,6 +204,20 @@ export const useStore = create<AppState>()(
           import('@/lib/persistence').then(({ saveEntity }) => {
             saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
           });
+        }
+
+        if (switchingToCloudOnly && entity && isDesktop()) {
+          const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
+          const vault = await getVaultPath();
+          if (vault) {
+            const filePath = await findLocalFileForEntity(vault, entity);
+            if (filePath) {
+              get().openModal({
+                kind: 'syncFileCleanup',
+                files: [{ path: filePath, entityId: entity.id, entityTitle: entity.title, recognized: true }],
+              });
+            }
+          }
         }
       },
       setLastSaved: (time) => set({ lastSaved: time }),

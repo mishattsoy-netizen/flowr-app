@@ -243,7 +243,8 @@ export type ModalType =
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
-  | { kind: 'summaryPreview'; summary: string };
+  | { kind: 'summaryPreview'; summary: string }
+  | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> };
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
 
@@ -624,7 +625,7 @@ export interface AppState {
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;
-  setSyncMode: (entityId: string, mode: SyncMode) => void;
+  setSyncMode: (entityId: string, mode: SyncMode) => Promise<void>;
   setLastSaved: (time: number | null) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;

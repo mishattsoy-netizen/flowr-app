@@ -15,6 +15,7 @@ import { MediaViewerModal } from '../modals/MediaViewerModal';
 import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
 import { VaultSetupModal } from '../modals/VaultSetupModal';
+import { SyncFileCleanupModal } from '../modals/SyncFileCleanupModal';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
@@ -492,6 +493,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <SummaryPreviewModal key="summary-preview" />
         <CommandPalette key="command-palette" />
         <VaultSetupModal key="vault-setup" />
+        <SyncFileCleanupModal key="sync-file-cleanup" />
 
 
 
