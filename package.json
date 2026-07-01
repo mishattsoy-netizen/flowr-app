@@ -112,7 +112,10 @@
       "artifactName": "Flowr-Setup.${ext}"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "artifactName": "Flowr.${ext}"
     },
     "linux": {

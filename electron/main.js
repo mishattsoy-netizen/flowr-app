@@ -24,6 +24,13 @@ try {
 process.on('uncaughtException', (err) => {
   const msg = err && (err.stack || err.message);
   try { fs.appendFileSync(earlyCrashLog, `[FATAL ${Date.now()}] ${msg}\n`); } catch (_) {}
+  
+  // Do not crash on autoUpdater/electron-updater errors
+  if (msg && (msg.includes('electron-updater') || msg.includes('MacUpdater') || msg.includes('AppUpdater'))) {
+    debugLog('[UPDATER SILENT ERROR] Ignored fatal updater crash:', msg);
+    return;
+  }
+
   dialog.showErrorBox('Flowr Fatal Error', msg || String(err));
   app.quit();
 });
@@ -31,6 +38,13 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   const msg = (reason && (reason.stack || reason.message)) || String(reason);
   try { fs.appendFileSync(earlyCrashLog, `[FATAL ${Date.now()}] UNHANDLED: ${msg}\n`); } catch (_) {}
+  
+  // Do not crash on autoUpdater/electron-updater errors
+  if (msg && (msg.includes('electron-updater') || msg.includes('MacUpdater') || msg.includes('AppUpdater'))) {
+    debugLog('[UPDATER SILENT ERROR] Ignored fatal updater rejection:', msg);
+    return;
+  }
+
   dialog.showErrorBox('Flowr Fatal Error', msg);
   app.quit();
 });
