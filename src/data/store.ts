@@ -46,7 +46,7 @@ import type {
 
 
 import {
-  generateId, getDescendantIds, validateNoteContent,
+  generateId, getDescendantIds, findWorkspaceRoot, validateNoteContent,
   robustParseJSON, markdownToBlocks, blocksToMarkdown
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
@@ -187,36 +187,51 @@ export const useStore = create<AppState>()(
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
       setSyncMode: async (entityId, mode) => {
-        const prevEntity = get().entities.find(e => e.id === entityId);
-        const switchingToCloudOnly = mode === 'cloud-only' &&
-          prevEntity && (prevEntity.syncMode === 'local-only' || prevEntity.syncMode === 'full-sync');
+        const cascadeIds = getDescendantIds(get().entities, entityId);
+
+        const prevEntitiesById = new Map(get().entities.map(e => [e.id, e]));
+        const targetIds = new Set([entityId, ...cascadeIds]);
+
+        const leavingLocalIds = Array.from(targetIds).filter(id => {
+          const prev = prevEntitiesById.get(id);
+          return mode === 'cloud-only' && prev && (prev.syncMode === 'local-only' || prev.syncMode === 'full-sync');
+        });
 
         set(s => ({
-          entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
+          entities: s.entities.map(e => targetIds.has(e.id) ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
           workspaces: s.workspaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
         }));
+
         const ws = get().workspaces.find(w => w.id === entityId);
         if (ws) {
           upsertWorkspace(ws);
         }
-        const entity = get().entities.find(e => e.id === entityId);
-        if (entity) {
-          import('@/lib/persistence').then(({ saveEntity }) => {
+
+        const { saveEntity } = await import('@/lib/persistence');
+        const freshEntities = get().entities;
+        for (const id of targetIds) {
+          const entity = freshEntities.find(e => e.id === id);
+          if (entity) {
             saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
-          });
+          }
         }
 
-        if (switchingToCloudOnly && entity && isDesktop()) {
+        if (leavingLocalIds.length > 0 && isDesktop()) {
           const { getVaultPath, findLocalFileForEntity, clearKeptFileForEntity } = await import('@/lib/syncFileScan');
-          clearKeptFileForEntity(entity.id);
           const vault = await getVaultPath();
           if (vault) {
-            const filePath = await findLocalFileForEntity(vault, entity);
-            if (filePath) {
-              get().openModal({
-                kind: 'syncFileCleanup',
-                files: [{ path: filePath, entityId: entity.id, entityTitle: entity.title, recognized: true }],
-              });
+            const flaggedFiles: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> = [];
+            for (const id of leavingLocalIds) {
+              const entity = freshEntities.find(e => e.id === id);
+              if (!entity) continue;
+              clearKeptFileForEntity(entity.id);
+              const filePath = await findLocalFileForEntity(vault, entity);
+              if (filePath) {
+                flaggedFiles.push({ path: filePath, entityId: entity.id, entityTitle: entity.title, recognized: true });
+              }
+            }
+            if (flaggedFiles.length > 0) {
+              get().openModal({ kind: 'syncFileCleanup', files: flaggedFiles });
             }
           }
         }
@@ -639,6 +654,7 @@ export const useStore = create<AppState>()(
             image_description: m.image_description,
             image_prompt: m.image_prompt,
             attachments: m.attachments,
+            citations: (m as any).citations,
           }));
           set(s => ({
             activeChatId: id,
@@ -1238,7 +1254,7 @@ export const useStore = create<AppState>()(
             }
             // Persist assistant reply
             if (activeChatId && !isTemp && accumulatedContent) {
-              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
+              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
               // Auto-set title from first message if still default
               const conv = get().chatConversations.find(c => c.id === activeChatId);
               if (conv && conv.title === 'New Chat' && content) {
@@ -1706,20 +1722,11 @@ export const useStore = create<AppState>()(
         const isRootOnly = entity.type === 'workspace' || entity.type === 'collection';
         const finalParentId = isRootOnly ? null : (entity.parentId ?? null);
 
-        // Inherit cloudSyncEnabled default from parent or active space config
-        const parentEntity = entity.parentId ? get().entities.find(e => e.id === entity.parentId) : null;
-        let defaultSyncMode: import('./store.types').SyncMode = 'cloud-only';
-        if (parentEntity) {
-          if (parentEntity.syncMode === 'local-only') {
-            defaultSyncMode = 'local-only';
-          }
-        } else {
-          const wsId = entity.workspaceId || activeWorkspaceId;
-          const ws = get().workspaces.find(w => w.id === wsId);
-          if (ws && ws.syncMode === 'local-only') {
-            defaultSyncMode = 'local-only';
-          }
-        }
+        // Inherit sync mode from the entity's nearest ancestor workspace/collection
+        // root — NOT from Entity.workspaceId, which is an account-level id shared
+        // by every entity in the same account regardless of sidebar workspace.
+        const workspaceRoot = findWorkspaceRoot(get().entities, entity.parentId ?? null);
+        const defaultSyncMode: import('./store.types').SyncMode = workspaceRoot ? workspaceRoot.syncMode : 'cloud-only';
 
         const finalEntity = {
           ...entity,
@@ -1748,6 +1755,16 @@ export const useStore = create<AppState>()(
       },
 
       moveEntity: (id, newParentId, newWorkspaceId) => {
+        const state = get();
+        const prevEntity = state.entities.find(e => e.id === id);
+        const isRootOnlyPrev = prevEntity && (prevEntity.type === 'workspace' || prevEntity.type === 'collection');
+        const finalParentIdForLookup = isRootOnlyPrev ? null : newParentId;
+
+        const prevRoot = prevEntity ? findWorkspaceRoot(state.entities, prevEntity.parentId ?? null) : null;
+        const nextRoot = findWorkspaceRoot(state.entities, finalParentIdForLookup);
+        const rootChanged = (prevRoot?.id ?? null) !== (nextRoot?.id ?? null);
+        const destinationSyncMode = rootChanged ? (nextRoot ? nextRoot.syncMode : undefined) : undefined;
+
         set((state) => ({
           entities: state.entities.map(e => {
             if (e.id !== id) return e;
@@ -1760,6 +1777,7 @@ export const useStore = create<AppState>()(
               ...e,
               parentId: finalParentId,
               workspaceId: newWorkspaceId !== undefined ? newWorkspaceId : e.workspaceId,
+              syncMode: destinationSyncMode ?? e.syncMode,
               lastModified: Date.now()
             };
           })

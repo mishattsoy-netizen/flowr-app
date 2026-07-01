@@ -16,12 +16,21 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
 }
 
 /**
- * Every entity belonging to a workspace, found by workspaceId membership
- * (not parentId tree-walking — root-level entities have parentId: null but
- * still carry the owning workspaceId directly).
+ * Walks parentId upward from an entity to find its nearest ancestor of type
+ * 'workspace' or 'collection' — the sidebar-workspace root that entity lives
+ * under. These roots are always top-level (parentId: null), so the walk
+ * terminates there. Returns null if no such ancestor exists (e.g. the entity
+ * itself is a root, or is orphaned).
  */
-export function getWorkspaceEntityIds(entities: Entity[], workspaceId: string): string[] {
-  return entities.filter(e => e.workspaceId === workspaceId).map(e => e.id);
+export function findWorkspaceRoot(entities: Entity[], startParentId: string | null): Entity | null {
+  let current = startParentId ? entities.find(e => e.id === startParentId) : null;
+  while (current) {
+    if (current.type === 'workspace' || current.type === 'collection') {
+      return current;
+    }
+    current = current.parentId ? entities.find(e => e.id === current.parentId) : null;
+  }
+  return null;
 }
 
 import { inlineMarkdownToHtml } from '@/lib/utils/markdownToBlocks';
