@@ -15,6 +15,15 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
   return ids;
 }
 
+/**
+ * Every entity belonging to a workspace, found by workspaceId membership
+ * (not parentId tree-walking — root-level entities have parentId: null but
+ * still carry the owning workspaceId directly).
+ */
+export function getWorkspaceEntityIds(entities: Entity[], workspaceId: string): string[] {
+  return entities.filter(e => e.workspaceId === workspaceId).map(e => e.id);
+}
+
 import { inlineMarkdownToHtml } from '@/lib/utils/markdownToBlocks';
 
 export function markdownToBlocks(markdown: string): EditorBlock[] {
