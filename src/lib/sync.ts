@@ -354,6 +354,7 @@ type StoreSetters = {
   getTasks:      () => AppTask[];
   setWorkspaces: (workspaces: Workspace[]) => void;
   getWorkspaces: () => Workspace[];
+  setShortcutsState: (shortcuts: Record<string, any>) => void;
 };
 
 export function subscribeRealtime(store: StoreSetters) {
@@ -361,6 +362,35 @@ export function subscribeRealtime(store: StoreSetters) {
 
   const channel = supabase
     .channel('flowr-realtime')
+
+    // ── settings ──
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'settings' },
+      ({ new: row }: any) => {
+        if (row && row.key === 'shortcuts' && row.value) {
+          store.setShortcutsState(row.value);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'settings' },
+      ({ new: row }: any) => {
+        if (row && row.key === 'shortcuts' && row.value) {
+          store.setShortcutsState(row.value);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'settings' },
+      ({ old: row }: any) => {
+        if (row && (row as any).key === 'shortcuts') {
+          store.setShortcutsState({});
+        }
+      }
+    )
 
     // ── entities ──
     .on(

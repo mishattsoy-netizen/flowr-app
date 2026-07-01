@@ -85,6 +85,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const setEntities = useStore(s => s.setEntities);
   const setTasks = useStore(s => s.setTasks);
   const setWorkspaces = useStore(s => s.setWorkspaces);
+  const setShortcutsState = useStore(s => s.setShortcutsState);
 
   const getEntities = () => useStore.getState().entities;
   const getTasks = () => useStore.getState().tasks;
@@ -158,6 +159,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       setEntities, getEntities,
       setTasks, getTasks,
       setWorkspaces, getWorkspaces,
+      setShortcutsState,
     });
 
     // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
