@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useStore } from '@/data/store';
 import { AlertTriangle } from 'lucide-react';
-import { deleteVaultFile } from '@/lib/syncFileScan';
+import { deleteVaultFile, markFilesKeptByUser } from '@/lib/syncFileScan';
 
 export function SyncFileCleanupModal() {
   const { modal, closeModal } = useStore();
@@ -13,10 +13,15 @@ export function SyncFileCleanupModal() {
 
   const { files } = modal;
 
-  const handleResolve = async (deletePaths: string[]) => {
+  const handleKeep = () => {
+    markFilesKeptByUser(files);
+    closeModal();
+  };
+
+  const handleDelete = async () => {
     setPending(true);
     try {
-      await Promise.all(deletePaths.map(p => deleteVaultFile(p)));
+      await Promise.all(files.map(f => deleteVaultFile(f.path)));
     } catch (err) {
       console.error('[SyncFileCleanupModal] failed to delete file(s):', err);
     } finally {
@@ -31,8 +36,8 @@ export function SyncFileCleanupModal() {
     : `"${files[0].entityTitle}" is now cloud-only`;
 
   const description = isBatch
-    ? `These items are cloud-only but still have local copies on disk. Choose whether to delete or keep each local copy.`
-    : `A local copy of this file still exists on disk. You can delete it or keep it as an offline snapshot — it will not be updated while the item stays cloud-only.`;
+    ? `These items are cloud-only but still have local copies on disk. You can delete all of these local copies, or keep all of them as offline snapshots — they won't be flagged again.`
+    : `A local copy of this file still exists on disk. You can delete it or keep it as an offline snapshot — it will not be updated while the item stays cloud-only, and you won't be asked about it again.`;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay" onClick={closeModal}>
@@ -64,14 +69,14 @@ export function SyncFileCleanupModal() {
         <div className="flex items-center justify-end gap-3">
           <button
             disabled={pending}
-            onClick={() => handleResolve([])}
+            onClick={handleKeep}
             className="px-4 py-2 border border-[var(--bone-6)] text-sm rounded-full text-muted-foreground hover:text-foreground hover:bg-hover disabled:opacity-50"
           >
             Keep local {isBatch ? 'copies' : 'copy'}
           </button>
           <button
             disabled={pending}
-            onClick={() => handleResolve(files.map(f => f.path))}
+            onClick={handleDelete}
             className="px-4 py-2 text-sm rounded-full bg-danger hover:bg-danger/80 text-white font-medium disabled:opacity-50"
           >
             Delete local {isBatch ? 'copies' : 'copy'}

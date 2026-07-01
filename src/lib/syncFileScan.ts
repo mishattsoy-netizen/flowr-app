@@ -76,4 +76,43 @@ export async function deleteVaultFile(path: string): Promise<void> {
   await flowrFS.deleteFile(path);
 }
 
+const KEPT_FILES_STORAGE_KEY = 'flowr_kept_local_files';
+
+/**
+ * Files the user explicitly chose to keep via the SyncFileCleanupModal
+ * ("Keep local copy"), keyed by entity id for recognized files or by vault
+ * path for unrecognized ones. Persisted so the startup scan and mode-switch
+ * check stop re-flagging the same file on every launch.
+ */
+function getKeptFileKeys(): Set<string> {
+  try {
+    const raw = localStorage.getItem(KEPT_FILES_STORAGE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function keyForFlaggedFile(file: { path: string; entityId: string; recognized: boolean }): string {
+  return file.recognized ? `entity:${file.entityId}` : `path:${file.path}`;
+}
+
+export function isFileKeptByUser(file: { path: string; entityId: string; recognized: boolean }): boolean {
+  return getKeptFileKeys().has(keyForFlaggedFile(file));
+}
+
+export function markFilesKeptByUser(files: Array<{ path: string; entityId: string; recognized: boolean }>): void {
+  const keys = getKeptFileKeys();
+  for (const file of files) keys.add(keyForFlaggedFile(file));
+  localStorage.setItem(KEPT_FILES_STORAGE_KEY, JSON.stringify(Array.from(keys)));
+}
+
+/** Clears a previously-recorded "keep" decision for an entity, e.g. when it's switched
+ * back to cloud-only again and should be re-asked about fresh. */
+export function clearKeptFileForEntity(entityId: string): void {
+  const keys = getKeptFileKeys();
+  keys.delete(`entity:${entityId}`);
+  localStorage.setItem(KEPT_FILES_STORAGE_KEY, JSON.stringify(Array.from(keys)));
+}
+
 export { getVaultPath };

@@ -85,7 +85,7 @@ async function scanForStaleLocalFiles() {
   const { isDesktop } = await import('@/lib/env');
   if (!isDesktop()) return;
 
-  const { getVaultPath, listVaultFiles } = await import('@/lib/syncFileScan');
+  const { getVaultPath, listVaultFiles, isFileKeptByUser } = await import('@/lib/syncFileScan');
   const vault = await getVaultPath();
   if (!vault) return;
 
@@ -100,9 +100,11 @@ async function scanForStaleLocalFiles() {
   for (const file of files) {
     const entity = entityById.get(file.parsed.id);
     if (!entity) {
-      flagged.push({ path: file.path, entityId: file.parsed.id, entityTitle: file.fileName, recognized: false });
+      const candidate = { path: file.path, entityId: file.parsed.id, entityTitle: file.fileName, recognized: false };
+      if (!isFileKeptByUser(candidate)) flagged.push(candidate);
     } else if (entity.syncMode === 'cloud-only') {
-      flagged.push({ path: file.path, entityId: entity.id, entityTitle: entity.title, recognized: true });
+      const candidate = { path: file.path, entityId: entity.id, entityTitle: entity.title, recognized: true };
+      if (!isFileKeptByUser(candidate)) flagged.push(candidate);
     }
   }
 

@@ -207,7 +207,8 @@ export const useStore = create<AppState>()(
         }
 
         if (switchingToCloudOnly && entity && isDesktop()) {
-          const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
+          const { getVaultPath, findLocalFileForEntity, clearKeptFileForEntity } = await import('@/lib/syncFileScan');
+          clearKeptFileForEntity(entity.id);
           const vault = await getVaultPath();
           if (vault) {
             const filePath = await findLocalFileForEntity(vault, entity);
