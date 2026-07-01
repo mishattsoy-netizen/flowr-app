@@ -27,6 +27,7 @@ export function CommandPalette() {
   const entities = useStore(s => s.entities);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
   const openModal = useStore(s => s.openModal);
+  const openTaskPanel = useStore(s => s.openTaskPanel);
   const addEntity = useStore(s => s.addEntity);
   const setAIAssistantOpen = useStore(s => s.setAIAssistantOpen);
   const sendAIMessage = useStore(s => s.sendAIMessage);
@@ -153,7 +154,7 @@ export function CommandPalette() {
       description: 'Open task creation window',
       icon: <ListTodo strokeWidth={2} className="w-4 h-4" />,
       shortcut: '/task',
-      action: () => { openModal({ kind: 'newTask' }); close(); }
+      action: () => { openTaskPanel(generateId()); close(); }
     },
     {
       id: 'settings',
@@ -171,7 +172,7 @@ export function CommandPalette() {
       shortcut: '/dashboard',
       action: () => { setActiveEntityId('dashboard'); close(); }
     },
-  ], [addEntity, setActiveEntityId, openModal, close]);
+  ], [addEntity, setActiveEntityId, openModal, openTaskPanel, close]);
 
   const filteredCommands = useMemo(() => {
     if (!isCommandMode) return [];

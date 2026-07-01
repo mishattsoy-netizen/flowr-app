@@ -3,7 +3,7 @@
 import { useStore, generateId } from '@/data/store';
 import type { SubTask } from '@/data/store.types';
 import { X, Plus, Trash2, CheckSquare, AlertCircle, Folder, Check, CircleDot, Tag, FileText, ChevronDown, Calendar } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { DatePickerTime } from '@/components/ui/date-time-picker';
 import { getEntityIcon } from '@/data/icons';
@@ -400,7 +400,13 @@ export function TaskInspectorPanel() {
   const activeTaskId = useStore(s => s.activeTaskId);
   const closeTaskPanel = useStore(s => s.closeTaskPanel);
 
-  if (!activeTaskId) return null;
+  // Keep last non-null taskId so TaskPanelContent stays mounted across opens.
+  // This turns re-opens into cheap updates instead of expensive full mounts.
+  // Never return null — the wrapper must always be in the DOM so the first
+  // open doesn't trigger a mount during the transition (that blocks the thread).
+  const stableTaskIdRef = useRef<string | null>(null);
+  if (activeTaskId) stableTaskIdRef.current = activeTaskId;
+  const stableTaskId = stableTaskIdRef.current;
 
   return (
     <div className="h-full w-full flex flex-col bg-sidebar overflow-hidden">
@@ -413,9 +419,10 @@ export function TaskInspectorPanel() {
         </button>
       </div>
 
-      {/* Task Form */}
+      {/* Task Form — always mounted so first open doesn't pay a mount cost mid-transition.
+          '__placeholder__' resolves to no task (empty state) until a real id is set. */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <TaskPanelContent taskId={activeTaskId} closePanel={closeTaskPanel} />
+        <TaskPanelContent taskId={stableTaskId || '__placeholder__'} closePanel={closeTaskPanel} />
       </div>
     </div>
   );

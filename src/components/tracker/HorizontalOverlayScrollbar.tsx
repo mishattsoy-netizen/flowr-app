@@ -136,7 +136,7 @@ export function HorizontalOverlayScrollbar({
   const onScrollProp = scrollProps?.onScroll as ((e: React.UIEvent<HTMLDivElement>) => void) | undefined;
 
   return (
-    <div className={cn('relative min-w-0 flex-1 flex flex-col', className)}>
+    <div className={cn('relative min-w-0 min-h-0 flex-1 flex flex-col', className)}>
       <div
         {...scrollProps}
         ref={setRef}

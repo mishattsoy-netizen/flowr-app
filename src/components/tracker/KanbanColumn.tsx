@@ -1,6 +1,6 @@
 "use client";
 
-import { AppTask, useStore } from '@/data/store';
+import { AppTask, useStore, generateId } from '@/data/store';
 import { TaskCard } from './TaskCard';
 import { OverlayScrollbar } from './OverlayScrollbar';
 import React, { useState, useRef, useEffect } from 'react';
@@ -221,7 +221,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
           )}
 
           <button
-            onClick={() => useStore.getState().openModal({ kind: 'newTask', sourceColumn: id })}
+            onClick={() => useStore.getState().openTaskPanel(generateId())}
             className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />

@@ -10,7 +10,6 @@ import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 import { MoveToModal } from '../modals/MoveToModal';
 import { RenameModal } from '../modals/RenameModal';
 import { NewItemModal } from '../modals/NewItemModal';
-import { NewTaskModal } from '../modals/NewTaskModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { MediaViewerModal } from '../modals/MediaViewerModal';
 import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
@@ -46,7 +45,6 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const isTaskPanelOpen = useStore(state => state.isTaskPanelOpen);
-  const activeTaskId = useStore(state => state.activeTaskId);
   const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
   const isInternalNavRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -209,7 +207,9 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
     let w: number;
     if (hasHydrated) {
-      w = isSidebarCollapsed ? (isTabsHeaderVisible ? 0 : 64) : sidebarWidth;
+      // On desktop (Electron), collapsed sidebar shows icon-only strip (64px or 0).
+      // On web, max-width handles the collapse animation, so always use sidebarWidth.
+      w = (isDesktop() && isSidebarCollapsed) ? (isTabsHeaderVisible ? 0 : 64) : sidebarWidth;
     } else {
       // Fallback: read localStorage directly when script didn't set it
       try {
@@ -290,12 +290,38 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const shellClass = "h-screen w-full overflow-hidden bg-background text-foreground";
 
   const currentAiSidebarWidth = hasHydrated ? Math.min(aiSidebarWidth, 500) : 400;
-  const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !!activeTaskId;
+  const isTaskPanelVisible = !isMobile && isTaskPanelOpen;
   const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat';
   const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
   // Task panel and AI panel share the same width — no jump when switching
   const currentRightPanelWidth = currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
+
+  // Keep panel content visible for the full duration of the slide-out animation.
+  // Without this, visibility:hidden fires instantly on close while max-width is still animating.
+  const [isTaskPanelContentVisible, setIsTaskPanelContentVisible] = useState(false);
+  const taskPanelCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (isTaskPanelVisible) {
+      if (taskPanelCloseTimer.current) clearTimeout(taskPanelCloseTimer.current);
+      setIsTaskPanelContentVisible(true);
+    } else {
+      taskPanelCloseTimer.current = setTimeout(() => setIsTaskPanelContentVisible(false), 310);
+    }
+    return () => { if (taskPanelCloseTimer.current) clearTimeout(taskPanelCloseTimer.current); };
+  }, [isTaskPanelVisible]);
+
+  const [isAiPanelContentVisible, setIsAiPanelContentVisible] = useState(false);
+  const aiPanelCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (isAiPanelOpen) {
+      if (aiPanelCloseTimer.current) clearTimeout(aiPanelCloseTimer.current);
+      setIsAiPanelContentVisible(true);
+    } else {
+      aiPanelCloseTimer.current = setTimeout(() => setIsAiPanelContentVisible(false), 310);
+    }
+    return () => { if (aiPanelCloseTimer.current) clearTimeout(aiPanelCloseTimer.current); };
+  }, [isAiPanelOpen]);
 
   return (
     <TooltipOverlayProvider>
@@ -331,11 +357,14 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
             className={cn(
               "h-full min-w-0 min-h-0 shrink-0 flex flex-row relative",
               (!currentSidebarCollapsed || !isTabsHeaderVisible) && !isDesktop() && "border-r border-[var(--bone-10)]",
-              currentSidebarCollapsed ? "hidden md:flex" : "fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:flex"
+              isMobile
+                ? (currentSidebarCollapsed ? "hidden" : "fixed inset-y-0 left-0 z-50")
+                : "flex overflow-hidden"
             )}
-            style={{
-              width: isMobile ? (currentSidebarCollapsed ? '0px' : '280px') : 'var(--sidebar-w, 280px)',
-              transition: 'none'
+            style={isMobile ? undefined : {
+              width: 'var(--sidebar-w, 280px)',
+              maxWidth: currentSidebarCollapsed ? (isTabsHeaderVisible ? '0px' : '64px') : 'var(--sidebar-w, 280px)',
+              transition: isResizingLeft ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             <div className={cn(
@@ -415,47 +444,33 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               </div>
             )}
 
-            {/* Right Panel - combined AI/Task wrapper with width transition.
-            Both panels share the same wrapper so the main content reflows
-            smoothly with a single width transition (no layout shift when
-            swapping between panels). TaskInspectorPanel is pre-mounted with
-            hidden class toggling (same as AIAssistant's display:none/flex
-            pattern), so content stays in the DOM at all times. */}
+            {/* Right Panel — single flex shrink-0 element, max-width animated.
+                overflow-hidden clips content as the panel opens/closes so the
+                left edge and content always move as one unit. */}
             <div
               className={cn(
-                "h-full shrink-0 overflow-hidden transition-colors duration-200",
-                (isAiPanelOpen || isTaskPanelVisible) && !isDesktop() && "bg-sidebar border-l border-[var(--bone-10)]",
                 isMobile
                   ? ((isAIAssistantOpen || isTaskPanelVisible) ? "fixed inset-y-0 right-0 z-50 w-[85vw] max-w-[400px] flex flex-col bg-sidebar" : "hidden")
-                  : "relative z-40"
+                  : "h-full shrink-0 overflow-hidden"
               )}
-              style={{
-                width: isMobile ? undefined : `${currentRightPanelWidth}px`,
-                maxWidth: isMobile ? undefined : ((isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px'),
-                transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)'
-              }}
+              style={!isMobile ? {
+                width: `${currentRightPanelWidth}px`,
+                maxWidth: (isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px',
+                transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+              } : undefined}
             >
               <div className={cn(
-                "h-full shrink-0",
+                "h-full",
+                !isDesktop() && (isAiPanelOpen || isTaskPanelVisible) && "bg-sidebar border-l border-[var(--bone-10)]",
                 isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm overflow-hidden"
-              )} style={{ width: isMobile ? '100%' : `${currentRightPanelWidth}px` }}>
-                {/* Both panels occupy the same area via absolute positioning.
-                Content is always laid out at fixed width (never display:none)
-                so the outer wrapper's width transition reveals it without a
-                layout-then-transition race. visibility toggles which one shows. */}
+              )} style={{ width: `${currentRightPanelWidth}px` }}>
                 <div className="relative h-full w-full">
-                  <div
-                    className="absolute inset-0"
-                    style={{ visibility: isTaskPanelVisible ? 'visible' : 'hidden' }}
-                  >
+                  <div className="absolute inset-0" style={{ visibility: isTaskPanelContentVisible ? 'visible' : 'hidden' }}>
                     <TaskInspectorPanel />
                   </div>
                   {isAiPanelMounted && (
-                    <div
-                      className="absolute inset-0"
-                      style={{ visibility: isTaskPanelVisible ? 'hidden' : 'visible' }}
-                    >
-                      <AIAssistant />
+                    <div className="absolute inset-0" style={{ visibility: isAiPanelContentVisible && !isTaskPanelVisible ? 'visible' : 'hidden' }}>
+                      <AIAssistant forceVisible={isAiPanelContentVisible && !isTaskPanelVisible} />
                     </div>
                   )}
                 </div>
@@ -471,7 +486,6 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
         <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
         <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
-        <NewTaskModal key={modal?.kind === 'newTask' ? (modal.taskId || 'new-task-new') : 'new-task-closed'} />
         <SettingsModal key="settings-modal" />
         <MediaViewerModal key="media-viewer" />
         <NewWorkspaceModal key="new-workspace" />

@@ -56,7 +56,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
   );
 };
 
-const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { isFloating?: boolean; chatPageMode?: boolean }) => {
+const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceVisible = false }: { isFloating?: boolean; chatPageMode?: boolean; forceVisible?: boolean }) => {
   const { resolvedTheme } = useTheme();
   const { user } = useAuth();
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
@@ -677,7 +677,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false }: { is
               ? "relative w-full h-full"
               : "fixed inset-0 w-full h-full max-h-screen z-[100] rounded-none border-none overflow-hidden zoom-in-95 md:inset-auto md:bottom-6 md:right-6 md:w-[380px] md:h-[680px] md:max-h-[calc(100vh-3rem)] md:rounded-[var(--radius-big)] md:border md:border-[var(--bone-10)]"
         )}
-        style={{ display: (isAIAssistantOpen || chatPageMode) ? 'flex' : 'none' }}
+        style={{ display: (isAIAssistantOpen || chatPageMode || forceVisible) ? 'flex' : 'none' }}
       >
         {isDragging && (
           <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none ">

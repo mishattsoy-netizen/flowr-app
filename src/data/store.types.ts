@@ -240,7 +240,6 @@ export type ModalType =
   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[]; isChat?: boolean }
   | { kind: 'moveTo'; entityId: string }
   | { kind: 'rename'; entityId: string }
-  | { kind: 'newTask'; taskId?: string; sourceColumn?: string }
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }

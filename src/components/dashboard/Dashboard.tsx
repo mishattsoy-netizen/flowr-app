@@ -387,8 +387,8 @@ export function Dashboard() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col h-full bg-background select-none items-center justify-center">
-      <div className={cn("w-full flex flex-col gap-4 flex-grow", isFullWidth ? "w-full" : "max-w-[1200px] mx-auto")}>
+    <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col h-full bg-background select-none items-center">
+      <div className={cn("w-full flex flex-col gap-4 flex-1 min-h-0", isFullWidth ? "w-full" : "max-w-[1200px] mx-auto")}>
         {/* Header */}
         <header className="flex items-center justify-between py-2 select-none h-16 shrink-0">
           <div className="flex-1 min-w-0">
@@ -449,8 +449,11 @@ export function Dashboard() {
         </header>
 
         {/* Recents Widget */}
-        <section className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
+        <section
+          className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col min-h-[261px] max-h-[365px] basis-0"
+          style={{ flexGrow: 261 }}
+        >
+          <div className="flex items-center justify-between mb-4 shrink-0">
             <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Recents</h2>
             <div className="flex items-center gap-1.5 no-drag select-none">
               {/* Sort picker */}
@@ -515,7 +518,7 @@ export function Dashboard() {
                   <button
                     key={entity.id}
                     onClick={() => handleCardClick(entity)}
-                    className="group flex-shrink-0 w-[280px] h-[185px] bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
+                    className="group flex-shrink-0 w-[280px] h-full min-h-[185px] bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
                     style={{ paddingTop: '0.875rem', paddingLeft: '1rem', paddingRight: '1rem', paddingBottom: isNote ? 0 : '1rem' }}
                   >
                     {/* Card Header */}
@@ -551,7 +554,7 @@ export function Dashboard() {
               })}
             </HorizontalOverlayScrollbar>
           ) : (
-            <div className="w-full h-[180px] flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+            <div className="w-full h-full min-h-[180px] flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
               <div className="text-center max-w-[320px]">
                 <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
                 <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases will appear here.</p>
@@ -565,9 +568,12 @@ export function Dashboard() {
         </section>
 
         {/* Bottom widgets grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow min-h-0 select-none">
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[485px] max-h-[680px] basis-0 select-none"
+          style={{ flexGrow: 485 }}
+        >
           {/* Tasks (2/3 width) */}
-          <div className="md:col-span-2 flex flex-col min-h-[360px] max-h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
               <SmartTaskStackWidget contextId="dashboard" />
             </div>
@@ -578,7 +584,7 @@ export function Dashboard() {
           </div>
 
           {/* Shortcuts (1/3 width) */}
-          <div className="flex flex-col min-h-[360px] max-h-[485px] relative rounded-[var(--radius-big)] overflow-hidden">
+          <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
               <ShortcutsWidget contextId="dashboard" />
             </div>

@@ -51,6 +51,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const favoriteIds = useStore(state => state.favoriteIds);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const openModal = useStore(state => state.openModal);
+  const openTaskPanel = useStore(state => state.openTaskPanel);
   const openContextMenu = useStore(state => state.openContextMenu);
   const isSidebarCollapsed = useStore(state => state.isSidebarCollapsed);
   const isSidebarPinned = useStore(state => state.isSidebarPinned);
@@ -1001,7 +1002,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
-                      onClick={() => openModal({ kind: 'newTask' })}
+                      onClick={() => openTaskPanel(generateId())}
                       className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
