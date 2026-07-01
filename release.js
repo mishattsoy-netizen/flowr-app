@@ -10,20 +10,12 @@ function run(cmd) {
   execSync(cmd, { stdio: 'inherit' });
 }
 
-// 1. Verify GH_TOKEN is set
-if (!process.env.GH_TOKEN) {
-  console.error('\nError: GH_TOKEN environment variable is not set!');
-  console.error('Please set it in PowerShell before running this script:');
-  console.error('  $env:GH_TOKEN="your_github_token"\n');
-  process.exit(1);
-}
-
-// 2. Read package.json
+// 1. Read package.json
 const pkgPath = './package.json';
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 const oldVersion = pkg.version;
 
-// 3. Determine new version
+// 2. Determine new version
 let newVersion = process.argv[2];
 if (!newVersion) {
   // Auto patch bump: e.g. 1.0.0 -> 1.0.1
@@ -41,7 +33,7 @@ pkg.version = newVersion;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
 try {
-  // 4. Commit version bump + any other pending tracked changes
+  // 3. Commit version bump + any other pending tracked changes
   log('Staging and committing release changes...');
   run(`git add -u`); // stage all tracked modified/deleted files
   // Only commit if there's actually something staged
@@ -52,11 +44,7 @@ try {
     console.log('Nothing new to commit — version already up to date.');
   }
 
-  // 5. Build Next.js
-  log('Compiling Next.js frontend...');
-  run('npm run build');
-
-  // 5.5 Create and push Git tag first (required for "releaseType: release" to succeed)
+  // 4. Create and push the git tag
   log(`Creating and pushing git tag v${newVersion}...`);
   try {
     run(`git tag -d v${newVersion}`);
@@ -67,23 +55,18 @@ try {
   } catch (e) {}
   run(`git push origin v${newVersion}`);
 
-  // 5.6 Delete any existing GitHub Release for this tag so electron-builder can create a fresh one
-  // Deleting a tag does NOT delete the release — they are separate resources on GitHub.
-  try {
-    run(`gh release delete v${newVersion} --yes 2>nul`);
-  } catch (e) {
-    // No existing release to delete — that's fine
-  }
+  // 5. Push the commit to GitHub. This triggers:
+  //    - the release-desktop.yml CI workflow, which builds and publishes the
+  //      Windows/macOS/Linux desktop installers as GitHub Release assets
+  //    - the Vercel deployment for the web app
+  //    Building/publishing locally here as well would race the CI workflow
+  //    against this machine's build and can clobber assets the other already
+  //    uploaded to the same release — so this script leaves all desktop
+  //    packaging and publishing to CI.
+  log('Pushing commit to GitHub to trigger CI desktop build/publish and Vercel web deployment...');
+  run(`git push origin main`);
 
-  // 6. Build and publish Electron app
-  log('Packaging and publishing Electron app to GitHub Releases...');
-  run('npx electron-builder --publish always');
-
-  // 7. Push to GitHub (triggers Vercel deploy)
-  log('Pushing commit to GitHub to trigger Vercel web deployment...');
-  run('git push origin main');
-
-  log(`SUCCESS! Version v${newVersion} is published on GitHub (Desktop installer) and deployed on Vercel (Web app)!`);
+  log(`SUCCESS! v${newVersion} pushed. Watch the "Build and Publish Desktop App" GitHub Action for build/publish progress across all platforms.`);
 } catch (err) {
   console.error('\nRelease failed with error:', err.message);
   process.exit(1);
