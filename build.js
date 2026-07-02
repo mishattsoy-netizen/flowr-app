@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const srcAdmin = path.join(__dirname, 'src/app/admin');
-const tempAdmin = path.join(__dirname, 'temp_admin');
+const tempAdmin = path.join(__dirname, 'node_modules/temp_admin');
 const srcApiAdmin = path.join(__dirname, 'src/app/api/admin');
-const tempApiAdmin = path.join(__dirname, 'temp_api_admin');
+const tempApiAdmin = path.join(__dirname, 'node_modules/temp_api_admin');
 const srcComponentsAdmin = path.join(__dirname, 'src/components/admin');
-const tempComponentsAdmin = path.join(__dirname, 'temp_components_admin');
+const tempComponentsAdmin = path.join(__dirname, 'node_modules/temp_components_admin');
 
 console.log('[Build Wrapper] Preparing production build...');
 
