@@ -4,3 +4,4 @@ Use these rules in .agents/rules as your main and only source of truth for this 
 3. .agents/rules/global-behavior.md
 4. .agents/rules/ui-consistency-rule.md
 5. .agents/rules/project-versions-rule.md
+6. .agents/rules/release-workflow-rule.md

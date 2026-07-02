@@ -1,0 +1,495 @@
+diff --git a/src/components/SupabaseProvider.tsx b/src/components/SupabaseProvider.tsx
+index e21e54f..962352b 100644
+--- a/src/components/SupabaseProvider.tsx
++++ b/src/components/SupabaseProvider.tsx
+@@ -67,20 +67,57 @@ function mergeCloudData(data: {
+     for (const lw of localWorkspaces) {
+       if (!merged.find((mw: any) => mw.id === lw.id)) {
+         if ((lw as any).syncMode !== 'local-only') continue; // deleted on another device — drop
+         merged.push(lw);
+       }
+     }
+     store().setWorkspaces(merged);
+   }
+ }
+ 
++/**
++ * After cloud data has loaded, scan the local vault for files that shouldn't
++ * exist anymore: files belonging to now-cloud-only entities (stale orphans,
++ * often left over from the syncMode-frontmatter bug), and files whose id
++ * doesn't match any known entity at all (unrecognized). Surfaces one batched
++ * confirm popup rather than one per file.
++ */
++async function scanForStaleLocalFiles() {
++  const { isDesktop } = await import('@/lib/env');
++  if (!isDesktop()) return;
++
++  const { getVaultPath, listVaultFiles } = await import('@/lib/syncFileScan');
++  const vault = await getVaultPath();
++  if (!vault) return;
++
++  const files = await listVaultFiles(vault);
++  if (files.length === 0) return;
++
++  const entities = useStore.getState().entities;
++  const entityById = new Map(entities.map(e => [e.id, e]));
++
++  const flagged: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> = [];
++
++  for (const file of files) {
++    const entity = entityById.get(file.parsed.id);
++    if (!entity) {
++      flagged.push({ path: file.path, entityId: file.parsed.id, entityTitle: file.fileName, recognized: false });
++    } else if (entity.syncMode === 'cloud-only') {
++      flagged.push({ path: file.path, entityId: entity.id, entityTitle: entity.title, recognized: true });
++    }
++  }
++
++  if (flagged.length > 0) {
++    useStore.getState().openModal({ kind: 'syncFileCleanup', files: flagged });
++  }
++}
++
+ /**
+  * Mounts once at app root.
+  * - Loads initial data from Supabase on boot (overrides localStorage if Supabase is configured).
+  * - Subscribes to realtime changes so edits from other devices appear instantly.
+  * - Periodically reconciles with the cloud to catch missed realtime events.
+  * - Reconciles on visibilitychange (tab refocus) for cross-browser consistency.
+  */
+ export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
+   const setEntities = useStore(s => s.setEntities);
+   const setTasks = useStore(s => s.setTasks);
+@@ -142,20 +179,21 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
+         }
+         useStore.getState().setRecentEntityIds(merged.slice(0, 10));
+       }
+ 
+       // 5. Restore cross-device shortcuts
+       if (data.settings?.shortcuts) {
+         useStore.getState().setShortcutsState(data.settings.shortcuts);
+       }
+ 
+       useStore.getState().setInitialSync(false);
++      scanForStaleLocalFiles();
+     }).catch(err => {
+       console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);
+       useStore.getState().setInitialSync(false);
+     });
+ 
+     // 2. Realtime subscription
+     const unsubscribeCore = subscribeRealtime({
+       setEntities, getEntities,
+       setTasks, getTasks,
+       setWorkspaces, getWorkspaces,
+diff --git a/src/components/layout/Shell.tsx b/src/components/layout/Shell.tsx
+index ffb9c19..4f91053 100644
+--- a/src/components/layout/Shell.tsx
++++ b/src/components/layout/Shell.tsx
+@@ -8,20 +8,21 @@ import { ContextMenu } from './ContextMenu';
+ import { NewCollectionModal } from '../modals/NewCollectionModal';
+ import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
+ import { MoveToModal } from '../modals/MoveToModal';
+ import { RenameModal } from '../modals/RenameModal';
+ import { NewItemModal } from '../modals/NewItemModal';
+ import { SettingsModal } from '../modals/SettingsModal';
+ import { MediaViewerModal } from '../modals/MediaViewerModal';
+ import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
+ import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
+ import { VaultSetupModal } from '../modals/VaultSetupModal';
++import { SyncFileCleanupModal } from '../modals/SyncFileCleanupModal';
+ 
+ 
+ import { AIAssistant } from '../assistant/AIAssistant';
+ import { TaskInspectorPanel } from '../tracker/TaskInspectorPanel';
+ import { CommandPalette } from './CommandPalette';
+ 
+ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+ import { cn } from '@/lib/utils';
+ import { SmoothScroll } from './SmoothScroll';
+ import { TooltipOverlayProvider } from './TooltipOverlayContext';
+@@ -485,20 +486,21 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
+         <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
+         <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
+         <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
+         <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
+         <SettingsModal key="settings-modal" />
+         <MediaViewerModal key="media-viewer" />
+         <NewWorkspaceModal key="new-workspace" />
+         <SummaryPreviewModal key="summary-preview" />
+         <CommandPalette key="command-palette" />
+         <VaultSetupModal key="vault-setup" />
++        <SyncFileCleanupModal key="sync-file-cleanup" />
+ 
+ 
+ 
+ 
+       </div>
+     </TooltipOverlayProvider>
+   );
+ }
+ 
+ 
+diff --git a/src/components/modals/SyncFileCleanupModal.tsx b/src/components/modals/SyncFileCleanupModal.tsx
+new file mode 100644
+index 0000000..d302ba0
+--- /dev/null
++++ b/src/components/modals/SyncFileCleanupModal.tsx
+@@ -0,0 +1,83 @@
++"use client";
++
++import { useState } from 'react';
++import { useStore } from '@/data/store';
++import { AlertTriangle } from 'lucide-react';
++import { deleteVaultFile } from '@/lib/syncFileScan';
++
++export function SyncFileCleanupModal() {
++  const { modal, closeModal } = useStore();
++  const [pending, setPending] = useState(false);
++
++  if (!modal || modal.kind !== 'syncFileCleanup') return null;
++
++  const { files } = modal;
++
++  const handleResolve = async (deletePaths: string[]) => {
++    setPending(true);
++    try {
++      await Promise.all(deletePaths.map(p => deleteVaultFile(p)));
++    } catch (err) {
++      console.error('[SyncFileCleanupModal] failed to delete file(s):', err);
++    } finally {
++      setPending(false);
++      closeModal();
++    }
++  };
++
++  const isBatch = files.length > 1;
++  const title = isBatch
++    ? `Found ${files.length} local file${files.length === 1 ? '' : 's'} out of sync`
++    : `"${files[0].entityTitle}" is now cloud-only`;
++
++  const description = isBatch
++    ? `These items are cloud-only but still have local copies on disk. Choose whether to delete or keep each local copy.`
++    : `A local copy of this file still exists on disk. You can delete it or keep it as an offline snapshot — it will not be updated while the item stays cloud-only.`;
++
++  return (
++    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay" onClick={closeModal}>
++      <div
++        className="bg-panel border border-[var(--bone-12)] rounded-[1.25rem] p-5 w-[420px]"
++        onClick={e => e.stopPropagation()}
++      >
++        <div className="flex items-center gap-3 mb-4">
++          <div className="p-2 rounded-full bg-danger/10">
++            <AlertTriangle strokeWidth={2} className="w-4.5 h-4.5 text-danger" />
++          </div>
++          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
++        </div>
++
++        <p className="text-sm text-muted-foreground mb-4">
++          {description}
++        </p>
++
++        {isBatch && (
++          <ul className="mb-4 max-h-48 overflow-y-auto text-sm text-foreground space-y-1">
++            {files.map(f => (
++              <li key={f.path} className="truncate">
++                {f.recognized ? f.entityTitle : `Unrecognized file: ${f.path.split('/').pop()}`}
++              </li>
++            ))}
++          </ul>
++        )}
++
++        <div className="flex items-center justify-end gap-3">
++          <button
++            disabled={pending}
++            onClick={() => handleResolve([])}
++            className="px-4 py-2 border border-[var(--bone-6)] text-sm rounded-full text-muted-foreground hover:text-foreground hover:bg-hover disabled:opacity-50"
++          >
++            Keep local {isBatch ? 'copies' : 'copy'}
++          </button>
++          <button
++            disabled={pending}
++            onClick={() => handleResolve(files.map(f => f.path))}
++            className="px-4 py-2 text-sm rounded-full bg-danger hover:bg-danger/80 text-white font-medium disabled:opacity-50"
++          >
++            Delete local {isBatch ? 'copies' : 'copy'}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/data/store.ts b/src/data/store.ts
+index 2f67c83..62624ef 100644
+--- a/src/data/store.ts
++++ b/src/data/store.ts
+@@ -179,35 +179,53 @@ export const useStore = create<AppState>()(
+       activeWorkspaceId: 'ws-personal',
+       trackerFilterWorkspace: null,
+       shortcuts: {},
+       cachedDisplayName: '',
+       lastSaved: null,
+       syncMode: 'local-only',
+       isInitialSync: true,
+ 
+       setInitialSync: (isInitialSync) => set({ isInitialSync }),
+ 
+-      setSyncMode: (entityId, mode) => {
++      setSyncMode: async (entityId, mode) => {
++        const prevEntity = get().entities.find(e => e.id === entityId);
++        const switchingToCloudOnly = mode === 'cloud-only' &&
++          prevEntity && (prevEntity.syncMode === 'local-only' || prevEntity.syncMode === 'full-sync');
++
+         set(s => ({
+           entities: s.entities.map(e => e.id === entityId ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
+           workspaces: s.workspaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
+         }));
+         const ws = get().workspaces.find(w => w.id === entityId);
+         if (ws) {
+           upsertWorkspace(ws);
+         }
+         const entity = get().entities.find(e => e.id === entityId);
+         if (entity) {
+           import('@/lib/persistence').then(({ saveEntity }) => {
+             saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
+           });
+         }
++
++        if (switchingToCloudOnly && entity && isDesktop()) {
++          const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
++          const vault = await getVaultPath();
++          if (vault) {
++            const filePath = await findLocalFileForEntity(vault, entity);
++            if (filePath) {
++              get().openModal({
++                kind: 'syncFileCleanup',
++                files: [{ path: filePath, entityId: entity.id, entityTitle: entity.title, recognized: true }],
++              });
++            }
++          }
++        }
+       },
+       setLastSaved: (time) => set({ lastSaved: time }),
+ 
+       setEntities: (entities) => set({ entities }),
+       setRecentEntityIds: (recentEntityIds) => set({ recentEntityIds }),
+ 
+ 
+       activeEntityId: 'dashboard',
+       navigationHistory: ['dashboard'],
+       historyIndex: 0,
+@@ -2592,20 +2610,21 @@ export const useStore = create<AppState>()(
+     }
+   )
+ );
+ 
+ if (isDesktop()) {
+   useStore.subscribe((state, prevState) => {
+     // Basic detection for M3: if lastModified changed, save it
+     // In M4 this will be replaced by direct calls to saveEntity() on store actions
+     for (const entity of state.entities) {
+       if (entity.type !== 'note' && entity.type !== 'canvas' && entity.type !== 'mixed') continue;
++      if (entity.syncMode === 'cloud-only') continue;
+       const prev = prevState.entities.find(e => e.id === entity.id);
+       if (!prev || prev.lastModified !== entity.lastModified) {
+         const blocks = entity.type === 'canvas'
+           ? state.blocks.filter(b => b.canvasId === entity.id)
+           : (entity.content || []);
+         saveEntityToFile(entity, blocks);
+       }
+     }
+   });
+ }
+diff --git a/src/data/store.types.ts b/src/data/store.types.ts
+index e15f9ed..de563b0 100644
+--- a/src/data/store.types.ts
++++ b/src/data/store.types.ts
+@@ -236,21 +236,22 @@ export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications'
+ export type ModalType =
+   | null
+   | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType; defaultToFirstCollection?: boolean }
+   | { kind: 'newCollection' }
+   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[]; isChat?: boolean }
+   | { kind: 'moveTo'; entityId: string }
+   | { kind: 'rename'; entityId: string }
+   | { kind: 'settings'; tab?: SettingsTab }
+   | { kind: 'newWorkspace' }
+   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
+-  | { kind: 'summaryPreview'; summary: string };
++  | { kind: 'summaryPreview'; summary: string }
++  | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> };
+ 
+ export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
+ 
+ export interface PipelineStep {
+   chain: string
+   goal: string
+   status: 'pending' | 'running' | 'done' | 'failed'
+   label?: string
+   output?: string
+ }
+@@ -617,21 +618,21 @@ export interface AppState {
+   setFrameLayoutGap: (id: string, gap: number) => void;
+   setFramePadding: (id: string, top: number, right: number, bottom: number, left: number) => void;
+   setFrameAlignment: (id: string, align: string, crossAlign: string) => void;
+   setFrameClipContent: (id: string, clip: boolean) => void;
+   setFrameResizing: (id: string, h: FrameResizeMode, v: FrameResizeMode) => void;
+   setChildResizing: (id: string, h: ChildResizeMode, v: ChildResizeMode) => void;
+ 
+   updateBlockPosition: (id: string, x: number, y: number) => void;
+   setEntities: (entities: Entity[]) => void;
+   setTasks: (tasks: AppTask[]) => void;
+-  setSyncMode: (entityId: string, mode: SyncMode) => void;
++  setSyncMode: (entityId: string, mode: SyncMode) => Promise<void>;
+   setLastSaved: (time: number | null) => void;
+   openModal: (modal: ModalType) => void;
+   closeModal: () => void;
+   openContextMenu: (entityId: string | null, x: number, y: number, source: EditingSource) => void;
+   closeContextMenu: () => void;
+   copyBlock: (block: EditorBlock) => void;
+   pasteBlock: (entityId: string, afterBlockId: string) => void;
+   setSelectedSidebarIds: (ids: string[]) => void;
+   clearSelectedSidebarIds: () => void;
+ 
+diff --git a/src/lib/syncFileScan.test.ts b/src/lib/syncFileScan.test.ts
+new file mode 100644
+index 0000000..2e4467d
+--- /dev/null
++++ b/src/lib/syncFileScan.test.ts
+@@ -0,0 +1,51 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { parseVaultFile, findLocalFileForEntity } from './syncFileScan';
++import type { Entity } from '@/data/store.types';
++
++describe('parseVaultFile', () => {
++  it('parses a markdown file frontmatter id', () => {
++    // Format matches serializeFrontmatter: `key: JSON.stringify(value)`
++    const content = '---\nid: "abc123"\ntitle: "My Note"\nsyncMode: "full-sync"\nlastModified: 1000\nversion: 1\n---\n\nBody';
++    const result = parseVaultFile('My Note.md', content);
++    expect(result).toEqual({ id: 'abc123', syncMode: 'full-sync' });
++  });
++
++  it('parses a .canvas JSON file', () => {
++    const content = JSON.stringify({ entity: { id: 'canvas1', syncMode: 'local-only' }, blocks: [] });
++    const result = parseVaultFile('My Canvas.canvas', content);
++    expect(result).toEqual({ id: 'canvas1', syncMode: 'local-only' });
++  });
++
++  it('returns null for unparseable content', () => {
++    expect(parseVaultFile('broken.md', 'not frontmatter at all')).toBeNull();
++  });
++});
++
++describe('findLocalFileForEntity', () => {
++  beforeEach(() => {
++    // Provide a mock flowrFS on the global scope for modules that access it
++    (globalThis as any).window = {
++      flowrFS: {
++        readdir: vi.fn().mockResolvedValue(['Test Note.md', 'Other.md']),
++        readFile: vi.fn((path: string) => {
++          if (path.includes('Test Note.md')) {
++            return Promise.resolve('---\nid: "e1"\ntitle: "Test Note"\nsyncMode: "full-sync"\nlastModified: 1000\nversion: 1\n---\n\nBody');
++          }
++          return Promise.resolve('---\nid: "other"\ntitle: "Other"\nsyncMode: "cloud-only"\nlastModified: 1000\nversion: 1\n---\n\nBody');
++        }),
++      },
++    };
++  });
++
++  it('finds the file matching the given entity id', async () => {
++    const entity = { id: 'e1', title: 'Test Note', type: 'note' } as Entity;
++    const result = await findLocalFileForEntity('/vault', entity);
++    expect(result).toBe('/vault/Test Note.md');
++  });
++
++  it('returns null when no file matches the entity id', async () => {
++    const entity = { id: 'missing', title: 'Nope', type: 'note' } as Entity;
++    const result = await findLocalFileForEntity('/vault', entity);
++    expect(result).toBeNull();
++  });
++});
+diff --git a/src/lib/syncFileScan.ts b/src/lib/syncFileScan.ts
+new file mode 100644
+index 0000000..55ceddb
+--- /dev/null
++++ b/src/lib/syncFileScan.ts
+@@ -0,0 +1,79 @@
++import { parseFrontmatter } from './editor/frontmatter';
++import { getVaultPath } from './fileVault';
++
++export interface ParsedVaultFile {
++  id: string;
++  syncMode: string;
++}
++
++/**
++ * Extracts { id, syncMode } from a vault file's content, handling both the
++ * markdown-frontmatter format (.md) and the raw-JSON format (.canvas).
++ * Returns null if the content can't be parsed as either.
++ */
++export function parseVaultFile(fileName: string, content: string): ParsedVaultFile | null {
++  if (fileName.endsWith('.canvas')) {
++    try {
++      const parsed = JSON.parse(content);
++      const id = parsed?.entity?.id;
++      const syncMode = parsed?.entity?.syncMode;
++      if (typeof id === 'string' && typeof syncMode === 'string') {
++        return { id, syncMode };
++      }
++      return null;
++    } catch {
++      return null;
++    }
++  }
++
++  const { meta } = parseFrontmatter(content);
++  if (typeof meta.id === 'string' && typeof meta.syncMode === 'string') {
++    return { id: meta.id, syncMode: meta.syncMode };
++  }
++  return null;
++}
++
++/**
++ * Lists every file in the vault along with its parsed { id, syncMode }.
++ * Files that fail to parse are silently skipped.
++ */
++export async function listVaultFiles(vaultPath: string): Promise<Array<{ path: string; fileName: string; parsed: ParsedVaultFile }>> {
++  const flowrFS = (window as any).flowrFS;
++  if (!flowrFS) return [];
++
++  const fileNames: string[] = await flowrFS.readdir(vaultPath);
++  const results: Array<{ path: string; fileName: string; parsed: ParsedVaultFile }> = [];
++
++  for (const fileName of fileNames) {
++    if (!fileName.endsWith('.md') && !fileName.endsWith('.canvas')) continue;
++    const path = `${vaultPath}/${fileName}`;
++    try {
++      const content: string = await flowrFS.readFile(path);
++      const parsed = parseVaultFile(fileName, content);
++      if (parsed) results.push({ path, fileName, parsed });
++    } catch {
++      // Unreadable file — skip it.
++    }
++  }
++
++  return results;
++}
++
++/**
++ * Finds the vault file (if any) whose frontmatter/JSON id matches the given entity,
++ * regardless of what the current filename would be (handles the case where the
++ * entity's title changed while it was cloud-only, leaving an old-titled orphan).
++ */
++export async function findLocalFileForEntity(vaultPath: string, entity: { id: string }): Promise<string | null> {
++  const files = await listVaultFiles(vaultPath);
++  const match = files.find(f => f.parsed.id === entity.id);
++  return match ? match.path : null;
++}
++
++export async function deleteVaultFile(path: string): Promise<void> {
++  const flowrFS = (window as any).flowrFS;
++  if (!flowrFS) return;
++  await flowrFS.deleteFile(path);
++}
++
++export { getVaultPath };

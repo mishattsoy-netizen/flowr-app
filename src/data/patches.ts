@@ -21,6 +21,39 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.1.3',
+    build: '1103',
+    date: '2026-07-02',
+    title: 'Obsidian-Style Sync, Settings Popup & Smooth Table Typing',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'You can now edit your notes in external editors like Notepad or Obsidian, and Flowr will update them in real-time.',
+          'Workspaces and folders in Flowr are now saved as real folders on your computer, matching the sidebar structure.',
+          'Manually adding markdown files to your vault folder imports them instantly under "Unsorted" with full sync enabled.',
+          'Converted the Settings page into a clean popup window so you can tweak options from anywhere without losing your page.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed table editing so typing quickly in different columns saves instantly and never discards your text.',
+          'Corrected the Mac installation guide instructions path and fixed text overflow in the popup.',
+          'Fixed desktop background startup routines to ensure the local database launches reliably.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Made the application download size much smaller and lighter by compressing code resources.',
+          'Stripped out developer panels and administrative charts from production builds to improve launch speed.',
+          'Configured app auto-updates to work seamlessly in the background while keeping the main code private.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.1.2',
     build: '1102',
     date: '2026-07-02',
@@ -206,7 +239,7 @@ export const PATCHES: Patch[] = [
       {
         type: 'fixed',
         items: [
-          'macOS: if Gatekeeper says "Flowr can\'t be verified", right-click the app → Open, or run: xattr -dr com.apple.quarantine /Applications/Flowr.app'
+          'macOS: if Gatekeeper says "Flowr can\'t be verified", right-click the app → Open, or run: xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app"'
         ]
       }
     ]

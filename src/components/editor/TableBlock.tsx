@@ -50,6 +50,108 @@ function RowHandle({
   );
 }
 
+function TableCell({
+  initialValue,
+  onUpdate,
+  className,
+  onClick,
+  onContextMenu,
+  isHeader = false,
+  colCount,
+  ri,
+  ci,
+  onMoveColumn,
+  onLinkContextMenu,
+}: {
+  initialValue: string;
+  onUpdate: (html: string) => void;
+  className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  isHeader?: boolean;
+  colCount: number;
+  ri: number;
+  ci: number;
+  onMoveColumn?: (ci: number, direction: 'left' | 'right') => void;
+  onLinkContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const editableRef = useRef<HTMLDivElement | HTMLTableCellElement>(null);
+  const lastValueRef = useRef(initialValue);
+
+  useEffect(() => {
+    if (editableRef.current && document.activeElement !== editableRef.current) {
+      editableRef.current.innerHTML = initialValue;
+      lastValueRef.current = initialValue;
+    }
+  }, [initialValue]);
+
+  const handleBlur = () => {
+    if (editableRef.current) {
+      const html = editableRef.current.innerHTML;
+      if (html !== lastValueRef.current) {
+        lastValueRef.current = html;
+        onUpdate(html);
+      }
+    }
+  };
+
+  const handleInput = () => {
+    if (editableRef.current) {
+      lastValueRef.current = editableRef.current.innerHTML;
+    }
+  };
+
+  if (isHeader) {
+    return (
+      <td
+        className={className}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+      >
+        <div
+          ref={editableRef as React.RefObject<HTMLDivElement | null>}
+          contentEditable
+          suppressContentEditableWarning
+          className="outline-none"
+          onBlur={handleBlur}
+          onInput={handleInput}
+          onContextMenu={onLinkContextMenu}
+          dangerouslySetInnerHTML={{ __html: initialValue }}
+        />
+        {onMoveColumn && (
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/cell:opacity-100 z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveColumn(ci, 'left'); }}
+              className="p-0.5 rounded hover:bg-[var(--bone-5)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
+            >
+              <ChevronLeft strokeWidth={2} className="w-2.5 h-2.5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onMoveColumn(ci, 'right'); }}
+              className="p-0.5 rounded hover:bg-[var(--bone-5)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
+            >
+              <ChevronRight strokeWidth={2} className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        )}
+      </td>
+    );
+  }
+
+  return (
+    <td
+      ref={editableRef as React.RefObject<HTMLTableCellElement | null>}
+      contentEditable
+      suppressContentEditableWarning
+      className={className}
+      onBlur={handleBlur}
+      onInput={handleInput}
+      onContextMenu={onLinkContextMenu}
+      dangerouslySetInnerHTML={{ __html: initialValue }}
+    />
+  );
+}
+
 function SortableRow({
   id,
   row,
@@ -137,8 +239,10 @@ function SortableRow({
       />
       {ri === 0 ? (
         row.map((cell: string, ci: number) => (
-          <td
+          <TableCell
             key={ci}
+            initialValue={cell}
+            onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
               "relative px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-6)] last:border-r-0 outline-none transition-colors leading-snug group/cell",
               "font-bold text-bone-100 bg-[var(--bone-2)] text-[10.5px] uppercase tracking-wider",
@@ -148,39 +252,20 @@ function SortableRow({
             )}
             onClick={(e) => { e.stopPropagation(); onColSelect?.(ci); }}
             onContextMenu={(e) => onColContextMenu?.(e, ci)}
-          >
-            <div
-              contentEditable
-              suppressContentEditableWarning
-              className="outline-none"
-              onBlur={(e) => onCellUpdate(ri, ci, (e.target as HTMLElement).innerHTML ?? '')}
-              onContextMenu={onLinkContextMenu}
-              dangerouslySetInnerHTML={{ __html: cell }}
-            />
-            {onMoveColumn && (
-              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/cell:opacity-100 z-10">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onMoveColumn(ci, 'left'); }}
-                  className="p-0.5 rounded hover:bg-[var(--bone-5)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                >
-                  <ChevronLeft strokeWidth={2} className="w-2.5 h-2.5" />
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onMoveColumn(ci, 'right'); }}
-                  className="p-0.5 rounded hover:bg-[var(--bone-5)] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                >
-                  <ChevronRight strokeWidth={2} className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            )}
-          </td>
+            isHeader={true}
+            colCount={colCount}
+            ri={ri}
+            ci={ci}
+            onMoveColumn={onMoveColumn}
+            onLinkContextMenu={onLinkContextMenu}
+          />
         ))
       ) : (
         row.map((cell: string, ci: number) => (
-          <td
+          <TableCell
             key={ci}
-            contentEditable
-            suppressContentEditableWarning
+            initialValue={cell}
+            onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
               "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-6)] last:border-r-0 outline-none transition-colors leading-snug",
               "text-bone-100 focus:bg-[var(--bone-2)]",
@@ -188,9 +273,11 @@ function SortableRow({
               ri === colCount - 1 && "border-b-0",
               selectedCol === ci && "bg-[var(--bone-3)]"
             )}
-            onBlur={(e) => onCellUpdate(ri, ci, (e.target as HTMLElement).innerHTML ?? '')}
-            onContextMenu={onLinkContextMenu}
-            dangerouslySetInnerHTML={{ __html: cell }}
+            isHeader={false}
+            colCount={colCount}
+            ri={ri}
+            ci={ci}
+            onLinkContextMenu={onLinkContextMenu}
           />
         ))
       )}

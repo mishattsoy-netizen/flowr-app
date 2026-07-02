@@ -89,6 +89,23 @@ async function scanForStaleLocalFiles() {
   const vault = await getVaultPath();
   if (!vault) return;
 
+  const flowrFS = (window as any).flowrFS;
+  if (flowrFS && flowrFS.listAllFiles) {
+    try {
+      const allFiles = await flowrFS.listAllFiles(vault);
+      const { handleLocalFileChanged } = await import('@/lib/vaultSyncBridge');
+      for (const file of allFiles) {
+        await handleLocalFileChanged({
+          eventType: 'change',
+          filename: file.relativePath,
+          absolutePath: file.path
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to sweep local files for import:', e);
+    }
+  }
+
   const files = await listVaultFiles(vault);
   if (files.length === 0) return;
 
@@ -202,6 +219,19 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       setShortcutsState,
     });
 
+    // 2.5 Real-time Local File System Watcher
+    let unsubscribeFsWatcher: (() => void) | null = null;
+    const flowrFS = (window as any).flowrFS;
+    if (flowrFS && flowrFS.onFileChanged) {
+      import('@/lib/vaultSyncBridge').then(({ handleLocalFileChanged }) => {
+        unsubscribeFsWatcher = flowrFS.onFileChanged((data: any) => {
+          handleLocalFileChanged(data).catch((err: any) => {
+            console.error('[Flowr FS watcher] Reconciler error:', err);
+          });
+        });
+      });
+    }
+
     // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
     //    deleted items while this tab was closed or offline).
     const reconcile = () => {
@@ -223,6 +253,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       unsubscribeCore();
       if (reconcilerRef.current) clearInterval(reconcilerRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (unsubscribeFsWatcher) unsubscribeFsWatcher();
     };
   }, []);
  // eslint-disable-line react-hooks/exhaustive-deps

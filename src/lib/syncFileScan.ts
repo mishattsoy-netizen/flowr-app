@@ -41,16 +41,31 @@ export async function listVaultFiles(vaultPath: string): Promise<Array<{ path: s
   const flowrFS = (window as any).flowrFS;
   if (!flowrFS) return [];
 
-  const fileNames: string[] = await flowrFS.readdir(vaultPath);
+  if (!flowrFS.listAllFiles) {
+    const fileNames: string[] = await flowrFS.readdir(vaultPath);
+    const results: Array<{ path: string; fileName: string; parsed: ParsedVaultFile }> = [];
+    for (const fileName of fileNames) {
+      if (!fileName.endsWith('.md') && !fileName.endsWith('.canvas')) continue;
+      const path = `${vaultPath}/${fileName}`;
+      try {
+        const content: string = await flowrFS.readFile(path);
+        const parsed = parseVaultFile(fileName, content);
+        if (parsed) results.push({ path, fileName, parsed });
+      } catch {
+        // Unreadable file — skip it.
+      }
+    }
+    return results;
+  }
+
+  const files = await flowrFS.listAllFiles(vaultPath);
   const results: Array<{ path: string; fileName: string; parsed: ParsedVaultFile }> = [];
 
-  for (const fileName of fileNames) {
-    if (!fileName.endsWith('.md') && !fileName.endsWith('.canvas')) continue;
-    const path = `${vaultPath}/${fileName}`;
+  for (const file of files) {
     try {
-      const content: string = await flowrFS.readFile(path);
-      const parsed = parseVaultFile(fileName, content);
-      if (parsed) results.push({ path, fileName, parsed });
+      const content: string = await flowrFS.readFile(file.path);
+      const parsed = parseVaultFile(file.name, content);
+      if (parsed) results.push({ path: file.path, fileName: file.name, parsed });
     } catch {
       // Unreadable file — skip it.
     }

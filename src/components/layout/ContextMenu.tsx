@@ -284,7 +284,7 @@ export function ContextMenu() {
         {
           label: 'Sidebar Settings',
           icon: <Settings className="w-4 h-4" />,
-          onClick: () => { setActiveEntityId('settings'); closeContextMenu(); },
+          onClick: () => { openModal({ kind: 'settings' }); closeContextMenu(); },
         },
       ].filter(item => !item.hidden);
     }

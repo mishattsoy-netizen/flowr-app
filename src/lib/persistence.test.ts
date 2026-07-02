@@ -6,11 +6,18 @@ vi.mock('./env', () => ({ isDesktop: () => true }));
 vi.mock('./fileVault', () => ({
   getVaultPath: async () => '/fake/vault',
   sanitizeFileName: (s: string) => s,
+  getEntityPath: (entity: any) => `${entity.title}.${entity.type === 'canvas' ? 'canvas' : 'md'}`,
 }));
 
 describe('saveEntityToFile', () => {
   beforeEach(() => {
-    (global as any).window = { flowrFS: { writeFile: vi.fn().mockResolvedValue(undefined) } };
+    (global as any).window = {
+      flowrFS: {
+        writeFile: vi.fn().mockResolvedValue(undefined),
+        readdir: vi.fn().mockResolvedValue([]),
+        listAllFiles: vi.fn().mockResolvedValue([])
+      }
+    };
   });
 
   it('writes the entity\'s actual syncMode into frontmatter, not a hardcoded fallback', async () => {

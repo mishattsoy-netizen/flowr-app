@@ -157,7 +157,10 @@ async function startNextServer(port) {
 
   return new Promise((resolve, reject) => {
     const { fork } = require('child_process');
-    const standalonePath = path.join(appPath, '.next/standalone');
+    let standalonePath = path.join(appPath, '.next/standalone');
+    if (isPackaged && appPath.endsWith('.asar')) {
+      standalonePath = path.join(appPath + '.unpacked', '.next/standalone');
+    }
     const serverPath = isPackaged 
       ? path.join(standalonePath, 'server.js')
       : path.join(appPath, 'node_modules/next/dist/bin/next');
@@ -358,8 +361,58 @@ async function createWindow() {
   }, 6000);
 }
 
+let vaultWatcher = null;
+
+function getStoredVaultPath() {
+  const configPath = path.join(app.getPath('userData'), 'vault-config.json');
+  try {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      return config.vaultPath || null;
+    }
+  } catch (e) {
+    debugLog('Failed to read vault path config: ' + e.message);
+  }
+  return null;
+}
+
+function startWatchingVault(vaultPath) {
+  if (vaultWatcher) {
+    vaultWatcher.close();
+    vaultWatcher = null;
+  }
+  if (!vaultPath || !fs.existsSync(vaultPath)) return;
+
+  debugLog('Starting vault watcher on: ' + vaultPath);
+  try {
+    vaultWatcher = fs.watch(vaultPath, { recursive: true }, (eventType, filename) => {
+      if (!filename) return;
+      // Skip hidden/system files or temporary lock files
+      if (filename.startsWith('.') || filename.includes(path.sep + '.')) return;
+      
+      const absolutePath = path.join(vaultPath, filename);
+      debugLog(`Watcher [${eventType}]: ${filename}`);
+      if (mainWindow) {
+        mainWindow.webContents.send('fs:file-changed', {
+          eventType,
+          filename,
+          absolutePath
+        });
+      }
+    });
+  } catch (err) {
+    debugLog('Failed to start vault watcher: ' + err.message);
+  }
+}
+
 app.whenReady().then(() => {
   debugLog('app.whenReady');
+
+  // Start watching initial vault path if exists
+  const initialVault = getStoredVaultPath();
+  if (initialVault) {
+    startWatchingVault(initialVault);
+  }
 
   ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
   ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
@@ -371,6 +424,35 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('fs:deleteFile', async (_, filePath) => fsp.unlink(filePath));
   ipcMain.handle('fs:readdir', async (_, dirPath) => fsp.readdir(dirPath));
+  ipcMain.handle('fs:listAllFiles', async (_, vaultPath) => {
+    const results = [];
+    async function walk(dir) {
+      const entries = await fsp.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name.startsWith('.')) continue;
+          await walk(fullPath);
+        } else if (entry.isFile()) {
+          if (entry.name.endsWith('.md') || entry.name.endsWith('.canvas')) {
+            results.push({
+              name: entry.name,
+              path: fullPath,
+              relativePath: path.relative(vaultPath, fullPath)
+            });
+          }
+        }
+      }
+    }
+    try {
+      if (fs.existsSync(vaultPath)) {
+        await walk(vaultPath);
+      }
+    } catch (e) {
+      debugLog('Error listing all files: ' + e.message);
+    }
+    return results;
+  });
   ipcMain.handle('fs:mkdir', async (_, dirPath) => fsp.mkdir(dirPath, { recursive: true }));
   ipcMain.handle('fs:getDefaultVaultPath', async () => {
     const { homedir } = require('os');
@@ -378,16 +460,7 @@ app.whenReady().then(() => {
     return join(homedir(), 'Documents', 'Flowr');
   });
   ipcMain.handle('fs:getVaultPath', async () => {
-    const configPath = path.join(app.getPath('userData'), 'vault-config.json');
-    try {
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        return config.vaultPath || null;
-      }
-    } catch (e) {
-      debugLog('Failed to read vault path config:', e.message);
-    }
-    return null;
+    return getStoredVaultPath();
   });
   ipcMain.handle('fs:setVaultPath', async (_, vaultPath) => {
     const configPath = path.join(app.getPath('userData'), 'vault-config.json');
@@ -399,6 +472,7 @@ app.whenReady().then(() => {
         fs.mkdirSync(vaultPath, { recursive: true });
         debugLog('Created vault directory:', vaultPath);
       }
+      startWatchingVault(vaultPath);
       return true;
     } catch (e) {
       debugLog('Failed to write vault path config:', e.message);

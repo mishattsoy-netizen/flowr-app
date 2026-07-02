@@ -68,13 +68,13 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText('xattr -dr com.apple.quarantine /Applications/Flowr.app && open /Applications/Flowr.app');
+      await navigator.clipboard.writeText('xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" && open "/Applications/Flowr Beta.app"');
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback
       const ta = document.createElement('textarea');
-      ta.value = 'xattr -dr com.apple.quarantine /Applications/Flowr.app && open /Applications/Flowr.app';
+      ta.value = 'xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" && open "/Applications/Flowr Beta.app"';
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
@@ -132,8 +132,8 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
         <Step number={3}>
           <span>Open Terminal, paste and run:</span>
           <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 text-xs bg-[var(--app-dark)] border border-[var(--bone-12)] rounded-lg px-3 py-2.5 font-mono text-[var(--bone-70)] select-all truncate">
-              xattr -dr com.apple.quarantine /Applications/Flowr.app {'&&'} open /Applications/Flowr.app
+            <code className="flex-1 text-[11px] bg-[var(--app-dark)] border border-[var(--bone-12)] rounded-lg px-3 py-2.5 font-mono text-[var(--bone-70)] select-all break-all whitespace-normal">
+              xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" {'&&'} open "/Applications/Flowr Beta.app"
             </code>
             <button
               onClick={handleCopy}

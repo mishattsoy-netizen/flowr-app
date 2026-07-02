@@ -1,0 +1,4 @@
+51b60c3 feat: scan vault for stale/unrecognized local files on startup
+8aedc93 feat: confirm popup for deleting/keeping local file when switching entity to cloud-only
+4381940 feat: add vault file scanning helpers for sync-mode cleanup
+6e19bb6 fix: skip local file writes for cloud-only entities

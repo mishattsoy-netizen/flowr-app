@@ -1,6 +1,6 @@
 import { Entity } from '@/data/store.types';
 import { isDesktop } from './env';
-import { getVaultPath, sanitizeFileName } from './fileVault';
+import { getVaultPath, sanitizeFileName, getEntityPath } from './fileVault';
 import { serializeFrontmatter, needsBlockBackup } from './editor/frontmatter';
 import { blocksToMarkdown } from './editor/markdownBlocks';
 
@@ -9,8 +9,20 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
   const vault = await getVaultPath();
   if (!vault) return;
 
-  const fileName = sanitizeFileName(entity.title) + (entity.type === 'canvas' ? '.canvas' : '.md');
-  const filePath = `${vault}/${fileName}`; // simplified for M3, will use folders later
+  const { useStore } = await import('@/data/store');
+  const state = useStore.getState();
+  const relPath = getEntityPath(entity, state.entities, state.workspaces);
+  const filePath = `${vault}/${relPath}`;
+
+  const { findLocalFileForEntity, deleteVaultFile } = await import('./syncFileScan');
+  const oldPath = await findLocalFileForEntity(vault, entity);
+  if (oldPath && oldPath !== filePath) {
+    try {
+      await deleteVaultFile(oldPath);
+    } catch (e) {
+      console.warn('Failed to delete old file path:', oldPath, e);
+    }
+  }
 
   let content = '';
   if (entity.type === 'canvas') {
@@ -26,6 +38,9 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
     };
     content = serializeFrontmatter(meta) + '\n\n' + blocksToMarkdown(blocks);
   }
+
+  const { recordLocalWrite } = await import('./vaultSyncBridge');
+  recordLocalWrite(filePath);
 
   await (window as any).flowrFS.writeFile(filePath, content);
 }

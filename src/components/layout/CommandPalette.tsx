@@ -162,7 +162,7 @@ export function CommandPalette() {
       description: 'Open application settings',
       icon: <Command strokeWidth={2} className="w-4 h-4" />,
       shortcut: '/settings',
-      action: () => { setActiveEntityId('settings'); close(); }
+      action: () => { openModal({ kind: 'settings' }); close(); }
     },
     {
       id: 'dashboard',

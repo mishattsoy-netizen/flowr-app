@@ -1,0 +1,26 @@
+diff --git a/src/data/store.ts b/src/data/store.ts
+index 2f67c83..93cf859 100644
+--- a/src/data/store.ts
++++ b/src/data/store.ts
+@@ -2592,20 +2592,21 @@ export const useStore = create<AppState>()(
+     }
+   )
+ );
+ 
+ if (isDesktop()) {
+   useStore.subscribe((state, prevState) => {
+     // Basic detection for M3: if lastModified changed, save it
+     // In M4 this will be replaced by direct calls to saveEntity() on store actions
+     for (const entity of state.entities) {
+       if (entity.type !== 'note' && entity.type !== 'canvas' && entity.type !== 'mixed') continue;
++      if (entity.syncMode === 'cloud-only') continue;
+       const prev = prevState.entities.find(e => e.id === entity.id);
+       if (!prev || prev.lastModified !== entity.lastModified) {
+         const blocks = entity.type === 'canvas'
+           ? state.blocks.filter(b => b.canvasId === entity.id)
+           : (entity.content || []);
+         saveEntityToFile(entity, blocks);
+       }
+     }
+   });
+ }

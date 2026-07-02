@@ -1328,7 +1328,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
       <div
         onClick={(e) => {
           if (effectiveCollapsed) {
-            setActiveEntityId('settings');
+            openModal({ kind: 'settings' });
             clearSelectedSidebarIds();
             return;
           }
@@ -1495,7 +1495,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
             <button
               onClick={() => {
-                setActiveEntityId('settings');
+                openModal({ kind: 'settings' });
                 clearSelectedSidebarIds();
                 setProfilePopupPos(null);
               }}

@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('flowrFS', {
   getDefaultVaultPath: () => ipcRenderer.invoke('fs:getDefaultVaultPath'),
   getVaultPath: () => ipcRenderer.invoke('fs:getVaultPath'),
   setVaultPath: (path) => ipcRenderer.invoke('fs:setVaultPath', path),
+  listAllFiles: (vaultPath) => ipcRenderer.invoke('fs:listAllFiles', vaultPath),
+  onFileChanged: (callback) => {
+    const listener = (_, data) => callback(data);
+    ipcRenderer.on('fs:file-changed', listener);
+    return () => ipcRenderer.removeListener('fs:file-changed', listener);
+  }
 });
 
 contextBridge.exposeInMainWorld('flowrUpdater', {

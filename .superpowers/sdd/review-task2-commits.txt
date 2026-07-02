@@ -1,0 +1,1 @@
+6e19bb6 fix: skip local file writes for cloud-only entities
