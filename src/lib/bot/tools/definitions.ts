@@ -252,5 +252,16 @@ export const FLOWR_TOOLS = [
       type: "object",
       properties: {}
     }
+  },
+  {
+    name: "search_notes",
+    description: "Finds a note or folder by searching its title. Returns matching IDs, titles, and types.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The title or name to search for (e.g. 'Shopping List', 'Project notes')." }
+      },
+      required: ["query"]
+    }
   }
 ]

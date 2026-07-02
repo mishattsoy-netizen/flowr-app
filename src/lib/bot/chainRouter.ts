@@ -764,6 +764,11 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
   // causes the model to default to PIPELINE structured output instead of user-facing answers.
   const PIPELINE_PROMPT_CHAINS = ['WEB_SEARCH', 'RESEARCH']
   if (internalPipelinePrompt && !PIPELINE_PROMPT_CHAINS.includes(category)) finalSysPrompt += "\n\n" + internalPipelinePrompt
+  // Inject tool instructions for categories that have function-calling tools enabled
+  if (['REGULAR', 'COMPLEX', 'CODING'].includes(category)) {
+    const { TOOL_INSTRUCTIONS } = await import('./tools/prompt')
+    finalSysPrompt += "\n\n" + TOOL_INSTRUCTIONS
+  }
   if (routerOverridePrompt) finalSysPrompt += "\n\n" + routerOverridePrompt
   if (context?.pageContext) finalSysPrompt += `\n\n[PAGE CONTEXT]\n${context.pageContext}\n`
 

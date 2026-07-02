@@ -379,5 +379,45 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       logger.error('Failed to list notes:', e.message)
       return { error: e.message }
     }
+  },
+
+  /**
+   * Search Notes by Title
+   */
+  async search_notes({ query }: { query: string }, context: any) {
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    if (!query?.trim()) return { error: 'Search query is required' }
+
+    try {
+      let workspaceId = context?.activeWorkspaceId
+
+      if (context?.userId && context.userId !== 'anonymous') {
+        const { data: user } = await supabaseAdmin
+          .from('profiles')
+          .select('active_workspace_id')
+          .eq('id', context.userId)
+          .single()
+        if (user?.active_workspace_id) workspaceId = user.active_workspace_id
+      }
+
+      if (!workspaceId) return { error: 'No active workspace identified' }
+
+      const { data, error } = await supabaseAdmin
+        .from('entities')
+        .select('id, title, type')
+        .eq('workspace_id', workspaceId)
+        .ilike('title', `%${query}%`)
+        .limit(10)
+
+      if (error) throw error
+
+      return {
+        results: data ?? [],
+        total: data?.length ?? 0
+      }
+    } catch (e: any) {
+      logger.error('Failed to search notes:', e.message)
+      return { error: e.message }
+    }
   }
 }
