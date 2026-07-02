@@ -33,6 +33,7 @@ function blockIcon(b: EditorBlock) {
 function blockLabel(b: EditorBlock) {
   if (b.content) return b.content.slice(0, 28);
   if (b.type === 'shape') return b.shapeKind ?? 'Shape';
+  if (b.type === 'frame') return 'Section';
   return b.type.charAt(0).toUpperCase() + b.type.slice(1);
 }
 

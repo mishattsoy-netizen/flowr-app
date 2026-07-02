@@ -2112,21 +2112,6 @@ export const useStore = create<AppState>()(
         });
       },
 
-      setFrameClipContent: (id: string, clip: boolean) => {
-        set((s) => ({
-          blocks: s.blocks.map((b) =>
-            b.id === id ? { ...b, clipContent: clip } : b,
-          ),
-        }));
-        const block = get().blocks.find((b) => b.id === id);
-        if (block && block.canvasId) {
-          const canvas = get().entities.find((e) => e.id === block.canvasId);
-          if (canvas && canvas.syncMode !== 'local-only') {
-            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
-          }
-        }
-      },
-
       toggleFavorite: (id) => set((state) => ({ favoriteIds: state.favoriteIds.includes(id) ? state.favoriteIds.filter(fid => fid !== id) : [...state.favoriteIds, id] })),
 
       toggleCollapsed: (id) => set((state) => ({ collapsedIds: state.collapsedIds.includes(id) ? state.collapsedIds.filter(cid => cid !== id) : [...state.collapsedIds, id] })),

@@ -142,7 +142,6 @@ export interface EditorBlock {
   isFolded?: boolean;
   foldingEnabled?: boolean;
   linkUrl?: string;
-  clipContent?: boolean;
   /** For text blocks: id of the shape/arrow this label is bound to (Excalidraw-style bound text). */
   containerId?: string;
 }
@@ -588,7 +587,6 @@ export interface AppState {
   // Frame & Group actions
   groupBlocks: (ids: string[]) => string;
   ungroupBlocks: (groupId: string) => void;
-  setFrameClipContent: (id: string, clip: boolean) => void;
 
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;

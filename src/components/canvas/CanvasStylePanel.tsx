@@ -559,7 +559,6 @@ export function CanvasStylePanel({
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
-  const setFrameClipContent = useStore(s => s.setFrameClipContent);
   const [activePicker, setActivePicker] = useState<'bg' | 'pattern' | 'fill' | 'border' | null>(null);
   const outerRef = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
@@ -1150,10 +1149,10 @@ export function CanvasStylePanel({
                 </div>
               </PanelSection>
 
-              {/* ─── Frame / Group Layout Panels ─────────────────────── */}
+              {/* ─── Section Layout Panel ─────────────────────── */}
 
               {isSingleFrame && (
-                <PanelSection title="Frame">
+                <PanelSection title="Section">
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <SidebarInput
@@ -1165,15 +1164,6 @@ export function CanvasStylePanel({
                         prefix={<span className="text-[10px] text-[#888] font-mono">H</span>}
                         value={Math.round(ref?.height ?? 600)}
                         onChange={v => updateCanvasBlock(ref!.id, { height: Number(v) || 1 })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-[#2c2c2c] pt-2">
-                      <span className="text-[11px] text-[var(--bone-40)]">Clip content</span>
-                      <Toggle
-                        checked={ref?.clipContent ?? false}
-                        onChange={v => setFrameClipContent(ref!.id, v)}
-                        size="sm"
                       />
                     </div>
                   </div>

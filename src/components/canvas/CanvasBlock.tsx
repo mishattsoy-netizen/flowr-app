@@ -45,6 +45,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
   const [size, setSize] = useState(() => ({ width: block?.width || 280, height: block?.height || undefined as number | undefined }));
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState('');
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   const isNoteBlock = block?.type !== 'frame' && block?.type !== 'shape' && block?.type !== 'text';
 
@@ -674,8 +677,24 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
       )}
 
-      {/* Edge drag trigger */}
-      {!isEditing && !isBoundLabel && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
+      {/* Edge drag trigger — for frames this must NOT be a full-area overlay: sections select
+          via their border/label only, so clicks over the interior reach members underneath.
+          Render four thin edge strips instead of one full -inset-1 fill. */}
+      {!isEditing && !isBoundLabel && block.type !== 'frame' && (
+        <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />
+      )}
+      {!isEditing && !isBoundLabel && block.type === 'frame' && (() => {
+        const stripCursor = activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair';
+        const stripCls = `canvas-block-edge absolute ${stripCursor}`;
+        return (
+          <>
+            <div className={`${stripCls} -top-1 left-0 right-0 h-2`} />
+            <div className={`${stripCls} -bottom-1 left-0 right-0 h-2`} />
+            <div className={`${stripCls} -left-1 top-0 bottom-0 w-2`} />
+            <div className={`${stripCls} -right-1 top-0 bottom-0 w-2`} />
+          </>
+        );
+      })()}
 
       {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing).
           Text blocks auto-size, so only corner handles are shown (scaling fontSize on drag);
@@ -770,30 +789,54 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         </div>
       ) : block.type === 'frame' ? (
         <>
-          {/* Frame label — rendered above the block, outside its bounds, like Figma */}
+          {/* Section label — rendered above the block, outside its bounds. Double-click to
+              rename inline; the label (not the body) is part of the frame's clickable
+              selection surface. */}
           <div
-            className="absolute pointer-events-none select-none flex items-center gap-1.5"
+            className="absolute select-none flex items-center gap-1.5 pointer-events-auto"
             style={{ top: -22, left: 0 }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setLabelDraft(block.content ?? '');
+              setEditingLabel(true);
+            }}
           >
-            <span
-              className="text-[11px] font-medium truncate max-w-[180px] block"
-              style={{ color: 'var(--bone-60)', lineHeight: '1' }}
-            >
-              {block.content || 'Frame'}
-            </span>
-            {(() => {
-              const childCount = useStore.getState().blocks.filter(b => b.parentId === block.id).length;
-              return childCount > 0 ? (
-                <span
-                  className="text-[10px] font-medium px-1 rounded-[3px]"
-                  style={{ color: 'var(--bone-40)', background: 'var(--bone-8)', lineHeight: '1.2' }}
-                >
-                  {childCount}
-                </span>
-              ) : null;
-            })()}
+            {editingLabel ? (
+              <input
+                ref={labelInputRef}
+                autoFocus
+                className="text-[11px] font-medium bg-transparent outline-none border-b border-[var(--brand-blue)] max-w-[180px]"
+                style={{ color: 'var(--bone-90)', lineHeight: '1' }}
+                value={labelDraft}
+                placeholder="Section"
+                onChange={(e) => setLabelDraft(e.target.value)}
+                onBlur={() => {
+                  updateCanvasBlock(block.id, { content: labelDraft });
+                  setEditingLabel(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                  if (e.key === 'Escape') { e.stopPropagation(); setEditingLabel(false); }
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                className="text-[11px] font-medium truncate max-w-[180px] block cursor-default"
+                style={{ color: 'var(--bone-60)', lineHeight: '1' }}
+                onPointerDown={(e) => {
+                  // Clicking the label selects the frame itself.
+                  e.stopPropagation();
+                  onSelect?.(block.id, e.shiftKey);
+                }}
+              >
+                {block.content || 'Section'}
+              </span>
+            )}
           </div>
-          {/* Frame body — fill + border. Figma-like: no border when idle, show on select/drag-over, transparent when no fill */}
+          {/* Frame body — fill + border, always clipped (Excalidraw-style). Ignores pointer
+              events so clicks over the interior pass through to members underneath; only the
+              border strips + label (above) are part of the frame's click surface. */}
           {(() => {
             const hasFill = block.canvasStyleExt?.fill && block.canvasStyleExt.fill !== 'transparent';
             const fillColor = hasFill
@@ -811,7 +854,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
             }
             return (
               <div
-                className={cn("w-full h-full", block.clipContent && "overflow-hidden")}
+                className="w-full h-full overflow-hidden pointer-events-none"
                 style={{
                   background: fillColor,
                   border: borderStyle,

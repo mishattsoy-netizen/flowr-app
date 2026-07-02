@@ -160,6 +160,29 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
 
+  // Sections (frames), used to render each one's members inside a clipped wrapper layer.
+  const frameBlocks = useMemo(() => pageBlocks.filter(b => b.type === 'frame'), [pageBlocks]);
+
+  // Reactively track which frame-member ids are currently mid-drag, so they can escape the
+  // clipped layer into the unclipped top-level layer and stay visible while being dragged out.
+  // Scoped to member ids only (not all drag offsets) to avoid re-rendering this list on every
+  // unrelated drag (e.g. dragging a non-member shape around the canvas).
+  const [draggingMemberIds, setDraggingMemberIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const memberIds = new Set(pageBlocks.filter(b => b.parentId).map(b => b.id));
+    const unsub = useDragState.subscribe((state) => {
+      const active = new Set<string>();
+      for (const id of Object.keys(state.offsets)) {
+        if (memberIds.has(id)) active.add(id);
+      }
+      setDraggingMemberIds(prev => {
+        if (prev.size === active.size && [...prev].every(id => active.has(id))) return prev;
+        return active;
+      });
+    });
+    return unsub;
+  }, [pageBlocks]);
+
   const handleDragCommit = useCallback(() => {
     // Reset frame drag-over highlight
     hoveredFrameRef.current = null;
@@ -168,35 +191,26 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const currentBlocks = useStore.getState().blocks;
     const canvasBlocks = currentBlocks.filter(x => x.canvasId === entity.id);
 
-    // Drop-into-frame: check each selected block against frames
+    // Drop-into-frame: fully-inside containment test, no nesting (frames can't join frames).
     const batch: { id: string; updates: Partial<EditorBlock> }[] = [];
     const frames = canvasBlocks.filter(b => b.type === 'frame');
     for (const id of selectedIds) {
       const block = canvasBlocks.find(b => b.id === id);
       if (!block) continue;
+      if (block.type === 'frame') continue; // no nesting
 
-      const cx = (block.x ?? 0) + (block.width ?? 0) / 2;
-      const cy = (block.y ?? 0) + (block.height ?? 0) / 2;
-
-      // Find the innermost frame containing this block's center
-      let containedBy: string | null = null;
-      let smallestArea = Infinity;
+      const bx = block.x ?? 0, by = block.y ?? 0, bw = block.width ?? 0, bh = block.height ?? 0;
+      let containedBy: string | undefined;
       for (const f of frames) {
-        const fx = f.x ?? 0, fy = f.y ?? 0;
-        const fw = f.width ?? 0, fh = f.height ?? 0;
-        if (cx >= fx && cx < fx + fw && cy >= fy && cy < fy + fh) {
-          const area = fw * fh;
-          if (area < smallestArea) {
-            smallestArea = area;
-            containedBy = f.id;
-          }
+        const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
+        if (bx >= fx && by >= fy && bx + bw <= fx + fw && by + bh <= fy + fh) {
+          containedBy = f.id;
+          break;
         }
       }
 
-      if (containedBy && block.parentId !== containedBy) {
+      if (containedBy !== block.parentId) {
         batch.push({ id: block.id, updates: { parentId: containedBy } });
-      } else if (!containedBy && block.parentId) {
-        batch.push({ id: block.id, updates: { parentId: undefined } });
       }
     }
 
@@ -208,34 +222,35 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     history.push(updatedBlocks.filter(x => x.canvasId === entity.id));
   }, [selectedIds, entity.id, history]);
 
-  // Drag-over detection for frame drop target highlighting
-  const handleDragMove = useCallback((_dx: number, _dy: number, e: PointerEvent) => {
+  // Drag-over detection for frame drop target highlighting — fully-inside test on the
+  // dragged block's live (in-progress) bounds, mirroring handleDragCommit's containment rule.
+  // No nesting, so first match wins (no innermost-area scan needed).
+  const handleDragMove = useCallback((dx: number, dy: number, _e: PointerEvent) => {
     const currentHovered = hoveredFrameRef.current;
-    const rect = canvasContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const vp = viewportRef.current;
-    const cx = (e.clientX - rect.left - vp.x) / vp.scale;
-    const cy = (e.clientY - rect.top - vp.y) / vp.scale;
     const allBlocks = useStore.getState().blocks;
     const frames = allBlocks.filter(b => b.canvasId === entity.id && b.type === 'frame');
-    // Find the innermost frame (smallest area containing the cursor) — like Figma
+
     let found: string | null = null;
-    let smallestArea = Infinity;
-    for (const f of frames) {
-      const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
-      if (cx >= fx && cx < fx + fw && cy >= fy && cy < fy + fh) {
-        const area = fw * fh;
-        if (area < smallestArea) {
-          smallestArea = area;
+    for (const id of selectedIds) {
+      const block = allBlocks.find(b => b.id === id);
+      if (!block || block.type === 'frame') continue;
+      const bx = (block.x ?? 0) + dx, by = (block.y ?? 0) + dy;
+      const bw = block.width ?? 0, bh = block.height ?? 0;
+      for (const f of frames) {
+        const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
+        if (bx >= fx && by >= fy && bx + bw <= fx + fw && by + bh <= fy + fh) {
           found = f.id;
+          break;
         }
       }
+      if (found) break;
     }
+
     if (found !== currentHovered) {
       hoveredFrameRef.current = found;
       setHoveredFrameId(found);
     }
-  }, [entity.id]);
+  }, [entity.id, selectedIds]);
 
   const { startDrag } = useDrag({
     viewportRef,
@@ -1283,7 +1298,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           // Frame: drag to set size, or click for default
           const newBlockId = generateId();
           addCanvasBlock({
-            id: newBlockId, type: 'frame', content: 'Frame', canvasId: entity.id,
+            id: newBlockId, type: 'frame', content: '', canvasId: entity.id,
             x: isPoint ? currentShape.startX : finalX,
             y: isPoint ? currentShape.startY : finalY,
             width: isPoint ? 300 : Math.max(finalW, 60),
@@ -1416,6 +1431,47 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     }
     setShowFloatingToolbar(true);
   }, [selectedIds]);
+
+  // Shared render path for a single CanvasBlock — used both by the top-level layer and by
+  // each section's clipped-children layer, so bound labels, selection, and drag all resolve
+  // identically regardless of which DOM layer a block currently renders in.
+  const renderBlock = useCallback((b: EditorBlock) => (
+    <CanvasBlock
+      key={b.id}
+      block={b}
+      activeTool={activeTool}
+      viewport={viewport}
+      snapWithObjects={snapWithObjects}
+      snapForResize={snapForResize}
+      isSelected={selectedIds.has(b.id)}
+      selectedIds={selectedIds}
+      onSelect={selectBlock}
+      onCommit={handleDragCommit}
+      onContextMenu={handleBlockContextMenu}
+      hoveredFrameId={hoveredFrameId}
+      onDragMove={handleDragMove}
+      bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+      forceEditing={editingTextId === b.id}
+      onEditingEnded={() => setEditingTextId(null)}
+      onRequestLabelEdit={(textBlockId) => setEditingTextId(textBlockId)}
+      onSideDotDown={(side, x, y) => {
+        if (activeTool !== 'arrow' && activeTool !== 'line') return;
+
+        const binding = sideCenterBinding(b, side);
+        const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
+        // Immediate initialization directly tied into the clicked coordinate
+        if (!isDrawing) {
+          pendingStartBindingRef.current = binding;
+          setDrawing(true);
+          addPoint([x, y]);
+        } else {
+          pendingEndBindingRef.current = binding;
+          addPoint([x, y]);
+          commitFlowConnection();
+        }
+      }}
+    />
+  ), [activeTool, viewport, snapWithObjects, snapForResize, selectedIds, handleDragCommit, handleBlockContextMenu, hoveredFrameId, handleDragMove, hoverBindTargetId, editingTextId, commitFlowConnection]);
 
   return (
     <div className="flex-1 relative overflow-hidden flex flex-col bg-[var(--app-background)]">
@@ -1601,43 +1657,36 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   ))}
                 </svg>
 
-                {pageBlocks.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw').map(b => (
-                  <CanvasBlock
-                    key={b.id}
-                    block={b}
-                    activeTool={activeTool}
-                    viewport={viewport}
-                    snapWithObjects={snapWithObjects}
-                    snapForResize={snapForResize}
-                    isSelected={selectedIds.has(b.id)}
-                    selectedIds={selectedIds}
-                    onSelect={selectBlock}
-                    onCommit={handleDragCommit}
-                    onContextMenu={handleBlockContextMenu}
-                    hoveredFrameId={hoveredFrameId}
-                    onDragMove={handleDragMove}
-                    bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
-                    forceEditing={editingTextId === b.id}
-                    onEditingEnded={() => setEditingTextId(null)}
-                    onRequestLabelEdit={(textBlockId) => setEditingTextId(textBlockId)}
-                    onSideDotDown={(side, x, y) => {
-                      if (activeTool !== 'arrow' && activeTool !== 'line') return;
+                {/* Sections render their members inside a clipped wrapper, positioned via a
+                    negative-offset inner div so members keep their normal absolute canvas
+                    coordinates (no coordinate rewriting needed). Members ALWAYS render here
+                    (never move to a different DOM parent) so useDrag's cached drag nodes never
+                    go stale mid-drag. Instead, while a member is being dragged, the wrapper's
+                    overflow toggles to visible so the dragged member can paint past the
+                    section border and stay visible while being dragged out; other (stationary)
+                    members are unaffected since they're fully inside by definition. */}
+                {frameBlocks.map(f => {
+                  const members = pageBlocks.filter(b => b.parentId === f.id);
+                  if (members.length === 0) return null;
+                  const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
+                  const hasDraggingMember = members.some(m => draggingMemberIds.has(m.id));
+                  return (
+                    <div
+                      key={`clip-${f.id}`}
+                      className={cn("absolute pointer-events-none", hasDraggingMember ? "overflow-visible" : "overflow-hidden")}
+                      style={{ left: fx, top: fy, width: fw, height: fh, zIndex: (f.zIndex ?? 0) + 2 }}
+                    >
+                      <div className="absolute" style={{ left: -fx, top: -fy, pointerEvents: 'auto' }}>
+                        {members.map(renderBlock)}
+                      </div>
+                    </div>
+                  );
+                })}
 
-                      const binding = sideCenterBinding(b, side);
-                      const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
-                      // Immediate initialization directly tied into the clicked coordinate
-                      if (!isDrawing) {
-                        pendingStartBindingRef.current = binding;
-                        setDrawing(true);
-                        addPoint([x, y]);
-                      } else {
-                        pendingEndBindingRef.current = binding;
-                        addPoint([x, y]);
-                        commitFlowConnection();
-                      }
-                    }}
-                  />
-                ))}
+                {pageBlocks
+                  .filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw')
+                  .filter(b => !b.parentId || b.type === 'frame')
+                  .map(renderBlock)}
 
                 {/* Group bounding box drag overlays — transparent hit areas to drag groups by empty space */}
                 {groupOverlays.map(({ groupId, members, bounds }) => (
