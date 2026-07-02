@@ -15,7 +15,7 @@ export async function updateCompactionConfig(config: Partial<CompactionConfig>):
   revalidatePath('/admin/bot/global')
 }
 
-const FINAL_PROMPTS_DIR = path.join(process.cwd(), 'Final prompts')
+const FINAL_PROMPTS_DIR = path.join(process.cwd(), 'Final prompts(active)')
 
 function readFile(...segments: string[]): string {
   const fullPath = path.join(FINAL_PROMPTS_DIR, ...segments)
