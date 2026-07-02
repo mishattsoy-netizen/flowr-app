@@ -20,6 +20,7 @@ import {
 import type { ChatConversation } from '@/lib/chat';
 import { upsertCanvasBlock, deleteCanvasBlock as deleteCanvasBlockFromDB } from '@/lib/canvasSync';
 import { generateGroupId } from '@/lib/groupUtils';
+import { resolvePoints } from '@/lib/geometry/resolvePoints';
 
 // Re-export all types so all consumers import paths remain valid
 export type {
@@ -1991,9 +1992,39 @@ export const useStore = create<AppState>()(
       },
       deleteCanvasBlock: (id: string) => {
         const block = get().blocks.find(b => b.id === id);
+        const all = get().blocks;
+        const dependents = all.filter(b =>
+          b.startBinding?.blockId === id || b.endBinding?.blockId === id
+        );
+        const rewritten = new Map<string, Partial<EditorBlock>>();
+        for (const dep of dependents) {
+          const resolved = resolvePoints(dep, all);
+          const upd: Partial<EditorBlock> = {};
+          if (dep.startBinding?.blockId === id) {
+            upd.startBinding = undefined;
+            if (resolved.length > 0) upd.points = [resolved[0], ...(dep.points ?? [])];
+          }
+          if (dep.endBinding?.blockId === id) {
+            upd.endBinding = undefined;
+            const base = (upd.points ?? dep.points ?? []);
+            if (resolved.length > 1) upd.points = [...base, resolved[resolved.length - 1]];
+          }
+          rewritten.set(dep.id, upd);
+        }
         set((state) => ({
-          blocks: state.blocks.filter(b => b.id !== id)
+          blocks: state.blocks
+            .filter(b => b.id !== id)
+            .map(b => rewritten.has(b.id) ? { ...b, ...rewritten.get(b.id) } : b)
         }));
+        rewritten.forEach((_upd, depId) => {
+          const dep = get().blocks.find(b => b.id === depId);
+          if (dep && dep.canvasId) {
+            const canvas = get().entities.find(e => e.id === dep.canvasId);
+            if (canvas && canvas.syncMode !== 'local-only') {
+              upsertCanvasBlock(dep, undefined, canvas.workspaceId || undefined);
+            }
+          }
+        });
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
           if (canvas && canvas.syncMode !== 'local-only') {

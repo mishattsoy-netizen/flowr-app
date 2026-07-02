@@ -488,6 +488,13 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
                 }} />
             );
           })}
+        </>
+      )}
+
+      {/* Draggable binding endpoints: shown whenever editing or selected, so a selected arrow's
+          endpoints can be re-bound/detached without entering waypoint-edit mode. */}
+      {(editing || selected) && (
+        <>
           {startPos && (
             <circle cx={startPos[0]} cy={startPos[1]} r={6}
               fill="#d38f36" stroke="white" strokeWidth={1.5}
@@ -503,7 +510,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         </>
       )}
 
-      {/* Show waypoint/binding dots when selected */}
+      {/* Show waypoint preview dots when selected (non-interactive) */}
       {!editing && selected && (
         <>
           {waypoints.map((pt, i) => (
@@ -511,16 +518,6 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
               fill="white" stroke={strokeColor} strokeWidth={1} opacity={0.6}
               style={{ pointerEvents: 'none' }} />
           ))}
-          {startPos && (
-            <circle cx={startPos[0]} cy={startPos[1]} r={5}
-              fill="#d38f36" stroke="white" strokeWidth={1.5} opacity={0.8}
-              style={{ pointerEvents: 'none' }} />
-          )}
-          {endPos && (
-            <circle cx={endPos[0]} cy={endPos[1]} r={5}
-              fill="#d38f36" stroke="white" strokeWidth={1.5} opacity={0.8}
-              style={{ pointerEvents: 'none' }} />
-          )}
         </>
       )}
     </g>
