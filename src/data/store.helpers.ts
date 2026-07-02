@@ -23,12 +23,13 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
  * itself is a root, or is orphaned).
  */
 export function findWorkspaceRoot(entities: Entity[], startParentId: string | null): Entity | null {
-  let current = startParentId ? entities.find(e => e.id === startParentId) : null;
+  let current: Entity | null = startParentId ? (entities.find(e => e.id === startParentId) ?? null) : null;
   while (current) {
     if (current.type === 'workspace' || current.type === 'collection') {
       return current;
     }
-    current = current.parentId ? entities.find(e => e.id === current.parentId) : null;
+    const pid = current.parentId;
+    current = pid ? (entities.find(e => e.id === pid) ?? null) : null;
   }
   return null;
 }
