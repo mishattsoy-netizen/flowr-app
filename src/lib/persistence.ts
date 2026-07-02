@@ -26,7 +26,8 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
 
   let content = '';
   if (entity.type === 'canvas') {
-    content = JSON.stringify({ entity, blocks }, null, 2);
+    const { serializeCanvas } = await import('./canvas/flowrFile');
+    content = serializeCanvas({ id: entity.id, title: entity.title }, blocks);
   } else {
     const meta = {
       id: entity.id,
@@ -51,6 +52,11 @@ export async function saveEntity(entity: Entity): Promise<void> {
      await upsertEntity(entity);
   }
   if (isDesktop() && (entity.syncMode === 'local-only' || entity.syncMode === 'full-sync')) {
-     await saveEntityToFile(entity, entity.type === 'canvas' ? [] : (entity.content || []));
+     let blocks: any[] = entity.content || [];
+     if (entity.type === 'canvas') {
+       const { useStore } = await import('@/data/store');
+       blocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
+     }
+     await saveEntityToFile(entity, blocks);
   }
 }

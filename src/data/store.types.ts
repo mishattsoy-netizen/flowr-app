@@ -564,6 +564,7 @@ export interface AppState {
   updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => void;
   updateCanvasBlocks: (updates: { id: string; updates: Partial<EditorBlock> }[]) => void;
   deleteCanvasBlock: (id: string) => void;
+  replaceCanvasBlocks: (canvasId: string, blocks: EditorBlock[]) => void;
   moveCanvasFrame: (frameId: string, deltaX: number, deltaY: number) => void;
   /** @deprecated Use moveCanvasFrame instead. */
   moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => void;

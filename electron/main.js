@@ -434,7 +434,7 @@ app.whenReady().then(() => {
           if (entry.name.startsWith('.')) continue;
           await walk(fullPath);
         } else if (entry.isFile()) {
-          if (entry.name.endsWith('.md') || entry.name.endsWith('.canvas')) {
+          if (entry.name.endsWith('.md') || entry.name.endsWith('.flowr')) {
             results.push({
               name: entry.name,
               path: fullPath,

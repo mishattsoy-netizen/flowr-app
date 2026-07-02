@@ -2040,6 +2040,28 @@ export const useStore = create<AppState>()(
           }
         }
       },
+      replaceCanvasBlocks: (canvasId: string, blocks: EditorBlock[]) => {
+        const existing = get().blocks.filter(b => b.canvasId === canvasId);
+        const incoming = blocks.map(b => ({ ...b, canvasId }));
+
+        // Skip the write if the incoming set is structurally equal to what's already
+        // there — this is what prevents an external .flowr edit that merely echoes
+        // back the current state (e.g. a round-trip re-save) from looping back into
+        // another local-file write.
+        const normalize = (list: EditorBlock[]) =>
+          JSON.stringify(
+            [...list]
+              .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+              .map(b => ({ ...b, canvasId: undefined }))
+          );
+        if (normalize(existing) === normalize(incoming)) {
+          return;
+        }
+
+        set((state) => ({
+          blocks: [...state.blocks.filter(b => b.canvasId !== canvasId), ...incoming]
+        }));
+      },
       moveCanvasFrame: (frameId: string, deltaX: number, deltaY: number) => {
         set((state) => ({
           blocks: state.blocks.map(b => {

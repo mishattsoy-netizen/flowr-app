@@ -79,40 +79,37 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
   }
 
   // ————— FILE ADDED OR MODIFIED —————
-  if (!filename.endsWith('.md') && !filename.endsWith('.canvas')) return;
+  if (!filename.endsWith('.md') && !filename.endsWith('.flowr')) return;
 
-  const titleFromFilename = filename.split(/[/\\]/).pop()?.replace(/\.(md|canvas)$/, '') || 'Untitled';
+  const titleFromFilename = filename.split(/[/\\]/).pop()?.replace(/\.(md|flowr)$/, '') || 'Untitled';
 
-  if (filename.endsWith('.canvas')) {
-    // .canvas raw JSON sync
+  if (filename.endsWith('.flowr')) {
+    // .flowr Excalidraw-compatible JSON sync
     try {
-      const parsed = JSON.parse(fileContent);
-      const fileEntity = parsed?.entity;
-      const fileBlocks = parsed?.blocks || [];
-
-      if (fileEntity && fileEntity.id) {
-        const existing = state.entities.find(e => e.id === fileEntity.id);
+      const { parseFlowrFile } = await import('./canvas/flowrFile');
+      const parsed = parseFlowrFile(fileContent);
+      const title = parsed.title || titleFromFilename;
+      if (parsed.entityId) {
+        const existing = state.entities.find(e => e.id === parsed.entityId);
         if (existing) {
-          // If content/title has changed, update store
-          if (existing.title !== fileEntity.title || !isContentEqual(existing.content, fileBlocks)) {
-            console.log(`[Sync Bridge] Updating canvas entity from local file: ${fileEntity.title}`);
-            // Update title and content
-            if (existing.title !== fileEntity.title) {
-              state.renameEntity(existing.id, fileEntity.title);
-            }
-            state.updateEntityContent(existing.id, fileBlocks);
+          if (existing.title !== title) {
+            console.log(`[Sync Bridge] Updating canvas entity from local file: ${title}`);
+            state.renameEntity(existing.id, title);
           }
+          state.replaceCanvasBlocks(existing.id, parsed.blocks);
         } else {
-          // New canvas entity imported
-          console.log(`[Sync Bridge] Importing new canvas entity: ${fileEntity.title}`);
-          state.addEntity({
-            ...fileEntity,
-            content: fileBlocks
-          });
+          console.log(`[Sync Bridge] Importing new canvas entity: ${title}`);
+          state.addEntity({ id: parsed.entityId, title, type: 'canvas', parentId: null, syncMode: 'full-sync', lastModified: Date.now() });
+          state.replaceCanvasBlocks(parsed.entityId, parsed.blocks);
         }
+      } else {
+        // Foreign .excalidraw-style file dropped into the vault: import as new canvas
+        console.log(`[Sync Bridge] Importing foreign .flowr/.excalidraw file as new canvas: ${title}`);
+        const newId = state.addEntity({ title, type: 'canvas', parentId: null, syncMode: 'full-sync' });
+        state.replaceCanvasBlocks(newId, parsed.blocks.map(b => ({ ...b, canvasId: newId })));
       }
     } catch (e) {
-      console.warn('Failed to parse local .canvas file:', absolutePath, e);
+      console.warn('[Sync Bridge] Invalid .flowr file, leaving untouched:', absolutePath, e);
     }
     return;
   }

@@ -6,7 +6,7 @@ vi.mock('./env', () => ({ isDesktop: () => true }));
 vi.mock('./fileVault', () => ({
   getVaultPath: async () => '/fake/vault',
   sanitizeFileName: (s: string) => s,
-  getEntityPath: (entity: any) => `${entity.title}.${entity.type === 'canvas' ? 'canvas' : 'md'}`,
+  getEntityPath: (entity: any) => `${entity.title}.${entity.type === 'canvas' ? 'flowr' : 'md'}`,
 }));
 
 describe('saveEntityToFile', () => {
@@ -59,5 +59,34 @@ describe('saveEntityToFile', () => {
 
     const [, content] = (global as any).window.flowrFS.writeFile.mock.calls[0];
     expect(content).not.toContain('syncMode: "full-sync"');
+  });
+
+  it('writes canvas entities as .flowr Excalidraw-compatible JSON, not raw {entity, blocks} JSON', async () => {
+    const entity: Entity = {
+      id: 'cv1',
+      title: 'My Canvas',
+      type: 'canvas',
+      parentId: null,
+      lastModified: 1000,
+      tags: [],
+      syncMode: 'full-sync',
+    } as unknown as Entity;
+
+    const blocks = [
+      { id: 'b1', type: 'text', content: 'hello', canvasId: 'cv1', x: 0, y: 0, width: 10, height: 10, zIndex: 0 },
+    ];
+
+    await saveEntityToFile(entity, blocks as any);
+
+    const [path, content] = (global as any).window.flowrFS.writeFile.mock.calls[0];
+    expect(path).toBe('/fake/vault/My Canvas.flowr');
+
+    const parsed = JSON.parse(content);
+    expect(parsed.type).toBe('excalidraw');
+    expect(parsed.flowr).toEqual({ formatVersion: 1, entityId: 'cv1', title: 'My Canvas' });
+    expect(Array.isArray(parsed.elements)).toBe(true);
+    // Should not be the legacy raw-JSON shape
+    expect(parsed.entity).toBeUndefined();
+    expect(parsed.blocks).toBeUndefined();
   });
 });

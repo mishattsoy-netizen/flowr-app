@@ -8,17 +8,19 @@ export interface ParsedVaultFile {
 
 /**
  * Extracts { id, syncMode } from a vault file's content, handling both the
- * markdown-frontmatter format (.md) and the raw-JSON format (.canvas).
+ * markdown-frontmatter format (.md) and the Excalidraw-compatible JSON format (.flowr).
  * Returns null if the content can't be parsed as either.
  */
 export function parseVaultFile(fileName: string, content: string): ParsedVaultFile | null {
-  if (fileName.endsWith('.canvas')) {
+  if (fileName.endsWith('.flowr')) {
     try {
       const parsed = JSON.parse(content);
-      const id = parsed?.entity?.id;
-      const syncMode = parsed?.entity?.syncMode;
-      if (typeof id === 'string' && typeof syncMode === 'string') {
-        return { id, syncMode };
+      const id = parsed?.flowr?.entityId;
+      // .flowr files don't carry syncMode (that lives on the store entity, not the
+      // Excalidraw-compatible file format) — default to 'full-sync' for id-matching
+      // purposes; callers only use { id } from this branch to locate the owning entity.
+      if (typeof id === 'string') {
+        return { id, syncMode: 'full-sync' };
       }
       return null;
     } catch {
@@ -45,7 +47,7 @@ export async function listVaultFiles(vaultPath: string): Promise<Array<{ path: s
     const fileNames: string[] = await flowrFS.readdir(vaultPath);
     const results: Array<{ path: string; fileName: string; parsed: ParsedVaultFile }> = [];
     for (const fileName of fileNames) {
-      if (!fileName.endsWith('.md') && !fileName.endsWith('.canvas')) continue;
+      if (!fileName.endsWith('.md') && !fileName.endsWith('.flowr')) continue;
       const path = `${vaultPath}/${fileName}`;
       try {
         const content: string = await flowrFS.readFile(path);

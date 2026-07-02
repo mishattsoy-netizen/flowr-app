@@ -33,7 +33,7 @@ export function getEntityPath(
 ): string {
   const segments: string[] = [];
 
-  const ext = entity.type === 'canvas' ? '.canvas' : '.md';
+  const ext = entity.type === 'canvas' ? '.flowr' : '.md';
   const fileName = sanitizeFileName(entity.title) + ext;
   segments.push(fileName);
 

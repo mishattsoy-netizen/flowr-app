@@ -10,10 +10,15 @@ describe('parseVaultFile', () => {
     expect(result).toEqual({ id: 'abc123', syncMode: 'full-sync' });
   });
 
-  it('parses a .canvas JSON file', () => {
-    const content = JSON.stringify({ entity: { id: 'canvas1', syncMode: 'local-only' }, blocks: [] });
-    const result = parseVaultFile('My Canvas.canvas', content);
-    expect(result).toEqual({ id: 'canvas1', syncMode: 'local-only' });
+  it('parses a .flowr Excalidraw-compatible JSON file', () => {
+    const content = JSON.stringify({
+      type: 'excalidraw',
+      version: 2,
+      elements: [],
+      flowr: { formatVersion: 1, entityId: 'canvas1', title: 'My Canvas' },
+    });
+    const result = parseVaultFile('My Canvas.flowr', content);
+    expect(result).toEqual({ id: 'canvas1', syncMode: 'full-sync' });
   });
 
   it('returns null for unparseable content', () => {
