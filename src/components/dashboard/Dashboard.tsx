@@ -518,7 +518,7 @@ export function Dashboard() {
                   <button
                     key={entity.id}
                     onClick={() => handleCardClick(entity)}
-                    className="group flex-shrink-0 w-[280px] h-full min-h-[120px] bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
+                    className="group flex-shrink-0 w-[280px] h-full min-h-0 bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
                     style={{ paddingTop: '0.875rem', paddingLeft: '1rem', paddingRight: '1rem', paddingBottom: isNote ? 0 : '1rem' }}
                   >
                     {/* Card Header */}
@@ -554,7 +554,7 @@ export function Dashboard() {
               })}
             </HorizontalOverlayScrollbar>
           ) : (
-            <div className="w-full h-full min-h-[180px] flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+            <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
               <div className="text-center max-w-[320px]">
                 <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
                 <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases will appear here.</p>

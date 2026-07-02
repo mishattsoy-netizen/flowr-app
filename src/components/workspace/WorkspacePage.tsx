@@ -515,7 +515,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
 
           {/* Recents Widget */}
           <section
-            className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col min-h-[261px] max-h-[365px] basis-0"
+            className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col min-h-[180px] max-h-[365px] basis-0"
             style={{ flexGrow: 261 }}
           >
             <div className="flex items-center justify-between mb-4 shrink-0">
@@ -582,7 +582,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
                     <button
                       key={entityItem.id}
                       onClick={() => handleCardClick(entityItem)}
-                      className="group flex-shrink-0 w-[280px] h-full min-h-[185px] bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
+                      className="group flex-shrink-0 w-[280px] h-full min-h-0 bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
                       style={{ paddingTop: '0.875rem', paddingLeft: '1rem', paddingRight: '1rem', paddingBottom: isNote ? 0 : '1rem' }}
                     >
                       {/* Card Header */}
@@ -617,7 +617,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
                 })}
               </HorizontalOverlayScrollbar>
             ) : (
-              <div className="w-full h-full min-h-[180px] flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+              <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
                 <div className="text-center max-w-[320px]">
                   <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
                   <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases in this Workspace will appear here.</p>
@@ -632,7 +632,7 @@ export function WorkspacePage({ entity }: { entity: Entity }) {
 
           {/* Bottom widgets grid */}
           <div
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[485px] max-h-[680px] basis-0 select-none"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[320px] max-h-[680px] basis-0 select-none"
             style={{ flexGrow: 485 }}
           >
             {/* Tasks (2/3 width) */}
