@@ -13,7 +13,6 @@ interface CanvasBlockProps {
   block: EditorBlock;
   activeTool?: CanvasTool;
   viewport: { x: number; y: number; scale: number };
-  onConnectStart?: (side: string, x: number, y: number) => void;
   isSelected?: boolean;
   selectedIds?: Set<string>;
   onSelect?: (id: string, addToSelection: boolean) => void;
@@ -23,9 +22,11 @@ interface CanvasBlockProps {
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
   hoveredFrameId?: string | null;
   onDragMove?: (dx: number, dy: number, e: PointerEvent) => void;
+  bindHighlight?: boolean;
+  onSideDotDown?: (side: 'top' | 'right' | 'bottom' | 'left', x: number, y: number) => void;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -530,16 +531,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     }
   };
 
-  const allConnectionPoints = [
-    { key: 'top',        type: 'edge',   css: 'top-0 left-1/2 -translate-x-1/2 -translate-y-1/2' },
-    { key: 'right',      type: 'edge',   css: 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2' },
-    { key: 'bottom',     type: 'edge',   css: 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2' },
-    { key: 'left',       type: 'edge',   css: 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2' },
-    { key: 'top-left',   type: 'corner', css: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2' },
-    { key: 'top-right',  type: 'corner', css: 'top-0 right-0 translate-x-1/2 -translate-y-1/2' },
-    { key: 'bottom-right', type: 'corner', css: 'bottom-0 right-0 translate-x-1/2 translate-y-1/2' },
-    { key: 'bottom-left',  type: 'corner', css: 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2' },
-  ];
   const HANDLES: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
 
@@ -618,29 +609,42 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
         </div>
       )}
 
-      {/* Connection Points */}
-      {(activeTool === 'arrow' || activeTool === 'line') && allConnectionPoints.map(pt => (
-        <div
-          key={pt.key}
-          className={cn(
-            "absolute rounded-full border-2 border-background z-[100] cursor-crosshair",
-            pt.type === 'corner' ? "w-2.5 h-2.5 bg-[#ec4899]" : "w-3 h-3 bg-accent",
-            pt.css
-          )}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            const canvasRect = document.getElementById('canvas-bg')?.getBoundingClientRect();
-            if (canvasRect && onConnectStart) {
-              onConnectStart(
-                pt.key,
-                (rect.left - canvasRect.left + rect.width / 2 - viewport.x) / viewport.scale,
-                (rect.top - canvasRect.top + rect.height / 2 - viewport.y) / viewport.scale
-              );
-            }
-          }}
-        />
-      ))}
+      {/* Bind highlight + side-center dots (only on the hovered bindable element while
+          the arrow/line tool is active). Replaces the old always-on 8-dot grid with
+          Excalidraw-style hover affordance for the 3 binding modes. */}
+      {bindHighlight && (
+        <>
+          <div className="absolute -inset-[2px] border-2 border-[var(--accent)] rounded-[inherit] pointer-events-none z-[95] opacity-70" />
+          {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+            <div
+              key={side}
+              className={cn(
+                "absolute w-3 h-3 rounded-full bg-[var(--accent)] border-2 border-background z-[100] cursor-crosshair",
+                side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
+                side === 'bottom' && "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2",
+                side === 'left' && "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              )}
+              onPointerDown={(e) => {
+                // stopPropagation: this app's flow-drawing is click-to-add-point (not
+                // drag-to-create), so the dot must fully drive start/commit itself via
+                // onSideDotDown, exactly like the connection points it replaces —
+                // letting the event bubble would double-fire the canvas-bg click handler.
+                e.stopPropagation();
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const canvasRect = document.getElementById('canvas-bg')?.getBoundingClientRect();
+                if (canvasRect && onSideDotDown) {
+                  onSideDotDown(
+                    side,
+                    (rect.left - canvasRect.left + rect.width / 2 - viewport.x) / viewport.scale,
+                    (rect.top - canvasRect.top + rect.height / 2 - viewport.y) / viewport.scale
+                  );
+                }
+              }}
+            />
+          ))}
+        </>
+      )}
 
       {/* CONTENT */}
       {block.type === 'text' ? (

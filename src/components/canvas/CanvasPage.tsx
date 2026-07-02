@@ -28,6 +28,8 @@ import { useDragState, activeDragOffsets } from '@/lib/canvasDragState';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import type { HandlePosition } from './ResizeHandle';
+import { classifyBindingAt, findBindableBlockAt, sideCenterBinding } from '@/lib/canvas/classifyBinding';
+import type { ArrowBinding } from '@/data/store.types';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4.0;
@@ -54,6 +56,15 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [exportFileName, setExportFileName] = useState('canvas-export');
   const [exportSuccess, setExportSuccess] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [hoverBindTargetId, setHoverBindTargetId] = useState<string | null>(null);
+  const pendingStartBindingRef = useRef<ArrowBinding | null>(null);
+  const pendingEndBindingRef = useRef<ArrowBinding | null>(null);
+
+  // Clear the bind-hover highlight the instant the tool changes away from arrow/line,
+  // rather than waiting for the next pointermove to catch up.
+  useEffect(() => {
+    if (activeTool !== 'arrow' && activeTool !== 'line') setHoverBindTargetId(null);
+  }, [activeTool]);
 
   const resolvedBgColor = useMemo(() => {
     if (canvasBgColor === 'default') return 'var(--app-background)';
@@ -245,63 +256,44 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   const flowState = useFlowState();
 
-  // Proximity snap detector for connections
-  const findClosestBlockHandle = useCallback((cx: number, cy: number) => {
-    let best = { id: '', side: '', dist: Infinity };
-    // Access current block snapshot for realtime resolution during fast click streams
-    const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
-    liveBlocks.forEach(b => {
-      if (b.type === 'shape' && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')) return;
-      const bx = b.x || 0, by = b.y || 0;
-      const bw = b.width || 280, bh = b.height || 100;
-      
-      const points = [
-        { side: 'top', x: bx + bw / 2, y: by },
-        { side: 'bottom', x: bx + bw / 2, y: by + bh },
-        { side: 'left', x: bx, y: by + bh / 2 },
-        { side: 'right', x: bx + bw, y: by + bh / 2 },
-      ];
-      
-      points.forEach(p => {
-        const d = Math.hypot(p.x - cx, p.y - cy);
-        if (d < best.dist) {
-          best = { id: b.id, side: p.side, dist: d };
-        }
-      });
-    });
-    return best.dist < 120 ? { id: best.id, side: best.side } : null;
-  }, [entity.id]);
-
   const commitFlowConnection = useCallback(() => {
     const { currentPath, isDrawing, clear } = useFlowState.getState();
     if (!isDrawing || currentPath.length < 2) { clear(); return; }
 
     const tool = activeTool === 'arrow' || activeTool === 'line' ? activeTool : 'arrow';
     const first = currentPath[0], last = currentPath[currentPath.length - 1];
-    const startSnap = findClosestBlockHandle(first[0], first[1]);
-    const endSnap = findClosestBlockHandle(last[0], last[1]);
-    const hasStart = !!startSnap;
-    const hasEnd = !!endSnap;
+    const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
 
-    const mkBinding = (snap: { id: string; side: string }) => ({
-      blockId: snap.id,
-    });
+    // Pending side-dot bindings (mode 1) captured on dot click win over free-point classification.
+    const pendingStart = pendingStartBindingRef.current;
+    const pendingEnd = pendingEndBindingRef.current;
+    pendingStartBindingRef.current = null;
+    pendingEndBindingRef.current = null;
+
+    const startTarget = pendingStart ?? (() => {
+      const b = findBindableBlockAt(first, liveBlocks);
+      return b ? classifyBindingAt(first, b) : null;
+    })();
+    const endTarget = pendingEnd ?? (() => {
+      const b = findBindableBlockAt(last, liveBlocks);
+      return b ? classifyBindingAt(last, b) : null;
+    })();
 
     addCanvasBlock({
       id: generateId(), type: 'shape', content: '', canvasId: entity.id,
       shapeKind: tool,
-      startBinding: hasStart ? mkBinding(startSnap!) : undefined,
-      endBinding: hasEnd ? mkBinding(endSnap!) : undefined,
-      points: hasStart || hasEnd ? currentPath.slice(hasStart ? 1 : 0, currentPath.length - (hasEnd ? 1 : 0)) : currentPath,
+      startBinding: startTarget ?? undefined,
+      endBinding: endTarget ?? undefined,
+      points: currentPath.slice(startTarget ? 1 : 0, currentPath.length - (endTarget ? 1 : 0)),
       x: 0, y: 0, width: 0, height: 0,
       editMode: 'simple',
-      startArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
+      startArrowhead: { type: 'none' },
       endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
       canvasStyleExt: { stroke: '#d38f36', strokeWidth: 1, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
     });
     clear();
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
-  }, [activeTool, addCanvasBlock, entity.id, findClosestBlockHandle, history]);
+  }, [activeTool, addCanvasBlock, entity.id, history]);
 
   const handleDoubleClickBlock = useCallback((blockId: string) => {
     const block = useStore.getState().blocks.find(b => b.id === blockId);
@@ -1115,13 +1107,21 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
       
       if (!isDrawing) {
+        // Fresh stroke started from empty canvas — clear any stale pending binding left
+        // over from a previous stroke that was abandoned (Escape / double-click-to-edit)
+        // without going through commitFlowConnection's own reset.
+        pendingStartBindingRef.current = null;
+        pendingEndBindingRef.current = null;
         setDrawing(true);
         addPoint([x, y]);
         useFlowState.getState().updateMouse({ x, y });
       } else {
-        // Handle auto snap completion logic if user clicks nearby an existing anchor handle
-        const snap = findClosestBlockHandle(x, y);
-        if (snap) {
+        // Auto-finish: clicking inside a bindable block's bind zone (inside or near its
+        // outline) ends the stroke there, classified via the same 3-mode logic as any
+        // other free-point release.
+        const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
+        const target = findBindableBlockAt([x, y], liveBlocks);
+        if (target) {
           addPoint([x, y]);
           useFlowState.getState().updateMouse({ x, y });
           commitFlowConnection();
@@ -1343,6 +1343,15 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             id="canvas-bg"
             onPointerDown={handleBgPointerDown}
             onPointerMove={(e) => {
+              if (activeTool === 'arrow' || activeTool === 'line') {
+                const { x, y } = screenToCanvas(e.clientX, e.clientY);
+                const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
+                const target = findBindableBlockAt([x, y], liveBlocks);
+                setHoverBindTargetId(prev => (target?.id ?? null) === prev ? prev : (target?.id ?? null));
+              } else if (hoverBindTargetId !== null) {
+                setHoverBindTargetId(null);
+              }
+
               if (!cloudSyncEnabled || !supabase) return;
               const now = Date.now();
               if (now - lastCursorBroadcastRef.current < 33) return;
@@ -1491,15 +1500,19 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     onContextMenu={handleBlockContextMenu}
                     hoveredFrameId={hoveredFrameId}
                     onDragMove={handleDragMove}
-                    onConnectStart={(side, x, y) => {
+                    bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+                    onSideDotDown={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
 
+                      const binding = sideCenterBinding(b, side);
                       const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
                       // Immediate initialization directly tied into the clicked coordinate
                       if (!isDrawing) {
+                        pendingStartBindingRef.current = binding;
                         setDrawing(true);
                         addPoint([x, y]);
                       } else {
+                        pendingEndBindingRef.current = binding;
                         addPoint([x, y]);
                         commitFlowConnection();
                       }
