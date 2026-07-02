@@ -81,7 +81,7 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
   }
 
   const previewBlocks = blocks
-    .filter(b => !['shape', 'frame', 'comment', 'connection', 'column'].includes(b.type));
+    .filter(b => !['shape', 'frame', 'column'].includes(b.type));
 
   const rows: React.ReactNode[] = previewBlocks.map((b, i) => {
     const text = stripHtml(b.content || '');
@@ -540,7 +540,7 @@ export function Dashboard() {
                     {/* Preview — fills remaining space with fade-out */}
                     <div className="relative flex-1 min-h-0 overflow-hidden">
                       {isNote ? (
-                        <NoteBlockPreview blocks={(entity.content || []).filter(b => !['shape','frame','comment','connection','column'].includes(b.type))} />
+                        <NoteBlockPreview blocks={(entity.content || []).filter(b => !['shape','frame','column'].includes(b.type))} />
                       ) : (
                         <CanvasMiniPreview canvasBlocks={allBlocks.filter(b => b.canvasId === entity.id)} />
                       )}

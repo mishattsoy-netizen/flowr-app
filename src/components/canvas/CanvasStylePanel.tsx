@@ -1167,33 +1167,6 @@ export function CanvasStylePanel({
                       />
                     </div>
 
-                    {/* Child spacing — only if uniform */}
-                    {(() => {
-                      const children = blocks.filter(b => b.parentId === ref?.id);
-                      if (children.length >= 2) {
-                        const spacing = computeGroupSpacing(children);
-                        if (spacing !== null) {
-                          return (
-                            <div className="flex items-center justify-between border-t border-[#2c2c2c] pt-2">
-                              <span className="text-[11px] text-[var(--bone-40)]">Gap</span>
-                              <div className="w-[100px]">
-                                <SidebarInput
-                                  prefix={
-                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#888" strokeWidth="1.5">
-                                      <path d="M4 3h8M4 13h8M8 6v4" strokeLinecap="round" />
-                                    </svg>
-                                  }
-                                  value={spacing}
-                                  onChange={() => {}}
-                                />
-                              </div>
-                            </div>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
-
                     <div className="flex items-center justify-between border-t border-[#2c2c2c] pt-2">
                       <span className="text-[11px] text-[var(--bone-40)]">Clip content</span>
                       <Toggle
