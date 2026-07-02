@@ -128,6 +128,13 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       onCommit?.();
     },
     onDragMove,
+    // Alt+drag duplicate: leave a stationary copy behind (offset 0), drag continues to move
+    // the originals — see useDrag's onAltDuplicate doc comment for why. Selection intentionally
+    // stays on the originals (matching CanvasPage's group-overlay drag path), so no onSelect call.
+    onAltDuplicate: (ids) => {
+      if (ids.length === 0) return;
+      useStore.getState().duplicateBlocks(ids, { dx: 0, dy: 0 });
+    },
   });
 
   // --- BOUND LABEL LAYOUT ---

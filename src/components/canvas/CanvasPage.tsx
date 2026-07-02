@@ -133,6 +133,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
   const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
+  const duplicateBlocks = useStore(s => s.duplicateBlocks);
 
   const pageBlocks = useMemo(
     () => blocks.filter(b => b.canvasId === entity.id).sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)),
@@ -158,6 +159,22 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   }, [pageBlocks]);
 
   const history = useCanvasHistory(pageBlocks);
+
+  // Arrow-key nudge: many keydowns move the selection by 1-10px each, but they should collapse
+  // into a single undo step per "burst" rather than one step per keypress. Debounce the history
+  // push 500ms after the last nudge in the burst.
+  const nudgeHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleNudgeHistoryPush = useCallback(() => {
+    if (nudgeHistoryTimerRef.current) clearTimeout(nudgeHistoryTimerRef.current);
+    nudgeHistoryTimerRef.current = setTimeout(() => {
+      nudgeHistoryTimerRef.current = null;
+      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+    }, 500);
+  }, [history, entity.id]);
+  useEffect(() => () => {
+    if (nudgeHistoryTimerRef.current) clearTimeout(nudgeHistoryTimerRef.current);
+  }, []);
+
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
   const { markedIds: eraserMarkedIds, handleEraserDown } = useEraser({
@@ -257,6 +274,23 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     }
   }, [entity.id, selectedIds]);
 
+  // Alt+drag duplicate: leave a stationary copy of the dragged blocks behind (offset 0 —
+  // it sits exactly under the originals) and keep selection + the actual drag on the
+  // originals, which is what useDrag's cached-DOM-node transform trick requires (see its
+  // onAltDuplicate doc comment). Net visual effect matches "drag creates a copy": one set
+  // stays put, the other moves under the pointer.
+  //
+  // Duplicates the IDS USE DRAG IS ACTUALLY DRAGGING (its `dragIds`), not the component's
+  // `selectedIds` state — those can diverge: (1) the group-overlay path calls
+  // `setSelectedIds(...)` then `startDrag(e, ...)` synchronously in the same handler, so this
+  // callback's closed-over `selectedIds` would still be the PREVIOUS selection until React
+  // re-renders; (2) dragging an unselected arrow via `handleArrowDrag` doesn't touch selection
+  // at all, so `selectedIds` could be unrelated to what's being dragged.
+  const handleAltDuplicate = useCallback((draggedIds: string[]) => {
+    if (draggedIds.length === 0) return;
+    duplicateBlocks(draggedIds, { dx: 0, dy: 0 });
+  }, [duplicateBlocks]);
+
   const { startDrag } = useDrag({
     viewportRef,
     blocks: pageBlocks,
@@ -269,6 +303,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       hoveredFrameRef.current = null;
       setHoveredFrameId(null);
     },
+    onAltDuplicate: handleAltDuplicate,
   });
 
   const handleArrowDrag = useCallback((e: React.PointerEvent, block: EditorBlock) => {
@@ -463,49 +498,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
   const handleDuplicateSelection = useCallback(() => {
     if (selectedBlocks.length === 0) return;
-    const duplicateMap = new Map<string, string>();
-    const duplicatedList: typeof selectedBlocks = [];
-
-    selectedBlocks.forEach(b => {
-      const newId = generateId();
-      duplicateMap.set(b.id, newId);
-      const copy: any = {
-        ...b,
-        id: newId,
-        x: (b.x ?? 0) + 20,
-        y: (b.y ?? 0) + 20,
-      };
-      if (b.points) {
-        copy.points = b.points.map(p => [p[0] + 20, p[1] + 20]);
-      }
-      duplicatedList.push(copy);
-    });
-
-    // Bound labels aren't independently selectable, so a duplicated shape/arrow's label
-    // won't be in selectedBlocks — duplicate it alongside its (already-cloned) container.
-    const allBlocks = useStore.getState().blocks;
-    selectedBlocks.forEach(b => {
-      const label = allBlocks.find(l => l.type === 'text' && l.containerId === b.id);
-      if (label && !duplicateMap.has(label.id)) {
-        const newLabelId = generateId();
-        duplicateMap.set(label.id, newLabelId);
-        duplicatedList.push({ ...label, id: newLabelId, containerId: duplicateMap.get(b.id) } as any);
-      }
-    });
-
-    duplicatedList.forEach(copy => {
-      if (copy.parentId && duplicateMap.has(copy.parentId)) {
-        copy.parentId = duplicateMap.get(copy.parentId);
-      }
-      if (copy.containerId && duplicateMap.has(copy.containerId)) {
-        copy.containerId = duplicateMap.get(copy.containerId);
-      }
-      addCanvasBlock(copy);
-    });
-
-    setSelectedIds(new Set(duplicatedList.map(b => b.id)));
+    const newIds = duplicateBlocks(selectedBlocks.map(b => b.id), { dx: 20, dy: 20 });
+    setSelectedIds(new Set(newIds));
     history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id));
-  }, [selectedBlocks, addCanvasBlock, entity.id, history]);
+  }, [selectedBlocks, duplicateBlocks, entity.id, history]);
 
   const handleLayerOrder = useCallback((direction: 'front' | 'back') => {
     if (selectedBlocks.length === 0) return;
@@ -921,14 +917,45 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         }
       }
 
-      switch (e.key.toLowerCase()) {
-        case 'v': case 'escape':
+      // Escape chain: text/label editing is handled at the input level (CanvasTextElement /
+      // the label <input> both stopPropagation on Escape and blur themselves), so by the time
+      // Escape reaches this window-level handler, editing is never text/label. Remaining steps,
+      // in priority order: exit waypoint-edit → back to select tool → clear selection.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (editingBlockId) {
+          setEditingBlockId(null);
+          setSelectedPointIndex(null);
+        } else if (activeTool !== 'select' && activeTool !== 'move') {
           setActiveTool('select');
-          if (e.key === 'Escape') {
-            setSelectedIds(new Set());
-            setEditingBlockId(null);
-            setSelectedPointIndex(null);
-          }
+        } else if (selectedIds.size > 0) {
+          setSelectedIds(new Set());
+        }
+        return;
+      }
+
+      // Arrow-key nudge: 1px, or 10px with Shift. Skipped entirely if nothing is selected.
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedIds.size > 0) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        const updates = useStore.getState().blocks
+          .filter(b => selectedIds.has(b.id))
+          .map(b => {
+            const isLinear = b.type === 'shape' && ['arrow', 'line', 'freedraw'].includes(b.shapeKind ?? '');
+            return isLinear
+              ? { id: b.id, updates: { points: (b.points ?? []).map(([px, py]) => [px + dx, py + dy] as [number, number]) } }
+              : { id: b.id, updates: { x: (b.x ?? 0) + dx, y: (b.y ?? 0) + dy } };
+          });
+        updateCanvasBlocks(updates);
+        scheduleNudgeHistoryPush();
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'v':
+          setActiveTool('select');
           break;
         case 'h': setActiveTool('move'); break;
         case 'r': setActiveTool('rect'); break;
@@ -958,7 +985,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [selectedIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedIds, activeTool, editingBlockId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const container = canvasContainerRef.current;
@@ -1515,7 +1542,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           ref={canvasContainerRef}
           className="absolute inset-0 overflow-hidden"
           style={{
-            cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : activeTool === 'eraser' ? 'cell' : undefined,
+            cursor: activeTool === 'move' || spaceHeldRef.current
+              ? 'grab'
+              : activeTool === 'eraser'
+                ? 'cell'
+                : ['rect', 'ellipse', 'diamond', 'arrow', 'line', 'freedraw', 'text', 'frame'].includes(activeTool)
+                  ? 'crosshair'
+                  : undefined,
             backgroundColor: resolvedBgColor,
             backgroundImage: canvasPattern === 'grid'
               ? `linear-gradient(to right, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px)`

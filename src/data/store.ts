@@ -2112,6 +2112,72 @@ export const useStore = create<AppState>()(
         });
       },
 
+      // Clones the given blocks (plus each one's bound label, Task 7) into new blocks with
+      // fresh ids, remapping every internal relationship — containerId, groupId, parentId
+      // (section/frame membership, Task 8), and startBinding/endBinding (Tasks 3-5) — so the
+      // copies form a self-consistent island. Bindings whose target lies OUTSIDE the copied
+      // set are dropped (the original binding target isn't being duplicated, so pointing a
+      // clone's binding at it would make two arrows share one endpoint unexpectedly).
+      // Returns the top-level (non-label) new ids, in the same order as `ids`.
+      duplicateBlocks: (ids: string[], offset?: { dx: number; dy: number }) => {
+        const state = get();
+        const dx = offset?.dx ?? 0;
+        const dy = offset?.dy ?? 0;
+        const idSet = new Set(ids);
+
+        // Source set = requested blocks + each one's bound label (labels aren't independently
+        // selectable, so they wouldn't otherwise be included).
+        const src: EditorBlock[] = [];
+        const seen = new Set<string>();
+        ids.forEach((id) => {
+          const b = state.blocks.find((x) => x.id === id);
+          if (b && !seen.has(b.id)) { seen.add(b.id); src.push(b); }
+        });
+        state.blocks.forEach((b) => {
+          if (b.type === 'text' && b.containerId && idSet.has(b.containerId) && !seen.has(b.id)) {
+            seen.add(b.id);
+            src.push(b);
+          }
+        });
+
+        const idMap = new Map<string, string>(src.map((b) => [b.id, generateId()]));
+        const groupIdMap = new Map<string, string>();
+        src.forEach((b) => {
+          if (b.groupId && !groupIdMap.has(b.groupId)) {
+            groupIdMap.set(b.groupId, generateGroupId());
+          }
+        });
+        const remapBinding = (bd?: import('./store.types').ArrowBinding) =>
+          bd && idMap.has(bd.blockId) ? { ...bd, blockId: idMap.get(bd.blockId)! } : undefined;
+
+        const clones: EditorBlock[] = src.map((b) => ({
+          ...b,
+          id: idMap.get(b.id)!,
+          x: (b.x ?? 0) + dx,
+          y: (b.y ?? 0) + dy,
+          points: b.points ? b.points.map(([px, py]) => [px + dx, py + dy] as [number, number]) : b.points,
+          containerId: b.containerId ? (idMap.get(b.containerId) ?? b.containerId) : undefined,
+          groupId: b.groupId ? groupIdMap.get(b.groupId) : undefined,
+          parentId: b.parentId && idMap.has(b.parentId) ? idMap.get(b.parentId) : b.parentId,
+          startBinding: remapBinding(b.startBinding),
+          endBinding: remapBinding(b.endBinding),
+        }));
+
+        set((s) => ({ blocks: [...s.blocks, ...clones] }));
+
+        clones.forEach((clone) => {
+          if (clone.canvasId) {
+            const canvas = get().entities.find((e) => e.id === clone.canvasId);
+            if (canvas && canvas.syncMode !== 'local-only') {
+              upsertCanvasBlock(clone, undefined, canvas.workspaceId || undefined);
+            }
+          }
+        });
+
+        // Return only the top-level clone ids (exclude bound labels), preserving input order.
+        return ids.map((id) => idMap.get(id)).filter((x): x is string => !!x);
+      },
+
       toggleFavorite: (id) => set((state) => ({ favoriteIds: state.favoriteIds.includes(id) ? state.favoriteIds.filter(fid => fid !== id) : [...state.favoriteIds, id] })),
 
       toggleCollapsed: (id) => set((state) => ({ collapsedIds: state.collapsedIds.includes(id) ? state.collapsedIds.filter(cid => cid !== id) : [...state.collapsedIds, id] })),

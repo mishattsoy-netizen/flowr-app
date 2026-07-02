@@ -588,6 +588,7 @@ export interface AppState {
   // Frame & Group actions
   groupBlocks: (ids: string[]) => string;
   ungroupBlocks: (groupId: string) => void;
+  duplicateBlocks: (ids: string[], offset?: { dx: number; dy: number }) => string[];
 
   updateBlockPosition: (id: string, x: number, y: number) => void;
   setEntities: (entities: Entity[]) => void;

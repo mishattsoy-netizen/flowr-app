@@ -15,6 +15,15 @@ interface DragOptions {
   onCommit?: () => void;
   onDragMove?: (dx: number, dy: number, e: PointerEvent) => void;
   onDragEnd?: (dx: number, dy: number, e: PointerEvent) => void;
+  /**
+   * Alt+drag duplicate: called once at drag start when Alt is held. Leaves a copy of the
+   * dragged ids behind (at the same position) and returns nothing — the drag itself
+   * continues to move the ORIGINAL blocks (their DOM nodes already exist, unlike the
+   * clones', which haven't been rendered by React yet), so visually the originals slide
+   * away from the newly-created stationary copies. Caller is responsible for creating the
+   * clones (store.duplicateBlocks) with zero offset.
+   */
+  onAltDuplicate?: (ids: string[]) => void;
 }
 
 export function getSimpleBezierPath({ sx, sy, tx, ty, sp, tp }: { sx: number; sy: number; tx: number; ty: number; sp: string; tp: string }) {
@@ -60,12 +69,13 @@ export function useDrag({
   onCommit,
   onDragMove,
   onDragEnd,
+  onAltDuplicate,
 }: DragOptions) {
   const isDraggingRef = useRef(false);
 
   // Keep latest mutable references to all changing functions & options to prevent stale closures
-  const optionsRef = useRef({ selectedIds, snapWithObjects, updateCanvasBlocks, onCommit, onDragMove, onDragEnd });
-  optionsRef.current = { selectedIds, snapWithObjects, updateCanvasBlocks, onCommit, onDragMove, onDragEnd };
+  const optionsRef = useRef({ selectedIds, snapWithObjects, updateCanvasBlocks, onCommit, onDragMove, onDragEnd, onAltDuplicate });
+  optionsRef.current = { selectedIds, snapWithObjects, updateCanvasBlocks, onCommit, onDragMove, onDragEnd, onAltDuplicate };
 
   const startDrag = useCallback((e: React.PointerEvent, primaryBlock: EditorBlock) => {
     if (e.button !== 0) return;
@@ -103,6 +113,14 @@ export function useDrag({
       }
     });
     const dragIds = Array.from(dragIdsSet);
+
+    // Alt+drag duplicate: leave a stationary copy of the dragged blocks behind, then continue
+    // dragging the ORIGINALS (their DOM nodes already exist for the cached-node transform
+    // trick below; freshly-cloned blocks wouldn't have rendered yet, so dragging them would
+    // be a no-op visually until the next React commit).
+    if (e.altKey && optionsRef.current.onAltDuplicate) {
+      optionsRef.current.onAltDuplicate(dragIds);
+    }
 
     // Capture initial positions of all dragged elements using the synchronous block state
     const snapshot = new Map<string, { x: number; y: number; w: number; h: number; pivot?: [number, number]; points?: [number, number][] }>();
