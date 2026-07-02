@@ -696,7 +696,7 @@ export async function runChain(
       logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
       return {
         type: 'text',
-        content: "⚡ *System Overload*",
+        content: "*System Overload*",
         usage_type: 'chat',
         model_chain: 'classifier → (failed)',
         status: 'error',
@@ -1556,28 +1556,6 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
     }
   }
 
-  // All models in the chain exhausted — fall back to COMPLEX if not already there
-  if (category !== 'COMPLEX' && category !== 'REGULAR') {
-    logger.warn(`[Fallback] All models exhausted for ${category} — retrying with COMPLEX`)
-    const searchCategories = ['WEB_SEARCH', 'RESEARCH']
-    const fallbackResult = await runChain(prompt, inputBuffer, {
-      ...context,
-      _forcedCategory: 'COMPLEX',
-      // Strip session summary from fallback when search chain failed — prevents poisoned context
-      ...(searchCategories.includes(category) ? { _skipSessionSummary: true } : {}),
-    })
-    // Merge failed WEB_SEARCH routing trace into fallback result so admin logs show all attempted models
-    if (routingTrace.length > 0 && fallbackResult.routing_trace) {
-      fallbackResult.routing_trace = [...routingTrace, ...fallbackResult.routing_trace]
-    } else if (routingTrace.length > 0) {
-      fallbackResult.routing_trace = [...routingTrace, ...(fallbackResult.routing_trace || [])]
-    }
-    if (tracer.all.length > 0) {
-      fallbackResult.step_traces = [...tracer.all, ...(fallbackResult.step_traces || [])]
-    }
-    return fallbackResult
-  }
-
   const chainParts: string[] = []
   if (classificationTrace && classificationTrace.length > 0) {
     classificationTrace.forEach(t => {
@@ -1592,7 +1570,7 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
 
   return {
     type: 'text',
-    content: "⚡ *System Overload*",
+    content: "*System Overload*",
     usage_type: 'chat',
     model_chain: detailedModelChain,
     status: 'error',

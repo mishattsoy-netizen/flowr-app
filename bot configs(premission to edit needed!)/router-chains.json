@@ -45,20 +45,20 @@
   "REGULAR": {
     "chain": [
       {
+        "id": "google/gemini-3.1-flash-lite",
+        "_key": "zehz7e02x",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "google-ai-studio",
+        "is_paid": true,
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
+      },
+      {
         "id": "gemini-3.1-flash-lite",
         "_key": "04syneuw2",
         "provider": "gemini",
         "is_enabled": true,
-        "is_paid": false,
-        "prompt_cost": null,
-        "completion_cost": null
-      },
-      {
-        "id": "openai/gpt-4o-mini",
-        "_key": "ljrba8of5",
-        "provider": "openrouter",
-        "is_enabled": true,
-        "openrouter_provider": "openai",
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null
@@ -88,14 +88,14 @@
         "completion_cost": null
       },
       {
-        "id": "deepseek/deepseek-v4-flash",
+        "id": "google/gemini-3.1-flash-lite",
         "_key": "exbx8vvmd",
         "provider": "openrouter",
         "is_enabled": true,
-        "openrouter_provider": "deepseek",
+        "openrouter_provider": "google-ai-studio",
         "is_paid": true,
-        "prompt_cost": 1.4e-7,
-        "completion_cost": 2.8e-7
+        "prompt_cost": 2.5e-7,
+        "completion_cost": 0.0000015
       }
     ],
     "temperature": 0.1

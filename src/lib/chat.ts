@@ -19,6 +19,7 @@ export interface ChatMessage {
   pipeline_steps?: any;
   image_description?: string;
   image_prompt?: string;
+  citations?: string[];
   created_at: string;
   attachments?: any[];
 }
@@ -109,7 +110,8 @@ export async function insertMessage(
   pipelineSteps?: any,
   imageDescription?: string,
   imagePrompt?: string,
-  attachments?: any[]
+  attachments?: any[],
+  citations?: string[]
 ): Promise<ChatMessage> {
   let finalContent = content;
   if (attachments && attachments.length > 0) {
@@ -130,6 +132,7 @@ export async function insertMessage(
   if (pipelineSteps !== undefined) insertPayload.pipeline_steps = pipelineSteps;
   if (imageDescription !== undefined) insertPayload.image_description = imageDescription;
   if (imagePrompt !== undefined) insertPayload.image_prompt = imagePrompt;
+  if (citations !== undefined) insertPayload.citations = citations;
 
   const { data, error } = await supabase
     .from('messages')

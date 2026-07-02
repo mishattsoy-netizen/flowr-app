@@ -112,8 +112,8 @@
     "VISION",
     "TOOLS"
   ],
-  "inputTokenLimit": 64000,
-  "outputTokenLimit": 32000,
+  "inputTokenLimit": 0,
+  "outputTokenLimit": 0,
   "tokenLimitEnabledCategories": [
     "IMAGE_GEN",
     "REGULAR",
