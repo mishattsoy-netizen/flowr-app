@@ -14,6 +14,7 @@ import { VectorPath } from './edges/VectorPath';
 import { MediaUploadPopover } from './MediaUploadPopover';
 import { CanvasBottomBar } from './CanvasBottomBar';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
+import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from '@/hooks/useCanvasViewport';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
 import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
 import { useDrag } from '@/hooks/useDrag';
@@ -33,10 +34,6 @@ import type { HandlePosition } from './ResizeHandle';
 import { classifyBindingAt, findBindableBlockAt, sideCenterBinding } from '@/lib/canvas/classifyBinding';
 import { getBoundText } from '@/lib/canvas/boundText';
 import type { ArrowBinding } from '@/data/store.types';
-
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 4.0;
-const ZOOM_STEP = 0.1;
 
 export function CanvasPage({ entity }: { entity: Entity }) {
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
@@ -101,9 +98,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [mediaPopover, setMediaPopover] = useState<{
     x: number; y: number; canvasX: number; canvasY: number;
   } | null>(null);
-  const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
-  const viewportRef = useRef(viewport);
-  viewportRef.current = viewport;
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const { viewport, setViewport, viewportRef } = useCanvasViewport(canvasContainerRef);
   const [remoteCursors, setRemoteCursors] = useState<{ userId: string; name: string; x: number; y: number; color: string }[]>([]);
 
   const cloudSyncEnabled = entity.syncMode !== 'local-only';
@@ -111,7 +107,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
   const spaceHeldRef = useRef(false);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const lastCursorBroadcastRef = useRef(0);
 
   // Group resize state
@@ -987,26 +982,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, [selectedIds, activeTool, editingBlockId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const container = canvasContainerRef.current;
-    if (!container) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      const rect = container.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      setViewport(prev => {
-        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-        const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev.scale + delta));
-        const ratio = newScale / prev.scale;
-        return { x: mx - ratio * (mx - prev.x), y: my - ratio * (my - prev.y), scale: newScale };
-      });
-    };
-    container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
-  }, []);
 
   // Active Click-and-Flow dynamic path engine tracker
   useEffect(() => {
