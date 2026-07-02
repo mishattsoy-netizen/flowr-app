@@ -1620,6 +1620,27 @@ export function CanvasStylePanel({
         </PanelSection>
       )}
 
+      {selected.length === 1 && ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line') && (
+        <PanelSection title="Path">
+          <div className="flex bg-[var(--bone-6)] border border-transparent rounded-[var(--radius-small)] p-[2px] gap-[1.5px] h-7">
+            {([false, true] as const).map(curved => (
+              <button
+                key={String(curved)}
+                onClick={() => updateCanvasBlock(ref.id, { curved })}
+                className={cn(
+                  "flex-1 h-full rounded-[var(--radius-tiny)] text-[10px] capitalize transition-colors",
+                  (ref.curved ?? false) === curved
+                    ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
+                    : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+                )}
+              >
+                {curved ? 'Curved' : 'Straight'}
+              </button>
+            ))}
+          </div>
+        </PanelSection>
+      )}
+
       {ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line' || ref.shapeKind === 'freedraw') && (
         <PanelSection title="Edit Mode">
           <div className="flex bg-[var(--bone-6)] border border-transparent rounded-[var(--radius-small)] p-[2px] gap-[1.5px] h-7">

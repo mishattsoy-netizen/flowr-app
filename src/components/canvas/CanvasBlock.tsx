@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
-import { calculateCatmullRomPath } from '@/lib/geometry/splines';
+import { calculateCatmullRomPath, calculatePolylinePath } from '@/lib/geometry/splines';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
 import { getBoundText, layoutLabelInShape, pathMidpoint } from '@/lib/canvas/boundText';
@@ -221,6 +221,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       initTx: number;
       initTy: number;
       points: [number, number][] | null;
+      curved: boolean;
     }[] = [];
 
     const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
@@ -246,6 +247,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
           } catch { }
         }
 
+        const arrowBlockId = pathEl.getAttribute('data-block-id');
+        const arrowBlock = arrowBlockId ? allBlocksForLabel.find(b => b.id === arrowBlockId) : undefined;
+
         cachedPathElements.push({
           el: pathEl,
           fromId,
@@ -257,6 +261,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
           initTx,
           initTy,
           points,
+          curved: !!arrowBlock?.curved,
         });
       }
     });
@@ -453,7 +458,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
               pts[n - 1] = [prev[0] + dx * ratio, prev[1] + dy * ratio];
             }
           }
-          const rawPath = calculateCatmullRomPath(pts);
+          const rawPath = item.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts);
           item.el.setAttribute('d', rawPath);
         } else {
           const rawPath = getSimpleBezierPath({ sx, sy, tx, ty, sp: item.fromSide, tp: item.toSide });

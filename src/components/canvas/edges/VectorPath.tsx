@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore, type EditorBlock } from '@/data/store';
-import { calculateCatmullRomPath, calculateAdvancedPath, calculateSplineBounds } from '@/lib/geometry/splines';
+import { calculateCatmullRomPath, calculateAdvancedPath, calculateSplineBounds, calculatePolylinePath } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { ArrowheadMarker, getMarkerIds } from './arrowheadMarkers';
 import { ResizeHandle, HandlePosition } from '../ResizeHandle';
@@ -59,8 +59,8 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   const edgePath = useMemo(() => {
     if (resolvedPts.length < 2) return '';
     if (isAdvanced && radiuses.length > 0) return calculateAdvancedPath(resolvedPts, radiuses);
-    return calculateCatmullRomPath(resolvedPts);
-  }, [resolvedPts, isAdvanced, radiuses]);
+    return block.curved ? calculateCatmullRomPath(resolvedPts) : calculatePolylinePath(resolvedPts);
+  }, [resolvedPts, isAdvanced, radiuses, block.curved]);
 
   const path = useMemo(() => {
     if (!edgePath) return edgePath;
@@ -129,7 +129,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       if (pts.length < 2) return '';
       const edge = (isAdvanced && radiuses.length > 0)
         ? calculateAdvancedPath(pts, radiuses)
-        : calculateCatmullRomPath(pts);
+        : (block.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts));
         
       if (!edge) return '';
       const tokens = edge.match(/[a-zA-Z]|-?\d+(?:\.\d+)?/g);

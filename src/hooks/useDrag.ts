@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { useStore } from '@/data/store';
 import type { EditorBlock } from '@/data/store';
-import { calculateCatmullRomPath, calculateSplineBounds } from '@/lib/geometry/splines';
+import { calculateCatmullRomPath, calculatePolylinePath, calculateSplineBounds } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { focusToPerimeter } from '@/lib/geometry/binding';
@@ -197,6 +197,7 @@ export function useDrag({
       points: [number, number][] | null;
       startBinding: string | null;
       endBinding: string | null;
+      curved: boolean;
     }[] = [];
 
     const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
@@ -222,6 +223,9 @@ export function useDrag({
           } catch {}
         }
 
+        const arrowBlockId = pathEl.getAttribute('data-block-id');
+        const arrowBlock = arrowBlockId ? latestBlocks.find(b => b.id === arrowBlockId) : undefined;
+
         cachedPathElements.push({
           el: pathEl,
           fromId,
@@ -235,6 +239,7 @@ export function useDrag({
           points,
           startBinding: pathEl.getAttribute('data-start-binding') || null,
           endBinding: pathEl.getAttribute('data-end-binding') || null,
+          curved: !!arrowBlock?.curved,
         });
       }
     });
@@ -385,7 +390,7 @@ export function useDrag({
               pts[n - 1] = [prev[0] + dx * ratio, prev[1] + dy * ratio];
             }
           }
-          const rawPath = calculateCatmullRomPath(pts);
+          const rawPath = item.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts);
           item.el.setAttribute('d', rawPath);
           resolvedPointsArr = pts;
         } else {

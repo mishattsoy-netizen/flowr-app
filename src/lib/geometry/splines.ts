@@ -23,6 +23,11 @@ export function calculateCatmullRomPath(points: [number, number][]): string {
   return path;
 }
 
+export function calculatePolylinePath(points: [number, number][]): string {
+  if (points.length < 2) return "";
+  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
+}
+
 export function calculateAdvancedPath(points: [number, number][], radiuses: number[]): string {
   if (points.length < 2) return "";
   if (points.length === 2) return `M ${points[0][0]} ${points[0][1]} L ${points[1][0]} ${points[1][1]}`;

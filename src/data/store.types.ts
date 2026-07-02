@@ -135,6 +135,7 @@ export interface EditorBlock {
   endBinding?: ArrowBinding;
   editMode?: EditMode;
   pointRadiuses?: number[];
+  curved?: boolean;
   startArrowhead?: ArrowheadStyle;
   endArrowhead?: ArrowheadStyle;
   canvasStyleExt?: CanvasStyleExt;
