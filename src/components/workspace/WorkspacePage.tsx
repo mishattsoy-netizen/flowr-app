@@ -199,7 +199,7 @@ function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
 
         const fill = b.canvasStyleExt?.fill || b.bgColor || 'var(--bone-20)';
         const isCircle = b.shapeKind === 'ellipse';
-        const isLine = b.shapeKind === 'line' || b.shapeKind === 'arrow' || b.type === 'connection';
+        const isLine = b.shapeKind === 'line' || b.shapeKind === 'arrow';
 
         if (isLine) {
           return (

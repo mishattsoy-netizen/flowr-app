@@ -168,7 +168,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         }
 
         // 2. Update path d attributes
-        const hasStart = !!(block.startBinding || block.fromId);
+        const hasStart = !!block.startBinding;
         const resolvedPtsCopy = [...resolvedPts];
         const resolvedIndex = hasStart ? index + 1 : index;
         resolvedPtsCopy[resolvedIndex] = localPt;

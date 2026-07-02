@@ -31,8 +31,6 @@ export function useCanvasMultiSelect(blocks: EditorBlock[]) {
 
     const intersecting = new Set<string>();
     for (const b of blocks) {
-      if (b.type === 'connection') continue;
-      
       let bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 100, bh = b.height ?? 40;
 
       const pointArray = b.points;

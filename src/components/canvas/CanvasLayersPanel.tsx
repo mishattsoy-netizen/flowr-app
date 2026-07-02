@@ -45,7 +45,7 @@ export function CanvasLayersPanel({ canvasId, selectedIds, onSelect }: Props) {
   const TAB_ICONS: Record<string, React.ReactNode> = { layers: <Layers className="w-3 h-3 text-[var(--bone-100)]" />, assets: <Package className="w-3 h-3 text-[var(--bone-100)]" /> };
 
   const pageBlocks = useMemo(() =>
-    blocks.filter(b => b.canvasId === canvasId && b.type !== 'connection'),
+    blocks.filter(b => b.canvasId === canvasId),
     [blocks, canvasId]
   );
 

@@ -39,7 +39,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const isNoteBlock = block?.type !== 'frame' && block?.type !== 'comment' && block?.type !== 'connection' && block?.type !== 'shape';
+  const isNoteBlock = block?.type !== 'frame' && block?.type !== 'shape';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block?.x || 0, y: block?.y || 0 });
@@ -523,7 +523,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
     }
     if (
       block.type === 'text' ||
-      block.type === 'comment' ||
       (block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || ''))
     ) {
       e.stopPropagation();
@@ -584,7 +583,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       onDoubleClick={handleDoubleClick}
     >
       {/* Rotation handle — hidden during multi-selection, shown on unified bounding box instead */}
-      {isSelected && (!selectedIds || selectedIds.size <= 1) && block.type !== 'connection' && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
+      {isSelected && (!selectedIds || selectedIds.size <= 1) && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
             className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
@@ -603,7 +602,7 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
       {!isEditing && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
 
       {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing) */}
-      {block.type !== 'connection' && (isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES.map(h => (
+      {(isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES.map(h => (
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 
@@ -728,24 +727,6 @@ export function CanvasBlock({ block, activeTool, viewport, onConnectStart, isSel
             );
           })()}
         </>
-      ) : block.type === 'comment' ? (
-        <div className="bg-[var(--bone-10)]/80 backdrop-blur-xl border border-[var(--bone-20)] rounded-2xl p-4 w-full h-full">
-          <div className="flex items-center gap-2 mb-3 text-accent">
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Comment</span>
-          </div>
-          <textarea
-            className={cn(
-              "w-full bg-transparent text-sm leading-relaxed outline-none resize-none min-h-[80px] text-foreground/80 placeholder:text-muted-foreground/30",
-              !isEditing && "pointer-events-none select-none"
-            )}
-            value={block.content}
-            onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
-            placeholder="Discuss or tag @someone..."
-            onFocus={() => { setIsEditing(true); onSelect?.(block.id, false); }}
-            onBlur={() => setIsEditing(false)}
-          />
-        </div>
       ) : block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || '') ? (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3 text-center">
           {isEditing ? (

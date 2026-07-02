@@ -67,12 +67,10 @@ export function parseFrontmatter(mdContent: string): { meta: FrontmatterMeta; bo
 }
 
 export function needsBlockBackup(blocks: EditorBlock[]): boolean {
-  return blocks.some(b => 
-    b.type === 'columns' || 
-    b.type === 'shape' || 
-    b.type === 'comment' || 
+  return blocks.some(b =>
+    b.type === 'columns' ||
+    b.type === 'shape' ||
     b.type === 'frame' ||
-    b.type === 'connection' ||
     (b.align && b.align !== 'left')
   );
 }

@@ -30,7 +30,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
 
     // First pass: find the closest snap coordinate across all blocks
     for (const b of blocks) {
-      if (b.id === excludeId || b.type === 'connection') continue;
+      if (b.id === excludeId) continue;
       const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
       // X snapping
@@ -81,7 +81,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
     // Second pass: draw all guide lines that align at the snapped positions (within 0.01 tolerance)
     if (minDiffX < threshold) {
       for (const b of blocks) {
-        if (b.id === excludeId || b.type === 'connection') continue;
+        if (b.id === excludeId) continue;
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
         if (Math.abs(snappedX - (bx + bw)) < 0.01) {
@@ -104,7 +104,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
 
     if (minDiffY < threshold) {
       for (const b of blocks) {
-        if (b.id === excludeId || b.type === 'connection') continue;
+        if (b.id === excludeId) continue;
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
         if (Math.abs(snappedY - (by + bh)) < 0.01) {
@@ -151,7 +151,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
     let guideYBlock: EditorBlock | null = null;
 
     for (const b of blocks) {
-      if (b.id === excludeId || b.type === 'connection') continue;
+      if (b.id === excludeId) continue;
       const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
       // Snapping horizontal edges (width changes)
@@ -249,7 +249,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
     // Draw all guide lines that align at the snapped positions (within 0.01 tolerance)
     if (minDiffX < threshold) {
       for (const b of blocks) {
-        if (b.id === excludeId || b.type === 'connection') continue;
+        if (b.id === excludeId) continue;
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
         if (Math.abs(snappedX - (bx + bw)) < 0.01) {
@@ -272,7 +272,7 @@ export function useCanvasSnap(snapEnabled: boolean, blocks: EditorBlock[], scale
 
     if (minDiffY < threshold) {
       for (const b of blocks) {
-        if (b.id === excludeId || b.type === 'connection') continue;
+        if (b.id === excludeId) continue;
         const bx = b.x ?? 0, by = b.y ?? 0, bw = b.width ?? 0, bh = b.height ?? 0;
 
         if (Math.abs(snappedY - (by + bh)) < 0.01) {

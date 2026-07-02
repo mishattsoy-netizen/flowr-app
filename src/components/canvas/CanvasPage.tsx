@@ -2,7 +2,7 @@
 
 import { Entity, useStore, generateId, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { Copy, ArrowUp, ArrowDown, Trash2, Minus, Undo2, Redo2, PanelRight, Layers, Magnet, Download, Check } from 'lucide-react';
-import { computeAutoLayout, computeGroupBounds } from '@/lib/frameLayout';
+import { computeGroupBounds } from '@/lib/frameLayout';
 import { CanvasBlock } from './CanvasBlock';
 import { CanvasToolbar, CanvasTool } from './CanvasToolbar';
 import { CanvasLayersPanel } from './CanvasLayersPanel';
@@ -160,7 +160,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const frames = canvasBlocks.filter(b => b.type === 'frame');
     for (const id of selectedIds) {
       const block = canvasBlocks.find(b => b.id === id);
-      if (!block || block.type === 'connection') continue;
+      if (!block) continue;
 
       const cx = (block.x ?? 0) + (block.width ?? 0) / 2;
       const cy = (block.y ?? 0) + (block.height ?? 0) / 2;
@@ -191,27 +191,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       useStore.getState().updateCanvasBlocks(batch);
     }
 
-    // Auto-layout recompute: read the store again so parentId changes are reflected
     const updatedBlocks = useStore.getState().blocks;
-    const updatedCanvasBlocks = updatedBlocks.filter(x => x.canvasId === entity.id);
-    for (const f of frames) {
-      if (!f.autoLayout) continue;
-      const children = updatedCanvasBlocks.filter(b => b.parentId === f.id);
-      if (children.length === 0) continue;
-      // Check if any child moved (has a pending update in batch or was dragged)
-      const needsRecompute = children.some(c => batch.find(u => u.id === c.id));
-      if (needsRecompute) {
-        const result = computeAutoLayout(f, children);
-        const recomputeBatch: { id: string; updates: Partial<EditorBlock> }[] = result.children.map(ch => ({
-          id: ch.id,
-          updates: { x: ch.x, y: ch.y, width: ch.width, height: ch.height },
-        }));
-        if (recomputeBatch.length > 0) {
-          useStore.getState().updateCanvasBlocks(recomputeBatch);
-        }
-      }
-    }
-
     history.push(updatedBlocks.filter(x => x.canvasId === entity.id));
   }, [selectedIds, entity.id, history]);
 
@@ -271,7 +251,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     // Access current block snapshot for realtime resolution during fast click streams
     const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
     liveBlocks.forEach(b => {
-      if (b.type === 'connection' || (b.type === 'shape' && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw'))) return;
+      if (b.type === 'shape' && (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')) return;
       const bx = b.x || 0, by = b.y || 0;
       const bw = b.width || 280, bh = b.height || 100;
       
@@ -334,7 +314,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   }, []);
 
   const selectedBlocks = useMemo(
-    () => pageBlocks.filter(b => selectedIds.has(b.id) && b.type !== 'connection'),
+    () => pageBlocks.filter(b => selectedIds.has(b.id)),
     [pageBlocks, selectedIds]
   );
 
@@ -851,7 +831,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         case 'p': setActiveTool('freedraw'); break;
         case 't': setActiveTool('text'); break;
         case 'i': setActiveTool('image'); break;
-        case 'c': setActiveTool('comment'); break;
         case 'f': setActiveTool('frame'); break;
         case ' ':
           spaceHeldRef.current = true;
@@ -1213,8 +1192,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             y: isPoint ? currentShape.startY : finalY,
             width: isPoint ? 300 : Math.max(finalW, 60),
             height: isPoint ? 200 : Math.max(finalH, 40),
-            autoLayout: false,
-            layoutDirection: 'freeform',
             canvasStyleExt: {
               fill: undefined,
               fillOpacity: 0,
@@ -1263,10 +1240,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     } else if (activeTool === 'image') {
       setMediaPopover({ x: e.clientX, y: e.clientY, canvasX: x, canvasY: y });
-    } else if (activeTool === 'comment') {
-      addCanvasBlock({ id: generateId(), type: 'comment', content: '', x, y, canvasId: entity.id });
-      setActiveTool('select');
-      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     }
   };
 
@@ -1486,7 +1459,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 >
                   {pageBlocks.filter(b =>
                     (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw') &&
-                    !(b.startBinding || b.endBinding || b.fromId || b.toId)
+                    !(b.startBinding || b.endBinding)
                   ).map(b => (
                     <VectorPath key={b.id} block={b}
                       selected={selectedIds.has(b.id)}
@@ -1503,7 +1476,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   ))}
                 </svg>
 
-                {pageBlocks.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw' && b.type !== 'connection').map(b => (
+                {pageBlocks.filter(b => b.shapeKind !== 'arrow' && b.shapeKind !== 'line' && b.shapeKind !== 'freedraw').map(b => (
                   <CanvasBlock
                     key={b.id}
                     block={b}

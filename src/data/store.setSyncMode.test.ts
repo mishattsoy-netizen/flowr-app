@@ -14,7 +14,6 @@ vi.mock('@/lib/chat', () => ({
   deleteConversation: vi.fn(), fetchMessages: vi.fn(), insertMessage: vi.fn(),
 }));
 vi.mock('@/lib/canvasSync', () => ({ upsertCanvasBlock: vi.fn(), deleteCanvasBlock: vi.fn() }));
-vi.mock('@/lib/frameLayout', () => ({ computeAutoLayout: vi.fn() }));
 vi.mock('@/lib/groupUtils', () => ({ generateGroupId: () => 'group-1' }));
 vi.mock('@/lib/env', () => ({ isDesktop: () => false }));
 vi.mock('@/lib/persistence', () => ({ saveEntity: vi.fn().mockResolvedValue(undefined) }));

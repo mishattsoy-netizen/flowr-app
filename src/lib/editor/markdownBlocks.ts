@@ -330,7 +330,7 @@ export function blocksToMarkdown(blocks: EditorBlock[]): string {
 const VALID_TYPES = new Set<BlockType>([
   'text', 'checklist', 'bulletList', 'dashedList', 'numberedList',
   'quote', 'divider', 'columns', 'column',
-  'table', 'image', 'video', 'shape', 'frame', 'comment', 'connection', 'link',
+  'table', 'image', 'video', 'shape', 'frame', 'link',
 ]);
 
 function normalizeBlocksInner(input: BlockInput[], depth: number): EditorBlock[] {

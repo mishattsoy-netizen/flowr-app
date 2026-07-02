@@ -22,9 +22,9 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
 
   const linkedArrows = useMemo(() =>
     blocks.filter(b =>
-      (b.type === 'shape' || b.type === 'connection') &&
+      b.type === 'shape' &&
       (b.shapeKind === 'arrow' || b.shapeKind === 'line') &&
-      (b.startBinding || b.endBinding || b.fromId || b.toId)
+      (b.startBinding || b.endBinding)
     ), [blocks]
   );
 

@@ -537,272 +537,6 @@ function ArrowheadDropdown({
 }
 
 
-// ─── Frame / Layout sub-components ─────────────────────────────────────────
-
-const SVG_ICONS = {
-  horiz: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="2.5" y="5.5" width="4" height="5" rx="0.5" />
-      <rect x="9.5" y="5.5" width="4" height="5" rx="0.5" />
-      <path d="M6.5 8H9.5" strokeDasharray="1 1" />
-    </svg>
-  ),
-  vert: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="5.5" y="2.5" width="5" height="4" rx="0.5" />
-      <rect x="5.5" y="9.5" width="5" height="4" rx="0.5" />
-      <path d="M8 6.5V9.5" strokeDasharray="1 1" />
-    </svg>
-  ),
-  grid: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="2.5" y="2.5" width="4" height="4" rx="0.5" />
-      <rect x="9.5" y="2.5" width="4" height="4" rx="0.5" />
-      <rect x="2.5" y="9.5" width="4" height="4" rx="0.5" />
-      <rect x="9.5" y="9.5" width="4" height="4" rx="0.5" />
-    </svg>
-  ),
-  free: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="2.5" y="3.5" width="5" height="4" rx="0.5" />
-      <rect x="8.5" y="6.5" width="5" height="6" rx="0.5" />
-      <circle cx="11" cy="4" r="1.5" />
-    </svg>
-  ),
-};
-
-interface DirOption { value: string; icon: React.ReactNode; label: string }
-
-function FlowDirectionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const dirs: DirOption[] = [
-    { value: 'horizontal', icon: SVG_ICONS.horiz, label: '→' },
-    { value: 'vertical', icon: SVG_ICONS.vert, label: '↓' },
-    { value: 'grid', icon: SVG_ICONS.grid, label: '⊞' },
-    { value: 'freeform', icon: SVG_ICONS.free, label: '⤱' },
-  ];
-  return (
-    <div className="flex bg-[#1e1e1e] border border-[#2c2c2c] rounded-[6px] p-0.5 h-8 w-full gap-0.5">
-      {dirs.map(d => (
-        <button
-          key={d.value}
-          onClick={() => onChange(d.value)}
-          className={cn(
-            "flex-1 flex items-center justify-center transition-all h-full rounded-[4px] cursor-pointer",
-            value === d.value
-              ? "bg-[#2c2c2c] text-white shadow-sm"
-              : "text-[var(--bone-45)] hover:text-white hover:bg-[#252525]"
-          )}
-          title={d.value}
-        >
-          {d.icon}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AlignmentPicker({ value, crossValue, onChange }: {
-  value: string;
-  crossValue: string;
-  onChange: (main: string, cross: string) => void;
-}) {
-  const rows = ['start', 'center', 'end'];
-
-  return (
-    <div className="flex items-center gap-3">
-      {/* 3x3 Figma Alignment Box */}
-      <div className="grid grid-cols-3 gap-[3px] bg-[#1e1e1e] border border-[#2c2c2c] p-1.5 rounded-[6px] w-[64px] h-[64px]">
-        {rows.map(row => rows.map(col => {
-          const selected = value === col && crossValue === row;
-          return (
-            <button
-              key={`${row}-${col}`}
-              onClick={() => onChange(col, row)}
-              className={cn(
-                "w-3.5 h-3.5 rounded-[2px] flex items-center justify-center transition-all cursor-pointer relative",
-                selected ? "bg-[var(--brand-blue)]" : "hover:bg-[#252525]"
-              )}
-              title={`Align: ${col} / ${row}`}
-            >
-              {/* Inner dot or lines depending on selection */}
-              {selected ? (
-                <div className="w-[4px] h-[4px] rounded-full bg-white" />
-              ) : (
-                <div className="w-[3px] h-[3px] rounded-full bg-[#3c3c3c] group-hover:bg-[#5c5c5c]" />
-              )}
-            </button>
-          );
-        }))}
-      </div>
-      <div className="text-[10px] text-[var(--bone-40)] font-mono">
-        {value === 'center' && crossValue === 'center' ? 'Center' :
-         crossValue === 'start' ? `Top ${value === 'start' ? 'Left' : value === 'end' ? 'Right' : 'Center'}` :
-         crossValue === 'end' ? `Bottom ${value === 'start' ? 'Left' : value === 'end' ? 'Right' : 'Center'}` :
-         `Middle ${value === 'start' ? 'Left' : value === 'end' ? 'Right' : 'Center'}`}
-      </div>
-    </div>
-  );
-}
-
-const RESIZE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'fixed', label: 'Fixed' },
-  { value: 'hug', label: 'Hug' },
-  { value: 'fill', label: 'Fill' },
-];
-const CHILD_RESIZE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'fixed', label: 'Fixed' },
-  { value: 'fill', label: 'Fill' },
-];
-
-function ResizeModeDropdown({ value, onChange, options }: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        btnRef.current && !btnRef.current.contains(e.target as Node) &&
-        popupRef.current && !popupRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
-  }, [open]);
-
-  const label = options.find(o => o.value === value)?.label ?? value;
-
-  return (
-    <div className="relative flex-shrink-0" style={{ width: 60 }}>
-      <button
-        ref={btnRef}
-        onClick={() => setOpen(p => !p)}
-        className={cn(
-          "w-full h-7 rounded-[var(--radius-small)] text-[10px] flex items-center justify-between gap-1 px-1.5 cursor-pointer border-none outline-none transition-none",
-          open ? "bg-[var(--bone-10)] text-[var(--bone-100)]" : "bg-[var(--bone-6)] text-[var(--bone-80)] hover:bg-[var(--app-dark)]"
-        )}
-      >
-        <span className="truncate">{label}</span>
-        <ChevronDown className={cn("w-2.5 h-2.5 flex-shrink-0 text-[var(--bone-40)] transition-transform", open && "rotate-180")} />
-      </button>
-      {open && createPortal(
-        <div
-          ref={popupRef}
-          style={{
-            position: 'fixed',
-            top: Math.min(btnRef.current?.getBoundingClientRect().bottom ?? 0, window.innerHeight - 120),
-            left: btnRef.current?.getBoundingClientRect().left ?? 0,
-            width: 80,
-          }}
-          className="z-[200] popup-glass-small p-1 flex flex-col gap-0.5 canvas-floating-panel"
-        >
-          {options.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={cn(
-                "w-full h-[25px] px-2 rounded-[var(--radius-small)] text-[10px] text-left text-[var(--bone-80)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-none cursor-pointer border-none outline-none bg-transparent",
-                opt.value === value && "bg-[var(--app-dark)] text-[var(--bone-100)]"
-              )}
-            >
-              {opt.label}
-              {opt.value === value && <Check className="w-2.5 h-2.5 text-[var(--bone-60)] shrink-0 ml-auto float-right mt-0.5" />}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-function PaddingControl({ top, right, bottom, left, onChange }: {
-  top: number; right: number; bottom: number; left: number;
-  onChange: (t: number, r: number, b: number, l: number) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const allSame = top === right && right === bottom && bottom === left;
-
-  if (!expanded && allSame) {
-    return (
-      <PropRow label="Pad">
-        <SidebarInput
-          prefix={<span className="text-[10px]">□</span>}
-          value={top}
-          onChange={v => {
-            const n = Number(v) || 0;
-            onChange(n, n, n, n);
-          }}
-        />
-        <button
-          onClick={() => setExpanded(true)}
-          className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-100)] px-1 h-7 flex items-center"
-          title="Edit individually"
-        >
-          T/R/B/L
-        </button>
-      </PropRow>
-    );
-  }
-
-  const set = (pos: 't' | 'r' | 'b' | 'l', val: number) => {
-    onChange(
-      pos === 't' ? val : top,
-      pos === 'r' ? val : right,
-      pos === 'b' ? val : bottom,
-      pos === 'l' ? val : left,
-    );
-  };
-
-  return (
-    <div className="space-y-1">
-      <PropRow label="Pad T">
-        <SidebarInput
-          prefix={<span className="text-[10px]">↑</span>}
-          value={top}
-          onChange={v => set('t', Number(v) || 0)}
-        />
-      </PropRow>
-      <PropRow label="Pad R">
-        <SidebarInput
-          prefix={<span className="text-[10px]">→</span>}
-          value={right}
-          onChange={v => set('r', Number(v) || 0)}
-        />
-      </PropRow>
-      <PropRow label="Pad B">
-        <SidebarInput
-          prefix={<span className="text-[10px]">↓</span>}
-          value={bottom}
-          onChange={v => set('b', Number(v) || 0)}
-        />
-      </PropRow>
-      <PropRow label="Pad L">
-        <SidebarInput
-          prefix={<span className="text-[10px]">←</span>}
-          value={left}
-          onChange={v => set('l', Number(v) || 0)}
-        />
-      </PropRow>
-      {allSame && (
-        <button
-          onClick={() => setExpanded(false)}
-          className="text-[10px] text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-        >
-          Collapse
-        </button>
-      )}
-    </div>
-  );
-}
-
 export function CanvasStylePanel({
   selectedIds, canvasId,
   onAlignLeft, onAlignCenterH, onAlignRight,
@@ -825,14 +559,7 @@ export function CanvasStylePanel({
   const blocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
-  const setFrameAutoLayout = useStore(s => s.setFrameAutoLayout);
-  const setFrameLayoutDirection = useStore(s => s.setFrameLayoutDirection);
-  const setFrameLayoutGap = useStore(s => s.setFrameLayoutGap);
-  const setFramePadding = useStore(s => s.setFramePadding);
-  const setFrameAlignment = useStore(s => s.setFrameAlignment);
   const setFrameClipContent = useStore(s => s.setFrameClipContent);
-  const setFrameResizing = useStore(s => s.setFrameResizing);
-  const setChildResizing = useStore(s => s.setChildResizing);
   const [activePicker, setActivePicker] = useState<'bg' | 'pattern' | 'fill' | 'border' | null>(null);
   const outerRef = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
@@ -1002,13 +729,6 @@ export function CanvasStylePanel({
   const isSingleFrame = selected.length === 1 && selected[0].type === 'frame';
   const isGroupSelection = selected.length > 1 && selected.every(b => b.groupId && b.groupId === selected[0].groupId);
   const groupSpacing = isGroupSelection ? computeGroupSpacing(selected) : null;
-  const isChildOfAutoLayoutFrame = selected.length === 1
-    && !!selected[0].parentId
-    && !!blocks.find(b => b.id === selected[0].parentId)?.autoLayout;
-  const parentFrame = isChildOfAutoLayoutFrame && selected[0].parentId
-    ? blocks.find(b => b.id === selected[0].parentId) ?? null
-    : null;
-  const showFrameLayout = isSingleFrame || isGroupSelection || isChildOfAutoLayoutFrame;
 
   const ref = hasSelection ? selected[0] : null;
   const style = hasSelection ? (ref?.canvasStyleExt ?? {}) : activeStyle;
@@ -1431,24 +1151,9 @@ export function CanvasStylePanel({
 
               {/* ─── Frame / Group Layout Panels ─────────────────────── */}
 
-              {isSingleFrame && !ref?.autoLayout && (
-                <PanelSection
-                  title="Frame"
-                  action={
-                    <button
-                      onClick={() => setFrameAutoLayout(ref!.id, true)}
-                      className="text-[11px] font-medium text-[var(--brand-blue)] hover:underline cursor-pointer"
-                    >
-                      + Auto layout
-                    </button>
-                  }
-                >
+              {isSingleFrame && (
+                <PanelSection title="Frame">
                   <div className="space-y-3">
-                    <FlowDirectionPicker
-                      value={ref?.layoutDirection ?? 'freeform'}
-                      onChange={v => setFrameLayoutDirection(ref!.id, v as any)}
-                    />
-
                     <div className="grid grid-cols-2 gap-2">
                       <SidebarInput
                         prefix={<span className="text-[10px] text-[#888] font-mono">W</span>}
@@ -1479,7 +1184,7 @@ export function CanvasStylePanel({
                                     </svg>
                                   }
                                   value={spacing}
-                                  onChange={v => setFrameLayoutGap(ref!.id, Number(v) || 0)}
+                                  onChange={() => {}}
                                 />
                               </div>
                             </div>
@@ -1496,104 +1201,6 @@ export function CanvasStylePanel({
                         onChange={v => setFrameClipContent(ref!.id, v)}
                         size="sm"
                       />
-                    </div>
-                  </div>
-                </PanelSection>
-              )}
-
-              {isSingleFrame && ref?.autoLayout && (
-                <PanelSection
-                  title="Auto Layout"
-                  action={
-                    <button
-                      onClick={() => setFrameAutoLayout(ref!.id, false)}
-                      className="text-[11px] font-medium text-red-400 hover:underline cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  }
-                >
-                  <div className="space-y-3">
-                    <FlowDirectionPicker
-                      value={ref?.layoutDirection ?? 'horizontal'}
-                      onChange={v => setFrameLayoutDirection(ref!.id, v as any)}
-                    />
-
-                    {/* Resizing row */}
-                    <div className="space-y-1.5 border-t border-[#2c2c2c] pt-2.5">
-                      <div className="text-[10px] font-semibold tracking-wider text-[var(--bone-30)] uppercase">Resizing</div>
-                      <div className="flex gap-2 items-center">
-                        <div className="flex-1">
-                          <SidebarInput
-                            prefix={<span className="text-[10px] text-[#888] font-mono">W</span>}
-                            value={Math.round(ref?.width ?? 800)}
-                            onChange={v => { updateCanvasBlock(ref!.id, { width: Number(v) || 1 }); }}
-                          />
-                        </div>
-                        <ResizeModeDropdown
-                          value={ref?.frameResizingH ?? 'fixed'}
-                          onChange={v => setFrameResizing(ref!.id, v as any, ref?.frameResizingV ?? 'fixed')}
-                          options={RESIZE_OPTIONS}
-                        />
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        <div className="flex-1">
-                          <SidebarInput
-                            prefix={<span className="text-[10px] text-[#888] font-mono">H</span>}
-                            value={Math.round(ref?.height ?? 600)}
-                            onChange={v => { updateCanvasBlock(ref!.id, { height: Number(v) || 1 }); }}
-                          />
-                        </div>
-                        <ResizeModeDropdown
-                          value={ref?.frameResizingV ?? 'fixed'}
-                          onChange={v => setFrameResizing(ref!.id, ref?.frameResizingH ?? 'fixed', v as any)}
-                          options={RESIZE_OPTIONS}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Alignment & Gap Grid */}
-                    <div className="border-t border-[#2c2c2c] pt-2.5 space-y-2">
-                      <div className="text-[10px] font-semibold tracking-wider text-[var(--bone-30)] uppercase">Alignment & Gap</div>
-                      <div className="flex gap-4 items-center">
-                        <AlignmentPicker
-                          value={ref?.layoutAlign ?? 'start'}
-                          crossValue={ref?.layoutCrossAlign ?? 'start'}
-                          onChange={(main, cross) => setFrameAlignment(ref!.id, main, cross)}
-                        />
-                        <div className="flex-1">
-                          <SidebarInput
-                            prefix={
-                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#888" strokeWidth="1.5">
-                                <path d="M3 5.5h10M3 10.5h10" strokeLinecap="round" />
-                                <path d="M8 3v10" strokeDasharray="2 2" />
-                              </svg>
-                            }
-                            value={ref?.layoutGap ?? 0}
-                            onChange={v => setFrameLayoutGap(ref!.id, Number(v) || 0)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Padding & Clip content */}
-                    <div className="border-t border-[#2c2c2c] pt-2.5 space-y-2">
-                      <PaddingControl
-                        top={ref?.layoutPaddingTop ?? 0}
-                        right={ref?.layoutPaddingRight ?? 0}
-                        bottom={ref?.layoutPaddingBottom ?? 0}
-                        left={ref?.layoutPaddingLeft ?? 0}
-                        onChange={(t, r, b, l) => setFramePadding(ref!.id, t, r, b, l)}
-                      />
-
-                      <div className="flex items-center justify-between border-t border-[#2c2c2c] pt-2">
-                        <span className="text-[11px] text-[var(--bone-40)]">Clip content</span>
-                        <Toggle
-                          checked={ref?.clipContent ?? false}
-                          onChange={v => setFrameClipContent(ref!.id, v)}
-                          size="sm"
-                        />
-                      </div>
                     </div>
                   </div>
                 </PanelSection>
@@ -1656,38 +1263,6 @@ export function CanvasStylePanel({
                 );
               })()}
 
-              {isChildOfAutoLayoutFrame && ref && !isSingleFrame && (
-                <PanelSection title="Layout">
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1">
-                      <SidebarInput
-                        prefix={<span className="text-[10px]">W</span>}
-                        value={Math.round(ref.width ?? 100)}
-                        onChange={v => { updateCanvasBlock(ref.id, { width: Number(v) || 1 }); }}
-                      />
-                    </div>
-                    <ResizeModeDropdown
-                      value={ref.childResizingH ?? 'fixed'}
-                      onChange={v => setChildResizing(ref.id, v as any, ref.childResizingV ?? 'fixed')}
-                      options={CHILD_RESIZE_OPTIONS}
-                    />
-                  </div>
-                  <div className="flex gap-2 items-center mt-1">
-                    <div className="flex-1">
-                      <SidebarInput
-                        prefix={<span className="text-[10px]">H</span>}
-                        value={Math.round(ref.height ?? 100)}
-                        onChange={v => { updateCanvasBlock(ref.id, { height: Number(v) || 1 }); }}
-                      />
-                    </div>
-                    <ResizeModeDropdown
-                      value={ref.childResizingV ?? 'fixed'}
-                      onChange={v => setChildResizing(ref.id, ref.childResizingH ?? 'fixed', v as any)}
-                      options={CHILD_RESIZE_OPTIONS}
-                    />
-                  </div>
-                </PanelSection>
-              )}
             </>
           )}
 
