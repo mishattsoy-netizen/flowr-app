@@ -207,8 +207,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       }
     }
     return pageContent
-      ? `Here is the content of the "${entity.title}" page the user is currently viewing:\n${pageContent}`
-      : null;
+      ? `Here is the content of the "${entity.title}" page the user is currently viewing (entity ID: ${entity.id}):\n${pageContent}`
+      : `The user is viewing "${entity.title}" (entity ID: ${entity.id}) but it has no content.`;
   };
 
   // Local token estimate: ~4 chars per token. Mirrors the exact per-message text the

@@ -192,6 +192,7 @@ export function BlockRenderer({
   const [inlineCopied, setInlineCopied] = useState(false);
 
   const inlineHoverTimeout = useRef<NodeJS.Timeout | null>(null);
+  const inlinePopupHover = useRef(false);
 
   useEffect(() => {
     if (activeInlineBtn) {
@@ -211,13 +212,16 @@ export function BlockRenderer({
   }, [isDraggingGlobal]);
 
   const handleInlineMouseEnter = () => {
+    inlinePopupHover.current = true;
     if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
   };
 
   const handleInlineMouseLeave = () => {
+    inlinePopupHover.current = false;
+    if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
     inlineHoverTimeout.current = setTimeout(() => {
-      setActiveInlineBtn(null);
-    }, 300);
+      if (!inlinePopupHover.current) setActiveInlineBtn(null);
+    }, 60);
   };
 
   const handleContentMouseMove = (e: React.MouseEvent) => {
@@ -256,13 +260,12 @@ export function BlockRenderer({
             isStandardLink: true
           });
         }
-      } else if (activeInlineBtn) {
-        if (!inlineHoverTimeout.current) {
-          inlineHoverTimeout.current = setTimeout(() => {
-            setActiveInlineBtn(null);
-            inlineHoverTimeout.current = null;
-          }, 300);
-        }
+      } else if (activeInlineBtn && !inlinePopupHover.current) {
+        if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
+        inlineHoverTimeout.current = setTimeout(() => {
+          setActiveInlineBtn(null);
+          inlineHoverTimeout.current = null;
+        }, 60);
       }
     }
   };
@@ -304,15 +307,20 @@ export function BlockRenderer({
     }
   }, [popoverOpen, block.content, block.linkUrl]);
 
+  const blockPopupHover = useRef(false);
+
   const handleLinkMouseEnter = () => {
+    blockPopupHover.current = true;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setPopoverOpen(true);
   };
 
   const handleLinkMouseLeave = () => {
+    blockPopupHover.current = false;
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
-      setPopoverOpen(false);
-    }, 200);
+      if (!blockPopupHover.current) setPopoverOpen(false);
+    }, 80);
   };
 
   const entities = useStore(s => s.entities);

@@ -676,15 +676,21 @@ const UserMessageBubble = ({
 const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
   const [isOpen, setIsOpen] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isHovering = useRef(false);
   const [copying, setCopying] = useState(false);
 
-  const handleMouseEnter = () => {
+  const cancelClose = () => {
+    isHovering.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
     setIsOpen(true);
   };
 
-  const handleMouseLeave = () => {
-    timerRef.current = setTimeout(() => setIsOpen(false), 300);
+  const scheduleClose = () => {
+    isHovering.current = false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (!isHovering.current) setIsOpen(false);
+    }, 60);
   };
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -714,8 +720,8 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
           className="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline"
         >
           {faviconUrl && (
@@ -731,8 +737,8 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
         align="start"
         sideOffset={8}
         className="z-[500] w-fit max-w-[320px] p-2 bg-[var(--app-panel)] border-[var(--bone-12)] shadow-2xl backdrop-blur-2xl rounded-xl border"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleClose}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

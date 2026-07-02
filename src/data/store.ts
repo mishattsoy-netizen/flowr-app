@@ -1262,6 +1262,60 @@ export const useStore = create<AppState>()(
                 get().renameChatConversation(activeChatId, title);
               }
             }
+
+            // Process toolResults: sync Zustand store with server-side tool changes
+            if (lastToolResults && Array.isArray(lastToolResults) && lastToolResults.length > 0) {
+              const currentEntities = get().entities;
+              const currentBlocks = get().blocks;
+              let entitiesUpdated = false;
+              let blocksUpdated = false;
+
+              for (const tr of lastToolResults) {
+                // create_note: add the new entity to the store
+                if (tr.type === 'create_note' && tr.success && tr.id) {
+                  const exists = currentEntities.find(e => e.id === tr.id);
+                  if (!exists) {
+                    const newEntity = {
+                      id: tr.id,
+                      title: tr.title || 'Untitled',
+                      type: 'note' as const,
+                      content: tr.content || [],
+                      parentId: (tr as any).parentId || null,
+                      lastModified: Date.now(),
+                      tags: [] as string[],
+                      syncMode: 'cloud-only' as const,
+                    };
+                    get().addEntity(newEntity);
+                    entitiesUpdated = true;
+                  }
+                }
+
+                // update_note: update the entity in the store
+                if (tr.type === 'update_note' && tr.success && tr.id && tr.content) {
+                  set(s => ({
+                    entities: s.entities.map(e =>
+                      e.id === tr.id
+                        ? { ...e, content: tr.content, title: tr.title || e.title, lastModified: Date.now() }
+                        : e
+                    ),
+                  }));
+                  entitiesUpdated = true;
+                }
+
+                // append_note_blocks: append blocks to the entity's content
+                if (tr.type === 'append_note_blocks' && tr.success && tr.id && tr.content) {
+                  set(s => ({
+                    entities: s.entities.map(e =>
+                      e.id === tr.id
+                        ? { ...e, content: tr.content, lastModified: Date.now() }
+                        : e
+                    ),
+                  }));
+                  entitiesUpdated = true;
+                }
+              }
+            }
+
             return;
           }
 

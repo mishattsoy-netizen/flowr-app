@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
           image_description: result.image_description,
           image_prompt: (result as any).image_prompt,
           transcript_md: result.transcript_md,
-          toolResults: (result as any).toolResults,
+          toolResults: (result as any).captured_tool_calls,
         })
         
         send('[DONE]')

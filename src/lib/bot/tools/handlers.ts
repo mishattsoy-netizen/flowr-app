@@ -223,7 +223,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       })
 
       if (error) throw error
-      return { success: true, id, title }
+      return { success: true, id, title, content: noteContent }
     } catch (e: any) {
       logger.error('Failed to create note:', e.message)
       return { error: e.message }
@@ -240,19 +240,22 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     try {
       const updates: any = { last_modified: Date.now() }
       if (title) updates.title = title
+      let updatedContent: any[] | undefined
       if (blocks && Array.isArray(blocks) && blocks.length > 0) {
         try {
-          updates.content = normalizeBlocks(blocks as BlockInput[])
+          updatedContent = normalizeBlocks(blocks as BlockInput[])
+          updates.content = updatedContent
         } catch (e: any) {
           return { error: `Invalid blocks: ${e.message}` }
         }
       } else if (content) {
-        updates.content = parseMarkdownToBlocks(content)
+        updatedContent = parseMarkdownToBlocks(content)
+        updates.content = updatedContent
       }
 
       const { error } = await supabaseAdmin.from('entities').update(updates).eq('id', id)
       if (error) throw error
-      return { success: true, id }
+      return { success: true, id, content: updatedContent, title: title }
     } catch (e: any) {
       logger.error('Failed to update note:', e.message)
       return { error: e.message }
@@ -283,13 +286,14 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       if (fetchError || !entity) return { error: 'Note not found' }
 
       const existing = Array.isArray(entity.content) ? entity.content : []
+      const mergedContent = [...existing, ...normalized]
       const { error } = await supabaseAdmin
         .from('entities')
-        .update({ content: [...existing, ...normalized], last_modified: Date.now() })
+        .update({ content: mergedContent, last_modified: Date.now() })
         .eq('id', id)
 
       if (error) throw error
-      return { success: true, id }
+      return { success: true, id, content: mergedContent }
     } catch (e: any) {
       logger.error('Failed to append note blocks:', e.message)
       return { error: e.message }
