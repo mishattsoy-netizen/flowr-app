@@ -1,5 +1,6 @@
 // src/lib/geometry/binding.ts
 import type { ArrowBinding, EditorBlock } from '@/data/store';
+import { intersectSegmentWithOutline, isPointInsideShape, nearestPointOnOutline, type OutlineKind } from './outline';
 
 interface BlockRect { x: number; y: number; width: number; height: number; }
 
@@ -34,18 +35,51 @@ export function pointToFocus(cx: number, cy: number, rect: BlockRect): number {
   return nearest.pd / perim;
 }
 
-export function resolveBindingPosition(binding: ArrowBinding | undefined, blocks: EditorBlock[]): [number, number] | null {
-  if (!binding) return null;
-  const block = blocks.find(b => b.id === binding.blockId);
-  if (!block) return null;
-  const rect: BlockRect = { x: block.x ?? 0, y: block.y ?? 0, width: block.width ?? 280, height: block.height ?? 100 };
-  if (binding.fixedPoint) return [rect.x + binding.fixedPoint[0], rect.y + binding.fixedPoint[1]];
-  return focusToPerimeter(binding.focus ?? 0.5, rect, binding.gap ?? 0);
+export const BINDING_GAP = 4;
+
+export function blockOutlineKind(block: EditorBlock): OutlineKind {
+  if (block.type === 'shape') {
+    if (block.shapeKind === 'ellipse') return 'ellipse';
+    if (block.shapeKind === 'diamond') return 'diamond';
+  }
+  return 'rect';
 }
 
-export function getBlockFixedPoints(rect: BlockRect) {
-  return {
-    corners: [[0,0],[rect.width,0],[rect.width,rect.height],[0,rect.height]] as [number,number][],
-    edgeCenters: [[rect.width/2,0],[rect.width,rect.height/2],[rect.width/2,rect.height],[0,rect.height/2]] as [number,number][],
-  };
+function blockRect(block: EditorBlock): BlockRect {
+  return { x: block.x ?? 0, y: block.y ?? 0, width: block.width ?? 280, height: block.height ?? 100 };
+}
+
+export function resolveBindingTarget(binding: ArrowBinding, block: EditorBlock): [number, number] {
+  const rect = blockRect(block);
+  if (binding.fixedPoint) return [rect.x + binding.fixedPoint[0], rect.y + binding.fixedPoint[1]];
+  return focusToPerimeter(binding.focus ?? 0.5, rect, 0);
+}
+
+export function resolveBindingEndpoint(
+  binding: ArrowBinding, aimFrom: [number, number], blocks: EditorBlock[],
+): [number, number] | null {
+  const block = blocks.find(b => b.id === binding.blockId);
+  if (!block) return null;
+  const rect = blockRect(block);
+  const kind = blockOutlineKind(block);
+  const gap = binding.gap ?? BINDING_GAP;
+  const target = resolveBindingTarget(binding, block);
+  const cornerRadius = block.canvasStyleExt?.cornerRadius ?? 0;
+
+  if (isPointInsideShape(kind, rect, aimFrom)) {
+    // Degenerate: the other end is inside this shape — sit on the nearest outline point.
+    return nearestPointOnOutline(kind, rect, aimFrom);
+  }
+  // Aim from the free end toward the target; clip at the outline with gap.
+  // For focus bindings the target is ON the perimeter; extend the ray slightly past it
+  // toward the shape center so the intersection always registers.
+  const cx = rect.x + rect.width / 2, cy = rect.y + rect.height / 2;
+  const towardCenter: [number, number] = binding.fixedPoint ? target : [
+    target[0] + (cx - target[0]) * 0.01, target[1] + (cy - target[1]) * 0.01,
+  ];
+  const hit = intersectSegmentWithOutline(kind, rect, aimFrom, towardCenter, gap, cornerRadius);
+  if (hit) return hit;
+  // Ray missed (e.g. focus on the far side): slide along the outline — nearest outline
+  // point to the straight line aimFrom→target, approximated by projecting aimFrom.
+  return nearestPointOnOutline(kind, rect, aimFrom);
 }

@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 import { useStore, type EditorBlock } from '@/data/store';
 import { calculateCatmullRomPath, calculateAdvancedPath, calculateSplineBounds } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
-import { resolveBindingPosition } from '@/lib/geometry/binding';
 import { ArrowheadMarker, getMarkerIds } from './arrowheadMarkers';
 import { ResizeHandle, HandlePosition } from '../ResizeHandle';
 import { activeDragOffsets } from '@/lib/canvasDragState';
@@ -84,8 +83,8 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   const sHead = block.startArrowhead ?? (block.shapeKind === 'arrow' ? { type: 'filled-triangle' as const, size: 1 } : { type: 'none' as const });
   const eHead = block.endArrowhead ?? (block.shapeKind === 'arrow' ? { type: 'filled-triangle' as const, size: 1 } : { type: 'none' as const });
 
-  const startPos = block.startBinding ? resolveBindingPosition(block.startBinding, canvasBlocks) : null;
-  const endPos = block.endBinding ? resolveBindingPosition(block.endBinding, canvasBlocks) : null;
+  const startPos = resolvedPts.length > 0 && block.startBinding ? resolvedPts[0] : null;
+  const endPos = resolvedPts.length > 1 && block.endBinding ? resolvedPts[resolvedPts.length - 1] : null;
 
   const isDrawingTool = activeTool === 'arrow' || activeTool === 'line';
 
