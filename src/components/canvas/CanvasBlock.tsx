@@ -1,6 +1,6 @@
 "use client";
 
-import { EditorBlock, useStore } from '@/data/store';
+import { EditorBlock, useStore, generateId } from '@/data/store';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import type { CanvasTool } from './CanvasToolbar';
@@ -9,6 +9,8 @@ import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
 import { calculateCatmullRomPath } from '@/lib/geometry/splines';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
+import { getBoundText, layoutLabelInShape, pathMidpoint } from '@/lib/canvas/boundText';
+import { resolvePoints } from '@/lib/geometry/resolvePoints';
 
 interface CanvasBlockProps {
   block: EditorBlock;
@@ -27,9 +29,10 @@ interface CanvasBlockProps {
   onSideDotDown?: (side: 'top' | 'right' | 'bottom' | 'left', x: number, y: number) => void;
   forceEditing?: boolean;
   onEditingEnded?: () => void;
+  onRequestLabelEdit?: (textBlockId: string) => void;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded, onRequestLabelEdit }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -122,12 +125,46 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
     onDragMove,
   });
 
+  // --- BOUND LABEL LAYOUT ---
+  // A bound label is a text block whose containerId points at a shape or arrow; its
+  // position/size are derived from the container every render rather than stored on
+  // itself, so moving/resizing the container automatically carries the label along.
+  const allBlocksForLabel = useStore(s => s.blocks);
+  const isBoundLabel = block?.type === 'text' && !!block?.containerId;
+  const labelContainer = isBoundLabel ? allBlocksForLabel.find(b => b.id === block.containerId) : undefined;
+  const isArrowContainer = !!labelContainer?.points && ['arrow', 'line'].includes(labelContainer?.shapeKind || '');
+
+  let labelLayout: { x: number; y: number; width: number; height: number; wrapped: string; containerGrowsTo?: number } | null = null;
+  if (isBoundLabel && labelContainer && block) {
+    if (isArrowContainer) {
+      const resolved = resolvePoints(labelContainer, allBlocksForLabel);
+      const [mx, my] = pathMidpoint(resolved);
+      const fontSize = block.fontSize ?? 16;
+      const w = Math.max(20, block.width ?? 20);
+      const h = Math.max(fontSize * 1.25, block.height ?? 26);
+      labelLayout = { x: mx - w / 2, y: my - h / 2, width: w, height: h, wrapped: block.content ?? '' };
+    } else {
+      labelLayout = layoutLabelInShape(labelContainer, block.fontSize ?? 20, block.content ?? '');
+    }
+  }
+
+  // Grow the container vertically when the wrapped label no longer fits — one-directional
+  // (never shrinks) so it converges: once height === containerGrowsTo, neededH > ch is false.
+  useLayoutEffect(() => {
+    if (labelLayout?.containerGrowsTo != null && labelContainer && Math.abs((labelContainer.height ?? 0) - labelLayout.containerGrowsTo) > 0.5) {
+      updateCanvasBlock(labelContainer.id, { height: labelLayout.containerGrowsTo });
+    }
+  }, [labelLayout?.containerGrowsTo, labelContainer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!block) return null;
 
   // --- DRAG ---
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isEditing) return;
     if (isResizing) return;
+    // Bound labels aren't independently draggable — pointer events pass through to the
+    // container underneath (handled by not stopping propagation / bailing before drag start).
+    if (isBoundLabel) return;
 
     const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
 
@@ -552,12 +589,26 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       e.stopPropagation();
       return;
     }
-    if (
-      block.type === 'text' ||
-      (block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || ''))
-    ) {
+    if (block.type === 'text') {
       e.stopPropagation();
       setIsEditing(true);
+      return;
+    }
+    if (block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) {
+      // Double-clicking a shape creates-or-edits its bound (centered, wrapping) label,
+      // exactly like Excalidraw — replaces the old plain in-shape textarea.
+      e.stopPropagation();
+      const blocks = useStore.getState().blocks;
+      const existing = getBoundText(block.id, blocks);
+      if (existing) { onRequestLabelEdit?.(existing.id); return; }
+      const id = generateId();
+      useStore.getState().addCanvasBlock({
+        id, type: 'text', content: '', canvasId: block.canvasId, containerId: block.id,
+        x: (block.x ?? 0) + (block.width ?? 0) / 2, y: (block.y ?? 0) + (block.height ?? 0) / 2,
+        width: 20, height: 26, fontSize: 20, textAlign: 'center',
+        canvasStyleExt: { stroke: 'var(--bone-100)' },
+      });
+      onRequestLabelEdit?.(id);
     }
   };
 
@@ -583,11 +634,14 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         false && "" // reserved for context menu ring
       )}
       style={{
-        left: block.x || 0,
-        top: block.y || 0,
-        width: size.width,
-        height: size.height,
+        left: labelLayout ? labelLayout.x : (block.x || 0),
+        top: labelLayout ? labelLayout.y : (block.y || 0),
+        width: labelLayout ? labelLayout.width : size.width,
+        height: labelLayout ? labelLayout.height : size.height,
         zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'frame' ? 2 : 10)),
+        // Bound labels pass pointer events through to the container underneath, except
+        // while actively editing (so the caret/textarea remains interactive).
+        pointerEvents: isBoundLabel && !isEditing ? 'none' : undefined,
         transform: (() => {
           // During drag, return undefined so React leaves useDrag's translate3d intact.
           if (isDraggingLocal) return undefined;
@@ -603,8 +657,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       onContextMenu={handleContextMenu}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Rotation handle — hidden during multi-selection, shown on unified bounding box instead */}
-      {isSelected && (!selectedIds || selectedIds.size <= 1) && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
+      {/* Rotation handle — hidden during multi-selection, shown on unified bounding box instead;
+          also hidden for bound labels, which aren't independently transformable. */}
+      {!isBoundLabel && isSelected && (!selectedIds || selectedIds.size <= 1) && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
             className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
@@ -615,24 +670,25 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       )}
 
       {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
-      {((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing) && (
+      {!isBoundLabel && ((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing) && (
         <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
       )}
 
       {/* Edge drag trigger */}
-      {!isEditing && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
+      {!isEditing && !isBoundLabel && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
 
       {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing).
           Text blocks auto-size, so only corner handles are shown (scaling fontSize on drag);
-          edge handles (n/e/s/w) don't make sense for them and are hidden. */}
-      {!isEditing && (isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES
+          edge handles (n/e/s/w) don't make sense for them and are hidden. Bound labels are
+          never independently resizable — they size themselves from the container + content. */}
+      {!isBoundLabel && !isEditing && (isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES
         .filter(h => block.type !== 'text' || h.length === 2)
         .map(h => (
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 
       {/* Dimension & Rotation Labels — hidden for text (auto-sized, dimensions aren't meaningful) and while editing */}
-      {isSelected && !isEditing && block.type !== 'text' && (
+      {!isBoundLabel && isSelected && !isEditing && block.type !== 'text' && (
         <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 z-[4000] pointer-events-none">
           <div className="dimension-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
             {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
@@ -681,7 +737,15 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       )}
 
       {/* CONTENT */}
-      {block.type === 'text' ? (
+      {isBoundLabel ? (
+        <BoundTextLabel
+          block={block}
+          isEditing={isEditing}
+          isChip={isArrowContainer}
+          onStartEdit={() => { setIsEditing(true); onSelect?.(block.id, false); }}
+          onEndEdit={() => { setIsEditing(false); onEditingEnded?.(); }}
+        />
+      ) : block.type === 'text' ? (
         <CanvasTextElement
           block={block}
           isEditing={isEditing}
@@ -758,23 +822,6 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
             );
           })()}
         </>
-      ) : block.type === 'shape' && !['line', 'arrow', 'freedraw'].includes(block.shapeKind || '') ? (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3 text-center">
-          {isEditing ? (
-            <textarea
-              className="w-full h-full bg-transparent text-sm leading-relaxed outline-none resize-none text-foreground/85 placeholder:text-muted-foreground/30 text-center flex items-center justify-center pointer-events-auto"
-              value={block.content || ''}
-              onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
-              placeholder="Type to add text..."
-              autoFocus
-              onBlur={() => setIsEditing(false)}
-            />
-          ) : (
-            <span className="text-sm font-semibold select-none text-[var(--bone-100)] break-words w-full px-1">
-              {block.content}
-            </span>
-          )}
-        </div>
       ) : null}
 
       {showMenu && (
@@ -787,6 +834,71 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A bound label (text with containerId) rendered inside a shape (centered, wrapping) or as a
+ * chip at an arrow's midpoint. Unlike CanvasTextElement it never writes its own width/height —
+ * the wrapper div's size/position always comes from CanvasBlock's layoutLabelInShape/pathMidpoint
+ * computation, so this only owns the editable text content.
+ */
+function BoundTextLabel({ block, isEditing, isChip, onStartEdit, onEndEdit }: {
+  block: EditorBlock;
+  isEditing: boolean;
+  isChip: boolean;
+  onStartEdit: () => void;
+  onEndEdit: () => void;
+}) {
+  const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
+  const deleteCanvasBlock = useStore(s => s.deleteCanvasBlock);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const fontSize = block.fontSize ?? (isChip ? 16 : 20);
+  const color = block.canvasStyleExt?.stroke || 'var(--bone-100)';
+
+  useLayoutEffect(() => {
+    if (isEditing) {
+      taRef.current?.focus();
+      taRef.current?.setSelectionRange(taRef.current.value.length, taRef.current.value.length);
+    }
+  }, [isEditing]);
+
+  const textStyle: React.CSSProperties = {
+    fontSize, lineHeight: 1.25, color, textAlign: 'center',
+    whiteSpace: 'pre-wrap', wordBreak: 'break-word', width: '100%', height: '100%',
+  };
+
+  const content = isEditing ? (
+    <textarea
+      ref={taRef}
+      className="bg-transparent outline-none resize-none overflow-hidden block caret-[var(--brand-blue)] p-0 m-0 border-0 box-border pointer-events-auto"
+      style={textStyle}
+      value={block.content}
+      onChange={e => updateCanvasBlock(block.id, { content: e.target.value })}
+      onBlur={() => {
+        if (!(block.content ?? '').trim()) deleteCanvasBlock(block.id);
+        onEndEdit();
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Escape') { e.stopPropagation(); (e.target as HTMLTextAreaElement).blur(); }
+      }}
+      onPointerDown={e => e.stopPropagation()}
+    />
+  ) : (
+    <div className="select-none" style={textStyle} onDoubleClick={onStartEdit}>
+      {block.content}
+    </div>
+  );
+
+  if (!isChip) return content;
+
+  return (
+    <div
+      className="bg-[var(--app-dark)] px-1.5 py-0.5 rounded-[var(--radius-tiny)]"
+      style={{ pointerEvents: isEditing ? 'auto' : 'none' }}
+    >
+      {content}
     </div>
   );
 }

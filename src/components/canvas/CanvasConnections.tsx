@@ -9,7 +9,7 @@ interface CanvasConnectionsProps {
   onSelect: (id: string, addToSelection: boolean) => void;
   editingBlockId?: string | null;
   selectedPointIndex?: number | null;
-  onDoubleClick?: (blockId: string) => void;
+  onDoubleClick?: (blockId: string, altKey?: boolean) => void;
   onPointSelect?: (index: number | null) => void;
   onBindingDragStart?: (blockId: string, end: 'start' | 'end', e: React.PointerEvent) => void;
   activeTool?: string;
@@ -41,7 +41,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
           viewportScale={viewportScale}
           viewport={viewport}
           onSelect={onSelect}
-          onDoubleClick={() => onDoubleClick?.(block.id)}
+          onDoubleClick={(altKey) => onDoubleClick?.(block.id, altKey)}
           onPointSelect={onPointSelect}
           onBindingDragStart={(end, e) => onBindingDragStart?.(block.id, end, e)} />
       ))}

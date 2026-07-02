@@ -143,6 +143,8 @@ export interface EditorBlock {
   foldingEnabled?: boolean;
   linkUrl?: string;
   clipContent?: boolean;
+  /** For text blocks: id of the shape/arrow this label is bound to (Excalidraw-style bound text). */
+  containerId?: string;
 }
 
 /** @deprecated Use BentoLayoutItem from '@/components/bento/types' instead. */

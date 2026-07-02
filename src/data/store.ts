@@ -2011,9 +2011,11 @@ export const useStore = create<AppState>()(
           }
           rewritten.set(dep.id, upd);
         }
+        // Deleting a container (shape/arrow) also deletes its bound label, if any.
+        const boundLabel = all.find(b => b.type === 'text' && b.containerId === id);
         set((state) => ({
           blocks: state.blocks
-            .filter(b => b.id !== id)
+            .filter(b => b.id !== id && b.id !== boundLabel?.id)
             .map(b => rewritten.has(b.id) ? { ...b, ...rewritten.get(b.id) } : b)
         }));
         rewritten.forEach((_upd, depId) => {
@@ -2029,6 +2031,12 @@ export const useStore = create<AppState>()(
           const canvas = get().entities.find(e => e.id === block.canvasId);
           if (canvas && canvas.syncMode !== 'local-only') {
             deleteCanvasBlockFromDB(id);
+          }
+        }
+        if (boundLabel && boundLabel.canvasId) {
+          const labelCanvas = get().entities.find(e => e.id === boundLabel.canvasId);
+          if (labelCanvas && labelCanvas.syncMode !== 'local-only') {
+            deleteCanvasBlockFromDB(boundLabel.id);
           }
         }
       },

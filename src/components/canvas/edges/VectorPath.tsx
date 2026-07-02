@@ -18,7 +18,7 @@ interface VectorPathProps {
   selectedPointIndex?: number | null;
   onSelect: (id: string, addToSelection: boolean) => void;
   onBindingDragStart?: (end: 'start' | 'end', e: React.PointerEvent) => void;
-  onDoubleClick?: () => void;
+  onDoubleClick?: (altKey?: boolean) => void;
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
   onPointSelect?: (index: number | null) => void;
   showIndividualSelection?: boolean;
@@ -386,7 +386,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
             const now = Date.now();
             if (now - lastClickRef.current < 300) {
               lastClickRef.current = 0;
-              onDoubleClick?.();
+              onDoubleClick?.(e.altKey);
             } else {
               lastClickRef.current = now;
             }
@@ -443,7 +443,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
           const now = Date.now();
           if (now - lastClickRef.current < 300) {
             lastClickRef.current = 0;
-            onDoubleClick?.();
+            onDoubleClick?.(e.altKey);
           } else {
             lastClickRef.current = now;
           }

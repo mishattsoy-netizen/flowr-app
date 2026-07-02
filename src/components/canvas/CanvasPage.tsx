@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import type { HandlePosition } from './ResizeHandle';
 import { classifyBindingAt, findBindableBlockAt, sideCenterBinding } from '@/lib/canvas/classifyBinding';
+import { getBoundText } from '@/lib/canvas/boundText';
 import type { ArrowBinding } from '@/data/store.types';
 
 const MIN_ZOOM = 0.1;
@@ -341,15 +342,32 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     document.addEventListener('pointerup', up);
   }, [entity.id, history]);
 
-  const handleDoubleClickBlock = useCallback((blockId: string) => {
+  const handleDoubleClickBlock = useCallback((blockId: string, altKey?: boolean) => {
     const block = useStore.getState().blocks.find(b => b.id === blockId);
-    if (block && (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw')) {
-      useFlowState.getState().clear();
-      setSelectedPointIndex(null);
-      setEditingBlockId(blockId);
-      setActiveTool('select');
+    if (!block) return;
+    if (block.shapeKind === 'arrow' || block.shapeKind === 'line' || block.shapeKind === 'freedraw') {
+      // Alt+double-click (or freedraw, which has no meaningful label position) is the
+      // power-user path into waypoint editing; a plain double-click labels the arrow —
+      // matches Excalidraw's double-click-to-label convention for connectors.
+      if (altKey || block.shapeKind === 'freedraw') {
+        useFlowState.getState().clear();
+        setSelectedPointIndex(null);
+        setEditingBlockId(blockId);
+        setActiveTool('select');
+        return;
+      }
+      const existing = getBoundText(blockId, useStore.getState().blocks);
+      if (existing) { setEditingTextId(existing.id); return; }
+      const id = generateId();
+      addCanvasBlock({
+        id, type: 'text', content: '', canvasId: block.canvasId, containerId: blockId,
+        x: 0, y: 0, width: 20, height: 26, fontSize: 16, textAlign: 'center',
+        canvasStyleExt: { stroke: 'var(--bone-100)' },
+      });
+      setEditingTextId(id);
+      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
     }
-  }, []);
+  }, [addCanvasBlock, entity.id, history]);
 
   // Shared by text-tool click and double-click-on-empty-canvas: create a transparent,
   // auto-sizing (Excalidraw-style) text block at the given canvas coords and immediately
@@ -443,9 +461,24 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       duplicatedList.push(copy);
     });
 
+    // Bound labels aren't independently selectable, so a duplicated shape/arrow's label
+    // won't be in selectedBlocks — duplicate it alongside its (already-cloned) container.
+    const allBlocks = useStore.getState().blocks;
+    selectedBlocks.forEach(b => {
+      const label = allBlocks.find(l => l.type === 'text' && l.containerId === b.id);
+      if (label && !duplicateMap.has(label.id)) {
+        const newLabelId = generateId();
+        duplicateMap.set(label.id, newLabelId);
+        duplicatedList.push({ ...label, id: newLabelId, containerId: duplicateMap.get(b.id) } as any);
+      }
+    });
+
     duplicatedList.forEach(copy => {
       if (copy.parentId && duplicateMap.has(copy.parentId)) {
         copy.parentId = duplicateMap.get(copy.parentId);
+      }
+      if (copy.containerId && duplicateMap.has(copy.containerId)) {
+        copy.containerId = duplicateMap.get(copy.containerId);
       }
       addCanvasBlock(copy);
     });
@@ -1562,7 +1595,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       viewportScale={viewport.scale}
                       viewport={{ x: viewport.x, y: viewport.y, scale: viewport.scale }}
                       onSelect={selectBlock}
-                      onDoubleClick={() => handleDoubleClickBlock(b.id)}
+                      onDoubleClick={(altKey) => handleDoubleClickBlock(b.id, altKey)}
                       onDragStart={(e) => handleArrowDrag(e, b)}
                       onPointSelect={setSelectedPointIndex} />
                   ))}
@@ -1586,6 +1619,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
                     forceEditing={editingTextId === b.id}
                     onEditingEnded={() => setEditingTextId(null)}
+                    onRequestLabelEdit={(textBlockId) => setEditingTextId(textBlockId)}
                     onSideDotDown={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
 
