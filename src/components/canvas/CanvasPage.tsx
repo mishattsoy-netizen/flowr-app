@@ -16,6 +16,7 @@ import { CanvasBottomBar } from './CanvasBottomBar';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from '@/hooks/useCanvasViewport';
 import { useCanvasKeyboard } from '@/hooks/useCanvasKeyboard';
+import { useBindingDrag } from '@/hooks/useBindingDrag';
 import { useCanvasSnap } from '@/hooks/useCanvasSnap';
 import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
 import { useDrag } from '@/hooks/useDrag';
@@ -349,50 +350,13 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }, [activeTool, addCanvasBlock, entity.id, history]);
 
-  const handleBindingDrag = useCallback((blockId: string, end: 'start' | 'end', e: React.PointerEvent) => {
-    e.stopPropagation();
-    const rect = canvasContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const toCanvas = (ev: PointerEvent | React.PointerEvent): [number, number] => {
-      const vp = viewportRef.current;
-      return [(ev.clientX - rect.left - vp.x) / vp.scale, (ev.clientY - rect.top - vp.y) / vp.scale];
-    };
-    const move = (ev: PointerEvent) => {
-      const p = toCanvas(ev);
-      const live = useStore.getState().blocks.filter(b => b.canvasId === entity.id && b.id !== blockId);
-      const target = findBindableBlockAt(p, live);
-      setHoverBindTargetId(target?.id ?? null);
-      // live preview: temporarily write the endpoint as a free point
-      const block = useStore.getState().blocks.find(b => b.id === blockId);
-      if (!block) return;
-      if (end === 'start') {
-        useStore.getState().updateCanvasBlock(blockId, { startBinding: undefined, points: [p, ...(block.startBinding ? (block.points ?? []) : (block.points ?? []).slice(1))] });
-      } else {
-        const pts = block.endBinding ? (block.points ?? []) : (block.points ?? []).slice(0, -1);
-        useStore.getState().updateCanvasBlock(blockId, { endBinding: undefined, points: [...pts, p] });
-      }
-    };
-    const up = (ev: PointerEvent) => {
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      setHoverBindTargetId(null);
-      const p = toCanvas(ev);
-      const live = useStore.getState().blocks.filter(b => b.canvasId === entity.id && b.id !== blockId);
-      const target = findBindableBlockAt(p, live);
-      if (target) {
-        const binding = classifyBindingAt(p, target);
-        const block = useStore.getState().blocks.find(b => b.id === blockId);
-        if (binding && block) {
-          // remove the temporary free endpoint added during preview
-          const pts = end === 'start' ? (block.points ?? []).slice(1) : (block.points ?? []).slice(0, -1);
-          useStore.getState().updateCanvasBlock(blockId, end === 'start' ? { startBinding: binding, points: pts } : { endBinding: binding, points: pts });
-        }
-      }
-      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
-    };
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up);
-  }, [entity.id, history]);
+  const { handleBindingDrag } = useBindingDrag({
+    entityId: entity.id,
+    canvasContainerRef,
+    viewportRef,
+    history,
+    setHoverBindTargetId,
+  });
 
   const handleDoubleClickBlock = useCallback((blockId: string, altKey?: boolean) => {
     const block = useStore.getState().blocks.find(b => b.id === blockId);
