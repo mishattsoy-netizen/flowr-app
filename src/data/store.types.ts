@@ -129,6 +129,8 @@ export interface EditorBlock {
   };
   shapeKind?: ShapeKind;
   points?: [number, number][];
+  fontSize?: number;
+  textAlign?: 'left' | 'center' | 'right';
   startBinding?: ArrowBinding;
   endBinding?: ArrowBinding;
   editMode?: EditMode;

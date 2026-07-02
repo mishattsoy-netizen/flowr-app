@@ -41,6 +41,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [showStylePanel, setShowStylePanel] = useState(true);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [hoveredFrameId, setHoveredFrameId] = useState<string | null>(null);
@@ -349,6 +350,23 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       setActiveTool('select');
     }
   }, []);
+
+  // Shared by text-tool click and double-click-on-empty-canvas: create a transparent,
+  // auto-sizing (Excalidraw-style) text block at the given canvas coords and immediately
+  // enter edit mode so the caret is ready for typing.
+  const createTextAt = useCallback((x: number, y: number) => {
+    const id = generateId();
+    addCanvasBlock({
+      id, type: 'text', content: '', canvasId: entity.id,
+      x, y: y - 12, width: 20, height: 26,
+      fontSize: 20, textAlign: 'left',
+      canvasStyleExt: { stroke: 'var(--bone-90)' },
+    });
+    setSelectedIds(new Set([id]));
+    setEditingTextId(id);
+    setActiveTool('select');
+    history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+  }, [addCanvasBlock, entity.id, history]);
 
   const selectedBlocks = useMemo(
     () => pageBlocks.filter(b => selectedIds.has(b.id)),
@@ -1280,12 +1298,31 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const { x, y } = screenToCanvas(e.clientX, e.clientY);
 
     if (activeTool === 'text') {
-      addCanvasBlock({ id: generateId(), type: 'text', content: 'Text', x, y, canvasId: entity.id });
-      setActiveTool('select');
-      history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
+      createTextAt(x, y);
     } else if (activeTool === 'image') {
       setMediaPopover({ x: e.clientX, y: e.clientY, canvasX: x, canvasY: y });
     }
+  };
+
+  // Double-click on truly empty canvas (not on a block) drops a text caret, Excalidraw-style.
+  // Blocks that don't already stopPropagation their own double-click (image/video/frame) would
+  // otherwise bubble here, so explicitly ignore double-clicks landing on any known block element.
+  const handleBgDoubleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.id !== 'canvas-bg' && !target.closest('#canvas-bg')) return;
+    if (target.closest('.ResizeHandle')) return;
+    if (target.closest('[id]') && pageBlocks.some(b => b.id === target.closest('[id]')?.id)) return;
+    // By the time a dblclick fires, a preceding text-tool click has already flipped
+    // activeTool to 'select' (see createTextAt), so only 'select'/'move' are relevant here.
+    if (activeTool !== 'select' && activeTool !== 'move') return;
+    // Guard against the text-tool-click + dblclick combo: the first click of the double-click
+    // already created+entered-edit a text block via createTextAt. Without this, the second
+    // click of the same dblclick deselects (deleting that still-empty block) and then the
+    // dblclick handler creates a fresh one — net a no-op but it churns two extra history pushes.
+    if (editingTextId) return;
+
+    const { x, y } = screenToCanvas(e.clientX, e.clientY);
+    createTextAt(x, y);
   };
 
   function selectBlock(id: string, addToSelection: boolean) {
@@ -1387,6 +1424,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           <div
             id="canvas-bg"
             onPointerDown={handleBgPointerDown}
+            onDoubleClick={handleBgDoubleClick}
             onPointerMove={(e) => {
               if (activeTool === 'arrow' || activeTool === 'line') {
                 const { x, y } = screenToCanvas(e.clientX, e.clientY);
@@ -1546,6 +1584,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                     hoveredFrameId={hoveredFrameId}
                     onDragMove={handleDragMove}
                     bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+                    forceEditing={editingTextId === b.id}
+                    onEditingEnded={() => setEditingTextId(null)}
                     onSideDotDown={(side, x, y) => {
                       if (activeTool !== 'arrow' && activeTool !== 'line') return;
 

@@ -727,6 +727,7 @@ export function CanvasStylePanel({
 
   // ─── Frame / Group selection analysis ──────────────────────
   const isSingleFrame = selected.length === 1 && selected[0].type === 'frame';
+  const isSingleText = selected.length === 1 && selected[0].type === 'text';
   const isGroupSelection = selected.length > 1 && selected.every(b => b.groupId && b.groupId === selected[0].groupId);
   const groupSpacing = isGroupSelection ? computeGroupSpacing(selected) : null;
 
@@ -1288,7 +1289,90 @@ export function CanvasStylePanel({
             </div>
           </PanelSection>
 
-      {(!ref?.shapeKind || !['arrow', 'line', 'freedraw'].includes(ref.shapeKind)) && (
+      {isSingleText && ref && (() => {
+        const FONT_PRESETS: { label: string; size: number }[] = [
+          { label: 'S', size: 16 },
+          { label: 'M', size: 20 },
+          { label: 'L', size: 28 },
+          { label: 'XL', size: 36 },
+        ];
+        const currentFontSize = ref.fontSize ?? 20;
+        return (
+          <PanelSection title="Text">
+            <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Font size</div>
+            <div className="flex gap-1 mb-2">
+              {FONT_PRESETS.map(p => (
+                <button
+                  key={p.label}
+                  onClick={() => updateCanvasBlock(ref.id, { fontSize: p.size })}
+                  className={cn(
+                    "flex-1 h-7 rounded-[var(--radius-small)] text-[11px] font-semibold transition-colors",
+                    currentFontSize === p.size
+                      ? "bg-[var(--bone-15)] text-[var(--bone-100)]"
+                      : "bg-[var(--bone-6)] text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <div className="flex-1">
+                <PillInput
+                  value={currentFontSize}
+                  onChange={v => {
+                    const num = Math.max(8, parseInt(v.replace(/[^0-9]/g, '')) || 8);
+                    updateCanvasBlock(ref.id, { fontSize: num });
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Align</div>
+            <div className="mb-2">
+              <SliderGroup
+                options={['left', 'center', 'right'] as const}
+                value={ref.textAlign ?? 'left'}
+                onChange={align => updateCanvasBlock(ref.id, { textAlign: align })}
+                renderLabel={align => (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    {align === 'left' && <path d="M2 4h12M2 8h8M2 12h10" />}
+                    {align === 'center' && <path d="M2 4h12M4 8h8M3 12h10" />}
+                    {align === 'right' && <path d="M2 4h12M6 8h8M4 12h10" />}
+                  </svg>
+                )}
+              />
+            </div>
+
+            <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Color</div>
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "flex-1 flex items-center h-7 rounded-[var(--radius-small)] border px-2 gap-2 relative transition-all duration-150",
+                activePicker === 'border'
+                  ? "border-[var(--bone-30)] bg-[var(--app-dark)]"
+                  : "border-transparent bg-[var(--bone-6)] hover:bg-[var(--app-dark)]"
+              )}>
+                <div className="relative w-3.5 h-3.5 rounded-[3px] border border-[var(--bone-15)] flex-shrink-0 cursor-pointer color-swatch-trigger overflow-hidden">
+                  <button
+                    onClick={(e) => togglePicker('border', e)}
+                    className="w-full h-full rounded-[3px] block transition-none"
+                    style={{ backgroundColor: style.stroke && style.stroke !== 'transparent' ? style.stroke : 'var(--bone-90)' }}
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={!style.stroke || style.stroke === 'transparent' ? 'BONE90' : style.stroke.replace('#', '').toUpperCase()}
+                  onChange={e => {
+                    const hex = e.target.value.replace(/[^0-9a-fA-F]/g, '');
+                    if (hex.length <= 6) updateStyle({ stroke: '#' + hex });
+                  }}
+                  className="w-full bg-transparent border-none outline-none text-[11px] text-[var(--bone-90)] focus:text-[var(--bone-100)] p-0 m-0 uppercase"
+                />
+              </div>
+            </div>
+          </PanelSection>
+        );
+      })()}
+
+      {!isSingleText && (!ref?.shapeKind || !['arrow', 'line', 'freedraw'].includes(ref.shapeKind)) && (
       <PanelSection title="Fill">
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
@@ -1369,7 +1453,8 @@ export function CanvasStylePanel({
       </PanelSection>
       )}
 
-      {/* Stroke */}
+      {/* Stroke — text blocks get their own "Text" section (font size/align/color) instead */}
+      {!isSingleText && (
       <PanelSection title="Stroke">
         <div className="flex flex-col gap-1 mb-1">
           <span className="text-[10px] font-ui-label text-[var(--bone-30)] select-none">Color</span>
@@ -1482,6 +1567,7 @@ export function CanvasStylePanel({
           </div>
         </div>
       </PanelSection>
+      )}
 
       {ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line') && (
         <PanelSection title="Arrowheads">

@@ -8,6 +8,7 @@ import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
 import { calculateCatmullRomPath } from '@/lib/geometry/splines';
 import { activeDragOffsets } from '@/lib/canvasDragState';
+import { CanvasTextElement } from './CanvasTextElement';
 
 interface CanvasBlockProps {
   block: EditorBlock;
@@ -24,9 +25,11 @@ interface CanvasBlockProps {
   onDragMove?: (dx: number, dy: number, e: PointerEvent) => void;
   bindHighlight?: boolean;
   onSideDotDown?: (side: 'top' | 'right' | 'bottom' | 'left', x: number, y: number) => void;
+  forceEditing?: boolean;
+  onEditingEnded?: () => void;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -40,7 +43,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const isNoteBlock = block?.type !== 'frame' && block?.type !== 'shape';
+  const isNoteBlock = block?.type !== 'frame' && block?.type !== 'shape' && block?.type !== 'text';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const finalPosRef = useRef({ x: block?.x || 0, y: block?.y || 0 });
@@ -53,10 +56,20 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
 
   useLayoutEffect(() => {
     if (!isSelected) {
+      // Deselecting while editing a text block unmounts CanvasTextElement's textarea
+      // directly (no blur event fires), so replicate its empty-text-deletes-on-exit
+      // behavior here rather than relying on onBlur.
+      if (isEditing && block?.type === 'text' && !(block.content ?? '').trim()) {
+        deleteCanvasBlock(block.id);
+      }
       setIsEditing(false);
       setShowMenu(false);
     }
   }, [isSelected]);
+
+  useEffect(() => {
+    if (forceEditing) setIsEditing(true);
+  }, [forceEditing]);
 
   // Sync from store when not interacting
   useEffect(() => {
@@ -228,9 +241,12 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       if (handle === 'nw' || handle === 'ne' || handle === 'n') { newY = startPos.y + dy; newH = startSize.h - dy; }
       if (handle.includes('s') || handle === 's') { newH = startSize.h + dy; }
 
-      // Clamp minimums
-      if (newW < 60) { newW = 60; newX = startPos.x + startSize.w - 60; }
-      if (newH < 40) { newH = 40; newY = startPos.y + startSize.h - 40; }
+      // Clamp minimums (text auto-sizes via fontSize, so it gets a much smaller floor)
+      const isTextBlock = block.type === 'text';
+      const minW = isTextBlock ? 10 : 60;
+      const minH = isTextBlock ? 10 : 40;
+      if (newW < minW) { newW = minW; newX = startPos.x + startSize.w - minW; }
+      if (newH < minH) { newH = minH; newY = startPos.y + startSize.h - minH; }
 
       // Snapping during resize
       const isAltPressed = moveEvent.altKey;
@@ -262,12 +278,12 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         }
 
         // Clamp minimum size and enforce aspect ratio
-        if (targetW < 60) {
-          targetW = 60;
+        if (targetW < minW) {
+          targetW = minW;
           targetH = targetW / ratio;
         }
-        if (targetH < 40) {
-          targetH = 40;
+        if (targetH < minH) {
+          targetH = minH;
           targetW = targetH * ratio;
         }
 
@@ -416,13 +432,27 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       // Update local state size too to match
       setSize({ width: finalSizeRef.current.w, height: finalSizeRef.current.h });
 
-      // Commit to store using refs to avoid stale closure
-      updateCanvasBlock(block.id, {
-        x: finalPosRef.current.x,
-        y: finalPosRef.current.y,
-        width: finalSizeRef.current.w,
-        height: finalSizeRef.current.h,
-      });
+      if (block.type === 'text') {
+        // Text auto-sizes from fontSize/content, so corner-resize scales the font instead
+        // of committing raw width/height (which CanvasTextElement's measure effect would
+        // immediately overwrite anyway).
+        const oldW = startSize.w || 1;
+        const scaleFactor = finalSizeRef.current.w / oldW;
+        const newFontSize = Math.max(8, Math.round((block.fontSize ?? 20) * scaleFactor));
+        updateCanvasBlock(block.id, {
+          x: finalPosRef.current.x,
+          y: finalPosRef.current.y,
+          fontSize: newFontSize,
+        });
+      } else {
+        // Commit to store using refs to avoid stale closure
+        updateCanvasBlock(block.id, {
+          x: finalPosRef.current.x,
+          y: finalPosRef.current.y,
+          width: finalSizeRef.current.w,
+          height: finalSizeRef.current.h,
+        });
+      }
       onCommit?.();
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
@@ -592,13 +622,17 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       {/* Edge drag trigger */}
       {!isEditing && <div className={`canvas-block-edge absolute -inset-1 ${activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair'}`} />}
 
-      {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing) */}
-      {(isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES.map(h => (
+      {/* Resize handles (hidden during multi-selection, visible when single-selected/hovered/resizing).
+          Text blocks auto-size, so only corner handles are shown (scaling fontSize on drag);
+          edge handles (n/e/s/w) don't make sense for them and are hidden. */}
+      {!isEditing && (isResizing || !isSelected || !selectedIds || selectedIds.size <= 1) && HANDLES
+        .filter(h => block.type !== 'text' || h.length === 2)
+        .map(h => (
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 
-      {/* Dimension & Rotation Labels */}
-      {isSelected && (
+      {/* Dimension & Rotation Labels — hidden for text (auto-sized, dimensions aren't meaningful) and while editing */}
+      {isSelected && !isEditing && block.type !== 'text' && (
         <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 z-[4000] pointer-events-none">
           <div className="dimension-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
             {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
@@ -648,19 +682,12 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
 
       {/* CONTENT */}
       {block.type === 'text' ? (
-        <div className="w-full h-full bg-background border border-border rounded-xl p-2 flex items-center justify-center">
-          <textarea
-            className={cn(
-              "w-full h-full bg-transparent text-sm leading-relaxed outline-none resize-none text-foreground/85 placeholder:text-muted-foreground/30 text-center flex items-center justify-center",
-              !isEditing && "pointer-events-none select-none"
-            )}
-            value={block.content}
-            onChange={(e) => updateCanvasBlock(block.id, { content: e.target.value })}
-            placeholder="Double click to edit..."
-            onFocus={() => { setIsEditing(true); onSelect?.(block.id, false); }}
-            onBlur={() => setIsEditing(false)}
-          />
-        </div>
+        <CanvasTextElement
+          block={block}
+          isEditing={isEditing}
+          onStartEdit={() => { setIsEditing(true); onSelect?.(block.id, false); }}
+          onEndEdit={() => { setIsEditing(false); onEditingEnded?.(); }}
+        />
       ) : block.type === 'image' ? (
         <div className="w-full h-full overflow-hidden rounded-xl bg-muted/20 border border-border/50">
           {block.mediaUrl ? (
