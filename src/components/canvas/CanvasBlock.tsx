@@ -30,9 +30,11 @@ interface CanvasBlockProps {
   forceEditing?: boolean;
   onEditingEnded?: () => void;
   onRequestLabelEdit?: (textBlockId: string) => void;
+  /** Eraser tool: this block is currently marked for deletion mid-gesture — render dimmed. */
+  erasing?: boolean;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded, onRequestLabelEdit }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded, onRequestLabelEdit, erasing }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -642,6 +644,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         width: labelLayout ? labelLayout.width : size.width,
         height: labelLayout ? labelLayout.height : size.height,
         zIndex: (block.zIndex ?? 0) + ((isSelected || isDraggingLocal || isResizing) ? 1000 : (block.type === 'frame' ? 2 : 10)),
+        opacity: erasing ? 0.3 : undefined,
         // Bound labels pass pointer events through to the container underneath, except
         // while actively editing (so the caret/textarea remains interactive).
         pointerEvents: isBoundLabel && !isEditing ? 'none' : undefined,

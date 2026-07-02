@@ -4,14 +4,14 @@ import React from 'react';
 import {
   MousePointer2, Hand, Square, Circle, Diamond,
   MoveUpRight, Minus, Pencil, Type, Image,
-  Frame, Layers, Download, Share2, Undo2, Redo2, Magnet
+  Frame, Layers, Download, Share2, Undo2, Redo2, Magnet, Eraser
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type CanvasTool =
   | 'select' | 'move'
   | 'rect' | 'ellipse' | 'diamond' | 'arrow' | 'line' | 'freedraw'
-  | 'text' | 'image' | 'frame';
+  | 'text' | 'image' | 'frame' | 'eraser';
 
 interface CanvasToolbarProps {
   activeTool: CanvasTool;
@@ -38,6 +38,10 @@ const CONTENT_TOOLS: ToolDef[] = [
   { id: 'text',    icon: <Type className="w-4 h-4 text-[var(--bone-100)]" />,              shortcut: 'T', label: 'Text' },
   { id: 'image',   icon: <Image className="w-4 h-4 text-[var(--bone-100)]" />,             shortcut: 'I', label: 'Image' },
   { id: 'frame', icon: <Frame className="w-4 h-4 text-[var(--bone-100)]" />,               shortcut: 'F', label: 'Section' },
+];
+
+const ERASER_TOOLS: ToolDef[] = [
+  { id: 'eraser', icon: <Eraser className="w-4 h-4 text-[var(--bone-100)]" />,             shortcut: 'E', label: 'Eraser' },
 ];
 
 function ToolGroup({ tools, activeTool, setActiveTool }: {
@@ -103,6 +107,8 @@ export function CanvasToolbar({
         <ToolGroup tools={SHAPE_TOOLS}   activeTool={activeTool} setActiveTool={setActiveTool} />
         <VSep />
         <ToolGroup tools={CONTENT_TOOLS} activeTool={activeTool} setActiveTool={setActiveTool} />
+        <VSep />
+        <ToolGroup tools={ERASER_TOOLS} activeTool={activeTool} setActiveTool={setActiveTool} />
       </div>
     </>
   );

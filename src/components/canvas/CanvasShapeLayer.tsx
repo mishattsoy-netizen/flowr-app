@@ -18,6 +18,8 @@ interface Props {
   snapWithObjects?: (x: number, y: number, w: number, h: number, excludeId: string) => { x: number; y: number; guides: { type: 'h' | 'v'; coord: number; start: number; end: number }[] };
   onContextMenu?: (e: React.MouseEvent, blockId: string) => void;
   onDoubleClick?: (blockId: string) => void;
+  /** Eraser tool: ids currently marked for deletion mid-gesture — rendered dimmed. */
+  markedIds?: Set<string>;
 }
 
 function shapeStroke(style: CanvasStyleExt): string {
@@ -79,7 +81,7 @@ function ShapeEl({ block, isSelected, activeTool, onPointerDown, onContextMenu }
   return null;
 }
 
-export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, activeTool, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick }: Props) {
+export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport, activeTool, updateCanvasBlocks, onSelect, onCommit, snapWithObjects, onContextMenu, onDoubleClick, markedIds }: Props) {
   const liveBlocks = useStore(s => s.blocks);
   const shapes = useMemo(() => {
     const initialIds = new Set(initialBlocks.map(b => b.id));
@@ -129,9 +131,10 @@ export function CanvasShapeLayer({ blocks: initialBlocks, selectedIds, viewport,
         return (
           <g 
             key={b.id} 
-            id={b.id} 
-            style={{ 
+            id={b.id}
+            style={{
               pointerEvents: 'auto',
+              opacity: markedIds?.has(b.id) ? 0.3 : undefined,
               transform: (() => {
                 // During drag, return undefined so React leaves useDrag's translate3d intact.
                 if (activeDragOffsets.has(b.id)) return undefined;

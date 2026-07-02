@@ -18,6 +18,7 @@ import { useCanvasMultiSelect } from '@/hooks/useCanvasMultiSelect';
 import { useDrag } from '@/hooks/useDrag';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFlowState } from '@/hooks/useFlowState';
+import { useEraser } from '@/hooks/useEraser';
 import { FlowPreview } from './FlowPreview';
 import { exportCanvasToPng, copyCanvasToClipboard } from '@/lib/canvasExport';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
@@ -159,6 +160,10 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const history = useCanvasHistory(pageBlocks);
   const { snapWithObjects, snapForResize } = useCanvasSnap(snapEnabled, pageBlocks, viewport.scale);
   const multiSelect = useCanvasMultiSelect(pageBlocks);
+  const { markedIds: eraserMarkedIds, handleEraserDown } = useEraser({
+    canvasId: entity.id,
+    onCommit: () => history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id)),
+  });
 
   // Sections (frames), used to render each one's members inside a clipped wrapper layer.
   const frameBlocks = useMemo(() => pageBlocks.filter(b => b.type === 'frame'), [pageBlocks]);
@@ -935,6 +940,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         case 't': setActiveTool('text'); break;
         case 'i': setActiveTool('image'); break;
         case 'f': setActiveTool('frame'); break;
+        case 'e': setActiveTool('eraser'); break;
         case ' ':
           spaceHeldRef.current = true;
           e.preventDefault();
@@ -1187,6 +1193,15 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       };
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      return;
+    }
+
+    if (activeTool === 'eraser' && e.button === 0) {
+      const toCanvas = (ev: PointerEvent): [number, number] => {
+        const { x, y } = screenToCanvas(ev.clientX, ev.clientY);
+        return [x, y];
+      };
+      handleEraserDown(toCanvas, e.nativeEvent);
       return;
     }
 
@@ -1451,6 +1466,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       hoveredFrameId={hoveredFrameId}
       onDragMove={handleDragMove}
       bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+      erasing={eraserMarkedIds.has(b.id)}
       forceEditing={editingTextId === b.id}
       onEditingEnded={() => setEditingTextId(null)}
       onRequestLabelEdit={(textBlockId) => setEditingTextId(textBlockId)}
@@ -1471,7 +1487,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         }
       }}
     />
-  ), [activeTool, viewport, snapWithObjects, snapForResize, selectedIds, handleDragCommit, handleBlockContextMenu, hoveredFrameId, handleDragMove, hoverBindTargetId, editingTextId, commitFlowConnection]);
+  ), [activeTool, viewport, snapWithObjects, snapForResize, selectedIds, handleDragCommit, handleBlockContextMenu, hoveredFrameId, handleDragMove, hoverBindTargetId, editingTextId, commitFlowConnection, eraserMarkedIds]);
 
   return (
     <div className="flex-1 relative overflow-hidden flex flex-col bg-[var(--app-background)]">
@@ -1499,7 +1515,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           ref={canvasContainerRef}
           className="absolute inset-0 overflow-hidden"
           style={{
-            cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : undefined,
+            cursor: activeTool === 'move' || spaceHeldRef.current ? 'grab' : activeTool === 'eraser' ? 'cell' : undefined,
             backgroundColor: resolvedBgColor,
             backgroundImage: canvasPattern === 'grid'
               ? `linear-gradient(to right, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px)`
@@ -1548,7 +1564,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div id="canvas-viewport-content" style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} markedIds={eraserMarkedIds} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -1561,6 +1577,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   onCommit={() => history.push(useStore.getState().blocks.filter(x => x.canvasId === entity.id))}
                   onContextMenu={handleBlockContextMenu}
                   onDoubleClick={handleDoubleClickBlock}
+                  markedIds={eraserMarkedIds}
                 />
 
                 {/* Snap Guides Overlay */}
@@ -1653,7 +1670,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       onSelect={selectBlock}
                       onDoubleClick={(altKey) => handleDoubleClickBlock(b.id, altKey)}
                       onDragStart={(e) => handleArrowDrag(e, b)}
-                      onPointSelect={setSelectedPointIndex} />
+                      onPointSelect={setSelectedPointIndex}
+                      erasing={eraserMarkedIds.has(b.id)} />
                   ))}
                 </svg>
 

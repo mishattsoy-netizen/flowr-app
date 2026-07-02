@@ -22,6 +22,8 @@ interface VectorPathProps {
   onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
   onPointSelect?: (index: number | null) => void;
   showIndividualSelection?: boolean;
+  /** Eraser tool: this arrow/line is currently marked for deletion mid-gesture — render dimmed. */
+  erasing?: boolean;
 }
 
 const POSITION_MAP: Record<HandlePosition, number> = {
@@ -35,7 +37,7 @@ const POSITION_MAP: Record<HandlePosition, number> = {
   w: 7,
 };
 
-export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect, showIndividualSelection = true }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect, showIndividualSelection = true, erasing }: VectorPathProps) {
   const allBlocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -356,7 +358,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   const gTransform = renderRotation && bounds ? `rotate(${renderRotation}, ${pivotX}, ${pivotY})` : undefined;
 
   return (
-    <g id={block.id} transform={gTransform}>
+    <g id={block.id} transform={gTransform} style={erasing ? { opacity: 0.3 } : undefined}>
       <defs>
         <ArrowheadMarker id={markerIds.start} style={sHead} strokeColor={strokeColor} />
         <ArrowheadMarker id={markerIds.end} style={eHead} strokeColor={strokeColor} />
@@ -372,14 +374,14 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
             top: bounds.y,
             width: bounds.w,
             height: bounds.h,
-            pointerEvents: (isDrawingTool || editing) ? 'none' : 'auto',
+            pointerEvents: (isDrawingTool || editing || activeTool === 'eraser') ? 'none' : 'auto',
             transform: activeDragOffsets.has(block.id)
               ? undefined
               : (renderRotation ? `rotate(${renderRotation}deg)` : undefined),
             transformOrigin: renderRotation ? `${pivotX - bounds.x}px ${pivotY - bounds.y}px` : undefined,
           }}
           onPointerDown={e => {
-            if (isDrawingTool || editing) return;
+            if (isDrawingTool || editing || activeTool === 'eraser') return;
             e.stopPropagation();
             onSelect?.(block.id, e.shiftKey);
             onDragStart?.(e, block);
@@ -435,8 +437,9 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       <path
         d={path}
         fill="none" stroke="transparent" strokeWidth={22 / (viewportScale ?? 1)}
-        className="cursor-pointer" style={{ pointerEvents: 'stroke' }}
+        className="cursor-pointer" style={{ pointerEvents: activeTool === 'eraser' ? 'none' : 'stroke' }}
         onPointerDown={e => {
+          if (activeTool === 'eraser') return;
           e.stopPropagation();
           onSelect?.(block.id, e.shiftKey);
           if (!isDrawingTool) onDragStart?.(e, block);
@@ -493,7 +496,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
 
       {/* Draggable binding endpoints: shown whenever editing or selected, so a selected arrow's
           endpoints can be re-bound/detached without entering waypoint-edit mode. */}
-      {(editing || selected) && (
+      {(editing || selected) && activeTool !== 'eraser' && (
         <>
           {startPos && (
             <circle cx={startPos[0]} cy={startPos[1]} r={6}

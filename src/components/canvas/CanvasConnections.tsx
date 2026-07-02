@@ -15,9 +15,11 @@ interface CanvasConnectionsProps {
   activeTool?: string;
   viewportScale?: number;
   viewport?: { x: number; y: number; scale: number };
+  /** Eraser tool: ids currently marked for deletion mid-gesture — rendered dimmed. */
+  markedIds?: Set<string>;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, activeTool, viewportScale, viewport }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, activeTool, viewportScale, viewport, markedIds }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
@@ -43,7 +45,8 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
           onSelect={onSelect}
           onDoubleClick={(altKey) => onDoubleClick?.(block.id, altKey)}
           onPointSelect={onPointSelect}
-          onBindingDragStart={(end, e) => onBindingDragStart?.(block.id, end, e)} />
+          onBindingDragStart={(end, e) => onBindingDragStart?.(block.id, end, e)}
+          erasing={markedIds?.has(block.id)} />
       ))}
     </svg>
   );
