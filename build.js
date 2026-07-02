@@ -6,12 +6,15 @@ const srcAdmin = path.join(__dirname, 'src/app/admin');
 const tempAdmin = path.join(__dirname, 'temp_admin');
 const srcApiAdmin = path.join(__dirname, 'src/app/api/admin');
 const tempApiAdmin = path.join(__dirname, 'temp_api_admin');
+const srcComponentsAdmin = path.join(__dirname, 'src/components/admin');
+const tempComponentsAdmin = path.join(__dirname, 'temp_components_admin');
 
 console.log('[Build Wrapper] Preparing production build...');
 
 // 1. Move folders out of src/app to exclude them from compiling
 let movedAdmin = false;
 let movedApiAdmin = false;
+let movedComponentsAdmin = false;
 
 try {
   if (fs.existsSync(srcAdmin)) {
@@ -23,6 +26,11 @@ try {
     fs.renameSync(srcApiAdmin, tempApiAdmin);
     movedApiAdmin = true;
     console.log('[Build Wrapper] Temporarily moved src/app/api/admin out of source tree.');
+  }
+  if (fs.existsSync(srcComponentsAdmin)) {
+    fs.renameSync(srcComponentsAdmin, tempComponentsAdmin);
+    movedComponentsAdmin = true;
+    console.log('[Build Wrapper] Temporarily moved src/components/admin out of source tree.');
   }
 } catch (e) {
   console.error('[Build Wrapper] Failed to move folders:', e);
@@ -51,6 +59,10 @@ try {
   if (movedApiAdmin && fs.existsSync(tempApiAdmin)) {
     fs.renameSync(tempApiAdmin, srcApiAdmin);
     console.log('[Build Wrapper] Restored src/app/api/admin.');
+  }
+  if (movedComponentsAdmin && fs.existsSync(tempComponentsAdmin)) {
+    fs.renameSync(tempComponentsAdmin, srcComponentsAdmin);
+    console.log('[Build Wrapper] Restored src/components/admin.');
   }
 } catch (e) {
   console.error('[Build Wrapper] Failed to restore folders:', e);
