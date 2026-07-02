@@ -6,21 +6,6 @@ import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { toGeminiThinkingBudget } from '../reasoning'
 
-/** Set GOOGLE_API_PROXY=http://your-proxy:port to route Gemini calls through a proxy (e.g. for geo-blocked regions) */
-const GOOGLE_API_PROXY = process.env.GOOGLE_API_PROXY || ''
-let proxyFetch: typeof fetch | undefined
-if (GOOGLE_API_PROXY) {
-  try {
-    // undici's ProxyAgent is available in Node 18+ alongside the built-in fetch
-    const { ProxyAgent } = require('undici')
-    const agent = new ProxyAgent(GOOGLE_API_PROXY)
-    proxyFetch = (url: RequestInfo, init?: RequestInit) =>
-      fetch(url, { ...init, dispatcher: agent } as any)
-    logger.info(`[Google] Proxy enabled via ${GOOGLE_API_PROXY}`)
-  } catch (e) {
-    logger.warn(`[Google] Failed to initialize proxy agent for ${GOOGLE_API_PROXY}: ${e}`)
-  }
-}
 
 // Per-key concurrency semaphore: serializes API calls per key to avoid rate-limit storms
 const keyQueues = new Map<string, Array<() => void>>()
@@ -113,7 +98,7 @@ export async function runGoogle(
       try {
         if (context) context.usedKeyIndex = keyIndex + 1
         
-        const genAI = new GoogleGenerativeAI(key, proxyFetch ? { fetch: proxyFetch } : undefined)
+        const genAI = new GoogleGenerativeAI(key)
         const sanitizedId = modelId.split('/').pop() || modelId
         
         const isGemma4 = sanitizedId.toLowerCase().includes('gemma-4')
