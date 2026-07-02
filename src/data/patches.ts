@@ -21,6 +21,40 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.1.1',
+    build: '1101',
+    date: '2026-07-02',
+    title: 'Citation Pills That Stay & Smarter Syncing',
+    sections: [
+      {
+        type: 'fixed',
+        items: [
+          'Web search source pills now stay as interactive popup pills when you leave a chat and come back — they won\'t turn into plain underlined links anymore.',
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          'When you change the sync mode of a workspace, all notes, folders, and canvases inside it now automatically update to match — no more mismatched sync settings scattered across your vault.',
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          'When all AI models fail, the app now shows "System Overload" directly instead of silently trying expensive backup models that could consume credits.',
+          'Version and build numbers in settings now stay in sync automatically with the actual release.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Local app builds no longer attempt to package and publish desktop installers to the release channel — saving time and preventing accidental releases during development.',
+          'Backend improvements to support AI providers in regions with restricted API access.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.1.0',
     build: '1100',
     date: '2026-07-02',
