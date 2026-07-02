@@ -21,6 +21,36 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.1.2',
+    build: '1102',
+    date: '2026-07-02',
+    title: 'AI That Can Actually Edit Your Notes',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'The AI assistant can now edit your notes directly — just say "edit this note" or "add a section about..." and it makes the changes for you, no more copying and pasting markdown.',
+          'The AI can find any note by name now, so "edit my shopping list" works even if you\'re looking at something else.',
+          'The AI learned all the different ways to format your notes — headings, lists, checkboxes, tables, images, quotes, dividers, links — and when to use each tool.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'The AI finally knows which note you\'re talking about — no more editing the wrong page.',
+          'Changes from the AI now show up immediately after it finishes, no page reload needed.',
+          'Creating, editing, or adding to notes all properly update the screen right away.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Tightened up dashboard and workspace page card sizing for a cleaner look.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.1.1',
     build: '1101',
     date: '2026-07-02',
