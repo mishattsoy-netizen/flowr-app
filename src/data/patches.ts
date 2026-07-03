@@ -21,6 +21,41 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.1.4',
+    build: '1104',
+    date: '2026-07-03',
+    title: 'Canvas Rebuilt: Real Arrow Binding, Free Text, Sections',
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Arrows now connect to shapes exactly like Excalidraw: bind to a side, to a spot inside the shape, or to a free point on the edge — the arrow follows the shape wherever it moves.',
+          'Text on the canvas is now transparent and grows as you type, just like Excalidraw — no more boxed text blocks.',
+          'You can now type directly inside a shape or on an arrow to add a label — it stays centered and moves with its shape or arrow.',
+          'Frames are now called Sections: a simple labeled container that clips its contents and moves them together, with no nested sections.',
+          'Added an eraser tool — drag over anything to delete it in one step.',
+          'Arrows and lines can now be toggled between straight and curved.',
+          'Alt+drag now duplicates your selection; arrow keys nudge it by 1px (10px with Shift).',
+          'Canvases now save as .flowr files in your vault, right alongside your notes — and since the format matches Excalidraw, you can rename one to .excalidraw and open it on excalidraw.com.'
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          'Removed canvas comments entirely.',
+          'Canvas connection points are no longer always-on dots — they appear only when you hover a shape with the arrow tool active.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Rebuilt the canvas arrow-binding math from scratch so arrows clip correctly to rectangles, ellipses, and diamonds instead of just bounding boxes.',
+          'Split the large canvas page component into focused files to make future canvas features easier to build.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.1.3',
     build: '1103',
     date: '2026-07-02',
