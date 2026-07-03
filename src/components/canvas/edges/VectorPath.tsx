@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore, type EditorBlock } from '@/data/store';
-import { calculateCatmullRomPath, calculateAdvancedPath, calculateSplineBounds, calculatePolylinePath } from '@/lib/geometry/splines';
+import { calculateSplineBounds } from '@/lib/geometry/splines';
+import { buildArrowPathD, computeRenderPoints } from '@/lib/geometry/arrowPath';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { ArrowheadMarker, getMarkerIds } from './arrowheadMarkers';
 import { ResizeHandle, HandlePosition } from '../ResizeHandle';
@@ -49,36 +50,15 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   }, []);
 
   const resolvedPts = useMemo(() => resolvePoints(block, canvasBlocks), [block, canvasBlocks]);
-  const isAdvanced = block.editMode === 'advanced';
-  const radiuses = block.pointRadiuses ?? [];
   const style = block.canvasStyleExt ?? {};
   const strokeWidth = style.strokeWidth || 2;
   const strokeStyle = style.strokeStyle || 'solid';
   const dasharray = strokeStyle === 'dashed' ? '6 4' : strokeStyle === 'dotted' ? '2 3' : undefined;
 
-  const edgePath = useMemo(() => {
-    if (resolvedPts.length < 2) return '';
-    if (isAdvanced && radiuses.length > 0) return calculateAdvancedPath(resolvedPts, radiuses);
-    return block.curved ? calculateCatmullRomPath(resolvedPts) : calculatePolylinePath(resolvedPts);
-  }, [resolvedPts, isAdvanced, radiuses, block.curved]);
-
-  const path = useMemo(() => {
-    if (!edgePath) return edgePath;
-    const tokens = edgePath.match(/[a-zA-Z]|-?\d+(?:\.\d+)?/g);
-    if (!tokens || tokens.length < 4) return edgePath;
-    const len = tokens.length;
-    const lx = parseFloat(tokens[len-2]), ly = parseFloat(tokens[len-1]);
-    const px = parseFloat(tokens[len-4]), py = parseFloat(tokens[len-3]);
-    if (isNaN(lx) || isNaN(ly) || isNaN(px) || isNaN(py)) return edgePath;
-    const dx = lx - px, dy = ly - py, dist = Math.hypot(dx, dy);
-    if (dist === 0) return edgePath;
-    const headSize = block.endArrowhead?.size ?? 1;
-    const gap = 8 * headSize;
-    const ratio = Math.max(0, (dist - gap) / dist);
-    tokens[len-2] = (px + dx * ratio).toFixed(1);
-    tokens[len-1] = (py + dy * ratio).toFixed(1);
-    return tokens.join(' ');
-  }, [edgePath, block.endArrowhead?.size]);
+  // Shared with the imperative live-drag updaters (useDrag / resize) so mid-gesture and
+  // committed renders are pixel-identical. Elbow mode re-routes inside buildArrowPathD.
+  const renderPts = useMemo(() => computeRenderPoints(block, resolvedPts), [block, resolvedPts]);
+  const path = useMemo(() => buildArrowPathD(block, resolvedPts), [block, resolvedPts]);
 
   const strokeColor = selected ? 'var(--brand-blue)' : (style.stroke || 'var(--accent)');
   const markerIds = getMarkerIds(block.id);
@@ -91,11 +71,11 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   const isDrawingTool = activeTool === 'arrow' || activeTool === 'line';
 
   const bounds = useMemo(() => {
-    if (resolvedPts.length === 0) return null;
-    const { minX, minY, maxX, maxY } = calculateSplineBounds(resolvedPts, block.editMode, block.pointRadiuses);
+    if (renderPts.length === 0) return null;
+    const { minX, minY, maxX, maxY } = calculateSplineBounds(renderPts, block.editMode, block.pointRadiuses);
     const pad = 6;
     return { x: minX - pad, y: minY - pad, w: Math.max(maxX - minX + pad * 2, 1), h: Math.max(maxY - minY + pad * 2, 1) };
-  }, [resolvedPts, block.editMode, block.pointRadiuses]);
+  }, [renderPts, block.editMode, block.pointRadiuses]);
 
   const waypoints = block.points ?? [];
 
@@ -121,32 +101,9 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     }
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
-    const isAdvanced = block.editMode === 'advanced';
-    const radiuses = block.pointRadiuses ?? [];
     const currentDragPts = [...waypoints];
 
-    const computePathD = (pts: [number, number][]) => {
-      if (pts.length < 2) return '';
-      const edge = (isAdvanced && radiuses.length > 0)
-        ? calculateAdvancedPath(pts, radiuses)
-        : (block.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts));
-        
-      if (!edge) return '';
-      const tokens = edge.match(/[a-zA-Z]|-?\d+(?:\.\d+)?/g);
-      if (!tokens || tokens.length < 4) return edge;
-      const len = tokens.length;
-      const lx = parseFloat(tokens[len-2]), ly = parseFloat(tokens[len-1]);
-      const px = parseFloat(tokens[len-4]), py = parseFloat(tokens[len-3]);
-      if (isNaN(lx) || isNaN(ly) || isNaN(px) || isNaN(py)) return edge;
-      const dx = lx - px, dy = ly - py, dist = Math.hypot(dx, dy);
-      if (dist === 0) return edge;
-      const headSize = block.endArrowhead?.size ?? 1;
-      const gap = 8 * headSize;
-      const ratio = Math.max(0, (dist - gap) / dist);
-      tokens[len-2] = (px + dx * ratio).toFixed(1);
-      tokens[len-1] = (py + dy * ratio).toFixed(1);
-      return tokens.join(' ');
-    };
+    const computePathD = (pts: [number, number][]) => buildArrowPathD(block, pts);
 
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;

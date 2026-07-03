@@ -1,5 +1,5 @@
 "use client";
-import { useStore } from "@/data/store";
+import { useStore, type EditorBlock } from "@/data/store";
 import { useMemo } from "react";
 import { VectorPath } from "./edges/VectorPath";
 
@@ -12,6 +12,8 @@ interface CanvasConnectionsProps {
   onDoubleClick?: (blockId: string, altKey?: boolean) => void;
   onPointSelect?: (index: number | null) => void;
   onBindingDragStart?: (blockId: string, end: 'start' | 'end', e: React.PointerEvent) => void;
+  /** Body-drag of a bound arrow (detaches out-of-set bindings and moves it — see useDrag). */
+  onDragStart?: (e: React.PointerEvent, block: EditorBlock) => void;
   activeTool?: string;
   viewportScale?: number;
   viewport?: { x: number; y: number; scale: number };
@@ -19,21 +21,24 @@ interface CanvasConnectionsProps {
   markedIds?: Set<string>;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, activeTool, viewportScale, viewport, markedIds }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, onDragStart, activeTool, viewportScale, viewport, markedIds }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
-  const linkedArrows = useMemo(() =>
+  // ALL linear shapes render here, bound or not. A single render site matters: binding and
+  // unbinding (endpoint rebind, drag-detach, freeze-on-delete) must never move an arrow to a
+  // different DOM parent, or imperative drag code holding its cached <g> node goes stale
+  // mid-gesture and the arrow visually freezes until the next commit.
+  const linearShapes = useMemo(() =>
     blocks.filter(b =>
       b.type === 'shape' &&
-      (b.shapeKind === 'arrow' || b.shapeKind === 'line') &&
-      (b.startBinding || b.endBinding)
+      (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw')
     ), [blocks]
   );
 
   return (
-    <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[5]">
-      {linkedArrows.map(block => (
+    <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible" style={{ zIndex: 10 }}>
+      {linearShapes.map(block => (
         <VectorPath key={block.id} block={block}
           selected={selectedIds.has(block.id)}
           showIndividualSelection={selectedIds.size <= 1}
@@ -45,6 +50,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
           onSelect={onSelect}
           onDoubleClick={(altKey) => onDoubleClick?.(block.id, altKey)}
           onPointSelect={onPointSelect}
+          onDragStart={onDragStart}
           onBindingDragStart={(end, e) => onBindingDragStart?.(block.id, end, e)}
           erasing={markedIds?.has(block.id)} />
       ))}

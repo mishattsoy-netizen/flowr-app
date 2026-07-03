@@ -135,7 +135,8 @@ export interface EditorBlock {
   endBinding?: ArrowBinding;
   editMode?: EditMode;
   pointRadiuses?: number[];
-  curved?: boolean;
+  /** Arrow/line path style: straight polyline (default), smooth curve, or orthogonal elbow. */
+  pathMode?: 'straight' | 'curved' | 'elbow';
   startArrowhead?: ArrowheadStyle;
   endArrowhead?: ArrowheadStyle;
   canvasStyleExt?: CanvasStyleExt;

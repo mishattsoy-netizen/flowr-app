@@ -826,7 +826,7 @@ export function CanvasStylePanel({
     }
   }
 
-  function updateBlockFields(patch: Partial<Pick<EditorBlock, 'startArrowhead' | 'endArrowhead' | 'editMode' | 'pointRadiuses'>>) {
+  function updateBlockFields(patch: Partial<Pick<EditorBlock, 'startArrowhead' | 'endArrowhead' | 'editMode' | 'pointRadiuses' | 'pathMode'>>) {
     if (hasSelection) {
       selected.forEach(b => updateCanvasBlock(b.id, patch));
     }
@@ -1620,49 +1620,23 @@ export function CanvasStylePanel({
         </PanelSection>
       )}
 
+      {/* One Path control, Excalidraw-style: straight / curved / elbow. Replaces the old
+          separate Path + Edit Mode toggles; switching mode always resets the advanced
+          per-point radius editing so the three modes stay mutually exclusive. */}
       {selected.length === 1 && ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line') && (
         <PanelSection title="Path">
           <div className="flex bg-[var(--bone-6)] border border-transparent rounded-[var(--radius-small)] p-[2px] gap-[1.5px] h-7">
-            {([false, true] as const).map(curved => (
-              <button
-                key={String(curved)}
-                onClick={() => updateCanvasBlock(ref.id, { curved })}
-                className={cn(
-                  "flex-1 h-full rounded-[var(--radius-tiny)] text-[10px] capitalize transition-colors",
-                  (ref.curved ?? false) === curved
-                    ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
-                    : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
-                )}
-              >
-                {curved ? 'Curved' : 'Straight'}
-              </button>
-            ))}
-          </div>
-        </PanelSection>
-      )}
-
-      {ref && (ref.shapeKind === 'arrow' || ref.shapeKind === 'line' || ref.shapeKind === 'freedraw') && (
-        <PanelSection title="Edit Mode">
-          <div className="flex bg-[var(--bone-6)] border border-transparent rounded-[var(--radius-small)] p-[2px] gap-[1.5px] h-7">
-            {(['simple', 'advanced'] as const).map(mode => (
+            {(['straight', 'curved', 'elbow'] as const).map(mode => (
               <button
                 key={mode}
-                onClick={() => {
-                  if (mode === 'advanced' && ref.editMode !== 'advanced') {
-                    const count = (ref.points?.length || 0);
-                    updateBlockFields({
-                      editMode: 'advanced',
-                      pointRadiuses: Array(count).fill(20),
-                    });
-                  } else if (mode === 'simple') {
-                    updateBlockFields({ editMode: 'simple', pointRadiuses: undefined });
-                  } else {
-                    updateBlockFields({ editMode: mode });
-                  }
-                }}
+                onClick={() => updateBlockFields({
+                  pathMode: mode === 'straight' ? undefined : mode,
+                  editMode: 'simple',
+                  pointRadiuses: undefined,
+                })}
                 className={cn(
                   "flex-1 h-full rounded-[var(--radius-tiny)] text-[10px] capitalize transition-colors",
-                  (ref.editMode ?? 'simple') === mode
+                  (ref.pathMode ?? 'straight') === mode
                     ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-semibold"
                     : "text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
                 )}

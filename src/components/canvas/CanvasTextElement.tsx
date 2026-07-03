@@ -45,7 +45,10 @@ export function CanvasTextElement({ block, isEditing, onStartEdit, onEndEdit }: 
   const color = block.canvasStyleExt?.stroke || 'var(--bone-90)';
   const align = block.textAlign ?? 'left';
 
-  // Keep block dimensions synced to content (auto-size).
+  // Keep block dimensions synced to content when it changes from OUTSIDE the typing path
+  // (fontSize change, undo/redo, sync). Typing itself writes content+size together in
+  // onChange below — a store write from inside a layout effect on every keystroke can nest
+  // React updates deep enough to trip "Maximum update depth exceeded" under fast input.
   useLayoutEffect(() => {
     const { width, height } = measureTextSize(block.content ?? '', fontSize);
     if (Math.abs((block.width ?? 0) - width) > 0.5 || Math.abs((block.height ?? 0) - height) > 0.5) {
@@ -72,7 +75,12 @@ export function CanvasTextElement({ block, isEditing, onStartEdit, onEndEdit }: 
         className="bg-transparent outline-none resize-none overflow-hidden block caret-[var(--brand-blue)] p-0 m-0 border-0 box-border"
         style={styleCommon}
         value={block.content}
-        onChange={e => updateCanvasBlock(block.id, { content: e.target.value })}
+        onChange={e => {
+          const v = e.target.value;
+          // Single combined write: content + measured size. Keeps the layout effect above a
+          // no-op during typing (its guard sees the size already correct).
+          updateCanvasBlock(block.id, { content: v, ...measureTextSize(v, fontSize) });
+        }}
         onBlur={() => {
           if (!(block.content ?? '').trim()) deleteCanvasBlock(block.id);
           onEndEdit();

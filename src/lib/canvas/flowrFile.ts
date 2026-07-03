@@ -14,7 +14,7 @@ interface RawBlock extends EditorBlock {
 const HANDLED_BLOCK_KEYS = new Set<string>([
   'id', 'type', 'content', 'canvasId', 'x', 'y', 'width', 'height', 'zIndex',
   'shapeKind', 'points', 'groupId', 'parentId', 'canvasStyleExt',
-  'startBinding', 'endBinding', 'startArrowhead', 'endArrowhead', 'curved',
+  'startBinding', 'endBinding', 'startArrowhead', 'endArrowhead', 'pathMode',
   'fontSize', 'textAlign', 'containerId', 'mediaUrl',
 ]);
 
@@ -109,7 +109,9 @@ function blockToElement(b: EditorBlock, all: EditorBlock[]): Record<string, unkn
       base.endBinding = mapBindingOut(b.endBinding);
       base.startArrowhead = b.startArrowhead?.type && b.startArrowhead.type !== 'none' ? 'triangle' : null;
       base.endArrowhead = b.endArrowhead?.type && b.endArrowhead.type !== 'none' ? 'triangle' : null;
-      base.roundness = b.curved ? { type: 2 } : null;
+      // Excalidraw conventions: curved = roundness {type:2}; elbow = elbowed:true.
+      base.roundness = b.pathMode === 'curved' ? { type: 2 } : null;
+      base.elbowed = b.pathMode === 'elbow';
       customDataFlowr = {
         ...(customDataFlowr ?? {}),
         startArrowhead: b.startArrowhead ?? null,
@@ -185,7 +187,7 @@ function elementToBlock(el: any, index: number, canvasId: string): EditorBlock {
       block.x = 0; block.y = 0; block.width = 0; block.height = 0;
       block.startBinding = mapBindingIn(el.startBinding);
       block.endBinding = mapBindingIn(el.endBinding);
-      block.curved = el.roundness?.type === 2 ? true : undefined;
+      block.pathMode = el.elbowed ? 'elbow' : el.roundness?.type === 2 ? 'curved' : undefined;
       const flowrHeads = el.customData?.flowr;
       const defaultHead: ArrowheadStyle = { type: 'none' };
       block.startArrowhead =

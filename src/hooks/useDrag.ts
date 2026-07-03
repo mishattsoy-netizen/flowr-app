@@ -1,10 +1,10 @@
 import { useRef, useCallback } from 'react';
 import { useStore } from '@/data/store';
 import type { EditorBlock } from '@/data/store';
-import { calculateCatmullRomPath, calculatePolylinePath, calculateSplineBounds } from '@/lib/geometry/splines';
+import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
+import { buildArrowPathD } from '@/lib/geometry/arrowPath';
 import { activeDragOffsets } from '@/lib/canvasDragState';
-import { focusToPerimeter } from '@/lib/geometry/binding';
 
 interface DragOptions {
   viewportRef: React.MutableRefObject<{ x: number; y: number; scale: number }>;
@@ -24,40 +24,6 @@ interface DragOptions {
    * clones (store.duplicateBlocks) with zero offset.
    */
   onAltDuplicate?: (ids: string[]) => void;
-}
-
-export function getSimpleBezierPath({ sx, sy, tx, ty, sp, tp }: { sx: number; sy: number; tx: number; ty: number; sp: string; tp: string }) {
-  const dx = Math.abs(tx - sx);
-  const dy = Math.abs(ty - sy);
-  const curvature = 0.5;
-  
-  let c1x = sx, c1y = sy;
-  let c2x = tx, c2y = ty;
-
-  if (sp === 'left') c1x -= dx * curvature;
-  else if (sp === 'right') c1x += dx * curvature;
-  else if (sp === 'top') c1y -= dy * curvature;
-  else if (sp === 'bottom') c1y += dy * curvature;
-
-  if (tp === 'left') c2x -= dx * curvature;
-  else if (tp === 'right') c2x += dx * curvature;
-  else if (tp === 'top') c2y -= dy * curvature;
-  else if (tp === 'bottom') c2y += dy * curvature;
-
-  // Shorten the end segment by 12px for the arrowhead gap (avoid regex parsing!)
-  const gdx = tx - c2x;
-  const gdy = ty - c2y;
-  const dist = Math.hypot(gdx, gdy);
-  let finalTx = tx;
-  let finalTy = ty;
-  if (dist > 0) {
-    const gap = 12;
-    const ratio = Math.max(0, (dist - gap) / dist);
-    finalTx = c2x + gdx * ratio;
-    finalTy = c2y + gdy * ratio;
-  }
-
-  return `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${finalTx} ${finalTy}`;
 }
 
 export function useDrag({
@@ -88,7 +54,7 @@ export function useDrag({
     const scale = viewportRef.current.scale;
 
     // Retrieve absolute latest, synchronous positions of blocks directly from Zustand store
-    const latestBlocks = useStore.getState().blocks;
+    let latestBlocks = useStore.getState().blocks;
     const currentPrimaryBlock = latestBlocks.find(x => x.id === primaryBlock.id) || primaryBlock;
 
     // Identify all elements to drag as a group using the latest selection state
@@ -122,6 +88,38 @@ export function useDrag({
       optionsRef.current.onAltDuplicate(dragIds);
     }
 
+    // Excalidraw-style detach: dragging an arrow/line whose binding targets are NOT being
+    // dragged along freezes those endpoints at their current resolved positions and drops
+    // the bindings — otherwise the bound ends stay glued to the shapes and the "drag" is a
+    // dead interaction (empty points array + fixed endpoints = nothing moves). Bindings to
+    // co-dragged blocks are kept so a selected shape+arrow pair moves as one.
+    // The batch is COMPUTED here but only WRITTEN on the first real pointer movement
+    // (see handlePointerMove): a plain click on a bound arrow must select it, not
+    // silently detach its bindings.
+    const freezeBatch: { id: string; updates: Partial<EditorBlock> }[] = [];
+    const freezeIds = new Set<string>();
+    dragIds.forEach(id => {
+      const b = latestBlocks.find(x => x.id === id);
+      if (!b || (b.shapeKind !== 'arrow' && b.shapeKind !== 'line')) return;
+      const startOut = !!b.startBinding && !dragIdsSet.has(b.startBinding.blockId);
+      const endOut = !!b.endBinding && !dragIdsSet.has(b.endBinding.blockId);
+      if (!startOut && !endOut) return;
+      const resolved = resolvePoints(b, latestBlocks);
+      const upd: Partial<EditorBlock> = {};
+      let pts = [...(b.points ?? [])] as [number, number][];
+      if (startOut && resolved.length > 0) { upd.startBinding = undefined; pts = [resolved[0], ...pts]; }
+      if (endOut && resolved.length > 1) { upd.endBinding = undefined; pts = [...pts, resolved[resolved.length - 1]]; }
+      upd.points = pts;
+      freezeBatch.push({ id, updates: upd });
+      freezeIds.add(id);
+    });
+    let freezeApplied = false;
+    const applyFreezeOnce = () => {
+      if (freezeApplied || freezeBatch.length === 0) return;
+      freezeApplied = true;
+      optionsRef.current.updateCanvasBlocks(freezeBatch);
+    };
+
     // Capture initial positions of all dragged elements using the synchronous block state
     const snapshot = new Map<string, { x: number; y: number; w: number; h: number; pivot?: [number, number]; points?: [number, number][] }>();
     dragIds.forEach(id => {
@@ -132,13 +130,19 @@ export function useDrag({
           const resolved = resolvePoints(b, latestBlocks);
           const { minX, minY, maxX, maxY } = calculateSplineBounds(resolved, b.editMode, b.pointRadiuses);
           const pad = 6;
+          // For arrows about to be detached, snapshot the FROZEN point set (endpoints
+          // materialized from bindings) — the commit shifts snapshot points by the drag
+          // delta, and the pre-freeze points array is missing the bound endpoints.
+          const frozen = freezeIds.has(b.id)
+            ? (freezeBatch.find(f => f.id === b.id)!.updates.points as [number, number][])
+            : undefined;
           snapshot.set(b.id, {
             x: minX - pad,
             y: minY - pad,
             w: Math.max(maxX - minX + pad * 2, 1),
             h: Math.max(maxY - minY + pad * 2, 1),
             pivot: b.canvasStyleExt?.pivot ? [...b.canvasStyleExt.pivot] : undefined,
-            points: b.points ? JSON.parse(JSON.stringify(b.points)) : undefined,
+            points: frozen ? JSON.parse(JSON.stringify(frozen)) : (b.points ? JSON.parse(JSON.stringify(b.points)) : undefined),
           });
         } else {
           snapshot.set(b.id, {
@@ -201,72 +205,33 @@ export function useDrag({
     };
 
 
-    // Cache related connection paths once at drag start (highly optimized)
-    const cachedPathElements: {
-      el: SVGPathElement;
-      fromId: string | null;
-      toId: string | null;
-      fromSide: string;
-      toSide: string;
-      initSx: number;
-      initSy: number;
-      initTx: number;
-      initTy: number;
-      points: [number, number][] | null;
-      startBinding: string | null;
-      endBinding: string | null;
-      curved: boolean;
-    }[] = [];
-
-    const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
-    allPaths.forEach(pathEl => {
-      const fromId = pathEl.getAttribute('data-from-id');
-      const toId = pathEl.getAttribute('data-to-id');
-      const hasFrom = fromId && dragIds.includes(fromId);
-      const hasTo = toId && dragIds.includes(toId);
-      
-      if (hasFrom || hasTo) {
-        const fromSide = pathEl.getAttribute('data-from-side') || 'bottom';
-        const toSide = pathEl.getAttribute('data-to-side') || 'top';
-        const initSx = parseFloat(pathEl.getAttribute('data-init-sx') || '0');
-        const initSy = parseFloat(pathEl.getAttribute('data-init-sy') || '0');
-        const initTx = parseFloat(pathEl.getAttribute('data-init-tx') || '0');
-        const initTy = parseFloat(pathEl.getAttribute('data-init-ty') || '0');
-        
-        let points: [number, number][] | null = null;
-        const pointsStr = pathEl.getAttribute('data-points');
-        if (pointsStr) {
-          try {
-            points = JSON.parse(pointsStr);
-          } catch {}
-        }
-
-        const arrowBlockId = pathEl.getAttribute('data-block-id');
-        const arrowBlock = arrowBlockId ? latestBlocks.find(b => b.id === arrowBlockId) : undefined;
-
-        cachedPathElements.push({
-          el: pathEl,
-          fromId,
-          toId,
-          fromSide,
-          toSide,
-          initSx,
-          initSy,
-          initTx,
-          initTy,
-          points,
-          startBinding: pathEl.getAttribute('data-start-binding') || null,
-          endBinding: pathEl.getAttribute('data-end-binding') || null,
-          curved: !!arrowBlock?.curved,
-        });
-      }
-    });
+    // Cache arrows BOUND to any dragged block (their endpoints must re-resolve against the
+    // moving shape every frame). Arrows that are themselves in the drag set are excluded:
+    // their <g> gets the translate3d transform above, and any binding they still carry
+    // points at a co-dragged shape moving by the same delta — so the translated path is
+    // already correct without recomputation.
+    const boundArrowBlocks = latestBlocks.filter(b =>
+      (b.shapeKind === 'arrow' || b.shapeKind === 'line') &&
+      !dragIdsSet.has(b.id) &&
+      ((b.startBinding && dragIdsSet.has(b.startBinding.blockId)) ||
+       (b.endBinding && dragIdsSet.has(b.endBinding.blockId)))
+    );
+    const cachedBoundArrowPaths = boundArrowBlocks.map(arrow => ({
+      block: arrow,
+      els: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+    }));
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       if (!isDraggingRef.current) return;
 
       let deltaX = (moveEvent.clientX - startClientX) / scale;
       let deltaY = (moveEvent.clientY - startClientY) / scale;
+
+      // Detach bound arrows only once the gesture is a real drag (past a small jitter
+      // threshold) — a plain click must select, not unbind.
+      if (!freezeApplied && freezeBatch.length > 0 && Math.hypot(deltaX, deltaY) > 3 / scale) {
+        applyFreezeOnce();
+      }
 
       const isShiftPressed = moveEvent.shiftKey;
       if (isShiftPressed) {
@@ -332,123 +297,21 @@ export function useDrag({
       // Immediate DOM update of cached nodes
       applyTransform();
 
-      // Recalculate connection paths live in DOM using cached path elements (extremely fast!)
-      cachedPathElements.forEach(item => {
-        let sx = item.initSx;
-        let sy = item.initSy;
-        let tx = item.initTx;
-        let ty = item.initTy;
-
-        if (item.startBinding && item.fromId && dragIds.includes(item.fromId)) {
-          try {
-            const binding = JSON.parse(item.startBinding);
-            const block = latestBlocks.find(b => b.id === binding.blockId);
-            if (block) {
-              const dx = dragIds.includes(block.id) ? currentDX : 0;
-              const dy = dragIds.includes(block.id) ? currentDY : 0;
-              const rect = {
-                x: (block.x ?? 0) + dx,
-                y: (block.y ?? 0) + dy,
-                width: block.width ?? 280,
-                height: block.height ?? 100,
-              };
-              const pos = focusToPerimeter(binding.focus ?? 0.5, rect, binding.gap ?? 0);
-              sx = pos[0];
-              sy = pos[1];
-            }
-          } catch {}
-        } else if (item.fromId && dragIds.includes(item.fromId)) {
-          sx += currentDX;
-          sy += currentDY;
-        }
-
-        if (item.endBinding && item.toId && dragIds.includes(item.toId)) {
-          try {
-            const binding = JSON.parse(item.endBinding);
-            const block = latestBlocks.find(b => b.id === binding.blockId);
-            if (block) {
-              const dx = dragIds.includes(block.id) ? currentDX : 0;
-              const dy = dragIds.includes(block.id) ? currentDY : 0;
-              const rect = {
-                x: (block.x ?? 0) + dx,
-                y: (block.y ?? 0) + dy,
-                width: block.width ?? 280,
-                height: block.height ?? 100,
-              };
-              const pos = focusToPerimeter(binding.focus ?? 0.5, rect, binding.gap ?? 0);
-              tx = pos[0];
-              ty = pos[1];
-            }
-          } catch {}
-        } else if (item.toId && dragIds.includes(item.toId)) {
-          tx += currentDX;
-          ty += currentDY;
-        }
-
-        let resolvedPointsArr: [number, number][] = [];
-        if (item.points) {
-          const pts = [...item.points];
-          if (item.fromId && dragIds.includes(item.fromId)) {
-            pts[0] = [sx, sy];
-          }
-          if (item.toId && dragIds.includes(item.toId)) {
-            pts[pts.length - 1] = [tx, ty];
-          }
-          // Shorten the last segment mathematically to create the gap
-          const n = pts.length;
-          if (n >= 2) {
-            const last = pts[n - 1];
-            const prev = pts[n - 2];
-            const dx = last[0] - prev[0];
-            const dy = last[1] - prev[1];
-            const dist = Math.hypot(dx, dy);
-            if (dist > 0) {
-              const gap = 12;
-              const ratio = Math.max(0, (dist - gap) / dist);
-              pts[n - 1] = [prev[0] + dx * ratio, prev[1] + dy * ratio];
-            }
-          }
-          const rawPath = item.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts);
-          item.el.setAttribute('d', rawPath);
-          resolvedPointsArr = pts;
-        } else {
-          const rawPath = getSimpleBezierPath({ sx, sy, tx, ty, sp: item.fromSide, tp: item.toSide });
-          item.el.setAttribute('d', rawPath);
-          resolvedPointsArr = [[sx, sy], [tx, ty]];
-        }
-
-        // Live update the HTML bounding box and selection overlay of the arrow if it is selected and rendered via portal
-        const arrowId = item.el.getAttribute('data-block-id');
-        const overlayEl = arrowId ? document.getElementById(`arrow-overlay-${arrowId}`) : null;
-        if (overlayEl && resolvedPointsArr.length > 0) {
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-          for (const p of resolvedPointsArr) {
-            if (p[0] < minX) minX = p[0];
-            if (p[1] < minY) minY = p[1];
-            if (p[0] > maxX) maxX = p[0];
-            if (p[1] > maxY) maxY = p[1];
-          }
-          const pad = 6;
-          const newBounds = {
-            x: minX - pad,
-            y: minY - pad,
-            w: Math.max(maxX - minX + pad * 2, 1),
-            h: Math.max(maxY - minY + pad * 2, 1)
-          };
-
-          // Position the wrapper div
-          overlayEl.style.left = `${newBounds.x}px`;
-          overlayEl.style.top = `${newBounds.y}px`;
-          overlayEl.style.width = `${newBounds.w}px`;
-          overlayEl.style.height = `${newBounds.h}px`;
-
-          // Update dimension label text if visible
-          const dimLabelEl = overlayEl.querySelector('.dimension-label');
-          if (dimLabelEl) {
-            dimLabelEl.textContent = `${Math.round(newBounds.w - 12)} × ${Math.round(newBounds.h - 12)}`;
-          }
-        }
-      });
+      // Live-update arrows bound to the dragged shape(s): re-resolve their endpoints
+      // against the moved geometry every frame using the SAME resolution + path code the
+      // React renderer uses, so mid-drag and post-commit visuals are identical.
+      if (cachedBoundArrowPaths.length > 0) {
+        const movedBlocks = latestBlocks.map(b =>
+          dragIdsSet.has(b.id)
+            ? { ...b, x: (b.x ?? 0) + currentDX, y: (b.y ?? 0) + currentDY }
+            : b
+        );
+        cachedBoundArrowPaths.forEach(({ block, els }) => {
+          const pts = resolvePoints(block, movedBlocks);
+          const d = buildArrowPathD(block, pts);
+          if (d) els.forEach(el => el.setAttribute('d', d));
+        });
+      }
 
       if (currentOptions.onDragMove) {
         currentOptions.onDragMove(currentDX, currentDY, moveEvent);
@@ -500,6 +363,10 @@ export function useDrag({
       // Build batch updates first
       const batchUpdates: { id: string; updates: Partial<EditorBlock> }[] = [];
       snapshot.forEach((snap, id) => {
+        // A bound arrow whose detach never fired (click, no real movement) must not be
+        // committed: its snapshot points are the would-be-frozen set, and writing them
+        // while the bindings are still live would duplicate the endpoints.
+        if (freezeIds.has(id) && !freezeApplied) return;
         if (snap.points) {
           const b = latestBlocks.find(x => x.id === id);
           const updates: Partial<EditorBlock> = {

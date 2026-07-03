@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
-import { useDrag, getSimpleBezierPath } from '@/hooks/useDrag';
-import { calculateCatmullRomPath, calculatePolylinePath } from '@/lib/geometry/splines';
+import { useDrag } from '@/hooks/useDrag';
+import { buildArrowPathD } from '@/lib/geometry/arrowPath';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
 import { getBoundText, layoutLabelInShape, pathMidpoint } from '@/lib/canvas/boundText';
@@ -217,61 +217,18 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
     const polygonEl = gEl?.querySelector('polygon');
     const shapePathEl = gEl?.querySelector('path');
 
-    const cachedPathElements: {
-      el: SVGPathElement;
-      fromId: string | null;
-      toId: string | null;
-      fromSide: string;
-      toSide: string;
-      initSx: number;
-      initSy: number;
-      initTx: number;
-      initTy: number;
-      points: [number, number][] | null;
-      curved: boolean;
-    }[] = [];
-
-    const allPaths = document.querySelectorAll<SVGPathElement>('path[data-connection-path], path[data-connection-hitbox]');
-    allPaths.forEach(pathEl => {
-      const fromId = pathEl.getAttribute('data-from-id');
-      const toId = pathEl.getAttribute('data-to-id');
-      const hasFrom = fromId === block.id;
-      const hasTo = toId === block.id;
-
-      if (hasFrom || hasTo) {
-        const fromSide = pathEl.getAttribute('data-from-side') || 'bottom';
-        const toSide = pathEl.getAttribute('data-to-side') || 'top';
-        const initSx = parseFloat(pathEl.getAttribute('data-init-sx') || '0');
-        const initSy = parseFloat(pathEl.getAttribute('data-init-sy') || '0');
-        const initTx = parseFloat(pathEl.getAttribute('data-init-tx') || '0');
-        const initTy = parseFloat(pathEl.getAttribute('data-init-ty') || '0');
-
-        let points: [number, number][] | null = null;
-        const pointsStr = pathEl.getAttribute('data-points');
-        if (pointsStr) {
-          try {
-            points = JSON.parse(pointsStr);
-          } catch { }
-        }
-
-        const arrowBlockId = pathEl.getAttribute('data-block-id');
-        const arrowBlock = arrowBlockId ? allBlocksForLabel.find(b => b.id === arrowBlockId) : undefined;
-
-        cachedPathElements.push({
-          el: pathEl,
-          fromId,
-          toId,
-          fromSide,
-          toSide,
-          initSx,
-          initSy,
-          initTx,
-          initTy,
-          points,
-          curved: !!arrowBlock?.curved,
-        });
-      }
-    });
+    // Arrows bound to THIS block: their endpoints slide along the outline as it resizes,
+    // so re-resolve them against the live geometry every frame (same resolution + path
+    // code as the React renderer, so mid-resize and post-commit visuals are identical).
+    const resizeBlocks = useStore.getState().blocks;
+    const boundArrowBlocks = resizeBlocks.filter(b =>
+      (b.shapeKind === 'arrow' || b.shapeKind === 'line') &&
+      (b.startBinding?.blockId === block.id || b.endBinding?.blockId === block.id)
+    );
+    const cachedBoundArrowPaths = boundArrowBlocks.map(arrow => ({
+      block: arrow,
+      els: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+    }));
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       let dx = (moveEvent.clientX - startX) / viewport.scale;
@@ -427,51 +384,17 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         resizeH: newH,
       });
 
-      // Live update path elements
-      cachedPathElements.forEach(item => {
-        let sx = item.initSx;
-        let sy = item.initSy;
-        let tx = item.initTx;
-        let ty = item.initTy;
-
-        if (item.fromId === block.id) {
-          if (item.fromSide === 'top') { sx = newX + newW / 2; sy = newY; }
-          else if (item.fromSide === 'bottom') { sx = newX + newW / 2; sy = newY + newH; }
-          else if (item.fromSide === 'left') { sx = newX; sy = newY + newH / 2; }
-          else if (item.fromSide === 'right') { sx = newX + newW; sy = newY + newH / 2; }
-        }
-        if (item.toId === block.id) {
-          if (item.toSide === 'top') { tx = newX + newW / 2; ty = newY; }
-          else if (item.toSide === 'bottom') { tx = newX + newW / 2; ty = newY + newH; }
-          else if (item.toSide === 'left') { tx = newX; ty = newY + newH / 2; }
-          else if (item.toSide === 'right') { tx = newX + newW; ty = newY + newH / 2; }
-        }
-
-        if (item.points) {
-          const pts = [...item.points];
-          if (item.fromId === block.id) pts[0] = [sx, sy];
-          if (item.toId === block.id) pts[pts.length - 1] = [tx, ty];
-          // Shorten the last segment mathematically to create the gap
-          const n = pts.length;
-          if (n >= 2) {
-            const last = pts[n - 1];
-            const prev = pts[n - 2];
-            const dx = last[0] - prev[0];
-            const dy = last[1] - prev[1];
-            const dist = Math.hypot(dx, dy);
-            if (dist > 0) {
-              const gap = 12;
-              const ratio = Math.max(0, (dist - gap) / dist);
-              pts[n - 1] = [prev[0] + dx * ratio, prev[1] + dy * ratio];
-            }
-          }
-          const rawPath = item.curved ? calculateCatmullRomPath(pts) : calculatePolylinePath(pts);
-          item.el.setAttribute('d', rawPath);
-        } else {
-          const rawPath = getSimpleBezierPath({ sx, sy, tx, ty, sp: item.fromSide, tp: item.toSide });
-          item.el.setAttribute('d', rawPath);
-        }
-      });
+      // Live-update arrows bound to this block against the resized geometry.
+      if (cachedBoundArrowPaths.length > 0) {
+        const movedBlocks = resizeBlocks.map(b =>
+          b.id === block.id ? { ...b, x: newX, y: newY, width: newW, height: newH } : b
+        );
+        cachedBoundArrowPaths.forEach(({ block: arrow, els }) => {
+          const pts = resolvePoints(arrow, movedBlocks);
+          const d = buildArrowPathD(arrow, pts);
+          if (d) els.forEach(el => el.setAttribute('d', d));
+        });
+      }
     };
 
     const handlePointerUp = () => {
@@ -659,7 +582,10 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         opacity: erasing ? 0.3 : undefined,
         // Bound labels pass pointer events through to the container underneath, except
         // while actively editing (so the caret/textarea remains interactive).
-        pointerEvents: isBoundLabel && !isEditing ? 'none' : undefined,
+        // Frames do the same: the root div spans the whole section, and if it stayed
+        // interactive it would eat every click on members inside — only the border strips,
+        // label, and handles (each explicitly pointer-events-auto) form the click surface.
+        pointerEvents: (isBoundLabel && !isEditing) || block.type === 'frame' ? 'none' : undefined,
         transform: (() => {
           // During drag, return undefined so React leaves useDrag's translate3d intact.
           if (isDraggingLocal) return undefined;
@@ -700,7 +626,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       )}
       {!isEditing && !isBoundLabel && block.type === 'frame' && (() => {
         const stripCursor = activeTool === 'select' || activeTool === 'move' ? 'cursor-move' : 'cursor-crosshair';
-        const stripCls = `canvas-block-edge absolute ${stripCursor}`;
+        // pointer-events-auto: the frame root is pointer-events-none, so its click surface
+        // must be re-enabled explicitly on the strips.
+        const stripCls = `canvas-block-edge absolute pointer-events-auto ${stripCursor}`;
         return (
           <>
             <div className={`${stripCls} -top-1 left-0 right-0 h-2`} />
@@ -743,7 +671,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
             <div
               key={side}
               className={cn(
-                "absolute w-3 h-3 rounded-full bg-[var(--accent)] border-2 border-background z-[100] cursor-crosshair",
+                // pointer-events-auto: frame roots are pointer-events-none, and these dots
+                // must stay clickable on frames too (frames are bindable).
+                "absolute w-3 h-3 rounded-full bg-[var(--accent)] border-2 border-background z-[100] cursor-crosshair pointer-events-auto",
                 side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
                 side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
                 side === 'bottom' && "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2",

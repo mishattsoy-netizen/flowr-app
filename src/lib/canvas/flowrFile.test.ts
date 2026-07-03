@@ -8,7 +8,7 @@ const blocks: EditorBlock[] = [
   { id: 't1', type: 'text', content: 'Label', canvasId: 'c1', x: 150, y: 130, width: 60, height: 25, zIndex: 1,
     fontSize: 20, textAlign: 'center', containerId: 'r1', canvasStyleExt: { stroke: '#ffffff' } },
   { id: 'a1', type: 'shape', shapeKind: 'arrow', content: '', canvasId: 'c1', x: 0, y: 0, width: 0, height: 0, zIndex: 2,
-    points: [[320, 150], [420, 150]], curved: true,
+    points: [[320, 150], [420, 150]], pathMode: 'curved',
     endBinding: { blockId: 'r1', focus: 0.25, gap: 4 },
     endArrowhead: { type: 'filled-triangle', size: 1 } },
   { id: 'f1', type: 'frame', content: 'My Section', canvasId: 'c1', x: 0, y: 300, width: 500, height: 300, zIndex: 3 },
@@ -57,7 +57,7 @@ describe('.flowr round trip', () => {
     expect(byId['t1'].fontSize).toBe(20);
     expect(byId['a1'].points).toEqual([[320, 150], [420, 150]]); // absolute again
     expect(byId['a1'].endBinding).toMatchObject({ blockId: 'r1', focus: 0.25, gap: 4 });
-    expect(byId['a1'].curved).toBe(true);
+    expect(byId['a1'].pathMode).toBe('curved');
     expect(byId['r2'].parentId).toBe('f1');
     expect(byId['f1'].content).toBe('My Section');
     expect(parsed.blocks.map(b => b.zIndex)).toEqual([0, 1, 2, 3, 4]);

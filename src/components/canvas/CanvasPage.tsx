@@ -10,7 +10,6 @@ import { CanvasStylePanel } from './CanvasStylePanel';
 import { CanvasConnections } from './CanvasConnections';
 import { CanvasShapeLayer } from './CanvasShapeLayer';
 import { MultiSelectionBox } from './MultiSelectionBox';
-import { VectorPath } from './edges/VectorPath';
 import { MediaUploadPopover } from './MediaUploadPopover';
 import { CanvasBottomBar } from './CanvasBottomBar';
 import { useCanvasHistory } from '@/hooks/useCanvasHistory';
@@ -1229,13 +1228,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
         } else if (!isPoint) {
           const newBlockId = generateId();
+          // A shape drawn fully inside a section joins it immediately (same rule as
+          // handleDragCommit) — otherwise it wouldn't clip or move with the section
+          // until its first drag.
+          const bw = isLineish ? 0 : Math.max(finalW, 20);
+          const bh = isLineish ? 0 : Math.max(finalH, 20);
+          let parentId: string | undefined;
+          if (!isLineish) {
+            const frames = useStore.getState().blocks.filter(b => b.canvasId === entity.id && b.type === 'frame');
+            for (const f of frames) {
+              const fx = f.x ?? 0, fy = f.y ?? 0, fw = f.width ?? 0, fh = f.height ?? 0;
+              if (finalX >= fx && finalY >= fy && finalX + bw <= fx + fw && finalY + bh <= fy + fh) { parentId = f.id; break; }
+            }
+          }
           addCanvasBlock({
             id: newBlockId, type: 'shape', content: '', canvasId: entity.id,
             shapeKind: kind as any,
             x: isLineish ? 0 : finalX, y: isLineish ? 0 : finalY,
-            width: isLineish ? 0 : Math.max(finalW, 20),
-            height: isLineish ? 0 : Math.max(finalH, 20),
+            width: bw,
+            height: bh,
             points: isLineish ? currentShape.points : undefined,
+            parentId,
             canvasStyleExt: {
               ...activeStyle,
               fill: isLineish ? 'transparent' : activeStyle.fill,
@@ -1259,11 +1272,23 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     const { x, y } = screenToCanvas(e.clientX, e.clientY);
 
-    if (activeTool === 'text') {
-      createTextAt(x, y);
-    } else if (activeTool === 'image') {
+    if (activeTool === 'image') {
       setMediaPopover({ x: e.clientX, y: e.clientY, canvasX: x, canvasY: y });
     }
+  };
+
+  // Text creation happens on CLICK (pointer-up), not pointerdown: creating + focusing the
+  // textarea during pointerdown lets the same gesture's mousedown default action blur it
+  // immediately, and the empty-text-deletes-on-blur rule then destroys the block before the
+  // user can type. Placing on click (like Excalidraw) means nothing steals focus afterwards.
+  const handleBgClick = (e: React.MouseEvent) => {
+    if (activeTool !== 'text') return;
+    const target = e.target as HTMLElement;
+    if (target.id !== 'canvas-bg' && !target.closest('#canvas-bg')) return;
+    if (target.closest('.ResizeHandle')) return;
+    if (target.closest('[id]') && pageBlocks.some(b => b.id === target.closest('[id]')?.id)) return;
+    const { x, y } = screenToCanvas(e.clientX, e.clientY);
+    createTextAt(x, y);
   };
 
   // Double-click on truly empty canvas (not on a block) drops a text caret, Excalidraw-style.
@@ -1434,6 +1459,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           <div
             id="canvas-bg"
             onPointerDown={handleBgPointerDown}
+            onClick={handleBgClick}
             onDoubleClick={handleBgDoubleClick}
             onPointerMove={(e) => {
               if (activeTool === 'arrow' || activeTool === 'line') {
@@ -1469,7 +1495,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div id="canvas-viewport-content" style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} markedIds={eraserMarkedIds} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} onDragStart={handleArrowDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} markedIds={eraserMarkedIds} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}
@@ -1556,29 +1582,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 ))}
 
                 {/* Standalone arrows layer — outside viewport-export so z-index competes with HTML blocks */}
-                <svg
-                  className="absolute inset-0 pointer-events-none overflow-visible"
-                  style={{ zIndex: 10 }}
-                >
-                  {pageBlocks.filter(b =>
-                    (b.shapeKind === 'arrow' || b.shapeKind === 'line' || b.shapeKind === 'freedraw') &&
-                    !(b.startBinding || b.endBinding)
-                  ).map(b => (
-                    <VectorPath key={b.id} block={b}
-                      selected={selectedIds.has(b.id)}
-                      showIndividualSelection={selectedIds.size <= 1}
-                      editing={editingBlockId === b.id}
-                      selectedPointIndex={editingBlockId === b.id ? selectedPointIndex : null}
-                      activeTool={activeTool}
-                      viewportScale={viewport.scale}
-                      viewport={{ x: viewport.x, y: viewport.y, scale: viewport.scale }}
-                      onSelect={selectBlock}
-                      onDoubleClick={(altKey) => handleDoubleClickBlock(b.id, altKey)}
-                      onDragStart={(e) => handleArrowDrag(e, b)}
-                      onPointSelect={setSelectedPointIndex}
-                      erasing={eraserMarkedIds.has(b.id)} />
-                  ))}
-                </svg>
+                {/* All linear shapes (arrow/line/freedraw, bound or free) render in
+                    CanvasConnections above — a single render site so binding changes
+                    never remount an arrow's DOM node mid-drag. */}
 
                 {/* Sections render their members inside a clipped wrapper, positioned via a
                     negative-offset inner div so members keep their normal absolute canvas

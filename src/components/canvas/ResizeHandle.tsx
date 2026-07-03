@@ -41,7 +41,9 @@ export function ResizeHandle({ position, onResizeStart, isSelected }: ResizeHand
         "absolute z-[200]",
         "w-2.5 h-2.5 bg-panel border border-brand-blue rounded-none shadow-sm",
         "transition-none hover:scale-135 hover:bg-brand-blue hover:border-[var(--app-panel)]",
-        isSelected ? "opacity-100 scale-100" : "opacity-0 scale-50 pointer-events-none",
+        // pointer-events-auto is explicit (not inherited): frame roots are pointer-events-none,
+        // and the handles must stay interactive inside them.
+        isSelected ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-50 pointer-events-none",
         POSITION_CLASSES[position],
       )}
       style={{ cursor: CURSOR_MAP[position] }}
