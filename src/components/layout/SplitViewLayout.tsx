@@ -36,6 +36,10 @@ export function SplitViewLayout() {
     const cleanupLeft = dropTargetForElements({
       element: leftEl,
       getData: () => ({ column: 'left' as const }),
+      canDrop: ({ source }) => {
+        const entityType = source.data.entityType as string | undefined;
+        return !!entityType && entityType !== 'workspace' && entityType !== 'collection';
+      },
       onDrop: ({ source }) => {
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('left', entityId);
@@ -45,6 +49,10 @@ export function SplitViewLayout() {
     const cleanupRight = dropTargetForElements({
       element: rightEl,
       getData: () => ({ column: 'right' as const }),
+      canDrop: ({ source }) => {
+        const entityType = source.data.entityType as string | undefined;
+        return !!entityType && entityType !== 'workspace' && entityType !== 'collection';
+      },
       onDrop: ({ source }) => {
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('right', entityId);
