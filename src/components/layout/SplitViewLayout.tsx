@@ -148,10 +148,8 @@ export function SplitViewLayout() {
       >
         <ColumnHeader column="left" entityId={splitViewLeftId} />
         {splitViewLeftId ? (
-          <div className="flex-1 min-h-0 pl-12 pr-6">
-            <div className="h-full overflow-y-auto">
-              <EntityPageRenderer entityId={splitViewLeftId} />
-            </div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <EntityPageRenderer entityId={splitViewLeftId} />
           </div>
         ) : (
           <ColumnPlaceholder
@@ -187,10 +185,8 @@ export function SplitViewLayout() {
       >
         <ColumnHeader column="right" entityId={splitViewRightId} />
         {splitViewRightId ? (
-          <div className="flex-1 min-h-0 pl-12 pr-6">
-            <div className="h-full overflow-y-auto">
-              <EntityPageRenderer entityId={splitViewRightId} />
-            </div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <EntityPageRenderer entityId={splitViewRightId} />
           </div>
         ) : (
           <ColumnPlaceholder
