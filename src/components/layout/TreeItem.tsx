@@ -1,9 +1,9 @@
 "use client";
 
-import { Entity, EntityType, useStore, generateId } from '@/data/store';
+import { Entity, EntityType, useStore, generateId, AppTask } from '@/data/store';
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
-import { ChevronRight, ChevronDown, FileText, Frame, Folder, Layers, Plus, MoreHorizontal, StarOff } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Frame, Folder, Plus, MoreHorizontal, StarOff, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -351,6 +351,8 @@ interface TreeItemProps {
 export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride, isDragOverlay, disableNesting, isMultiSelected, onShiftClick, showUnpinHint }: TreeItemProps) {
   const entities = useStore(state => state.entities);
   const activeEntityId = useStore(state => state.activeEntityId);
+  const splitViewLeftId = useStore(state => state.splitViewLeftId);
+  const splitViewRightId = useStore(state => state.splitViewRightId);
   const collapsedIds = useStore(state => state.collapsedIds);
   const favoriteIds = useStore(state => state.favoriteIds);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
@@ -365,6 +367,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const contextMenu = useStore(state => state.contextMenu);
   const sidebarSectionSettings = useStore(state => state.sidebarSectionSettings);
   const hiddenEntityIds = useStore(state => state.hiddenEntityIds);
+  const tasks = useStore(state => state.tasks);
 
   const elementRef = useRef<HTMLDivElement | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -389,7 +392,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       }
       if (sectionId === 'unsorted') {
         return entities.filter(e => 
-          (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') && 
+          (e.type === 'note' || e.type === 'canvas') &&
           (!e.parentId || !entities.some(p => p.id === e.parentId)) &&
           (e.workspaceId || 'ws-personal') === (targetEntity.workspaceId || 'ws-personal') &&
           !hiddenEntityIds.includes(e.id)
@@ -832,14 +835,16 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   };
 
   const isDescendantActive = (parentId: string): boolean => {
-    if (!activeEntityId) return false;
-    let current = entities.find(e => e.id === activeEntityId);
-    while (current?.parentId) {
-      if (current.parentId === parentId) return true;
-      const nextId = current.parentId;
-      current = entities.find(e => e.id === nextId);
-    }
-    return false;
+    const activeIds = [activeEntityId, splitViewLeftId, splitViewRightId].filter(Boolean) as string[];
+    return activeIds.some(aid => {
+      let current = entities.find(e => e.id === aid);
+      while (current?.parentId) {
+        if (current.parentId === parentId) return true;
+        const nextId = current.parentId;
+        current = entities.find(e => e.id === nextId);
+      }
+      return false;
+    });
   };
 
   const isChildActive = isDescendantActive(entity.id);
@@ -850,7 +855,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const isPinned = idOverride?.startsWith('pinned-');
   const isCollapsible = hasChildren && !isPinned && !disableNesting;
   const isCollapsed = collapsedIds.includes(entity.id);
-  const isActive = activeEntityId === entity.id;
+  const isActive = activeEntityId === entity.id || splitViewLeftId === entity.id || splitViewRightId === entity.id;
 
   const selectedSidebarIds = useStore(state => state.selectedSidebarIds);
   const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
@@ -859,11 +864,14 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
 
   const handleClick = (e: React.MouseEvent) => {
-    if (e.shiftKey && onShiftClick) {
+    if (isDragOverlay) return;
+    if (e.shiftKey) {
       e.preventDefault();
-      onShiftClick(entity.id, e);
+      e.stopPropagation();
+      onShiftClick?.(entity.id, e);
       return;
     }
+
     // Clear multi-select on any non-shift click
     clearSelectedSidebarIds();
     setActiveEntityId(entity.id);
@@ -949,7 +957,6 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     switch (type) {
       case 'note': return <FileText strokeWidth={2} className={cn(cls, iconColorClass)} />;
       case 'canvas': return <Frame strokeWidth={2} className={cn(cls, iconColorClass)} />;
-      case 'mixed': return <Layers strokeWidth={2} className={cn(cls, iconColorClass)} />;
     }
   };
 
@@ -965,7 +972,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
         isWorkspace && isExpanded && "group/workspace",
-        "relative group/treeitem"
+        "relative group/treeitem flex flex-col gap-[1px]"
       )}
     >
       <div
@@ -976,7 +983,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           "sidebar-item-row group relative flex w-full select-none",
           isEditing ? "items-start pt-[5px]" : "items-center h-7",
           "px-3 rounded-[var(--radius-small)]",
-          "border-t border-x border-solid border-transparent bg-clip-padding",
+          "border border-transparent",
           effectiveMultiSelected
             ? isDraggingLocal
               ? "bg-[var(--app-dark)] text-[var(--bone-70)]"
@@ -1100,7 +1107,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           )}
         >
           <div className="overflow-hidden">
-            <div className="relative flex flex-col">
+            <div className="relative flex flex-col gap-[1px]">
               {children.map((child) => (
                 <TreeItem
                   key={idOverride ? `${idOverride.split('-')[0]}-${child.id}` : child.id}
@@ -1133,6 +1140,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             {[
               { type: 'note' as const, label: 'Note', icon: FileText },
               { type: 'canvas' as const, label: 'Canvas', icon: Frame },
+              { type: 'folder' as const, label: 'Folder', icon: Folder },
             ].map(opt => (
               <button
                 key={opt.type}
