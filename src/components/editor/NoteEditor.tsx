@@ -1252,7 +1252,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
               "max-w-[850px]",
-              splitViewActive ? "px-[72px]" : "px-4",
+              splitViewActive ? "pl-[80px] pr-10" : "px-4",
               isDragging && "dragging-active-content"
             )}
             dir="ltr"
