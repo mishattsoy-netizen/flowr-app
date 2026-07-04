@@ -3,9 +3,8 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { useStore, type EditorBlock } from '@/data/store';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
-import { buildArrowPathD, computeRenderPoints } from '@/lib/geometry/arrowPath';
+import { buildArrowPaths, computeRenderPoints } from '@/lib/geometry/arrowPath';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
-import { ArrowheadMarker, getMarkerIds } from './arrowheadMarkers';
 import { ResizeHandle, HandlePosition } from '../ResizeHandle';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 
@@ -56,14 +55,12 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   const dasharray = strokeStyle === 'dashed' ? '6 4' : strokeStyle === 'dotted' ? '2 3' : undefined;
 
   // Shared with the imperative live-drag updaters (useDrag / resize) so mid-gesture and
-  // committed renders are pixel-identical. Elbow mode re-routes inside buildArrowPathD.
+  // committed renders are pixel-identical. Elbow mode re-routes inside buildArrowPaths.
   const renderPts = useMemo(() => computeRenderPoints(block, resolvedPts), [block, resolvedPts]);
-  const path = useMemo(() => buildArrowPathD(block, resolvedPts), [block, resolvedPts]);
+  const arrowPaths = useMemo(() => buildArrowPaths(block, resolvedPts), [block, resolvedPts]);
+  const path = arrowPaths.line;
 
   const strokeColor = selected ? 'var(--brand-blue)' : (style.stroke || 'var(--accent)');
-  const markerIds = getMarkerIds(block.id);
-  const sHead = block.startArrowhead ?? (block.shapeKind === 'arrow' ? { type: 'filled-triangle' as const, size: 1 } : { type: 'none' as const });
-  const eHead = block.endArrowhead ?? (block.shapeKind === 'arrow' ? { type: 'filled-triangle' as const, size: 1 } : { type: 'none' as const });
 
   const startPos = resolvedPts.length > 0 && block.startBinding ? resolvedPts[0] : null;
   const endPos = resolvedPts.length > 1 && block.endBinding ? resolvedPts[resolvedPts.length - 1] : null;
@@ -102,13 +99,12 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
     const currentDragPts = [...waypoints];
-
-    const computePathD = (pts: [number, number][]) => buildArrowPathD(block, pts);
+    const hasStart = !!block.startBinding;
 
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
-      
+
       const angle = style.rotation ?? 0;
       const rad = -angle * Math.PI / 180;
       const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
@@ -125,17 +121,22 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
           circleEls[index].setAttribute('cy', String(localPt[1]));
         }
 
-        // 2. Update path d attributes
-        const hasStart = !!block.startBinding;
+        // 2. Update path + arrowhead d attributes, recomputed from the SAME resolved points
+        // so the head's stable-direction calculation sees exactly what will be committed —
+        // this is what keeps the head from spinning as a waypoint nears the tip.
         const resolvedPtsCopy = [...resolvedPts];
         const resolvedIndex = hasStart ? index + 1 : index;
         resolvedPtsCopy[resolvedIndex] = localPt;
 
-        const newD = computePathD(resolvedPtsCopy);
+        const paths = buildArrowPaths(block, resolvedPtsCopy);
         const hitboxPath = gEl.querySelector(`path[data-connection-hitbox="${block.id}"]`);
-        if (hitboxPath) hitboxPath.setAttribute('d', newD);
+        if (hitboxPath) hitboxPath.setAttribute('d', paths.line);
         const visiblePath = gEl.querySelector(`path[data-connection-path="${block.id}"]`);
-        if (visiblePath) visiblePath.setAttribute('d', newD);
+        if (visiblePath) visiblePath.setAttribute('d', paths.line);
+        const startHeadEl = gEl.querySelector(`path[data-arrowhead-start="${block.id}"]`);
+        if (startHeadEl && paths.startHead) startHeadEl.setAttribute('d', paths.startHead.d);
+        const endHeadEl = gEl.querySelector(`path[data-arrowhead-end="${block.id}"]`);
+        if (endHeadEl && paths.endHead) endHeadEl.setAttribute('d', paths.endHead.d);
       }
     };
 
@@ -184,7 +185,6 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     onPointSelect?.(insertAt);
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
-    const computePathD = (pts: [number, number][]) => buildArrowPathD(block, pts);
     const hasStart = !!block.startBinding;
 
     // The ghost handle itself doubles as the live-dragged point's visual — no new <circle>
@@ -207,11 +207,15 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       if (gEl) {
         const resolvedPtsCopy = [...resolvedPts];
         resolvedPtsCopy.splice(hasStart ? insertAt + 1 : insertAt, 0, pt);
-        const newD = computePathD(resolvedPtsCopy);
+        const paths = buildArrowPaths(block, resolvedPtsCopy);
         const hitboxPath = gEl.querySelector(`path[data-connection-hitbox="${block.id}"]`);
-        if (hitboxPath) hitboxPath.setAttribute('d', newD);
+        if (hitboxPath) hitboxPath.setAttribute('d', paths.line);
         const visiblePath = gEl.querySelector(`path[data-connection-path="${block.id}"]`);
-        if (visiblePath) visiblePath.setAttribute('d', newD);
+        if (visiblePath) visiblePath.setAttribute('d', paths.line);
+        const startHeadEl = gEl.querySelector(`path[data-arrowhead-start="${block.id}"]`);
+        if (startHeadEl && paths.startHead) startHeadEl.setAttribute('d', paths.startHead.d);
+        const endHeadEl = gEl.querySelector(`path[data-arrowhead-end="${block.id}"]`);
+        if (endHeadEl && paths.endHead) endHeadEl.setAttribute('d', paths.endHead.d);
       }
     };
 
@@ -388,11 +392,6 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
 
   return (
     <g id={block.id} transform={gTransform} style={erasing ? { opacity: 0.3 } : undefined}>
-      <defs>
-        <ArrowheadMarker id={markerIds.start} style={sHead} strokeColor={strokeColor} />
-        <ArrowheadMarker id={markerIds.end} style={eHead} strokeColor={strokeColor} />
-      </defs>
-
       {/* HTML Selection frame via portal */}
       {selected && showIndividualSelection && !editing && bounds && viewportContent && createPortal(
         <div
@@ -483,8 +482,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         d={path}
         fill="none" stroke={strokeColor} strokeWidth={strokeWidth}
         strokeDasharray={dasharray} strokeOpacity={selected ? 1 : (style.strokeOpacity ?? 1)} opacity={style.opacity ?? 1}
-        markerStart={sHead.type !== 'none' ? `url(#${markerIds.start})` : undefined}
-        markerEnd={eHead.type !== 'none' ? `url(#${markerIds.end})` : undefined}
+        strokeLinecap="round" strokeLinejoin="round"
         style={{ pointerEvents: 'none', transition: 'stroke 0.2s, stroke-width 0.2s' }}
         data-connection-path={block.id}
         data-block-id={block.id}
@@ -492,6 +490,28 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         data-end-binding={block.endBinding ? JSON.stringify(block.endBinding) : undefined}
         data-points={block.points ? JSON.stringify(block.points) : undefined}
       />
+      {/* Arrowhead geometry: own filled/stroked paths (not SVG <marker>s), positioned via a
+          stable direction vector so a waypoint dragged near the tip can't spin the head. */}
+      {arrowPaths.startHead && (
+        <path
+          d={arrowPaths.startHead.d}
+          fill={arrowPaths.startHead.fill === 'stroke' ? strokeColor : 'none'}
+          stroke={strokeColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round"
+          opacity={style.opacity ?? 1}
+          style={{ pointerEvents: 'none' }}
+          data-arrowhead-start={block.id}
+        />
+      )}
+      {arrowPaths.endHead && (
+        <path
+          d={arrowPaths.endHead.d}
+          fill={arrowPaths.endHead.fill === 'stroke' ? strokeColor : 'none'}
+          stroke={strokeColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round"
+          opacity={style.opacity ?? 1}
+          style={{ pointerEvents: 'none' }}
+          data-arrowhead-end={block.id}
+        />
+      )}
 
       {/* Draggable waypoint dots: interactive as soon as the arrow is selected, not only in
           Alt+double-click "editing" mode — plain selection is the common case and users expect

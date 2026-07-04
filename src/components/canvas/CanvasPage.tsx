@@ -27,7 +27,6 @@ import { exportCanvasToPng, copyCanvasToClipboard } from '@/lib/canvasExport';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { getCornerRadius } from '@/lib/geometry/outline';
-import { arrowheadSizeForStrokeWidth as getArrowheadSizeForStrokeWidth } from '@/lib/geometry/arrowPath';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
 import { useDragState, activeDragOffsets } from '@/lib/canvasDragState';
@@ -94,7 +93,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   } | null>(null);
   const [activeStyle, setActiveStyle] = useState<CanvasStyleExt>({
     stroke: '#ffffff',
-    strokeWidth: 1,
+    strokeWidth: 2,
     strokeStyle: 'solid',
     fill: '#ffffff',
     fillOpacity: 1.0,
@@ -340,7 +339,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     })();
 
     const lineStrokeWidth = activeStyle.strokeWidth ?? 1;
-    const lineArrowheadSize = getArrowheadSizeForStrokeWidth(lineStrokeWidth);
     addCanvasBlock({
       id: generateId(), type: 'shape', content: '', canvasId: entity.id,
       shapeKind: tool,
@@ -350,12 +348,27 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       x: 0, y: 0, width: 0, height: 0,
       editMode: 'simple',
       startArrowhead: { type: 'none' },
-      endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: lineArrowheadSize } : { type: 'none' },
+      endArrowhead: tool === 'arrow' ? { type: 'filled-triangle' } : { type: 'none' },
       canvasStyleExt: { stroke: '#d38f36', strokeWidth: lineStrokeWidth, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
     });
     clear();
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
   }, [activeTool, addCanvasBlock, entity.id, history]);
+
+  // Switching tools away from arrow/line mid-stroke commits what's been drawn so far,
+  // rather than leaving it silently discarded — one of several "finish the stroke" triggers
+  // alongside Enter/Escape/right-click/click-outside-canvas (see handleGlobalKey above and
+  // the document-level pointerdown listener below).
+  const prevToolRef = useRef(activeTool);
+  useEffect(() => {
+    const prevTool = prevToolRef.current;
+    prevToolRef.current = activeTool;
+    const wasDrawingTool = prevTool === 'arrow' || prevTool === 'line';
+    const stillDrawingTool = activeTool === 'arrow' || activeTool === 'line';
+    if (wasDrawingTool && !stillDrawingTool && useFlowState.getState().isDrawing) {
+      commitFlowConnection();
+    }
+  }, [activeTool, commitFlowConnection]);
 
   const { handleBindingDrag } = useBindingDrag({
     entityId: entity.id,
@@ -896,10 +909,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     const handleGlobalKey = (e: KeyboardEvent) => {
       if (!useFlowState.getState().isDrawing) return;
-      if (e.key === 'Enter') {
+      // Escape commits the in-progress arrow rather than discarding it — matches every
+      // other exit-drawing trigger (right-click, tool switch, click-outside-canvas), so
+      // there's one consistent "finish what you've drawn so far" behavior instead of a
+      // special case that throws work away.
+      if (e.key === 'Enter' || e.key === 'Escape') {
         commitFlowConnection();
-      } else if (e.key === 'Escape') {
-        useFlowState.getState().clear();
       }
     };
 
@@ -911,14 +926,28 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     };
 
+    // Clicking anything outside the canvas itself (sidebar, toolbar buttons, panels, modals)
+    // commits the in-progress stroke instead of leaving it stranded mid-draw — the click still
+    // reaches its own target normally since this only reads state, it never calls
+    // preventDefault/stopPropagation.
+    const handleGlobalPointerDown = (e: PointerEvent) => {
+      if (!useFlowState.getState().isDrawing) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('#canvas-bg')) {
+        commitFlowConnection();
+      }
+    };
+
     document.addEventListener('mousemove', handleGlobalMove);
     document.addEventListener('keydown', handleGlobalKey);
     document.addEventListener('contextmenu', handleGlobalContextMenu, true);
-    
+    document.addEventListener('pointerdown', handleGlobalPointerDown, true);
+
     return () => {
       document.removeEventListener('mousemove', handleGlobalMove);
       document.removeEventListener('keydown', handleGlobalKey);
       document.removeEventListener('contextmenu', handleGlobalContextMenu, true);
+      document.removeEventListener('pointerdown', handleGlobalPointerDown, true);
     };
   }, [commitFlowConnection]);
 
@@ -1148,6 +1177,14 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         addPoint([x, y]);
         useFlowState.getState().updateMouse({ x, y });
       } else {
+        // Clicking on top of the just-placed point (effectively a double-click on it, since
+        // the first click already dropped a point there) finishes the stroke instead of
+        // adding a zero-length duplicate segment.
+        const lastPt = useFlowState.getState().currentPath.at(-1);
+        if (lastPt && Math.hypot(x - lastPt[0], y - lastPt[1]) < 4) {
+          commitFlowConnection();
+          return;
+        }
         // Auto-finish: clicking inside a bindable block's bind zone (inside or near its
         // outline) ends the stroke there, classified via the same 3-mode logic as any
         // other free-point release.
@@ -1228,7 +1265,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               fill: undefined,
               fillOpacity: 0,
               stroke: undefined,
-              strokeWidth: 1,
+              strokeWidth: 2,
               cornerRadius: 0,
             },
           });

@@ -64,7 +64,7 @@ export interface ArrowBinding {
   fixedPoint?: [number, number];
 }
 
-export type ArrowheadType = 'none' | 'triangle' | 'filled-triangle' | 'circle' | 'bar' | 'diamond';
+export type ArrowheadType = 'none' | 'arrow' | 'triangle' | 'filled-triangle' | 'circle' | 'diamond' | 'reverse-triangle';
 
 export interface ArrowheadStyle {
   type: ArrowheadType;

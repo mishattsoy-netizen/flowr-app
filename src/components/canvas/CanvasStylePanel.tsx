@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
-import { arrowheadSizeForStrokeWidth } from '@/lib/geometry/arrowPath';
 import { useDragState } from '@/lib/canvasDragState';
 import { cn } from '@/lib/utils';
 import { Toggle } from '../ui/Toggle';
@@ -299,9 +298,9 @@ function SliderGroup<T extends string>({
 /** Stroke width presets (Excalidraw-style thin/medium/bold) applied to both shape borders
  * and arrow/line strokes. Arrowhead size is always derived from this, never set manually. */
 const STROKE_WIDTH_PRESETS = [
-  { key: 'thin' as const, width: 1, iconStroke: 1.5 },
-  { key: 'medium' as const, width: 2, iconStroke: 2.5 },
-  { key: 'bold' as const, width: 4, iconStroke: 4 },
+  { key: 'thin' as const, width: 2, iconStroke: 2 },
+  { key: 'medium' as const, width: 3.5, iconStroke: 3.5 },
+  { key: 'bold' as const, width: 6, iconStroke: 5.5 },
 ];
 
 function strokeWidthToPreset(width: number | undefined): 'thin' | 'medium' | 'bold' {
@@ -423,6 +422,12 @@ const ARROWHEAD_ICONS: Record<string, React.ReactNode> = {
       <line x1="4" y1="8" x2="14" y2="8" />
     </svg>
   ),
+  arrow: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <path d="M8,4.5 L3,8 L8,11.5" fill="none" />
+    </svg>
+  ),
   triangle: (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
       <line x1="8" y1="8" x2="14" y2="8" />
@@ -441,16 +446,16 @@ const ARROWHEAD_ICONS: Record<string, React.ReactNode> = {
       <circle cx="5" cy="8" r="2.5" fill="currentColor" />
     </svg>
   ),
-  bar: (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
-      <line x1="5" y1="8" x2="14" y2="8" />
-      <line x1="5" y1="5" x2="5" y2="11" />
-    </svg>
-  ),
   diamond: (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
       <line x1="8" y1="8" x2="14" y2="8" />
       <polygon points="5,5 2,8 5,11 8,8" fill="currentColor" />
+    </svg>
+  ),
+  'reverse-triangle': (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 flex-shrink-0">
+      <line x1="8" y1="8" x2="14" y2="8" />
+      <polygon points="3,8 8,5 8,11" fill="currentColor" />
     </svg>
   ),
 };
@@ -485,11 +490,12 @@ function ArrowheadDropdown({
 
   const labels: Record<string, string> = {
     none: 'None',
-    triangle: 'Triangle',
+    arrow: 'Arrow',
     'filled-triangle': 'Filled',
+    triangle: 'Outline',
     circle: 'Circle',
-    bar: 'Bar',
     diamond: 'Diamond',
+    'reverse-triangle': 'Reverse',
   };
 
   return (
@@ -521,7 +527,7 @@ function ArrowheadDropdown({
           style={{ 
             position: 'fixed', 
             top: (() => {
-              const popupHeight = 160; // 6 options * 25px + padding/gap
+              const popupHeight = 186; // 7 options * 25px + padding/gap
               let t = posRef.current.top;
               if (t + popupHeight > window.innerHeight - 10) {
                 t = Math.max(10, posRef.current.top - 28 - popupHeight - 8); // 28px trigger height, 8px gap
@@ -772,7 +778,7 @@ export function CanvasStylePanel({
       if (p[0] > maxX) maxX = p[0];
       if (p[1] > maxY) maxY = p[1];
     }
-    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    const pad = 6 + Math.max(1, ref.canvasStyleExt?.strokeWidth ?? 2) * 4.5;
     arrowBounds = { x: minX - pad, y: minY - pad, w: Math.max(maxX - minX + pad * 2, 1), h: Math.max(maxY - minY + pad * 2, 1) };
   }
 
@@ -909,7 +915,7 @@ export function CanvasStylePanel({
   }
   function handleArrowWidthChange(newW: number) {
     if (!isArrow || !arrowBounds || !ref?.points || arrowBounds.w <= 0) return;
-    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    const pad = 6 + Math.max(1, ref.canvasStyleExt?.strokeWidth ?? 2) * 4.5;
     const currentSpan = arrowBounds.w - 2 * pad;
     const targetSpan = Math.max(1, newW - 2 * pad);
     const scale = targetSpan / currentSpan;
@@ -926,7 +932,7 @@ export function CanvasStylePanel({
   }
   function handleArrowHeightChange(newH: number) {
     if (!isArrow || !arrowBounds || !ref?.points || arrowBounds.h <= 0) return;
-    const pad = 6 + (ref.endArrowhead?.size ?? 1) * 8;
+    const pad = 6 + Math.max(1, ref.canvasStyleExt?.strokeWidth ?? 2) * 4.5;
     const currentSpan = arrowBounds.h - 2 * pad;
     const targetSpan = Math.max(1, newH - 2 * pad);
     const scale = targetSpan / currentSpan;
@@ -1547,17 +1553,7 @@ export function CanvasStylePanel({
                 value={strokeWidthToPreset(style.strokeWidth)}
                 onChange={key => {
                   const width = STROKE_WIDTH_PRESETS.find(p => p.key === key)!.width;
-                  const scaleArrowheads = isArrow || (ref?.shapeKind === 'arrow' || ref?.shapeKind === 'line');
                   updateStyle({ strokeWidth: width });
-                  if (scaleArrowheads && ref) {
-                    const size = arrowheadSizeForStrokeWidth(width);
-                    updateBlockFields({
-                      endArrowhead: { ...(ref.endArrowhead ?? { type: 'filled-triangle' }), size },
-                      startArrowhead: ref.startArrowhead?.type && ref.startArrowhead.type !== 'none'
-                        ? { ...ref.startArrowhead, size }
-                        : ref.startArrowhead,
-                    });
-                  }
                 }}
                 renderLabel={key => {
                   const p = STROKE_WIDTH_PRESETS.find(o => o.key === key)!;
@@ -1590,9 +1586,7 @@ export function CanvasStylePanel({
               <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Start</div>
               <ArrowheadDropdown
                 value={ref.startArrowhead?.type ?? 'none'}
-                onChange={type => updateBlockFields({
-                  startArrowhead: { type: type as any, size: arrowheadSizeForStrokeWidth(style.strokeWidth ?? 1.5) }
-                })}
+                onChange={type => updateBlockFields({ startArrowhead: { type: type as any } })}
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -1600,9 +1594,7 @@ export function CanvasStylePanel({
               <ArrowheadDropdown
                 value={ref.endArrowhead?.type ?? 'filled-triangle'}
                 align="right"
-                onChange={type => updateBlockFields({
-                  endArrowhead: { type: type as any, size: arrowheadSizeForStrokeWidth(style.strokeWidth ?? 1.5) }
-                })}
+                onChange={type => updateBlockFields({ endArrowhead: { type: type as any } })}
               />
             </div>
           </div>

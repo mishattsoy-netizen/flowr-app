@@ -3,7 +3,7 @@ import { useStore } from '@/data/store';
 import type { EditorBlock } from '@/data/store';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
-import { buildArrowPathD } from '@/lib/geometry/arrowPath';
+import { buildArrowPaths } from '@/lib/geometry/arrowPath';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 
 interface DragOptions {
@@ -218,7 +218,9 @@ export function useDrag({
     );
     const cachedBoundArrowPaths = boundArrowBlocks.map(arrow => ({
       block: arrow,
-      els: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+      lineEls: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+      startHeadEl: document.querySelector<SVGPathElement>(`path[data-arrowhead-start="${arrow.id}"]`),
+      endHeadEl: document.querySelector<SVGPathElement>(`path[data-arrowhead-end="${arrow.id}"]`),
     }));
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -306,10 +308,12 @@ export function useDrag({
             ? { ...b, x: (b.x ?? 0) + currentDX, y: (b.y ?? 0) + currentDY }
             : b
         );
-        cachedBoundArrowPaths.forEach(({ block, els }) => {
+        cachedBoundArrowPaths.forEach(({ block, lineEls, startHeadEl, endHeadEl }) => {
           const pts = resolvePoints(block, movedBlocks);
-          const d = buildArrowPathD(block, pts);
-          if (d) els.forEach(el => el.setAttribute('d', d));
+          const paths = buildArrowPaths(block, pts);
+          if (paths.line) lineEls.forEach(el => el.setAttribute('d', paths.line));
+          if (startHeadEl && paths.startHead) startHeadEl.setAttribute('d', paths.startHead.d);
+          if (endHeadEl && paths.endHead) endHeadEl.setAttribute('d', paths.endHead.d);
         });
       }
 

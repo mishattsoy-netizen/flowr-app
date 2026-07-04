@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag } from '@/hooks/useDrag';
-import { buildArrowPathD } from '@/lib/geometry/arrowPath';
+import { buildArrowPaths } from '@/lib/geometry/arrowPath';
 import { getCornerRadius } from '@/lib/geometry/outline';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
@@ -231,7 +231,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
     );
     const cachedBoundArrowPaths = boundArrowBlocks.map(arrow => ({
       block: arrow,
-      els: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+      lineEls: Array.from(document.querySelectorAll<SVGPathElement>(`path[data-block-id="${arrow.id}"]`)),
+      startHeadEl: document.querySelector<SVGPathElement>(`path[data-arrowhead-start="${arrow.id}"]`),
+      endHeadEl: document.querySelector<SVGPathElement>(`path[data-arrowhead-end="${arrow.id}"]`),
     }));
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -396,10 +398,12 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         const movedBlocks = resizeBlocks.map(b =>
           b.id === block.id ? { ...b, x: newX, y: newY, width: newW, height: newH } : b
         );
-        cachedBoundArrowPaths.forEach(({ block: arrow, els }) => {
+        cachedBoundArrowPaths.forEach(({ block: arrow, lineEls, startHeadEl, endHeadEl }) => {
           const pts = resolvePoints(arrow, movedBlocks);
-          const d = buildArrowPathD(arrow, pts);
-          if (d) els.forEach(el => el.setAttribute('d', d));
+          const paths = buildArrowPaths(arrow, pts);
+          if (paths.line) lineEls.forEach(el => el.setAttribute('d', paths.line));
+          if (startHeadEl && paths.startHead) startHeadEl.setAttribute('d', paths.startHead.d);
+          if (endHeadEl && paths.endHead) endHeadEl.setAttribute('d', paths.endHead.d);
         });
       }
     };
