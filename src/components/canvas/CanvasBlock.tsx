@@ -344,6 +344,9 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         rectEl.setAttribute('y', String(newY));
         rectEl.setAttribute('width', String(newW));
         rectEl.setAttribute('height', String(newH));
+        const r = getCornerRadius(block.canvasStyleExt?.roundCorners, newW, newH);
+        rectEl.setAttribute('rx', String(r));
+        rectEl.setAttribute('ry', String(r));
       }
       if (ellipseEl) {
         ellipseEl.setAttribute('cx', String(newX + newW / 2));

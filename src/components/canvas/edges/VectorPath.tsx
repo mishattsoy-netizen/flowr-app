@@ -172,19 +172,24 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
    */
   const insertWaypointAndDrag = (insertAt: number, localPt: [number, number], e: React.PointerEvent) => {
     e.stopPropagation();
-    const newWaypoints = [...waypoints];
-    newWaypoints.splice(insertAt, 0, localPt);
-    updateCanvasBlock(block.id, { points: newWaypoints as [number, number][] });
-    onPointSelect?.(insertAt);
-
+    // Deliberately NOT committed to the store yet: writing `points` here would re-render this
+    // component mid-gesture with the newly-inserted point, and since `path`/`bounds` are memoed
+    // off `block`, that commit-triggered re-render recomputes the path from the just-committed
+    // point in one jump — visible as the arrow "snapping" the instant the drag starts. Instead,
+    // mirror handleWaypointDown: only touch the DOM during the drag, commit once on pointerup.
     const startX = e.clientX;
     const startY = e.clientY;
     const orig = localPt;
     setDraggingPt(insertAt);
+    onPointSelect?.(insertAt);
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
     const computePathD = (pts: [number, number][]) => buildArrowPathD(block, pts);
     const hasStart = !!block.startBinding;
+
+    // The ghost handle itself doubles as the live-dragged point's visual — no new <circle>
+    // needs to be created until commit, since the store (and thus the DOM) hasn't changed yet.
+    const ghostEl = e.currentTarget as SVGCircleElement;
 
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
@@ -195,12 +200,11 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
       const pt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
 
+      if (ghostEl) {
+        ghostEl.setAttribute('cx', String(pt[0]));
+        ghostEl.setAttribute('cy', String(pt[1]));
+      }
       if (gEl) {
-        const circleEls = gEl.querySelectorAll('circle');
-        if (circleEls[insertAt]) {
-          circleEls[insertAt].setAttribute('cx', String(pt[0]));
-          circleEls[insertAt].setAttribute('cy', String(pt[1]));
-        }
         const resolvedPtsCopy = [...resolvedPts];
         resolvedPtsCopy.splice(hasStart ? insertAt + 1 : insertAt, 0, pt);
         const newD = computePathD(resolvedPtsCopy);
@@ -222,8 +226,8 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
       const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
       const finalPt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
-      const finalPts = [...newWaypoints];
-      finalPts[insertAt] = finalPt;
+      const finalPts = [...waypoints];
+      finalPts.splice(insertAt, 0, finalPt);
       updateCanvasBlock(block.id, { points: finalPts as [number, number][] });
     };
 

@@ -10,7 +10,7 @@ export const FlowPreview = () => {
   const d = calculateCatmullRomPath(points);
 
   return (
-    <svg className="absolute inset-0 pointer-events-none w-full h-full z-[100]">
+    <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible z-[100]">
       <defs>
         <marker id="arrowhead-preview" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
           <path d="M0,0 L0,8 L8,4 z" fill="var(--accent)" />
