@@ -1760,9 +1760,36 @@ export const useStore = create<AppState>()(
           }
         }
 
+        // When split view is active and the user clicks an entity not in either
+        // column, exit split view and navigate to that entity normally.
+        if (state.splitViewActive && id && id !== state.splitViewLeftId && id !== state.splitViewRightId) {
+          const existingIndex = nextTabs.indexOf(id);
+          if (existingIndex !== -1) {
+            // Already in tabs, just jump
+            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
+          } else if (tabIndex !== -1) {
+            nextTabs[tabIndex] = id;
+            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
+          } else {
+            nextTabs.push(id);
+            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
+          }
+          const newHistory = state.navigationHistory.slice(0, state.historyIndex + 1);
+          newHistory.push(id);
+          set({
+            splitViewActive: false,
+            splitViewLeftId: null,
+            splitViewRightId: null,
+            splitViewPinned: false,
+            navigationHistory: newHistory,
+            historyIndex: newHistory.length - 1,
+          });
+          return;
+        }
+
         if (id) {
           const existingIndex = nextTabs.indexOf(id);
-          
+
           if (existingIndex !== -1) {
             // If it already exists, just jump to it
             set({ activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
