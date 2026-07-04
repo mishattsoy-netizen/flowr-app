@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import { X, Plus, Pencil } from 'lucide-react';
+import { X, Plus, Pencil, MoreVertical, BookOpen, Star, Link, Copy, Trash2, Download, ChevronRight, FileText, FileCode, Image as ImageIcon, FileJson, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Entity, EditorBlock, BlockType, BlockStyle, generateId, useStore } from '@/data/store';
 import { SelectionToolbar } from './SelectionToolbar';
@@ -9,11 +9,12 @@ import { SlashCommandMenu } from './SlashCommandMenu';
 import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
+import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
-import { looksLikeMarkdown, parseMarkdownToBlocks } from '@/lib/editor/markdownBlocks';
+import { looksLikeMarkdown, parseMarkdownToBlocks, blocksToMarkdown } from '@/lib/editor/markdownBlocks';
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
@@ -191,7 +192,8 @@ function TagItem({
   onEdit,
   onDelete,
   onUpdate,
-  allTags
+  allTags,
+  disabled
 }: {
   tag: string;
   index: number;
@@ -200,6 +202,7 @@ function TagItem({
   onDelete: (tag: string) => void;
   onUpdate: (oldTag: string, newTag: string) => void;
   allTags: string[];
+  disabled?: boolean;
 }) {
   const [editValue, setEditValue] = useState(tag);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -277,10 +280,10 @@ function TagItem({
   return (
     <div className="relative flex items-center group">
       <div
-        onClick={!isEditing ? () => onEdit(index) : undefined}
+        onClick={(!isEditing && !disabled) ? () => onEdit(index) : undefined}
         className={cn(
-          "px-2 py-0.5 rounded-full text-[11px] font-medium cursor-pointer flex items-center gap-1 transition-all border",
-          !isEditing && "hover:brightness-110"
+          "px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-1 transition-all border",
+          (!isEditing && !disabled) ? "cursor-pointer hover:brightness-110" : "cursor-default"
         )}
         style={{ 
           backgroundColor: colors.bg, 
@@ -306,13 +309,15 @@ function TagItem({
         ) : (
           <span className="truncate max-w-[120px]">{tag || "new tag"}</span>
         )}
-        <button
-          onClick={handleDelete}
-          aria-label={`Delete tag ${tag}`}
-          className="hover:text-danger rounded-full p-0.5 transition-colors opacity-60 hover:opacity-100"
-        >
-          <X strokeWidth={2} className="w-3 h-3" />
-        </button>
+        {!disabled && (
+          <button
+            onClick={handleDelete}
+            aria-label={`Delete tag ${tag}`}
+            className="hover:text-danger rounded-full p-0.5 transition-colors opacity-60 hover:opacity-100"
+          >
+            <X strokeWidth={2} className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       {isEditing && showSuggestions && suggestions.length > 0 && (
@@ -349,6 +354,11 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
   const addEmptyTag = useStore(s => s.addEmptyTag);
   const aiCursor = useStore(s => s.aiCursor);
+  const favoriteIds = useStore(s => s.favoriteIds);
+  const toggleFavorite = useStore(s => s.toggleFavorite);
+  const duplicateEntity = useStore(s => s.duplicateEntity);
+  const openModal = useStore(s => s.openModal);
+  const splitViewActive = useStore(s => s.splitViewActive);
 
   const allUniqueTags = useMemo(() => {
     return Array.from(new Set(entities.flatMap(e => e.tags || [])));
@@ -459,20 +469,15 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   // Suppress tooltips when a popup menu is open or a block drag is in progress
   useTooltipSuppression(Boolean(activeOptionsMenu || slashMenu || isDragging));
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectionBox, setSelectionBox] = useState<{
-    startX: number;
-    startY: number;
-    currentX: number;
-    currentY: number;
-    active: boolean;
-  } | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const isFullWidth = useStore(s => s.isFullWidth);
 
+  const [isReadMode, setIsReadMode] = useState(false);
+  const [optionsMenuPos, setOptionsMenuPos] = useState<{ x: number, y: number } | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null!);
   const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null);
 
-  const isEditingTitle = editingEntity?.id === entity.id && editingEntity.source === 'view';
+  const isEditingTitle = !isReadMode && editingEntity?.id === entity.id && editingEntity.source === 'view';
 
   useLayoutEffect(() => {
     if (isEditingTitle && titleRef.current) {
@@ -527,22 +532,11 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   }, [entity.id, updateEntityContent, historyIndex]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start selection if clicking on the container background or an empty space
+    // Only handle if clicking on the container background or an empty space
     const target = e.target as HTMLElement;
     const isEditorBg = target === editorRef.current || target.classList.contains('note-editor-bg');
     
     if (isEditorBg) {
-      const rect = editorRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      
-      setSelectionBox({
-        startX: e.clientX,
-        startY: e.clientY,
-        currentX: e.clientX,
-        currentY: e.clientY,
-        active: true
-      });
-      
       // Clear selection unless Shift is held
       if (!e.shiftKey) {
         setSelectedBlockIds(new Set());
@@ -580,53 +574,6 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       }, 50);
     }
   }, [blocks, persistBlocks]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (selectionBox?.active) {
-      setSelectionBox(prev => prev ? { ...prev, currentX: e.clientX, currentY: e.clientY } : null);
-      
-      // Calculate selection rectangle
-      const x1 = Math.min(selectionBox.startX, e.clientX);
-      const y1 = Math.min(selectionBox.startY, e.clientY);
-      const x2 = Math.max(selectionBox.startX, e.clientX);
-      const y2 = Math.max(selectionBox.startY, e.clientY);
-      
-      // Find blocks intersecting this rect
-      const blockElements = editorRef.current?.querySelectorAll('[data-block-id]');
-      
-
-      
-      // Standard behavior: selection is exactly what's inside the current rectangle
-      const currentSelected = new Set<string>();
-      blockElements?.forEach(el => {
-        const rect = el.getBoundingClientRect();
-        const id = el.getAttribute('data-block-id');
-        if (!id) return;
-        const isInside = (rect.left < x2 && rect.right > x1 && rect.top < y2 && rect.bottom > y1);
-        if (isInside) currentSelected.add(id);
-      });
-      
-      setSelectedBlockIds(currentSelected);
-    }
-  }, [selectionBox]);
-
-  const handleMouseUp = useCallback(() => {
-    setSelectionBox(null);
-  }, []);
-
-  useEffect(() => {
-    if (selectionBox?.active) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    } else {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [selectionBox?.active, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     const handleDocumentMouseDown = (e: MouseEvent) => {
@@ -717,7 +664,9 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
 
   const updateBlock = useCallback((id: string, updates: Partial<EditorBlock>) => {
     isUserModified.current = true;
-    setBlocks(prev => updateBlockRecursive(prev, id, updates));
+    const next = updateBlockRecursive(blocksRef.current, id, updates);
+    blocksRef.current = next;
+    setBlocks(next);
   }, []);
 
 
@@ -1233,6 +1182,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           slashMenuOpen={slashMenu?.blockId === block.id}
           menuOpen={activeOptionsMenu?.blockId === block.id}
           isDraggingGlobal={isDragging}
+          isReadOnly={isReadMode}
         />
       ];
       const isListBlock = ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(block.type);
@@ -1259,13 +1209,44 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       dir="ltr"
       style={{ direction: 'ltr' }}
     >
+      {/* Top right corner control buttons (Read/Edit mode and Options menu) */}
+      <div className="absolute top-4 right-6 z-40 flex items-center gap-1.5 [-webkit-app-region:no-drag]">
+        <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
+          <button
+            onClick={() => setIsReadMode(!isReadMode)}
+            className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
+          >
+            {isReadMode ? (
+              <BookOpen className="w-4 h-4" />
+            ) : (
+              <Pencil className="w-4 h-4" />
+            )}
+          </button>
+        </Tooltip>
+        
+        <Tooltip content="More Options">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setOptionsMenuPos({ x: rect.left - 150, y: rect.bottom + 6 });
+            }}
+            className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+        </Tooltip>
+      </div>
+
       <div 
+        id="note-editor-container"
         className="flex-1 overflow-y-auto custom-scrollbar note-editor-bg"
       >
-        <div 
+        <div
             className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
-              isFullWidth ? "w-full md:px-20 px-4" : "max-w-[850px] px-4",
+              "max-w-[850px]",
+              splitViewActive ? "pl-14 pr-4" : "px-4",
               isDragging && "dragging-active-content"
             )}
             dir="ltr"
@@ -1302,12 +1283,14 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                   >
                     {entity.title}
                   </h1>
-                  <button
-                    onClick={() => setEditingEntityId(entity.id, 'view')}
-                    className="opacity-0 group-hover:opacity-100 p-2 rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors mt-4"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                  {!isReadMode && (
+                    <button
+                      onClick={() => setEditingEntityId(entity.id, 'view')}
+                      className="opacity-0 group-hover:opacity-100 p-2 rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors mt-4"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
                 </div>
 
@@ -1338,16 +1321,19 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                           onDelete={(t: string) => removeTagFromEntity(entity.id, t)}
                           onUpdate={(oldTag: string, newTag: string) => updateTagInEntity(entity.id, oldTag, newTag)}
                           allTags={allUniqueTags}
+                          disabled={isReadMode}
                         />
                       ))}
 
-                      <button
-                        onClick={handleAddTag}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all"
-                      >
-                        <Plus strokeWidth={2} className="w-3 h-3" />
-                        <span>New</span>
-                      </button>
+                      {!isReadMode && (
+                        <button
+                          onClick={handleAddTag}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-all"
+                        >
+                          <Plus strokeWidth={2} className="w-3 h-3" />
+                          <span>New</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1406,8 +1392,9 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             );
           })()}
           <div 
-            className="h-32 note-editor-bg cursor-text" 
+            className={cn("h-32 note-editor-bg", !isReadMode ? "cursor-text" : "cursor-default")}
             onClick={() => {
+              if (isReadMode) return;
               // Only create a new block if there is no active selection and no open menus
               if (selectedBlockIds.size > 0 || activeOptionsMenu || slashMenu) {
                 setSelectedBlockIds(new Set());
@@ -1434,17 +1421,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         </div>
       </div>
 
-      {selectionBox?.active && (
-        <div 
-          className="selection-box fixed"
-          style={{
-            left: Math.min(selectionBox.startX, selectionBox.currentX),
-            top: Math.min(selectionBox.startY, selectionBox.currentY),
-            width: Math.abs(selectionBox.currentX - selectionBox.startX),
-            height: Math.abs(selectionBox.currentY - selectionBox.startY)
-          }}
-        />
-      )}
+
 
       {slashMenu && (
         <Portal>
@@ -1473,7 +1450,217 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           />
         </Portal>
       )}
-      <SelectionToolbar editorRef={editorRef} />
+      {optionsMenuPos && (
+        <Portal>
+          <div 
+            className="fixed inset-0 z-[9998]"
+            onClick={() => setOptionsMenuPos(null)}
+          />
+          <div 
+            className="fixed z-[9999] popup-glass-small backdrop-blur-xl p-1 min-w-[180px] flex flex-col gap-[2px]"
+            style={{ 
+              top: optionsMenuPos.y,
+              left: optionsMenuPos.x
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseLeave={() => setShowExportMenu(false)}
+          >
+            <button 
+              onClick={() => {
+                toggleFavorite(entity.id);
+                setOptionsMenuPos(null);
+              }}
+              className="popup-item flex items-center gap-2 w-full text-left"
+            >
+              <Star className={cn("w-3.5 h-3.5", favoriteIds.includes(entity.id) ? "fill-accent text-accent" : "text-[var(--bone-40)]")} />
+              <span>{favoriteIds.includes(entity.id) ? "Unpin from sidebar" : "Pin to sidebar"}</span>
+            </button>
+            
+            <button 
+              onClick={() => {
+                setEditingEntityId(entity.id, 'view');
+                setOptionsMenuPos(null);
+              }}
+              className="popup-item flex items-center gap-2 w-full text-left"
+            >
+              <Pencil className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+              <span>Rename</span>
+            </button>
+            
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                setOptionsMenuPos(null);
+              }}
+              className="popup-item flex items-center gap-2 w-full text-left"
+            >
+              <Link className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+              <span>Copy link</span>
+            </button>
+            
+            <button 
+              onClick={() => {
+                duplicateEntity(entity.id);
+                setOptionsMenuPos(null);
+              }}
+              className="popup-item flex items-center gap-2 w-full text-left"
+            >
+              <Copy className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+              <span>Duplicate</span>
+            </button>
+            
+            <div 
+              className="relative"
+              onMouseEnter={() => setShowExportMenu(true)}
+            >
+              <button 
+                className="popup-item flex items-center justify-between w-full text-left"
+                onClick={() => setShowExportMenu(true)}
+              >
+                <div className="flex items-center gap-2">
+                  <Download className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                  <span>Export</span>
+                </div>
+                <ChevronRight className="w-3 h-3 text-[var(--bone-40)]" />
+              </button>
+              
+              {showExportMenu && (
+                <div className="absolute right-[calc(100%+4px)] top-0 z-[10000] popup-glass-small backdrop-blur-xl p-1 min-w-[140px] flex flex-col gap-[2px]">
+                  <button 
+                    onClick={() => {
+                      openModal({ kind: 'pdfExport', entityId: entity.id, entityTitle: entity.title, blocks });
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>PDF (.pdf)</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const mdContent = blocksToMarkdown(blocks);
+                      const blob = new Blob([mdContent], { type: 'text/markdown' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${entity.title || 'Untitled'}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <FileCode className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>Markdown (.md)</span>
+                  </button>
+                  
+                  <div className="popup-divider" />
+                  
+                  <button 
+                    onClick={() => {
+                      // Remove markdown styling for a cleaner plain text file, but keep structural newlines
+                      const txtContent = blocksToMarkdown(blocks)
+                        .replace(/\*\*(.*?)\*\*/g, '$1') // remove bold
+                        .replace(/\*(.*?)\*/g, '$1') // remove italic
+                        .replace(/`(.*?)`/g, '$1') // remove code
+                        .replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)') // clean links
+                        .replace(/\[pill:(.*?)\]\((.*?)\)/g, '$1 ($2)'); // clean pill links
+                      
+                      const blob = new Blob([txtContent], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${entity.title || 'Untitled'}.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>Text (.txt)</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // We will need to implement actual image export, for now just basic handler
+                      import('html-to-image').then((htmlToImage) => {
+                        const node = document.getElementById('note-editor-container');
+                        if (node) {
+                          htmlToImage.toPng(node).then((dataUrl) => {
+                            const a = document.createElement('a');
+                            a.href = dataUrl;
+                            a.download = `${entity.title || 'Untitled'}.png`;
+                            a.click();
+                          });
+                        }
+                      });
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <ImageIcon className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>Image (.png)</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const jsonContent = JSON.stringify({ title: entity.title, blocks }, null, 2);
+                      const blob = new Blob([jsonContent], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${entity.title || 'Untitled'}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <FileJson className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>JSON (.json)</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const htmlContent = `<html><head><title>${entity.title}</title></head><body>` + blocks.map(b => `<p>${b.content}</p>`).join('') + `</body></html>`;
+                      const blob = new Blob([htmlContent], { type: 'text/html' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${entity.title || 'Untitled'}.html`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setOptionsMenuPos(null);
+                      setShowExportMenu(false);
+                    }} 
+                    className="popup-item flex items-center gap-2 w-full text-left"
+                  >
+                     <Globe className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                     <span>HTML (.html)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="popup-divider" />
+            
+            <button 
+              onClick={() => {
+                openModal({ kind: 'deleteConfirm', entityId: entity.id });
+                setOptionsMenuPos(null);
+              }}
+              className="popup-item flex items-center gap-2 w-full text-left text-red-500 hover:text-red-400 hover:bg-red-500/10"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </Portal>
+      )}
+      <SelectionToolbar editorRef={editorRef} isReadOnly={isReadMode} />
     </div>
   );
 }
