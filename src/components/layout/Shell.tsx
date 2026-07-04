@@ -9,13 +9,14 @@ import { NewCollectionModal } from '../modals/NewCollectionModal';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 import { MoveToModal } from '../modals/MoveToModal';
 import { RenameModal } from '../modals/RenameModal';
-import { NewItemModal } from '../modals/NewItemModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { MediaViewerModal } from '../modals/MediaViewerModal';
 import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
 import { VaultSetupModal } from '../modals/VaultSetupModal';
 import { SyncFileCleanupModal } from '../modals/SyncFileCleanupModal';
+import { PdfExportModal } from '../modals/PdfExportModal';
+import { SplitViewLayout } from './SplitViewLayout';
 
 
 import { AIAssistant } from '../assistant/AIAssistant';
@@ -201,6 +202,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const aiSidebarWidth = useStore(state => state.aiSidebarWidth);
   const setAiSidebarWidth = useStore(state => state.setAiSidebarWidth);
 
+  const splitViewActive = useStore(state => state.splitViewActive);
+
   // Sync --sidebar-w CSS var on <html> when sidebar width/collapse changes
   useLayoutEffect(() => {
     const existing = document.documentElement.style.getPropertyValue('--sidebar-w');
@@ -345,13 +348,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
         )}
 
-        {/* Top Header Bar spanning full width */}
-        {isDesktop() && <HeaderBar />}
-
         {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
         <div className={cn(
           "flex-1 flex flex-row overflow-hidden relative w-full min-h-0",
-          isDesktop() && "p-2 pt-0 gap-2 bg-[var(--app-dark)]"
+          isDesktop() && "p-2 gap-2 bg-[var(--app-dark)]"
         )}>
           {/* 1. Left Sidebar Section */}
           <div
@@ -406,10 +406,16 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               "flex-1 flex flex-col h-full overflow-hidden relative min-w-0",
               isDesktop() && "bg-background border border-[var(--bone-10)] rounded-2xl shadow-sm"
             )}>
-              {!isDesktop() && <HeaderBar />}
-              <main className="flex-1 flex flex-col overflow-hidden relative">
-                {children}
-              </main>
+              {splitViewActive ? (
+                <SplitViewLayout />
+              ) : (
+                <>
+                  <HeaderBar />
+                  <main className="flex-1 flex flex-col overflow-hidden relative">
+                    {children}
+                  </main>
+                </>
+              )}
             </div>
 
             {/* Right AI Sidebar Backdrop */}
@@ -486,8 +492,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
         <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
         <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
-        <NewItemModal key={modal?.kind === 'newItem' ? modalKey : 'item-none'} />
-        <SettingsModal key="settings-modal" />
+        {modal?.kind === 'pdfExport' && <PdfExportModal key={modalKey} />}
+                <SettingsModal key="settings-modal" />
         <MediaViewerModal key="media-viewer" />
         <NewWorkspaceModal key="new-workspace" />
         <SummaryPreviewModal key="summary-preview" />
