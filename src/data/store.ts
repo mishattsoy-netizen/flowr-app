@@ -25,7 +25,7 @@ import { resolvePoints } from '@/lib/geometry/resolvePoints';
 // Re-export all types so all consumers import paths remain valid
 export type {
   EntityType, BlockStyle, BlockType, EditorBlock,
-  WidgetType, WidgetSize, WidgetConfig, Entity, AppTask, SettingsTab, ModalType,
+  WidgetType, WidgetSize, WidgetConfig, Entity, AppTask, TaskAttachment, SettingsTab, ModalType,
   EditingSource, AIAttachment, AIMessage, AICursor, ModelStatus,
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
@@ -39,7 +39,7 @@ export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 // Internal type imports (used within this file's store implementation)
 import type {
   Entity, EditorBlock, AIMessage,
-  AppState, Workspace, WidgetConfig, AppTask, BotMode,
+  AppState, Workspace, WidgetConfig, AppTask, TaskAttachment, BotMode,
 } from './store.types';
 
 
@@ -129,12 +129,11 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       entities: [
-        { id: 'c1', title: 'Collection 1', type: 'collection', parentId: null, lastModified: initialTime, icon: 'Folder', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 'c2', title: 'Collection 2', type: 'collection', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 'm1', title: 'Mixed 1', type: 'mixed', parentId: 'c1', lastModified: initialTime, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 'c1', title: 'Collection 1', type: 'collection', parentId: null, lastModified: initialTime, icon: 'Folder', workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'c2', title: 'Collection 2', type: 'collection', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
       ],
 
       tasks: [
@@ -160,6 +159,7 @@ export const useStore = create<AppState>()(
       ],
       activeWorkspaceId: 'ws-personal',
       trackerFilterWorkspace: null,
+      trackerFilterTag: null,
       shortcuts: {},
       cachedDisplayName: '',
       lastSaved: null,
@@ -229,7 +229,7 @@ export const useStore = create<AppState>()(
       historyIndex: 0,
       recentEntityIds: [],
 
-      favoriteIds: ['cv1', 'n1', 'm1'],
+      favoriteIds: ['cv1', 'n1'],
       collapsedIds: [],
       openTabIds: ['dashboard'],
       activeTabId: 'dashboard',
@@ -246,7 +246,11 @@ export const useStore = create<AppState>()(
       aiSidebarWidth: 400,
       isToolbarVisible: true,
       toolbarPosition: null,
-      mixedLayoutSplit: 50,
+      splitViewActive: false,
+      splitViewLeftId: null,
+      splitViewRightId: null,
+      splitViewPinned: false,
+      splitViewPosition: 50,
       isFullWidth: false,
       isTabsHeaderVisible: true,
       appStyle: 'v3',
@@ -353,7 +357,87 @@ export const useStore = create<AppState>()(
       toggleToolbar: () => set((state) => ({ isToolbarVisible: !state.isToolbarVisible })),
       setToolbarVisible: (visible) => set({ isToolbarVisible: visible }),
       setToolbarPosition: (pos) => set({ toolbarPosition: pos }),
-      setMixedLayoutSplit: (split) => set({ mixedLayoutSplit: split }),
+      toggleSplitView: () => {
+        const state = get();
+        if (state.splitViewActive) {
+          // Exit split: keep left column entity as active
+          set({
+            splitViewActive: false,
+            activeEntityId: state.splitViewLeftId ?? state.activeEntityId,
+            activeTabId: state.splitViewLeftId ?? state.activeEntityId,
+            splitViewLeftId: null,
+            splitViewRightId: null,
+            splitViewPinned: false,
+          });
+        } else {
+          // Enter split: active entity → left, paired entity → right (or empty/placeholder)
+          const leftId = state.activeTabId ?? state.openTabIds[0] ?? 'dashboard';
+          const leftEntity = state.entities.find(e => e.id === leftId);
+          const rightId = leftEntity?.pairedEntityId ?? null;
+          const isPinned = !!(leftEntity?.pairedEntityId);
+          set({
+            splitViewActive: true,
+            splitViewLeftId: leftId,
+            splitViewRightId: rightId,
+            splitViewPinned: isPinned,
+            splitViewPosition: 50,
+          });
+        }
+      },
+      setColumnEntity: (column, entityId) => {
+        const state = get();
+        if (column === 'left') {
+          set({ splitViewLeftId: entityId });
+          if (entityId) set({ activeEntityId: entityId, activeTabId: entityId });
+        } else {
+          set({ splitViewRightId: entityId });
+        }
+        // Recompute pinned state
+        const next = get();
+        const leftE = next.entities.find(e => e.id === next.splitViewLeftId);
+        const rightE = next.entities.find(e => e.id === next.splitViewRightId);
+        const pinned = !!(leftE?.pairedEntityId && leftE.pairedEntityId === next.splitViewRightId &&
+                           rightE?.pairedEntityId && rightE.pairedEntityId === next.splitViewLeftId);
+        set({ splitViewPinned: pinned });
+      },
+      togglePin: () => {
+        const state = get();
+        const leftId = state.splitViewLeftId;
+        const rightId = state.splitViewRightId;
+        if (!leftId || !rightId) return;
+
+        if (state.splitViewPinned) {
+          // Unpin: clear pairedEntityId on both
+          set(s => ({
+            entities: s.entities.map(e =>
+              e.id === leftId ? { ...e, pairedEntityId: null } :
+              e.id === rightId ? { ...e, pairedEntityId: null } : e
+            ),
+            splitViewPinned: false,
+          }));
+        } else {
+          // Pin: set bidirectional pairedEntityId
+          set(s => ({
+            entities: s.entities.map(e =>
+              e.id === leftId ? { ...e, pairedEntityId: rightId } :
+              e.id === rightId ? { ...e, pairedEntityId: leftId } : e
+            ),
+            splitViewPinned: true,
+          }));
+        }
+      },
+      exitSplitView: () => {
+        const state = get();
+        set({
+          splitViewActive: false,
+          activeEntityId: state.splitViewLeftId ?? state.activeEntityId,
+          activeTabId: state.splitViewLeftId ?? state.activeEntityId,
+          splitViewLeftId: null,
+          splitViewRightId: null,
+          splitViewPinned: false,
+        });
+      },
+      setSplitViewPosition: (pos) => set({ splitViewPosition: Math.max(15, Math.min(85, pos)) }),
       toggleFullWidth: () => set((state) => ({ isFullWidth: !state.isFullWidth })),
       toggleTabsHeader: () => set((state) => ({ isTabsHeaderVisible: !state.isTabsHeaderVisible })),
       setAppStyle: (appStyle) => set({ appStyle }),
@@ -371,6 +455,9 @@ export const useStore = create<AppState>()(
 
       setTrackerFilterWorkspace: (id) => {
         set({ trackerFilterWorkspace: id });
+      },
+      setTrackerFilterTag: (tag) => {
+        set({ trackerFilterTag: tag });
       },
 
       createWorkspace: (input) => {
@@ -1641,6 +1728,38 @@ export const useStore = create<AppState>()(
         }
 
         let nextTabs = [...state.openTabIds];
+
+        // Auto-split: if the opened entity has a pairedEntityId, enter split view
+        const openingEntity = id ? state.entities.find(e => e.id === id) : null;
+        const pairedId = openingEntity?.pairedEntityId;
+        if (id && pairedId && !state.splitViewActive) {
+          const pairedEntity = state.entities.find(e => e.id === pairedId);
+          if (pairedEntity) {
+            // Ensure paired entity is also in openTabIds
+            if (!nextTabs.includes(pairedId)) {
+              nextTabs.push(pairedId);
+            }
+            set({
+              openTabIds: nextTabs,
+              activeTabId: id,
+              activeEntityId: id,
+              recentEntityIds: nextRecent,
+              splitViewActive: true,
+              splitViewLeftId: id,
+              splitViewRightId: pairedId,
+              splitViewPinned: true,
+              splitViewPosition: 50,
+            });
+            const newHistory = state.navigationHistory.slice(0, state.historyIndex + 1);
+            newHistory.push(id);
+            set({
+              navigationHistory: newHistory,
+              historyIndex: newHistory.length - 1,
+            });
+            return;
+          }
+        }
+
         if (id) {
           const existingIndex = nextTabs.indexOf(id);
           
@@ -1691,20 +1810,68 @@ export const useStore = create<AppState>()(
         const state = get();
         const nextTabs = state.openTabIds.filter(tid => tid !== id);
         let nextActive = state.activeTabId;
+
         if (state.activeTabId === id) {
           nextActive = nextTabs[nextTabs.length - 1] || 'dashboard';
         }
         if (state.activeEntityId === 'chat' && nextActive !== 'chat') {
           state.cleanupActiveChatIfEmpty();
         }
+
+        // In split view, closing a column entity exits split if it was the only tab
+        if (state.splitViewActive) {
+          const leftId = state.splitViewLeftId;
+          const rightId = state.splitViewRightId;
+          if (id === leftId || id === rightId) {
+            if (nextTabs.length <= 1) {
+              // Only one tab left — exit split view
+              set({
+                openTabIds: nextTabs,
+                activeTabId: nextActive,
+                activeEntityId: nextActive,
+                splitViewActive: false,
+                splitViewLeftId: null,
+                splitViewRightId: null,
+                splitViewPinned: false,
+              });
+              return;
+            }
+            // Move partner to left column
+            const survivingId = id === leftId ? rightId : leftId;
+            if (survivingId && nextTabs.includes(survivingId)) {
+              set({
+                openTabIds: nextTabs,
+                activeTabId: survivingId,
+                activeEntityId: survivingId,
+                splitViewLeftId: survivingId,
+                splitViewRightId: null,
+                splitViewPinned: false,
+              });
+              return;
+            }
+          }
+        }
+
         set({
           openTabIds: nextTabs,
           activeTabId: nextActive,
-          activeEntityId: nextActive
+          activeEntityId: nextActive,
         });
       },
 
-      setActiveTab: (id) => set({ activeTabId: id, activeEntityId: id }),
+      setActiveTab: (id) => {
+        const { splitViewActive, splitViewLeftId } = get();
+        if (splitViewActive) {
+          // In split view, clicking a tab assigns it to the left column
+          set({
+            activeTabId: id,
+            activeEntityId: id,
+            splitViewLeftId: id,
+          });
+        } else {
+          set({ activeTabId: id, activeEntityId: id });
+        }
+      },
       setOpenTabs: (ids) => set({ openTabIds: ids }),
 
       setNavigationState: (id, history, index) => set({ activeEntityId: id, navigationHistory: history, historyIndex: index }),
@@ -1912,7 +2079,7 @@ export const useStore = create<AppState>()(
       }),
       insertSidebarDivider: (parentId) => {
         const id = generateId();
-        const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999, syncMode: 'cloud-only' as any };
+        const divider = { id, title: '', type: 'divider' as const, parentId, lastModified: Date.now(), sortOrder: 9999, pairedEntityId: null, syncMode: 'cloud-only' as any };
         set(s => ({ entities: [...s.entities, divider] }));
         // Inherit divider sync from parent context if applicable (cast so compiler knows it's complete)
         const typedDivider = divider as Entity;
@@ -2316,9 +2483,6 @@ export const useStore = create<AppState>()(
       openModal: (modal) => set({
         modal,
         contextMenu: null,
-        // Close the TaskInspectorPanel so its content doesn't show behind the modal
-        isTaskPanelOpen: false,
-        activeTaskId: null,
       }),
       closeModal: () => set({ modal: null }),
 
@@ -2391,7 +2555,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 20,
+      version: 22,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
@@ -2491,6 +2655,29 @@ export const useStore = create<AppState>()(
             );
           }
         }
+        // Version 21: migrate 'mixed' entities to 'note'
+        if (version < 21) {
+          if (Array.isArray(state.entities)) {
+            state.entities = state.entities.map((e: any) =>
+              e.type === 'mixed' ? { ...e, type: 'note' } : e,
+            );
+          }
+        }
+        // Version 22: split view v3 paired columns + pairedEntityId on entities
+        if (version < 22) {
+          // Drop old split state fields — new ones start fresh
+          delete state.isSplitView;
+          delete state.splitViewLeftId;
+          delete state.splitViewRightId;
+
+          // Add pairedEntityId: null to all entities
+          if (Array.isArray(state.entities)) {
+            state.entities = state.entities.map((e: any) => ({
+              ...e,
+              pairedEntityId: e.pairedEntityId ?? null,
+            }));
+          }
+        }
         return state;
       },
       storage: (() => {
@@ -2535,7 +2722,8 @@ export const useStore = create<AppState>()(
         sidebarWidth: state.sidebarWidth,
         aiSidebarWidth: state.aiSidebarWidth,
         taskPanelWidth: state.taskPanelWidth,
-        mixedLayoutSplit: state.mixedLayoutSplit,
+        splitViewActive: state.splitViewActive,
+        splitViewPosition: state.splitViewPosition,
         isFullWidth: state.isFullWidth,
         isTabsHeaderVisible: state.isTabsHeaderVisible,
         appStyle: state.appStyle,
@@ -2569,7 +2757,7 @@ if (isDesktop()) {
     // Basic detection for M3: if lastModified changed, save it
     // In M4 this will be replaced by direct calls to saveEntity() on store actions
     for (const entity of state.entities) {
-      if (entity.type !== 'note' && entity.type !== 'canvas' && entity.type !== 'mixed') continue;
+      if (entity.type !== 'note' && entity.type !== 'canvas') continue;
       if (entity.syncMode === 'cloud-only') continue;
       const prev = prevState.entities.find(e => e.id === entity.id);
       if (!prev || prev.lastModified !== entity.lastModified) {

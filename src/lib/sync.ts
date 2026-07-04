@@ -14,7 +14,7 @@
  */
 
 import { supabase } from './supabase';
-import type { Entity, AppTask, Workspace } from '@/data/store';
+import type { Entity, AppTask, Workspace, TaskAttachment } from '@/data/store';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
@@ -123,6 +123,7 @@ function rowToEntity(row: Record<string, any>): Entity {
     workspaceId:  row.workspace_id ?? null,
     sortOrder:    row.sort_order ?? undefined,
     syncMode:     row.sync_mode ?? 'cloud-only',
+    pairedEntityId: row.paired_entity_id ?? null,
   };
 }
 
@@ -161,6 +162,8 @@ function rowToTask(row: Record<string, any>): AppTask {
     createdAt:   parseTimestamp(row.created_at),
     completedAt: parseTimestamp(row.completed_at),
     syncMode:    row.sync_mode ?? 'cloud-only',
+    attachments: row.attachments ?? undefined,
+    tag:         row.tag ?? undefined,
   };
 }
 
@@ -194,7 +197,9 @@ function taskToRow(t: AppTask): Record<string, any> {
       ? new Date(t.completedAt).toISOString()
       : t.completedAt;
   }
+  row.attachments = t.attachments ?? null;
   row.sync_mode = t.syncMode;
+  row.tag = t.tag ?? null;
   
   return row;
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useStore, Entity } from '@/data/store';
+import { useStore, Entity, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { Clock, ChevronRight, FileText, Frame, Layers, Folder } from 'lucide-react';
+import { Clock, ChevronRight, FileText, Frame, Folder } from 'lucide-react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { EntityType } from '@/data/store.types';
@@ -31,7 +31,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
   const workspaces = useStore(s => s.workspaces);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
   const setActiveWorkspaceId = useStore(s => s.setActiveWorkspaceId);
-  const openModal = useStore(s => s.openModal);
+  const addEntity = useStore(s => s.addEntity);
   const filter: Filter = data?.filter ?? 'all';
 
   const [mounted, setMounted] = useState(false);
@@ -56,7 +56,8 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           icon: workspace.icon,
           color: workspace.color,
           workspaceId: workspace.id,
-          syncMode: workspace.syncMode
+          syncMode: workspace.syncMode,
+          pairedEntityId: null,
         } as Entity;
       }
       return null;
@@ -160,7 +161,6 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           const Icon = entity.icon ? getEntityIcon(entity.icon) : (() => {
             if (entity.type === 'note') return FileText;
             if (entity.type === 'canvas') return Frame;
-            if (entity.type === 'mixed') return Layers;
             return Folder;
           })();
           const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
@@ -203,7 +203,17 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
               <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Pages you create or edit will show up here for quick access.</p>
             </div>
             <button
-              onClick={() => openModal({ kind: 'newItem' })}
+              onClick={() => {
+                const newId = generateId();
+                addEntity({
+                  id: newId,
+                  title: 'Untitled Note',
+                  type: 'note',
+                  parentId: null,
+                  lastModified: Date.now(),
+                });
+                setActiveEntityId(newId);
+              }}
               className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium transition-all duration-300"
             >
               + New Item

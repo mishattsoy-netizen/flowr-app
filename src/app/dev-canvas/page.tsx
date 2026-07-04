@@ -12,6 +12,7 @@ const DEV_ENTITY: Entity = {
   type: 'canvas',
   parentId: null,
   lastModified: 0,
+  pairedEntityId: null,
   syncMode: 'local-only',
 };
 
