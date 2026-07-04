@@ -499,7 +499,10 @@ export const HeaderBar = memo(function HeaderBar() {
       </div>
 
       {/* Split View Toggle — fixed at the right edge of the header */}
-      {openTabIds.length > 1 && (
+      {openTabIds.length > 0 && (() => {
+        const entity = entities.find(e => e.id === activeEntityId);
+        return entity && (entity.type === 'note' || entity.type === 'canvas');
+      })() && (
         <div
           className="flex items-center justify-center shrink-0"
           style={{ height: BAR_H }}

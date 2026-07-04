@@ -38,7 +38,7 @@ export function SplitViewLayout() {
       getData: () => ({ column: 'left' as const }),
       canDrop: ({ source }) => {
         const entityType = source.data.entityType as string | undefined;
-        return !!entityType && entityType !== 'workspace' && entityType !== 'collection';
+        return entityType === 'note' || entityType === 'canvas';
       },
       onDrop: ({ source }) => {
         const entityId = source.data.id as string;
@@ -51,7 +51,7 @@ export function SplitViewLayout() {
       getData: () => ({ column: 'right' as const }),
       canDrop: ({ source }) => {
         const entityType = source.data.entityType as string | undefined;
-        return !!entityType && entityType !== 'workspace' && entityType !== 'collection';
+        return entityType === 'note' || entityType === 'canvas';
       },
       onDrop: ({ source }) => {
         const entityId = source.data.id as string;
