@@ -81,6 +81,10 @@ export interface CanvasStyleExt {
   strokeWidth?: number;
   strokeStyle?: 'solid' | 'dashed' | 'dotted';
   cornerRadius?: number;
+  /** Sharp (false/undefined) vs round (true) corner preset. When true, the actual radius is
+   * derived proportionally from the shape's current size (see getCornerRadius), not stored as
+   * a fixed pixel value, so it keeps tracking correctly as the shape is resized. */
+  roundCorners?: boolean;
   opacity?: number;
   locked?: boolean;
   rotation?: number;

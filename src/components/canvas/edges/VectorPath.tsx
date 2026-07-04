@@ -163,6 +163,74 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     document.addEventListener('pointerup', handleUp);
   };
 
+  /**
+   * Inserts a real waypoint at `localPt` (the ghost-midpoint position) into block.points at
+   * `insertAt`, then immediately hands off into the same drag loop as handleWaypointDown so
+   * the new point can be dragged from the same gesture (Excalidraw-style). insertAt is a
+   * `points` array index — the caller must already have subtracted the start-binding offset,
+   * since resolvedPts includes bound endpoints that points does not.
+   */
+  const insertWaypointAndDrag = (insertAt: number, localPt: [number, number], e: React.PointerEvent) => {
+    e.stopPropagation();
+    const newWaypoints = [...waypoints];
+    newWaypoints.splice(insertAt, 0, localPt);
+    updateCanvasBlock(block.id, { points: newWaypoints as [number, number][] });
+    onPointSelect?.(insertAt);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const orig = localPt;
+    setDraggingPt(insertAt);
+
+    const gEl = document.getElementById(block.id) as SVGGElement | null;
+    const computePathD = (pts: [number, number][]) => buildArrowPathD(block, pts);
+    const hasStart = !!block.startBinding;
+
+    const handleMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      const angle = style.rotation ?? 0;
+      const rad = -angle * Math.PI / 180;
+      const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
+      const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
+      const pt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
+
+      if (gEl) {
+        const circleEls = gEl.querySelectorAll('circle');
+        if (circleEls[insertAt]) {
+          circleEls[insertAt].setAttribute('cx', String(pt[0]));
+          circleEls[insertAt].setAttribute('cy', String(pt[1]));
+        }
+        const resolvedPtsCopy = [...resolvedPts];
+        resolvedPtsCopy.splice(hasStart ? insertAt + 1 : insertAt, 0, pt);
+        const newD = computePathD(resolvedPtsCopy);
+        const hitboxPath = gEl.querySelector(`path[data-connection-hitbox="${block.id}"]`);
+        if (hitboxPath) hitboxPath.setAttribute('d', newD);
+        const visiblePath = gEl.querySelector(`path[data-connection-path="${block.id}"]`);
+        if (visiblePath) visiblePath.setAttribute('d', newD);
+      }
+    };
+
+    const handleUp = (ev: PointerEvent) => {
+      setDraggingPt(null);
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      const angle = style.rotation ?? 0;
+      const rad = -angle * Math.PI / 180;
+      const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
+      const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
+      const finalPt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
+      const finalPts = [...newWaypoints];
+      finalPts[insertAt] = finalPt;
+      updateCanvasBlock(block.id, { points: finalPts as [number, number][] });
+    };
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+  };
+
   // Resize
   const resizeRef = useRef<{ handle: number; initBounds: { x: number; y: number; w: number; h: number }; initPts: [number, number][] } | null>(null);
 
@@ -325,30 +393,23 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       {selected && showIndividualSelection && !editing && bounds && viewportContent && createPortal(
         <div
           id={`arrow-overlay-${block.id}`}
-          className="absolute pointer-events-auto select-none z-[190] cursor-move"
+          className="absolute select-none z-[190] cursor-move"
           style={{
             left: bounds.x,
             top: bounds.y,
             width: bounds.w,
             height: bounds.h,
-            pointerEvents: (isDrawingTool || editing || activeTool === 'eraser') ? 'none' : 'auto',
+            // pointer-events-none on the container itself: an arrow's bounding box has mostly
+            // empty space (unlike a shape), and this box would otherwise sit above the SVG
+            // waypoint/ghost-handle circles and steal every click meant for them. Whole-arrow
+            // drag/select is instead handled by the transparent stroke-hitbox path below, which
+            // only covers the actual line. Resize/rotate handles re-enable pointer-events on
+            // themselves individually.
+            pointerEvents: 'none',
             transform: activeDragOffsets.has(block.id)
               ? undefined
               : (renderRotation ? `rotate(${renderRotation}deg)` : undefined),
             transformOrigin: renderRotation ? `${pivotX - bounds.x}px ${pivotY - bounds.y}px` : undefined,
-          }}
-          onPointerDown={e => {
-            if (isDrawingTool || editing || activeTool === 'eraser') return;
-            e.stopPropagation();
-            onSelect?.(block.id, e.shiftKey);
-            onDragStart?.(e, block);
-            const now = Date.now();
-            if (now - lastClickRef.current < 300) {
-              lastClickRef.current = 0;
-              onDoubleClick?.(e.altKey);
-            } else {
-              lastClickRef.current = now;
-            }
           }}
         >
           {/* Sharp-corner selection outline */}
@@ -428,8 +489,10 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         data-points={block.points ? JSON.stringify(block.points) : undefined}
       />
 
-      {/* Edit mode: draggable waypoint dots */}
-      {editing && (
+      {/* Draggable waypoint dots: interactive as soon as the arrow is selected, not only in
+          Alt+double-click "editing" mode — plain selection is the common case and users expect
+          to be able to grab a waypoint right away. */}
+      {(editing || selected) && (
         <>
           {waypoints.map((pt, i) => {
             const isSelected = selectedPointIndex === i;
@@ -451,6 +514,27 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         </>
       )}
 
+      {/* Ghost midpoint handle: a 2-point arrow (whether free, one end bound, or both ends
+          bound — resolvedPts is always the full path including bound endpoints) shows one
+          dimmed handle between its two points when selected. Clicking/dragging it inserts a
+          real 3rd waypoint there (Excalidraw-style). Not shown in elbow mode, which ignores
+          manual waypoints entirely. Insert index depends on whether the start is bound: a
+          bound start means `points` excludes it, so the new point is the first entry (index 0);
+          a free/unbound start means `points[0]` IS the start point, so the new point goes after
+          it (index 1). */}
+      {selected && !editing && resolvedPts.length === 2 && block.pathMode !== 'elbow' && (() => {
+        const [sx, sy] = resolvedPts[0];
+        const [ex, ey] = resolvedPts[1];
+        const mid: [number, number] = [(sx + ex) / 2, (sy + ey) / 2];
+        const insertAt = block.startBinding ? 0 : 1;
+        return (
+          <circle cx={mid[0]} cy={mid[1]} r={5}
+            fill="white" stroke={strokeColor} strokeWidth={1.5} opacity={0.45}
+            style={{ cursor: 'grab', pointerEvents: 'auto' }}
+            onPointerDown={e => insertWaypointAndDrag(insertAt, mid, e)} />
+        );
+      })()}
+
       {/* Draggable binding endpoints: shown whenever editing or selected, so a selected arrow's
           endpoints can be re-bound/detached without entering waypoint-edit mode. */}
       {(editing || selected) && activeTool !== 'eraser' && (
@@ -470,16 +554,6 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         </>
       )}
 
-      {/* Show waypoint preview dots when selected (non-interactive) */}
-      {!editing && selected && (
-        <>
-          {waypoints.map((pt, i) => (
-            <circle key={`wp-sel-${i}`} cx={pt[0]} cy={pt[1]} r={4}
-              fill="white" stroke={strokeColor} strokeWidth={1} opacity={0.6}
-              style={{ pointerEvents: 'none' }} />
-          ))}
-        </>
-      )}
     </g>
   );
 }

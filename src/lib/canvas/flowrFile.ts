@@ -1,4 +1,5 @@
 import type { EditorBlock, ShapeKind, ArrowBinding, ArrowheadStyle } from '@/data/store.types';
+import { getCornerRadius } from '@/lib/geometry/outline';
 
 /** A block we don't understand (came from a foreign/future Excalidraw element type). Preserved verbatim. */
 interface RawBlock extends EditorBlock {
@@ -21,7 +22,7 @@ const HANDLED_BLOCK_KEYS = new Set<string>([
 /** `CanvasStyleExt` keys mapped explicitly onto native Excalidraw style fields. */
 const HANDLED_STYLE_KEYS = new Set<string>([
   'stroke', 'fill', 'fillOpacity', 'strokeWidth', 'strokeStyle', 'opacity',
-  'rotation', 'locked', 'cornerRadius', 'startArrowhead', 'endArrowhead',
+  'rotation', 'locked', 'cornerRadius', 'roundCorners', 'startArrowhead', 'endArrowhead',
   'startBinding', 'endBinding',
 ]);
 
@@ -118,7 +119,8 @@ function blockToElement(b: EditorBlock, all: EditorBlock[]): Record<string, unkn
         endArrowhead: b.endArrowhead ?? null,
       };
     } else {
-      base.roundness = s.cornerRadius ? { type: 3, value: s.cornerRadius } : null;
+      const radius = getCornerRadius(s.roundCorners, b.width ?? 0, b.height ?? 0);
+      base.roundness = radius > 0 ? { type: 3, value: radius } : null;
     }
   } else if (b.type === 'text') {
     base.type = 'text';
@@ -163,7 +165,7 @@ function elementToBlock(el: any, index: number, canvasId: string): EditorBlock {
     opacity: (el.opacity ?? 100) / 100,
     rotation: ((el.angle ?? 0) * 180) / Math.PI,
     locked: el.locked ?? false,
-    ...(el.roundness?.value ? { cornerRadius: el.roundness.value } : {}),
+    ...(el.roundness?.type === 3 ? { roundCorners: true } : {}),
     ...(styleRest ?? {}),
   };
 

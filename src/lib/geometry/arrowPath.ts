@@ -44,6 +44,12 @@ export function computeElbowPoints(pts: [number, number][]): [number, number][] 
   return [[sx, sy], [sx, my], [tx, my], [tx, ty]];
 }
 
+/** Arrowhead size is a pure multiplier (ArrowheadStyle.size) that always tracks the chosen
+ * stroke width preset — users never set it manually (Excalidraw-style). */
+export function arrowheadSizeForStrokeWidth(width: number): number {
+  return Math.max(0.75, width / 2);
+}
+
 type ArrowPathBlock = Pick<EditorBlock, 'editMode' | 'pointRadiuses' | 'pathMode' | 'endArrowhead'>;
 
 /**

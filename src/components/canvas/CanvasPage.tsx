@@ -26,13 +26,15 @@ import { FlowPreview } from './FlowPreview';
 import { exportCanvasToPng, copyCanvasToClipboard } from '@/lib/canvasExport';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
+import { getCornerRadius } from '@/lib/geometry/outline';
+import { arrowheadSizeForStrokeWidth as getArrowheadSizeForStrokeWidth } from '@/lib/geometry/arrowPath';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
 import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
 import { useDragState, activeDragOffsets } from '@/lib/canvasDragState';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import type { HandlePosition } from './ResizeHandle';
-import { classifyBindingAt, findBindableBlockAt, sideCenterBinding } from '@/lib/canvas/classifyBinding';
+import { classifyBindingAt, findBindableBlockAt, sideCenterBinding, nearestBindDotSide } from '@/lib/canvas/classifyBinding';
 import { getBoundText } from '@/lib/canvas/boundText';
 import type { ArrowBinding } from '@/data/store.types';
 
@@ -59,13 +61,17 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [exportSuccess, setExportSuccess] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [hoverBindTargetId, setHoverBindTargetId] = useState<string | null>(null);
+  const [hoverBindDotSide, setHoverBindDotSide] = useState<'top' | 'right' | 'bottom' | 'left' | null>(null);
   const pendingStartBindingRef = useRef<ArrowBinding | null>(null);
   const pendingEndBindingRef = useRef<ArrowBinding | null>(null);
 
   // Clear the bind-hover highlight the instant the tool changes away from arrow/line,
   // rather than waiting for the next pointermove to catch up.
   useEffect(() => {
-    if (activeTool !== 'arrow' && activeTool !== 'line') setHoverBindTargetId(null);
+    if (activeTool !== 'arrow' && activeTool !== 'line') {
+      setHoverBindTargetId(null);
+      setHoverBindDotSide(null);
+    }
   }, [activeTool]);
 
   const resolvedBgColor = useMemo(() => {
@@ -94,7 +100,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     fillOpacity: 1.0,
     opacity: 1.0,
     locked: false,
-    cornerRadius: 20,
+    roundCorners: false,
   });
   const [mediaPopover, setMediaPopover] = useState<{
     x: number; y: number; canvasX: number; canvasY: number;
@@ -333,6 +339,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       return b ? classifyBindingAt(last, b) : null;
     })();
 
+    const lineStrokeWidth = activeStyle.strokeWidth ?? 1;
+    const lineArrowheadSize = getArrowheadSizeForStrokeWidth(lineStrokeWidth);
     addCanvasBlock({
       id: generateId(), type: 'shape', content: '', canvasId: entity.id,
       shapeKind: tool,
@@ -342,8 +350,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       x: 0, y: 0, width: 0, height: 0,
       editMode: 'simple',
       startArrowhead: { type: 'none' },
-      endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: 1 } : { type: 'none' },
-      canvasStyleExt: { stroke: '#d38f36', strokeWidth: 1, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
+      endArrowhead: tool === 'arrow' ? { type: 'filled-triangle', size: lineArrowheadSize } : { type: 'none' },
+      canvasStyleExt: { stroke: '#d38f36', strokeWidth: lineStrokeWidth, strokeStyle: 'solid', fill: 'transparent', fillOpacity: 0 },
     });
     clear();
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
@@ -1390,6 +1398,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       hoveredFrameId={hoveredFrameId}
       onDragMove={handleDragMove}
       bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+      bindHoverDotSide={hoverBindTargetId === b.id ? hoverBindDotSide : null}
       erasing={eraserMarkedIds.has(b.id)}
       forceEditing={editingTextId === b.id}
       onEditingEnded={() => setEditingTextId(null)}
@@ -1411,7 +1420,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         }
       }}
     />
-  ), [activeTool, viewport, snapWithObjects, snapForResize, selectedIds, handleDragCommit, handleBlockContextMenu, hoveredFrameId, handleDragMove, hoverBindTargetId, editingTextId, commitFlowConnection, eraserMarkedIds]);
+  ), [activeTool, viewport, snapWithObjects, snapForResize, selectedIds, handleDragCommit, handleBlockContextMenu, hoveredFrameId, handleDragMove, hoverBindTargetId, hoverBindDotSide, editingTextId, commitFlowConnection, eraserMarkedIds]);
 
   return (
     <div className="flex-1 relative overflow-hidden flex flex-col bg-[var(--app-background)]">
@@ -1467,8 +1476,11 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 const liveBlocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
                 const target = findBindableBlockAt([x, y], liveBlocks);
                 setHoverBindTargetId(prev => (target?.id ?? null) === prev ? prev : (target?.id ?? null));
-              } else if (hoverBindTargetId !== null) {
-                setHoverBindTargetId(null);
+                const dotSide = target ? nearestBindDotSide([x, y], target) : null;
+                setHoverBindDotSide(prev => dotSide === prev ? prev : dotSide);
+              } else {
+                if (hoverBindTargetId !== null) setHoverBindTargetId(null);
+                if (hoverBindDotSide !== null) setHoverBindDotSide(null);
               }
 
               if (!cloudSyncEnabled || !supabase) return;
@@ -1526,7 +1538,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                         fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
                         stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
                         strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined}
-                        rx={drawingShape.kind === 'frame' ? 0 : (activeStyle.cornerRadius ?? 0)} />
+                        rx={drawingShape.kind === 'frame' ? 0 : getCornerRadius(activeStyle.roundCorners, drawingShape.w, drawingShape.h)} />
                     )}
                     {(drawingShape.kind === 'ellipse') && (
                       <ellipse cx={drawingShape.x + drawingShape.w/2} cy={drawingShape.y + drawingShape.h/2}

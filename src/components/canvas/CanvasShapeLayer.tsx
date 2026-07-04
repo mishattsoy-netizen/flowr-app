@@ -4,6 +4,7 @@ import { EditorBlock, CanvasStyleExt, useStore } from '@/data/store';
 import { useMemo, useRef, useEffect } from 'react';
 import { useDrag } from '@/hooks/useDrag';
 import { activeDragOffsets } from '@/lib/canvasDragState';
+import { getCornerRadius } from '@/lib/geometry/outline';
 import type { CanvasTool } from './CanvasToolbar';
 
 
@@ -49,7 +50,7 @@ function ShapeEl({ block, isSelected, activeTool, onPointerDown, onContextMenu }
   const x = block.x ?? 0, y = block.y ?? 0;
   const w = block.width ?? 100, h = block.height ?? 60;
   const sw = style.strokeWidth ?? 1.5;
-  const r = style.cornerRadius ?? 0;
+  const r = getCornerRadius(style.roundCorners, w, h);
   const stroke = shapeStroke(style);
   const fill = shapeFill(style);
   const da = strokeDasharray(style);

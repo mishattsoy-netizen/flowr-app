@@ -4,6 +4,15 @@ export type OutlineKind = 'rect' | 'ellipse' | 'diamond';
 export interface OutlineRect { x: number; y: number; width: number; height: number }
 type Pt = [number, number];
 
+/** Proportional round-corner radius: small shapes get a small radius, larger shapes get a
+ * bigger one (Excalidraw's roundness type 3 behavior), capped so very large shapes don't look
+ * pill-shaped. Sharp corners (roundCorners falsy) always resolve to 0. */
+export function getCornerRadius(roundCorners: boolean | undefined, width: number, height: number): number {
+  if (!roundCorners) return 0;
+  const base = Math.min(Math.abs(width), Math.abs(height));
+  return Math.min(base * 0.15, 32);
+}
+
 function segSegIntersect(a1: Pt, a2: Pt, b1: Pt, b2: Pt): Pt | null {
   const d1x = a2[0] - a1[0], d1y = a2[1] - a1[1];
   const d2x = b2[0] - b1[0], d2y = b2[1] - b1[1];

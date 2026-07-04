@@ -42,6 +42,31 @@ export function sideCenterBinding(block: EditorBlock, side: 'top' | 'right' | 'b
   return { blockId: block.id, focus: pointToFocus(mx, my, rect), gap: BINDING_GAP };
 }
 
+/** Cursor proximity radius (canvas units) within which an individual side-center bind dot
+ * lights up. Smaller than EDGE_BIND_THRESHOLD's outline-hugging test — this is a point-to-point
+ * distance check against the dot's own screen position, not the whole shape's outline. */
+export const DOT_HOVER_THRESHOLD = 18;
+
+/** Which single side-center dot (if any) the cursor is close enough to, for per-dot proximity
+ * highlighting — independent of whether the point is within the whole-shape bind zone. */
+export function nearestBindDotSide(point: [number, number], block: EditorBlock): 'top' | 'right' | 'bottom' | 'left' | null {
+  const rect = rectOf(block);
+  const mids: Record<'top' | 'right' | 'bottom' | 'left', [number, number]> = {
+    top: [rect.x + rect.width / 2, rect.y],
+    right: [rect.x + rect.width, rect.y + rect.height / 2],
+    bottom: [rect.x + rect.width / 2, rect.y + rect.height],
+    left: [rect.x, rect.y + rect.height / 2],
+  };
+  let best: 'top' | 'right' | 'bottom' | 'left' | null = null;
+  let bestDist = DOT_HOVER_THRESHOLD;
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+    const [mx, my] = mids[side];
+    const d = Math.hypot(point[0] - mx, point[1] - my);
+    if (d <= bestDist) { bestDist = d; best = side; }
+  }
+  return best;
+}
+
 /** Topmost bindable block whose bind zone (inside or ≤ threshold from outline) contains the point. */
 export function findBindableBlockAt(point: [number, number], blocks: EditorBlock[]): EditorBlock | null {
   for (let i = blocks.length - 1; i >= 0; i--) {

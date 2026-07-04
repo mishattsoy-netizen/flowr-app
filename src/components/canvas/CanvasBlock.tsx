@@ -7,6 +7,7 @@ import type { CanvasTool } from './CanvasToolbar';
 import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag } from '@/hooks/useDrag';
 import { buildArrowPathD } from '@/lib/geometry/arrowPath';
+import { getCornerRadius } from '@/lib/geometry/outline';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
 import { getBoundText, layoutLabelInShape, pathMidpoint } from '@/lib/canvas/boundText';
@@ -26,6 +27,9 @@ interface CanvasBlockProps {
   hoveredFrameId?: string | null;
   onDragMove?: (dx: number, dy: number, e: PointerEvent) => void;
   bindHighlight?: boolean;
+  /** Which single side-center dot (if any) the cursor is currently close enough to. Each dot
+   * only renders when it matches this, instead of all 4 appearing together on whole-shape hover. */
+  bindHoverDotSide?: 'top' | 'right' | 'bottom' | 'left' | null;
   onSideDotDown?: (side: 'top' | 'right' | 'bottom' | 'left', x: number, y: number) => void;
   forceEditing?: boolean;
   onEditingEnded?: () => void;
@@ -34,7 +38,7 @@ interface CanvasBlockProps {
   erasing?: boolean;
 }
 
-export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, onSideDotDown, forceEditing, onEditingEnded, onRequestLabelEdit, erasing }: CanvasBlockProps) {
+export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedIds, onSelect, onCommit, snapWithObjects, snapForResize, onContextMenu, hoveredFrameId, onDragMove, bindHighlight, bindHoverDotSide, onSideDotDown, forceEditing, onEditingEnded, onRequestLabelEdit, erasing }: CanvasBlockProps) {
 
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const updateCanvasBlocks = useStore(s => s.updateCanvasBlocks);
@@ -667,7 +671,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       {bindHighlight && (
         <>
           <div className="absolute -inset-[2px] border-2 border-[var(--accent)] rounded-[inherit] pointer-events-none z-[95] opacity-70" />
-          {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+          {(['top', 'right', 'bottom', 'left'] as const).filter(side => side === bindHoverDotSide).map(side => (
             <div
               key={side}
               className={cn(
@@ -803,7 +807,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
                 style={{
                   background: fillColor,
                   border: borderStyle,
-                  borderRadius: block.canvasStyleExt?.cornerRadius ? `${block.canvasStyleExt.cornerRadius}px` : 0,
+                  borderRadius: `${getCornerRadius(block.canvasStyleExt?.roundCorners, block.width ?? 0, block.height ?? 0)}px`,
                   transition: isFrameHovered ? 'border-color 0.15s ease' : undefined,
                 }}
               />

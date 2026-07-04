@@ -4,7 +4,7 @@ import type { EditorBlock } from '@/data/store.types';
 
 const blocks: EditorBlock[] = [
   { id: 'r1', type: 'shape', shapeKind: 'rect', content: '', canvasId: 'c1', x: 100, y: 100, width: 200, height: 100, zIndex: 0,
-    canvasStyleExt: { stroke: '#e9e9e2', fill: '#d38f36', fillOpacity: 1, strokeWidth: 2, strokeStyle: 'solid', cornerRadius: 8, rotation: 45 } },
+    canvasStyleExt: { stroke: '#e9e9e2', fill: '#d38f36', fillOpacity: 1, strokeWidth: 2, strokeStyle: 'solid', roundCorners: true, rotation: 45 } },
   { id: 't1', type: 'text', content: 'Label', canvasId: 'c1', x: 150, y: 130, width: 60, height: 25, zIndex: 1,
     fontSize: 20, textAlign: 'center', containerId: 'r1', canvasStyleExt: { stroke: '#ffffff' } },
   { id: 'a1', type: 'shape', shapeKind: 'arrow', content: '', canvasId: 'c1', x: 0, y: 0, width: 0, height: 0, zIndex: 2,
@@ -33,6 +33,7 @@ describe('.flowr round trip', () => {
     expect(rect.strokeColor).toBe('#e9e9e2');
     expect(rect.backgroundColor).toBe('#d38f36');
     expect(rect.angle).toBeCloseTo(Math.PI / 4, 5);
+    expect(rect.roundness).toMatchObject({ type: 3 });
     const text = doc.elements.find((e: any) => e.id === 't1');
     expect(text.containerId).toBe('r1');
     expect(rect.boundElements).toEqual([{ id: 't1', type: 'text' }]);
@@ -52,7 +53,7 @@ describe('.flowr round trip', () => {
     const byId = Object.fromEntries(parsed.blocks.map(b => [b.id, b]));
     expect(byId['r1'].shapeKind).toBe('rect');
     expect(byId['r1'].canvasStyleExt?.rotation).toBeCloseTo(45, 4);
-    expect(byId['r1'].canvasStyleExt?.cornerRadius).toBe(8);
+    expect(byId['r1'].canvasStyleExt?.roundCorners).toBe(true);
     expect(byId['t1'].containerId).toBe('r1');
     expect(byId['t1'].fontSize).toBe(20);
     expect(byId['a1'].points).toEqual([[320, 150], [420, 150]]); // absolute again

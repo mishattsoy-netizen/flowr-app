@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore, EditorBlock, CanvasStyleExt } from '@/data/store';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
+import { arrowheadSizeForStrokeWidth } from '@/lib/geometry/arrowPath';
 import { useDragState } from '@/lib/canvasDragState';
 import { cn } from '@/lib/utils';
 import { Toggle } from '../ui/Toggle';
@@ -294,6 +295,25 @@ function SliderGroup<T extends string>({
   );
 }
 
+
+/** Stroke width presets (Excalidraw-style thin/medium/bold) applied to both shape borders
+ * and arrow/line strokes. Arrowhead size is always derived from this, never set manually. */
+const STROKE_WIDTH_PRESETS = [
+  { key: 'thin' as const, width: 1, iconStroke: 1.5 },
+  { key: 'medium' as const, width: 2, iconStroke: 2.5 },
+  { key: 'bold' as const, width: 4, iconStroke: 4 },
+];
+
+function strokeWidthToPreset(width: number | undefined): 'thin' | 'medium' | 'bold' {
+  const w = width ?? 1.5;
+  let best = STROKE_WIDTH_PRESETS[0];
+  let bestDist = Infinity;
+  for (const p of STROKE_WIDTH_PRESETS) {
+    const d = Math.abs(p.width - w);
+    if (d < bestDist) { bestDist = d; best = p; }
+  }
+  return best.key;
+}
 
 function ExportSelect({
   value,
@@ -1259,21 +1279,16 @@ export function CanvasStylePanel({
                 />
               </div>
               <div className="flex-1">
-                <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Corner radius</div>
-                <SidebarInput
-                  prefix={
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M2 8V4a2 2 0 0 1 2-2h4" strokeLinecap="round"/>
-                      <path d="M2 11v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-1" strokeDasharray="2 2"/>
+                <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Corners</div>
+                <SliderGroup
+                  options={['sharp', 'round'] as const}
+                  value={style.roundCorners ? 'round' : 'sharp'}
+                  onChange={v => updateStyle({ roundCorners: v === 'round' })}
+                  renderLabel={v => (
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="2.5" y="2.5" width="11" height="11" rx={v === 'round' ? 4 : 0} />
                     </svg>
-                  }
-                  value={style.cornerRadius ?? 0}
-                  onChange={v => updateStyle({ cornerRadius: Number(v) || 0 })}
-                  scrub={{
-                    value: style.cornerRadius ?? 0,
-                    onChange: v => updateStyle({ cornerRadius: v }),
-                    min: 0
-                  }}
+                  )}
                 />
               </div>
             </div>
@@ -1527,25 +1542,34 @@ export function CanvasStylePanel({
           <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Weight</div>
           <div className="flex gap-2 items-center">
             <div className="flex-1">
-              <SidebarInput
-                prefix={
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
-                    <line x1="3" y1="4" x2="13" y2="4" strokeWidth="1.5" strokeLinecap="round" />
-                    <line x1="3" y1="8" x2="13" y2="8" strokeWidth="2.5" strokeLinecap="round" />
-                    <line x1="3" y1="12" x2="13" y2="12" strokeWidth="4" strokeLinecap="round" />
-                  </svg>
-                }
-                value={style.strokeWidth ?? 1.5}
-                onChange={v => updateStyle({ strokeWidth: Number(v) || 1 })}
-                scrub={{
-                  value: style.strokeWidth ?? 1.5,
-                  onChange: v => updateStyle({ strokeWidth: v }),
-                  step: 0.5,
-                  min: 0
+              <SliderGroup
+                options={STROKE_WIDTH_PRESETS.map(p => p.key)}
+                value={strokeWidthToPreset(style.strokeWidth)}
+                onChange={key => {
+                  const width = STROKE_WIDTH_PRESETS.find(p => p.key === key)!.width;
+                  const scaleArrowheads = isArrow || (ref?.shapeKind === 'arrow' || ref?.shapeKind === 'line');
+                  updateStyle({ strokeWidth: width });
+                  if (scaleArrowheads && ref) {
+                    const size = arrowheadSizeForStrokeWidth(width);
+                    updateBlockFields({
+                      endArrowhead: { ...(ref.endArrowhead ?? { type: 'filled-triangle' }), size },
+                      startArrowhead: ref.startArrowhead?.type && ref.startArrowhead.type !== 'none'
+                        ? { ...ref.startArrowhead, size }
+                        : ref.startArrowhead,
+                    });
+                  }
+                }}
+                renderLabel={key => {
+                  const p = STROKE_WIDTH_PRESETS.find(o => o.key === key)!;
+                  return (
+                    <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeLinecap="round">
+                      <line x1="2" y1="6" x2="14" y2="6" strokeWidth={p.iconStroke} />
+                    </svg>
+                  );
                 }}
               />
             </div>
-            
+
             <div className="flex-1">
               <SliderGroup
                 options={['solid', 'dashed', 'dotted'] as const}
@@ -1563,46 +1587,11 @@ export function CanvasStylePanel({
         <PanelSection title="Arrowheads">
           <div className="flex gap-2">
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Size</div>
-              <SidebarInput
-                prefix={
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 14l12-12M8 2h6v6" />
-                  </svg>
-                }
-                value={Math.round((ref.endArrowhead?.size ?? 1) * 10) / 10}
-                onChange={v => {
-                  const val = parseFloat(v.replace(/[^0-9.]/g, '')) || 1;
-                  const size = Math.min(3, Math.max(0.5, val));
-                  updateBlockFields({
-                    endArrowhead: { ...ref.endArrowhead ?? { type: 'filled-triangle' }, size },
-                    startArrowhead: ref.startArrowhead?.type !== 'none'
-                      ? { ...ref.startArrowhead ?? { type: 'none' }, size }
-                      : ref.startArrowhead,
-                  });
-                }}
-                scrub={{
-                  value: ref.endArrowhead?.size ?? 1,
-                  onChange: v => {
-                    const size = Math.min(3, Math.max(0.5, v));
-                    updateBlockFields({
-                      endArrowhead: { ...ref.endArrowhead ?? { type: 'filled-triangle' }, size },
-                      startArrowhead: ref.startArrowhead?.type !== 'none'
-                        ? { ...ref.startArrowhead ?? { type: 'none' }, size }
-                        : ref.startArrowhead,
-                    });
-                  },
-                  step: 0.1,
-                  min: 0.5
-                }}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
               <div className="text-[10px] font-ui-label text-[var(--bone-30)] mb-1">Start</div>
               <ArrowheadDropdown
                 value={ref.startArrowhead?.type ?? 'none'}
                 onChange={type => updateBlockFields({
-                  startArrowhead: { type: type as any, size: ref.startArrowhead?.size ?? 1 }
+                  startArrowhead: { type: type as any, size: arrowheadSizeForStrokeWidth(style.strokeWidth ?? 1.5) }
                 })}
               />
             </div>
@@ -1612,7 +1601,7 @@ export function CanvasStylePanel({
                 value={ref.endArrowhead?.type ?? 'filled-triangle'}
                 align="right"
                 onChange={type => updateBlockFields({
-                  endArrowhead: { type: type as any, size: ref.endArrowhead?.size ?? 1 }
+                  endArrowhead: { type: type as any, size: arrowheadSizeForStrokeWidth(style.strokeWidth ?? 1.5) }
                 })}
               />
             </div>

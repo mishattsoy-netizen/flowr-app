@@ -1,6 +1,6 @@
 // src/lib/geometry/binding.ts
 import type { ArrowBinding, EditorBlock } from '@/data/store';
-import { intersectSegmentWithOutline, isPointInsideShape, nearestPointOnOutline, type OutlineKind } from './outline';
+import { intersectSegmentWithOutline, isPointInsideShape, nearestPointOnOutline, getCornerRadius, type OutlineKind } from './outline';
 
 interface BlockRect { x: number; y: number; width: number; height: number; }
 
@@ -64,7 +64,7 @@ export function resolveBindingEndpoint(
   const kind = blockOutlineKind(block);
   const gap = binding.gap ?? BINDING_GAP;
   const target = resolveBindingTarget(binding, block);
-  const cornerRadius = block.canvasStyleExt?.cornerRadius ?? 0;
+  const cornerRadius = getCornerRadius(block.canvasStyleExt?.roundCorners, rect.width, rect.height);
 
   if (isPointInsideShape(kind, rect, aimFrom)) {
     // Degenerate: the other end is inside this shape — sit on the nearest outline point.
