@@ -61,6 +61,7 @@ export const HeaderBar = memo(function HeaderBar() {
   const activeChatId         = useStore(s => s.activeChatId);
   const isSidebarCollapsed   = useStore(s => s.isSidebarCollapsed);
   const toggleSplitView      = useStore(s => s.toggleSplitView);
+  const selectedSidebarIds   = useStore(s => s.selectedSidebarIds);
 
   const isDesktopEnv = isDesktop();
 
@@ -499,10 +500,10 @@ export const HeaderBar = memo(function HeaderBar() {
       </div>
 
       {/* Split View Toggle — fixed at the right edge of the header */}
-      {openTabIds.length > 0 && (() => {
+      {(selectedSidebarIds.length === 2 || (openTabIds.length > 0 && (() => {
         const entity = entities.find(e => e.id === activeEntityId);
         return entity && (entity.type === 'note' || entity.type === 'canvas');
-      })() && (
+      })())) && (
         <div
           className="flex items-center justify-center shrink-0"
           style={{ height: BAR_H }}

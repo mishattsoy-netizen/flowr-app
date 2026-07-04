@@ -368,19 +368,42 @@ export const useStore = create<AppState>()(
             splitViewLeftId: null,
             splitViewRightId: null,
             splitViewPinned: false,
+            selectedSidebarIds: [],
           });
         } else {
-          // Enter split: active entity → left, paired entity → right (or empty/placeholder)
-          const leftId = state.activeTabId ?? state.openTabIds[0] ?? 'dashboard';
-          const leftEntity = state.entities.find(e => e.id === leftId);
-          const rightId = leftEntity?.pairedEntityId ?? null;
-          const isPinned = !!(leftEntity?.pairedEntityId);
+          // Enter split
+          let leftId: string;
+          let rightId: string | null;
+          let isPinned: boolean;
+          let nextTabs = [...state.openTabIds];
+
+          if (state.selectedSidebarIds.length === 2) {
+            // Two entities selected in sidebar — open both side by side
+            leftId = state.selectedSidebarIds[0];
+            rightId = state.selectedSidebarIds[1];
+            isPinned = false;
+            // Ensure both are in openTabIds
+            for (const id of [leftId, rightId]) {
+              if (!nextTabs.includes(id)) nextTabs.push(id);
+            }
+          } else {
+            // Default: active entity → left, paired entity → right (or empty)
+            leftId = state.activeTabId ?? state.openTabIds[0] ?? 'dashboard';
+            const leftEntity = state.entities.find(e => e.id === leftId);
+            rightId = leftEntity?.pairedEntityId ?? null;
+            isPinned = !!(leftEntity?.pairedEntityId);
+          }
+
           set({
             splitViewActive: true,
             splitViewLeftId: leftId,
             splitViewRightId: rightId,
             splitViewPinned: isPinned,
             splitViewPosition: 50,
+            openTabIds: nextTabs,
+            activeEntityId: leftId,
+            activeTabId: leftId,
+            selectedSidebarIds: [],
           });
         }
       },
