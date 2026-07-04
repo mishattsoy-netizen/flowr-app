@@ -294,8 +294,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const shellClass = "h-screen w-full overflow-hidden bg-background text-foreground";
 
   const currentAiSidebarWidth = hasHydrated ? Math.min(aiSidebarWidth, 500) : 400;
-  const isTaskPanelVisible = !isMobile && isTaskPanelOpen;
-  const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat';
+  const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !splitViewActive;
+  const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat' && !splitViewActive;
   const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
   // Task panel and AI panel share the same width — no jump when switching
   const currentRightPanelWidth = currentAiSidebarWidth;

@@ -6,7 +6,7 @@ import { useStore } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId, blocksToMarkdown } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
-import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Layers, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark, Pen } from 'lucide-react';
+import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark, Pen } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback } from 'react';
@@ -61,6 +61,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const { user } = useAuth();
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
+  const splitViewActive = useStore(state => state.splitViewActive);
   const toggleAIAssistant = useStore(state => state.toggleAIAssistant);
   const setAIAssistantOpen = useStore(state => state.setAIAssistantOpen);
   const toggleAIAssistantExtended = useStore(state => state.toggleAIAssistantExtended);
@@ -520,7 +521,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     { id: 'code', label: 'Code', icon: <Terminal strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Use the coding chain for programming tasks', prefix: '/code ' },
     { id: 'note', label: 'Create Note', icon: <FileText strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
     { id: 'canvas', label: 'Create Canvas', icon: <Frame strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
-    { id: 'split', label: 'Create Split Page', icon: <Layers strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new mixed split page', prefix: '/split ' },
     { id: 'task', label: 'Add Task', icon: <CheckSquare strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
     { id: 'mention', label: 'Mention', icon: <AtSign strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Mention page or workspace', prefix: '@' },
     { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
@@ -574,7 +574,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     if (!activeEntityId || activeEntityId === 'dashboard') return;
     const newBlock: EditorBlock = { id: generateId(), type: 'image', content: '', mediaUrl: url, mediaWidth: 4, mediaCaption: 'AI Generated', align: 'left' };
     const entity = useStore.getState().entities.find(e => e.id === activeEntityId);
-    if (entity && (entity.type === 'note' || entity.type === 'mixed')) {
+    if (entity && entity.type === 'note') {
       updateEntityContent(entity.id, [...(entity.content || []), newBlock]);
     }
   }, [activeEntityId, updateEntityContent]);
@@ -584,7 +584,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       {/* Portaled to body: the right-panel wrapper in Shell uses transform (for the
           slide), which would otherwise make it the containing block for this fixed
           button and clip it away when no panel is open. */}
-      {!isAIAssistantOpen && !chatPageMode && activeEntityId !== 'settings' && !(isTaskPanelOpen && activeTaskId) && typeof document !== 'undefined' && createPortal(
+      {!isAIAssistantOpen && !chatPageMode && !splitViewActive && activeEntityId !== 'settings' && !(isTaskPanelOpen && activeTaskId) && typeof document !== 'undefined' && createPortal(
         <div className="fixed bottom-8 right-8 z-[90]">
           <button
             onClick={toggleAIAssistant}
