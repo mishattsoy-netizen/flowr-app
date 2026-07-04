@@ -133,7 +133,7 @@ export function SplitViewLayout() {
     <div
       ref={containerRef}
       className={cn(
-        "flex-1 flex flex-row overflow-hidden relative min-h-0",
+        "flex-1 flex flex-row relative min-h-0",
         isResizing && "select-none"
       )}
     >

@@ -1200,7 +1200,10 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   return (
     <div 
       ref={editorRef}
-      className="flex-1 flex flex-col relative overflow-hidden note-editor-bg"
+      className={cn(
+        "flex-1 flex flex-col relative note-editor-bg",
+        !splitViewActive && "overflow-hidden"
+      )}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       onPaste={handlePaste}
@@ -1240,13 +1243,16 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
 
       <div 
         id="note-editor-container"
-        className="flex-1 overflow-y-auto custom-scrollbar note-editor-bg"
+        className={cn(
+          "flex-1 custom-scrollbar note-editor-bg",
+          !splitViewActive && "overflow-y-auto"
+        )}
       >
         <div
             className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
               "max-w-[850px]",
-              splitViewActive ? "px-12" : "px-4",
+              splitViewActive ? "px-8" : "px-4",
               isDragging && "dragging-active-content"
             )}
             dir="ltr"
