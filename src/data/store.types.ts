@@ -4,7 +4,7 @@ import type { ChatConversation, ChatMessage as ChatMessageRecord } from '@/lib/c
 // Life types removed in M1
 // Knowledge types removed in M1
 
-export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'mixed' | 'workspace' | 'divider';
+export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'workspace' | 'divider' | 'tag';
 
 export type SidebarSectionId = 'pinned' | 'unsorted' | 'workspaces';
 export type SortMode = 'lastModified' | 'alphabetical' | 'manual';
@@ -180,6 +180,7 @@ export interface Entity {
   widgetLayout?: WidgetConfig[];
   workspaceId?: string | null;
 
+  pairedEntityId: string | null;
   sortOrder?: number;
   syncMode: SyncMode;
 }
@@ -188,6 +189,14 @@ export interface SubTask {
   id: string;
   text: string;
   completed: boolean;
+}
+
+export interface TaskAttachment {
+  name: string;
+  url: string;
+  type: 'image' | 'audio' | 'video' | 'file' | 'pdf';
+  uploading?: boolean;
+  tempId?: string;
 }
 
 export interface AppTask {
@@ -209,6 +218,8 @@ export interface AppTask {
   createdAt?: number;
   completedAt?: number;
   syncMode: SyncMode;
+  attachments?: TaskAttachment[];
+  tag?: string;
 }
 
 export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai';
@@ -222,8 +233,9 @@ export type ModalType =
   | { kind: 'rename'; entityId: string }
   | { kind: 'settings'; tab?: SettingsTab }
   | { kind: 'newWorkspace' }
-  | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file'; description?: string; messageId?: string }
+  | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file' | 'pdf'; description?: string; messageId?: string; title?: string }
   | { kind: 'summaryPreview'; summary: string }
+  | { kind: 'pdfExport'; entityId: string; entityTitle: string; blocks: EditorBlock[] }
   | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> };
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
@@ -386,6 +398,7 @@ export interface AppState {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   trackerFilterWorkspace: string | null;
+  trackerFilterTag: string | null;
 
 
   activeEntityId: string | null;
@@ -409,7 +422,11 @@ export interface AppState {
   aiSidebarWidth: number;
   isToolbarVisible: boolean;
   toolbarPosition: { x: number; y: number } | null;
-  mixedLayoutSplit: number;
+  splitViewActive: boolean;
+  splitViewLeftId: string | null;
+  splitViewRightId: string | null;
+  splitViewPinned: boolean;
+  splitViewPosition: number;
   isFullWidth: boolean;
   isTabsHeaderVisible: boolean;
   appStyle: 'v1' | 'v2' | 'v3';
@@ -496,7 +513,11 @@ export interface AppState {
   toggleToolbar: () => void;
   setToolbarVisible: (visible: boolean) => void;
   setToolbarPosition: (pos: { x: number; y: number } | null) => void;
-  setMixedLayoutSplit: (split: number) => void;
+  toggleSplitView: () => void;
+  setColumnEntity: (column: 'left' | 'right', entityId: string | null) => void;
+  togglePin: () => void;
+  exitSplitView: () => void;
+  setSplitViewPosition: (pos: number) => void;
   toggleFullWidth: () => void;
   toggleTabsHeader: () => void;
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
@@ -504,6 +525,7 @@ export interface AppState {
   setRecentEntityIds: (ids: string[]) => void;
   setActiveWorkspaceId: (id: string | null) => void;
   setTrackerFilterWorkspace: (id: string | null) => void;
+  setTrackerFilterTag: (tag: string | null) => void;
   createWorkspace: (input: Partial<Workspace>) => string;
   updateWorkspace: (id: string, patch: Partial<Workspace>) => void;
   deleteWorkspace: (id: string) => void;
