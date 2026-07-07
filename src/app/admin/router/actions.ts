@@ -4,7 +4,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { logAdminAction } from '@/lib/admin/logAction'
 
-export async function getRouterChains(platform: 'app' | 'telegram') {
+export async function getRouterChains() {
   // Purge any legacy IMAGE_UPSCALE rows from the database
   await supabase
     .from('router_chains')
@@ -14,14 +14,13 @@ export async function getRouterChains(platform: 'app' | 'telegram') {
   const { data, error } = await supabase
     .from('router_chains')
     .select('*')
-    .eq('platform', platform)
 
   if (error) throw error
 
   const filtered = (data ?? []).filter((r: any) => r.category !== 'IMAGE_UPSCALE')
 
   // Try to get custom order
-  const order = await getRouterOrder(platform)
+  const order = await getRouterOrder()
   if (order && order.length > 0) {
     return filtered.sort((a: any, b: any) => {
       const indexA = order.indexOf(a.id)
@@ -37,27 +36,26 @@ export async function getRouterChains(platform: 'app' | 'telegram') {
   return filtered.sort((a: any, b: any) => a.category.localeCompare(b.category))
 }
 
-export async function getRouterOrder(platform: 'app' | 'telegram'): Promise<string[]> {
+export async function getRouterOrder(): Promise<string[]> {
   const { data } = await supabase
     .from('settings')
     .select('value')
-    .eq('key', `router_chains_order_${platform}`)
+    .eq('key', 'router_chains_order')
     .limit(1)
     .maybeSingle()
   return (data?.value as string[]) ?? []
 }
 
-export async function saveRouterOrder(platform: 'app' | 'telegram', order: string[]) {
+export async function saveRouterOrder(order: string[]) {
   const { error } = await supabase
     .from('settings')
     .upsert({
-      key: `router_chains_order_${platform}`,
+      key: 'router_chains_order',
       value: order,
       updated_at: new Date().toISOString()
     })
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   // @ts-ignore
   revalidateTag('router-config')
   return { success: true }
@@ -77,8 +75,7 @@ export async function updateRouterChain(id: string, modelList: any[]) {
 
   if (error) throw error
   logAdminAction('router_changed', `Updated router chain ${id}`, { id })
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   // @ts-ignore
   revalidateTag('router-config')
   return { success: true }
@@ -95,26 +92,43 @@ export async function updateRouterSystemPrompt(id: string, systemPrompt: string)
 
   if (error) throw error
   logAdminAction('router_changed', `Updated system prompt for chain ${id}`, { id })
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   // @ts-ignore
   revalidateTag('router-config')
   return { success: true }
 }
-export async function createRouterChain(platform: 'app' | 'telegram', category: string, mode: 'default' | 'pro' = 'default') {
+export async function createRouterChain(category: string, mode: 'default' | 'pro' = 'default') {
+  // Seed a new Pro override with the Default chain's current model_list, so it
+  // starts as a working copy instead of an empty chain the admin has to
+  // rebuild from scratch. Still fully independent once created.
+  // (system_prompt is copied too for parity but isn't read by the runtime
+  // pipeline — chainRouter builds prompts from the static prompt files.)
+  let seedModelList: any[] = []
+  let seedSystemPrompt = ''
+  if (mode === 'pro') {
+    const { data: defaultChain } = await supabase
+      .from('router_chains')
+      .select('model_list, system_prompt')
+      .eq('category', category)
+      .eq('mode', 'default')
+      .maybeSingle()
+    if (defaultChain) {
+      seedModelList = defaultChain.model_list ?? []
+      seedSystemPrompt = defaultChain.system_prompt ?? ''
+    }
+  }
+
   const { error } = await supabase
     .from('router_chains')
     .insert({
-      platform,
       category,
       mode,
-      model_list: [],
-      system_prompt: ''
+      model_list: seedModelList,
+      system_prompt: seedSystemPrompt
     })
 
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   // @ts-ignore
   revalidateTag('router-config')
   return { success: true }
@@ -145,8 +159,7 @@ export async function setFallbackMode(category: string, mode: 'model_first' | 'a
     })
 
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -175,8 +188,7 @@ export async function setRouterTemperature(category: string, temp: number) {
     })
 
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -197,8 +209,7 @@ export async function saveInternalPrompt(chainType: string, prompt: string) {
     .from('settings')
     .upsert({ key: 'pipeline_internal_prompts', value: current, updated_at: new Date().toISOString() })
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -209,8 +220,7 @@ export async function resetInternalPrompt(chainType: string) {
     .from('settings')
     .upsert({ key: 'pipeline_internal_prompts', value: current, updated_at: new Date().toISOString() })
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -258,8 +268,7 @@ export async function syncInternalPromptsFromFiles(): Promise<{ synced: string[]
       .from('settings')
       .upsert({ key: 'pipeline_internal_prompts', value: current, updated_at: new Date().toISOString() })
     if (error) throw new Error(error.message)
-    revalidatePath('/admin/app/router')
-    revalidatePath('/admin/telegram/router')
+    revalidatePath('/admin/router')
   }
 
   return { synced, skipped, errors }
@@ -295,8 +304,7 @@ export async function saveStatusMessage(chainType: string, label: string, emoji:
     .from('settings')
     .upsert({ key: 'pipeline_status_messages', value: current, updated_at: new Date().toISOString() })
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -317,8 +325,7 @@ export async function savePipelineSetting(key: string, value: any) {
     .from('settings')
     .upsert({ key: 'pipeline_settings', value: current, updated_at: new Date().toISOString() })
   if (error) throw error
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
@@ -334,8 +341,7 @@ export async function saveSubchainConfigsAction(configs: any[]) {
     .from('settings')
     .upsert({ key: 'subchain_configs', value: configs, updated_at: new Date().toISOString() }, { onConflict: 'key' })
   if (error) throw new Error(error.message)
-  revalidatePath('/admin/app/router')
-  revalidatePath('/admin/telegram/router')
+  revalidatePath('/admin/router')
   return { success: true }
 }
 
