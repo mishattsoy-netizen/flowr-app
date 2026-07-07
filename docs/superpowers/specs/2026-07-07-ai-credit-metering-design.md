@@ -20,6 +20,7 @@ This design replaces raw-token/message counting with **cost-based metering**: ev
 - Storage quotas, cloud-sync gating, desktop-vs-web feature gating — separate future design.
 - A third `mode=max` routing tier — Max and Pro subscribers share the same `mode=pro` chains today; only their budget size differs. Schema supports adding `mode=max` later without rework.
 - Runtime enforcement of `context_window`/`max_output_tokens` (e.g. truncating an over-long prompt before sending). This design only makes those limits data-complete (stored per model, populated from Discover) so future work can enforce them; enforcement itself is a separate change.
+- Per-model or per-chain-aware compaction sizing (dynamically choosing the compaction ceiling based on which model/chain is about to answer, accounting for router fallbacks). Considered and deferred in favor of one flat hardcoded ceiling (§4) — revisit only if real usage shows the flat number is wrong for actual routing patterns.
 
 ## 1. Cost accounting: dollars, not tokens
 
@@ -151,11 +152,28 @@ Separate concern from budget metering: this is about fitting a conversation insi
 
 **What already exists and is being kept as-is:** `manageSessionCompaction` ([memoryManager](../../../src/lib/bot/services/memoryManager.ts), invoked at [chainRouter.ts:220](../../../src/lib/bot/chainRouter.ts#L220)) tracks a running `token_usage_total` per session and triggers `compactSession` ([compaction.ts:73](../../../src/lib/bot/compaction.ts#L73)) once usage crosses `compaction_threshold` (80%) of `context_limit`. Compaction runs a cheap model over the raw history and replaces it with a `[SESSION MEMORY SUMMARY]` injected into future prompts, so total tokens sent per request stay bounded while the conversation feels continuous to the user.
 
-Two gaps to close as part of this work:
+### What the meter counts: "resent" content only, not "system" content
+
+Rather than trying to approximate the real next-call input size (system prompt + tool defs + whatever this request injects), the meter tracks something narrower and easier to reason about: **the token size of whatever gets persisted to history and resent on the *next* call.** The system prompt is excluded entirely — it's roughly constant (~5-6k), already accounted for in the $ cost ledger (§1–3) on every call, and would just add noise to a number meant to help the user understand *their own* session growth.
+
+The dividing line is mechanical, not conceptual: if content is thrown away after the request that produced it and never appears in stored history again, it doesn't count, no matter how large it was for that one call. If it gets folded into persisted history and sent again on every subsequent turn, it counts, because it compounds.
+
+Checking today's actual persistence (`route.ts` `logModelWebMessage`/`logWebInteraction`, [route.ts:199-200](../../../src/app/api/ai/chat/route.ts#L199)) against this rule:
+- **Raw user messages + final assistant answers** — persisted and resent every turn → **counts**.
+- **`[SEARCH DATA]` (Tavily/Exa results)** — injected into `system_prompt` fresh for the request that needed it ([chainRouter.ts:704](../../../src/lib/bot/chainRouter.ts#L704), [716](../../../src/lib/bot/chainRouter.ts#L716)), never persisted to stored history → **does not count**, even though it was real input tokens (and real $ cost) for that one call.
+- **Vision `[VISION_CONTEXT]` digital-twin text** — stripped out of `content` before it's saved ([chainRouter.ts:425](../../../src/lib/bot/chainRouter.ts#L425)); only the cleaned final answer persists → **does not count**, by the same logic. (If a future change starts re-injecting the digital twin into history on later turns, it would need to start counting then — the rule is about what's actually resent, not the category of content.)
+- **Session summary** (once compaction has run) — by definition persisted and resent every turn → **counts**.
+
+Practically, this means today's meter is close to "raw conversation text," since search/vision content already doesn't survive into persisted history — the rule matters most as a guardrail for future features that might start re-injecting richer context into history without anyone revisiting whether it should count.
+
+### Display as a percentage, not raw tokens
+
+`context_limit` becomes a single hardcoded ceiling (32000, unchanged from today's default) treated as "100%" in any user-facing display — a progress bar or percentage, not a raw token count, since "you're at 61%" is legible to a casual user and "18,432 / 32,000 tokens" is not. This value stays a flat constant for now (not per-model) — precise per-chain/per-model sizing was considered and deferred as unnecessary complexity for the actual risk it protects against.
+
+### Two gaps to close as part of this work
 
 1. **Compaction cost is currently untracked.** `compactSession` makes a real model call ([compaction.ts:95](../../../src/lib/bot/compaction.ts#L95)) but nothing charges it anywhere. Since it's `await`ed inline in the request path that triggered it ([chainRouter.ts:1229](../../../src/lib/bot/chainRouter.ts#L1229)), it naturally becomes one more addend into that request's per-request cost accumulator (§3) — charged to the user whose message crossed the threshold, same as any other pipeline step.
-
-2. **`context_limit` is currently a single flat 32000 for all sessions**, regardless of which model actually answered ([chainRouter.ts:1225](../../../src/lib/bot/chainRouter.ts#L1225): `sessionState?.context_limit ?? 32000`). Now that `models.context_window` is being made data-complete (§2), the compaction trigger should use *the current model's real context window* (minus headroom for `max_output_tokens` and prompt overhead) instead of the flat guess. A request routed to a 200k-context model shouldn't compact as aggressively as one routed to an 8k-context model — using the real limit means fewer unnecessary compactions (saves cost) and avoids the flat 32k guess silently truncating a large-context model's usable history. If the model has no stored `context_window`, fall back to today's 32000 default — no regression for unconfigured models.
+2. **The `totalUsage` calculation should be audited against the "resent content only" rule above** as implementation proceeds — today it already only counts summary + recent raw history + a flat per-image estimate ([chainRouter.ts:1222-1223](../../../src/lib/bot/chainRouter.ts#L1222)), which is consistent with the rule now that we've confirmed search/vision content isn't persisted. No structural change needed unless a future feature starts re-injecting richer content into stored history, at which point this section is the reference for whether that new content should count.
 
 This is intentionally orthogonal to the 5h/weekly/monthly $ budget in §2–3: compaction governs what fits in one model call's input, the credit ledger governs cumulative spend over time. A session can compact many times within a single 5h window; a user can run out of budget without ever approaching a context limit, and vice versa.
 
@@ -185,5 +203,5 @@ Matches Claude.ai's pattern: `"You've hit your 5-hour limit. Resets in {time}."`
 - Integration: pre-check rejects when a window is exhausted; post-charge fires on success, on simulated client abort, and on simulated mid-pipeline provider error.
 - Integration: `getRouterChain(category, 'pro')` falls back to `default` chain when no pro-specific row exists or its `model_list` is empty.
 - Unit: web search cost accumulation — Tavily fallback (2 calls) charges 2× `cost_per_call`; Exa search+extract in one pipeline charges both.
-- Unit: compaction trigger uses the current model's `context_window` when present, falls back to 32000 when not; compaction's own model call is included in the triggering request's charged total.
+- Unit: compaction trigger fires at 80% of the flat 32000 ceiling; meter excludes system prompt and any per-request-only injected content (search/vision), counts only persisted/resent history; compaction's own model call is included in the triggering request's charged total.
 - Manual: Settings usage panel reflects real spend after a live chat request; verify countdown timers match window boundaries.
