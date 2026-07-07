@@ -26,8 +26,6 @@ export type IntentCategory =
   | 'THINKING'
   | 'COMPACTION'
 
-export type Platform = 'telegram'
-
 export type RouterMode = 'default' | 'pro'
 
 export function resolveChainWithFallback(
@@ -49,7 +47,6 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
           .from('router_chains')
           .select('model_list')
           .eq('category', category)
-          .eq('platform', 'telegram')
           .eq('mode', mode)
           .limit(1)
           .maybeSingle(),
@@ -77,7 +74,6 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
           try {
             await supabase.from('router_chains').insert({
               category,
-              platform: 'telegram',
               mode: 'default',
               model_list: [],
               is_enabled: true,
