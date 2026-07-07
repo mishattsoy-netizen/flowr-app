@@ -25,36 +25,40 @@ export const PATCHES: Patch[] = [
     version: '1.2.0',
     build: '1200',
     date: '2026-07-07',
-    title: 'Date Picker Rebuilt, Color System Unified & AI Scheduling',
+    title: 'Excalidraw Canvas, Split View v3, Space Rename & Notion Date Picker',
     featured: true,
     sections: [
       {
         type: 'added',
         items: [
-          'Brand new Notion-style date & time picker — set a simple date, a date range, a specific time, or a reminder, all from one clean popup.',
-          'Drag to select date ranges directly on the calendar — press and slide across days to paint your range instantly.',
-          'Single-date dragging: if no end date is set, you can drag the selected date to any other day on the calendar.',
-          'AI can now set dates with time, end dates, and reminders on tasks when you ask it to — all fields stored and ready to fire when reminders go live.',
+          'Brand new Notion-style date & time picker: set dates, ranges, reminders, and times in a single unified popup.',
+          'Interactive calendar gestures: drag to select date ranges or drag single dates to reschedule instantly.',
+          'Split View v3: open two notes or canvases side-by-side with tab-style headers, drag-and-drop support, and column pinning.',
+          'Canvas arrows with Excalidraw-style binding: snap arrows directly to shapes, ellipses, and diamonds, following them as they move.',
+          'Transparent, auto-sizing canvas text and direct text labeling inside shapes and arrows.',
+          'Canvas Sections: clip, group, and move elements together in container boxes.',
+          'Canvas eraser tool, straight/curved arrow toggles, style presets, Alt+drag duplicate, and keyboard nudging.',
+          'Canvases now save as standard .flowr files in your vault, fully compatible with Excalidraw.',
+          'AI can now schedule tasks: create and update tasks with start dates, due dates, specific times, and reminders in one command.',
+          'Rename Workspaces to Spaces: simplified terminology across the entire app for a cleaner interface.',
+          'Task enhancements: support for adding tags and attachments directly to tasks.'
         ]
       },
       {
         type: 'improved',
         items: [
-          'Date/time input fields are now clean text-only — no icon clutter, just date on the left and time on the right separated by a thin divider.',
-          'Focused input gets a sharp 1.5px blue border with no layout shift, using the same blue as the rest of the app.',
-          'Month navigation is now instant — no flicker or transition when switching months.',
-          'Previous and next month dates are significantly more faded so the current month is always the focus.',
-          'Calendar nav arrows are slightly bolder (2.5px stroke) and the "Today" button matches their style exactly.',
-          'Popup shadow reduced to feel lighter and less heavy on screen.',
+          'Unified brand styling: all blue accents, focus rings, toggles, and handles now use a single --brand-blue variable.',
+          'Split view sidebar layout: active columns are highlighted together, and sidebars auto-hide to maximize editing space.',
+          'Optimized month navigation in the date picker with zero layout shifting.',
+          'Performance upgrades: modularized canvas logic files for faster rendering and smoother canvas editing.'
         ]
       },
       {
         type: 'fixed',
         items: [
-          'Unified all blue accents across the app — toggle switches, focus rings, calendar highlights, and canvas handles all use a single --brand-blue variable. Change one value in CSS and everything updates.',
-          'Removed a duplicate --color-brand-blue CSS variable that existed alongside --brand-blue but was never used.',
-          'Time fields in the date picker were not editable — typing would snap back immediately. Now you can type freely and it commits on blur or Enter.',
-          'Fixed content shifting when the input border changed thickness on focus.',
+          'Fixed five critical canvas interaction bugs: arrow preview clipping, ghost-drag jumps, corner-radius resizing, binding hover states, and waypoint glitches.',
+          'Fixed split view bugs: resolved sidebar highlighting, unpinned columns getting stuck, and drag handle overflow clipping.',
+          'Fixed date picker time fields that were uneditable or snapping back during typing.'
         ]
       }
     ]

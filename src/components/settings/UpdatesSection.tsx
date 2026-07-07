@@ -91,23 +91,27 @@ export default function UpdatesSection() {
         >
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              {patch.featured ? (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--brand-blue)]/15 border border-[var(--brand-blue)]/30 text-xs font-bold text-[var(--brand-blue)] font-mono">
-                  <Star className="w-3 h-3 fill-current" />
-                  Major Release v{patch.version}
-                </span>
-              ) : (
-                <span className="px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/20 text-xs font-bold text-accent font-mono">
-                  v{patch.version}
-                </span>
-              )}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={cn(
+                "px-2.5 py-1 rounded-lg text-xs font-bold font-mono",
+                patch.featured
+                  ? "bg-[var(--brand-blue)]/15 border border-[var(--brand-blue)]/30 text-[var(--brand-blue)]"
+                  : "bg-accent/10 border border-accent/20 text-accent"
+              )}>
+                v{patch.version}
+              </span>
               <h4 className={cn(
                 "font-bold text-[var(--bone-100)] tracking-tight",
                 patch.featured ? "text-[17px]" : "text-[15px]"
               )}>
                 {patch.title}
               </h4>
+              {patch.featured && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--brand-blue)]/10 text-[10px] font-bold text-[var(--brand-blue)] uppercase tracking-wider">
+                  <Star className="w-2.5 h-2.5 fill-current" />
+                  Major
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[var(--bone-40)] font-medium">
               <Calendar className="w-3.5 h-3.5" />

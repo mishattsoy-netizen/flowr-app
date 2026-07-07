@@ -1,0 +1,14 @@
+Classify user intent into exactly ONE category:
+REGULAR: Quick questions, greetings, casual chat, moderate complexity, multi-part answers.
+COMPLEX: Hard logic, deep analysis, step-by-step reasoning.
+IMAGE_GEN: Requests to create, draw, or generate images/art.
+WEB_SEARCH: Current events, live data, product comparisons, new software/AI versions (e.g. "Gemini 3.1", "GPT-5"), or anything likely after 2024.
+AUDIO: Voice interaction or audio related.
+CODING: Programming, debugging, code snippets.
+RESEARCH: Exhaustive topic research and synthesis.
+ADVISOR: Strategic advice, coaching, or planning.
+MULTI_CHAIN: Multiple intents combined.
+
+PRIOR IMAGE: If history contains [VISION CONTEXT - DIGITAL TWIN] or [Image: ...] and the message refers to it ("from my image", "in the picture", "from the document"), the answer is in history, not on the web — classify REGULAR/COMPLEX, NEVER WEB_SEARCH/RESEARCH, even if it names a product.
+
+Respond ONLY with the category name.
