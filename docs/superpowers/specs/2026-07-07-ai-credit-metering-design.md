@@ -145,7 +145,21 @@ Two unrelated things share the word "cache" in this codebase:
 - `promptCache.ts` (in-memory compiled-prompt / prompt-hash caching) is a **server performance optimization only** — it has no effect on cost and is irrelevant to this design.
 - Provider-side token caching (`cache_read_input_tokens`/`cache_creation_input_tokens`) directly affects real dollar cost and is handled by the formula fix in §1. A failed cache write/read is not a special case — the provider simply reports 0 cache tokens for that call (cache miss) and the formula naturally charges full price, exactly as if caching wasn't attempted.
 
-## 4. Settings page usage panel
+## 4. Session context management (compaction)
+
+Separate concern from budget metering: this is about fitting a conversation inside a model's context window, not about how much a user has spent. Kept as infinite, auto-compacting sessions — no visible per-session limit, no forced "start a new chat" wall. This matches how ChatGPT/Claude.ai behave and is the right UX; a hard token cutoff per session would be an abrupt, unexplainable wall to a user who doesn't think in tokens.
+
+**What already exists and is being kept as-is:** `manageSessionCompaction` ([memoryManager](../../../src/lib/bot/services/memoryManager.ts), invoked at [chainRouter.ts:220](../../../src/lib/bot/chainRouter.ts#L220)) tracks a running `token_usage_total` per session and triggers `compactSession` ([compaction.ts:73](../../../src/lib/bot/compaction.ts#L73)) once usage crosses `compaction_threshold` (80%) of `context_limit`. Compaction runs a cheap model over the raw history and replaces it with a `[SESSION MEMORY SUMMARY]` injected into future prompts, so total tokens sent per request stay bounded while the conversation feels continuous to the user.
+
+Two gaps to close as part of this work:
+
+1. **Compaction cost is currently untracked.** `compactSession` makes a real model call ([compaction.ts:95](../../../src/lib/bot/compaction.ts#L95)) but nothing charges it anywhere. Since it's `await`ed inline in the request path that triggered it ([chainRouter.ts:1229](../../../src/lib/bot/chainRouter.ts#L1229)), it naturally becomes one more addend into that request's per-request cost accumulator (§3) — charged to the user whose message crossed the threshold, same as any other pipeline step.
+
+2. **`context_limit` is currently a single flat 32000 for all sessions**, regardless of which model actually answered ([chainRouter.ts:1225](../../../src/lib/bot/chainRouter.ts#L1225): `sessionState?.context_limit ?? 32000`). Now that `models.context_window` is being made data-complete (§2), the compaction trigger should use *the current model's real context window* (minus headroom for `max_output_tokens` and prompt overhead) instead of the flat guess. A request routed to a 200k-context model shouldn't compact as aggressively as one routed to an 8k-context model — using the real limit means fewer unnecessary compactions (saves cost) and avoids the flat 32k guess silently truncating a large-context model's usable history. If the model has no stored `context_window`, fall back to today's 32000 default — no regression for unconfigured models.
+
+This is intentionally orthogonal to the 5h/weekly/monthly $ budget in §2–3: compaction governs what fits in one model call's input, the credit ledger governs cumulative spend over time. A session can compact many times within a single 5h window; a user can run out of budget without ever approaching a context limit, and vice versa.
+
+## 5. Settings page usage panel
 
 New section, modeled directly on Claude.ai's usage UI:
 - Two progress bars: current 5-hour window and current week, each showing `spent / cap` and a reset countdown.
@@ -171,4 +185,5 @@ Matches Claude.ai's pattern: `"You've hit your 5-hour limit. Resets in {time}."`
 - Integration: pre-check rejects when a window is exhausted; post-charge fires on success, on simulated client abort, and on simulated mid-pipeline provider error.
 - Integration: `getRouterChain(category, 'pro')` falls back to `default` chain when no pro-specific row exists or its `model_list` is empty.
 - Unit: web search cost accumulation — Tavily fallback (2 calls) charges 2× `cost_per_call`; Exa search+extract in one pipeline charges both.
+- Unit: compaction trigger uses the current model's `context_window` when present, falls back to 32000 when not; compaction's own model call is included in the triggering request's charged total.
 - Manual: Settings usage panel reflects real spend after a live chat request; verify countdown timers match window boundaries.
