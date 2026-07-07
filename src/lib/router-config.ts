@@ -28,7 +28,17 @@ export type IntentCategory =
 
 export type Platform = 'telegram'
 
-async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain: RouterModel[], system_prompt?: string; temperature?: number; thinking_budget?: string | number }> {
+export type RouterMode = 'default' | 'pro'
+
+export function resolveChainWithFallback(
+  primary: { chain: RouterModel[]; temperature?: number; thinking_budget?: string | number } | undefined,
+  fallback: { chain: RouterModel[]; temperature?: number; thinking_budget?: string | number }
+): { chain: RouterModel[]; temperature?: number; thinking_budget?: string | number } {
+  if (primary && primary.chain.length > 0) return primary
+  return fallback
+}
+
+async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode): Promise<{ chain: RouterModel[], temperature?: number; thinking_budget?: string | number }> {
   let retryCount = 0
   const maxRetries = 2
 
@@ -37,9 +47,10 @@ async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain
       const [chainResult, tempsResult, budgetsResult, modelsResult] = await Promise.all([
         supabase
           .from('router_chains')
-          .select('model_list, system_prompt')
+          .select('model_list')
           .eq('category', category)
           .eq('platform', 'telegram')
+          .eq('mode', mode)
           .limit(1)
           .maybeSingle(),
         supabase
@@ -67,9 +78,9 @@ async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain
             await supabase.from('router_chains').insert({
               category,
               platform: 'telegram',
+              mode: 'default',
               model_list: [],
               is_enabled: true,
-              system_prompt: category === 'IMAGE_GEN' ? 'You are a professional image generation assistant. Expand user prompts into detailed, high-quality descriptions for image models.' : undefined
             })
             logger.info(`Created missing router chain entry for: ${category}`)
           } catch (e) {
@@ -111,13 +122,12 @@ async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain
       
       return {
         chain: enrichedChain,
-        system_prompt: (chainResult.data as any).system_prompt || undefined,
         temperature: customTemp,
         thinking_budget: customBudget
       }
     } catch (err) {
       if (retryCount === maxRetries) {
-        logger.error(`RouterChain DB load failed for ${category} after ${maxRetries} retries: ${(err as Error).message}.`)
+        logger.error(`RouterChain DB load failed for ${category} (mode=${mode}) after ${maxRetries} retries: ${(err as Error).message}.`)
         return { chain: [] }
       }
       retryCount++
@@ -127,13 +137,22 @@ async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain
   return { chain: [] }
 }
 
-export async function getRouterChain(category: IntentCategory) {
-  const getCached = unstable_cache(
-    async () => fetchRouterChainFromDb(category),
-    ['router-chain', category],
+export async function getRouterChain(category: IntentCategory, mode: RouterMode = 'default') {
+  const getCachedForMode = (m: RouterMode) => unstable_cache(
+    async () => fetchRouterChainFromDb(category, m),
+    ['router-chain', category, m],
     { tags: ['router-config'], revalidate: false }
-  )
-  return getCached()
+  )()
+
+  if (mode === 'default') {
+    return getCachedForMode('default')
+  }
+
+  const [proResult, defaultResult] = await Promise.all([
+    getCachedForMode('pro'),
+    getCachedForMode('default'),
+  ])
+  return resolveChainWithFallback(proResult, defaultResult)
 }
 
 async function fetchFallbackModesFromDb(): Promise<Record<string, 'model_first' | 'api_key_first'>> {
