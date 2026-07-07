@@ -21,7 +21,7 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
   const isLinux = /Linux/.test(ua);
   const skipModal = isLinux; // only macOS and Windows get the popup
 
-  const baseUrl = 'https://github.com/mishattsoy-netizen/flowr-app/releases/latest/download';
+  const baseUrl = 'https://github.com/mishattsoy-netizen/flowr-app-releases/releases/latest/download';
   const getDownloadUrl = () => {
     if (isMac) return `${baseUrl}/Flowr.dmg`;
     if (isLinux) return `${baseUrl}/Flowr.AppImage`;
