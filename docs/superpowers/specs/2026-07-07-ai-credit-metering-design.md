@@ -34,7 +34,9 @@ A Claude Sonnet 5 token costs roughly 100x a Gemini Flash Lite token. Counting r
 cost = prompt_tokens * prompt_cost + completion_tokens * completion_cost
 ```
 
-But providers also report `cache_read_input_tokens` / `cache_creation_input_tokens` (captured in `providerUsage`, e.g. [chainRouter.ts:1104](../../../src/lib/bot/chainRouter.ts#L1104)) which are **never factored into the formula**. Cache reads are billed at a steep discount by providers (Anthropic, OpenAI, Gemini) — since `prompt_tokens` typically already includes cached tokens in its total, the current formula overcharges whenever caching is active. This has been silently overestimating `cost_log` figures; it becomes a real user-facing problem once balances are debited from this same number.
+But providers also report `cache_read_input_tokens` / `cache_creation_input_tokens` (captured in `providerUsage`, e.g. [chainRouter.ts:1104](../../../src/lib/bot/chainRouter.ts#L1104)) which are **never factored into the formula**. Cache reads are billed at a steep discount.
+
+**Verified provider scope:** `cache_read_input_tokens`/`cache_creation_input_tokens` are only ever populated by the OpenRouter adapter ([openrouter.ts:397-398](../../../src/lib/bot/providers/openrouter.ts#L397)), which passes through OpenRouter's normalized `usage` object — Google/Groq/NVIDIA adapters never set these fields, so they're always `undefined`/0 for those paths and the formula below degrades to today's behavior automatically, no per-provider branching needed. OpenRouter's normalized format reports `prompt_tokens` as the *total* input including cached tokens (OpenAI-style additive accounting), so subtracting `cache_read_tokens` from it is correct for the one adapter this ever applies to. This has been silently overestimating `cost_log` figures for OpenRouter-routed calls with caching active; it becomes a real user-facing problem once balances are debited from this same number.
 
 Fix: add `cache_read_cost` and `cache_write_cost` (nullable) to the `models` table. New formula:
 
@@ -76,6 +78,8 @@ Free tier: `price_usd = 0`, but `credit_percent`/an admin-set override still yie
 | `tier_id` | text fk → subscription_tiers | |
 | `period_start` | timestamptz | current billing cycle start |
 | `period_end` | timestamptz | current billing cycle end (monthly) |
+| `window_5h_anchor` | timestamptz, nullable | when the current 5h window started; null = no window open |
+| `window_week_anchor` | timestamptz, nullable | when the current weekly window started; null = no window open |
 
 ### `credit_spend_events` (new — the ledger)
 
@@ -83,12 +87,17 @@ Free tier: `price_usd = 0`, but `credit_percent`/an admin-set override still yie
 |---|---|---|
 | `id` | bigserial pk | |
 | `user_id` | uuid fk | |
-| `request_id` | uuid | one row per chat request (post-charge, see §4) |
-| `amount_usd` | numeric | total accumulated cost across all pipeline steps for this request; may be 0 |
+| `request_id` | uuid | one row per chat request, reserved then reconciled in place (see §3) |
+| `amount_usd` | numeric | reservation estimate until reconciled, then total accumulated cost across all pipeline steps; may be 0 |
 | `mode` | text | default/pro, for reporting |
+| `is_reservation` | boolean | true = still the flat reserve-phase estimate, not yet reconciled to real cost (should never be true after the request completes) |
 | `created_at` | timestamptz | default now() |
 
-Balance for any window is **derived**, not stored: `cap_for_window - sum(amount_usd where created_at >= window_start)`. This is what makes 5h/weekly/monthly simultaneously computable from one source of truth, and keeps the ledger auditable (a support dispute is answerable by reading rows, not trusting a mutable counter). This replaces `increment_my_quota` / `user_quotas` entirely — that RPC and table are removed once this ships.
+Index: `(user_id, created_at)` — every window-sum query filters on both.
+
+**Windows are fixed, not sliding**, to support a real "resets at HH:MM" countdown matching the Claude.ai UX (§5) — a sliding window has no single reset moment since old spend continuously ages out. The first charge in a new period starts the clock: `window_5h_anchor`/`window_week_anchor` on `user_subscriptions` mark when the current window began. A window's spend = `sum(amount_usd where created_at >= anchor)`; once `now() >= anchor + window_hours` (or `+ 7 days` for weekly), the next request starts a fresh window (new anchor = that request's timestamp) rather than continuing to sum against the stale one. Monthly uses `user_subscriptions.period_start`/`period_end` directly (already fixed, one cycle) — no separate anchor needed.
+
+Balance for any window is otherwise **derived**, not stored as a running counter: `cap_for_window - sum(amount_usd where created_at >= anchor)`. This keeps the ledger auditable (a support dispute is answerable by reading rows, not trusting a mutable counter) and replaces `increment_my_quota` / `user_quotas` entirely — that RPC and table are removed once this ships.
 
 ### `router_chains` (existing — add `mode`)
 
@@ -110,14 +119,22 @@ Tavily and Exa are billed per API call (a flat cost per search/fetch), not per t
 
 Columns: `id` (pk), `cost_per_call` (numeric), `notes` (text, optional — e.g. "advanced search tier"). Editable via the same admin settings surface as other pricing, since provider pricing plans change independently of code.
 
-## 3. Request flow: pre-check → run → accumulate → post-charge
+## 3. Request flow: reserve → run → accumulate → reconcile
 
-Dollar cost is only known *after* a model responds, so the flow is necessarily pre-check-then-charge, not charge-up-front:
+Dollar cost is only known *after* a model responds, so charging can't happen up front. But a plain "check balance, then charge later" (two separate steps) has a race: two near-simultaneous requests can both pass the check before either has charged, together exceeding the cap. Large providers close this gap with an atomic reserve step rather than per-user locking — same approach here, via a single Postgres RPC per phase so the check-and-write happens in one transaction.
 
-1. **Pre-check** (before `runChain`): sum `credit_spend_events` for the user across all three windows (5h, week, month). If any window's cap is already met or exceeded, reject with `429` naming which window and its `resets_at` timestamp. No provider is called.
-2. **Run**: `runChain` executes its pipeline as today (classifier → vision → search → synthesis, etc.).
-3. **Accumulate**: every step that currently calls `logCost` (e.g. [chainRouter.ts:397](../../../src/lib/bot/chainRouter.ts#L397), [chainRouter.ts:1117](../../../src/lib/bot/chainRouter.ts#L1117)) also adds its `total_cost` to a running total carried on the shared pipeline context object already threaded through `runChain`.
-4. **Post-charge**: after `runChain` returns — success, error, or client abort — write one `credit_spend_events` row with the accumulated total. This happens in the route's `finally` block ([route.ts:228](../../../src/app/api/ai/chat/route.ts#L228)) so it fires on every exit path, not just the success path.
+**Phase 1 — reserve (before `runChain`):** `reserve_credit(user_id, mode)` RPC, in one transaction:
+1. Sums `credit_spend_events` for the user across all three windows (5h, week, month) using the fixed-window anchors (§2), rolling a window's anchor forward first if it's expired.
+2. If `spend + RESERVATION_ESTIMATE_USD` (a small flat constant, e.g. $0.02, admin-configurable via `settings`) would exceed any cap, returns `{ allowed: false, window: '5h'|'week'|'month', resets_at }`. No provider is called; route returns `429` with that info.
+3. Otherwise inserts a `credit_spend_events` row with `amount_usd = RESERVATION_ESTIMATE_USD, is_reservation = true` and returns `{ allowed: true, reservation_id }`.
+
+**Phase 2 — run + accumulate:** `runChain` executes its pipeline as today (classifier → vision → search → synthesis, etc.). Every step that currently calls `logCost` (e.g. [chainRouter.ts:397](../../../src/lib/bot/chainRouter.ts#L397), [chainRouter.ts:1117](../../../src/lib/bot/chainRouter.ts#L1117)), plus web search calls (§3 below) and compaction (§4), adds its cost to a running total carried on the shared pipeline context object already threaded through `runChain`.
+
+**Phase 3 — reconcile (after `runChain` returns — success, error, or client abort):** `reconcile_credit(reservation_id, real_amount_usd)` RPC updates that same row: `amount_usd = real_amount_usd, is_reservation = false`. Runs in the route's `finally` block ([route.ts:228](../../../src/app/api/ai/chat/route.ts#L228)) so it fires on every exit path. If `real_amount_usd` was less than the reservation, the user's effective balance goes back up; if more, it goes down — either way the ledger ends up accurate, and the only value ever left inconsistent between phase 1 and phase 3 is bounded by `RESERVATION_ESTIMATE_USD`, not the full request cost.
+
+### Anonymous / unauthenticated users
+
+Pro and Max are gated entirely behind login — not a metering question, an auth gate checked before any credit logic runs. If `userId === 'anonymous'` (no Supabase session) and the resolved `mode` would be `'pro'`, reject with `401` before calling `reserve_credit` at all: *"Sign in to use Pro/Max features."* Anonymous users on `mode: 'default'` proceed through the normal default-tier flow as today (desktop-local free usage is explicitly allowed to be account-less per product design; only Pro/Max requires an account).
 
 A multi-step pipeline can overshoot a cap slightly (checked once at start, charged once at end) — accepted trade-off; overage is at most a few cents given per-call costs at this scale, and re-checking after every step would add latency and complexity disproportionate to the risk.
 
@@ -184,7 +201,7 @@ New section, modeled directly on Claude.ai's usage UI:
 - Current plan name + monthly credit summary.
 - Upgrade CTA linking to plan selection.
 
-Backed by `GET /api/usage`, which runs the same three window-sum queries as the pre-check (read-only), returning `{ window: { spent, cap, resets_at }, weekly: {...}, monthly: {...}, tier }`.
+Backed by `GET /api/usage`, which runs the same three fixed-window-anchor sum queries as `reserve_credit` (read-only, no reservation written), returning `{ window: { spent, cap, resets_at }, weekly: {...}, monthly: {...}, tier }`.
 
 ### Block message (5h/weekly/monthly limit hit)
 
@@ -200,7 +217,10 @@ Matches Claude.ai's pattern: `"You've hit your 5-hour limit. Resets in {time}."`
 
 - Unit: cost formula (with/without cache tokens, with/without cache pricing configured on the model).
 - Unit: window-sum derivation (5h/weekly/monthly) from a seeded set of `credit_spend_events` rows, including boundary timing.
-- Integration: pre-check rejects when a window is exhausted; post-charge fires on success, on simulated client abort, and on simulated mid-pipeline provider error.
+- Integration: `reserve_credit` rejects when a window is exhausted; `reconcile_credit` fires on success, on simulated client abort, and on simulated mid-pipeline provider error, correctly adjusting the ledger up or down from the flat reservation estimate.
+- Integration: two concurrent `reserve_credit` calls for a user near their cap — verify at most one succeeds when both would exceed it together (race coverage for the atomic-RPC fix).
+- Integration: window anchor rolls forward correctly once `now() >= anchor + window_hours`, and a fresh anchor is set on the next request rather than continuing to sum against the expired window.
+- Unit: anonymous user requesting `mode: 'pro'` is rejected with 401 before `reserve_credit` is ever called; anonymous + `mode: 'default'` proceeds normally.
 - Integration: `getRouterChain(category, 'pro')` falls back to `default` chain when no pro-specific row exists or its `model_list` is empty.
 - Unit: web search cost accumulation — Tavily fallback (2 calls) charges 2× `cost_per_call`; Exa search+extract in one pipeline charges both.
 - Unit: compaction trigger fires at 80% of the flat 32000 ceiling; meter excludes system prompt and any per-request-only injected content (search/vision), counts only persisted/resent history; compaction's own model call is included in the triggering request's charged total.
