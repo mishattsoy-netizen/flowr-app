@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Write transcript file
-        if (result.transcript_md) {
+        if (result.transcript_md && !process.env.VERCEL) {
           try {
             const transcriptsDir = path.join(process.cwd(), 'transcripts')
             fs.mkdirSync(transcriptsDir, { recursive: true })

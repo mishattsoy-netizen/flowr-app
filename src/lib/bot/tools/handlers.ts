@@ -17,6 +17,13 @@ async function resolveSpaceId(context: any): Promise<string | null> {
   return spaceId
 }
 
+// Helper: check if user is anonymous or has invalid UUID
+function isUserAnonymous(context: any): boolean {
+  if (!context?.userId || context.userId === 'anonymous') return true
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(context.userId)
+  return !isUuid
+}
+
 // Helper: parse content to blocks JSON string
 function contentToBlocks(content?: string, blocks?: BlockInput[]): any {
   if (content) return parseMarkdownToBlocks(content)
@@ -29,7 +36,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
   // ── CREATE CONTENT ────────────────────────────────────────────────────────────
   async create_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
+    }
 
     const { type, title, content, blocks, parentId, assignedWorkspaceId,
             status, priority, tag, dueDate, description, subtasks } = args
@@ -143,7 +152,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
   // ── UPDATE CONTENT ────────────────────────────────────────────────────────────
   async update_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
+    }
 
     const { id, title, content, blocks, assignedWorkspaceId,
             status, priority, tag, dueDate, endDate, includeTime, reminder, description, subtasks } = args
@@ -196,7 +207,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
   // ── APPEND TO NOTE ────────────────────────────────────────────────────────────
   async append_to_note(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
+    }
 
     const { id, content, blocks } = args
     if (!id) return { error: "'id' is required" }
@@ -242,7 +255,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
   // ── MOVE CONTENT ──────────────────────────────────────────────────────────────
   async move_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
+    }
 
     const { id, parentId } = args
     if (!id) return { error: "'id' is required" }
@@ -265,7 +280,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
   // ── LIST CONTENT ──────────────────────────────────────────────────────────────
   async list_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
+    }
 
     try {
       const spaceId = await resolveSpaceId(context)

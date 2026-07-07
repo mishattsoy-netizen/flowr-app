@@ -3,7 +3,8 @@
 import { supabaseAdmin } from '@/lib/supabase'
 
 export async function getAiUserDescription(userId: string): Promise<string | null> {
-  if (!supabaseAdmin) return null
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+  if (!isUuid || !supabaseAdmin) return null
 
   const { data, error } = await supabaseAdmin
     .from('settings')
@@ -21,8 +22,9 @@ export async function getAiUserDescription(userId: string): Promise<string | nul
 }
 
 export async function saveAiUserDescription(userId: string, description: string): Promise<{ success: boolean; error?: string }> {
-  if (!supabaseAdmin) {
-    return { success: false, error: 'Database not available' }
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+  if (!isUuid || !supabaseAdmin) {
+    return { success: false, error: 'Database not available or invalid user ID' }
   }
 
   const { error } = await supabaseAdmin
