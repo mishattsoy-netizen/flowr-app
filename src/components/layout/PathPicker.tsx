@@ -28,9 +28,9 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
 
   const excludeIds = excludeEntityId ? new Set([excludeEntityId, ...getDescendants(excludeEntityId)]) : new Set();
 
-  // Only collections and folders are valid container targets
+  // Only spaces and folders are valid container targets
   const allContainers = entities.filter(e =>
-    (e.type === 'collection' || e.type === 'workspace' || e.type === 'folder') && !excludeIds.has(e.id)
+    (e.type === 'workspace' || e.type === 'folder') && !excludeIds.has(e.id)
   );
 
   const renderTree = (parentId: string | null = null, depth = 0) => {
@@ -58,7 +58,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
                 }}
                 className={cn(
                   "group flex items-center w-full px-3 py-1.5 cursor-pointer text-left outline-none rounded-[var(--radius-small)] transition-none",
-                  (node.type === 'collection' || node.type === 'workspace') ? "text-[14px] font-semibold" : "text-[13px]",
+                  node.type === 'workspace' ? "text-[14px] font-semibold" : "text-[13px]",
                   isSelected
                     ? "bg-[var(--bone-15)] text-[var(--bone-100)]"
                     : "text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
@@ -70,7 +70,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
 
                 <Folder strokeWidth={2} className={cn(
                   "mr-2 shrink-0 text-[var(--bone-100)] transition-opacity duration-200",
-                  (node.type === 'collection' || node.type === 'workspace') ? "w-4 h-4 opacity-70" : "w-3.5 h-3.5",
+                  node.type === 'workspace' ? "w-4 h-4 opacity-70" : "w-3.5 h-3.5",
                   isSelected ? "opacity-100" : "opacity-30 group-hover:opacity-100"
                 )} />
                 <span className="truncate flex-1">{node.title}</span>
@@ -110,7 +110,7 @@ export function PathPicker({ selectedId, onSelect, excludeEntityId }: PathPicker
     <div className="w-full bg-[var(--bone-2)] border border-[var(--bone-6)] rounded-[var(--radius-medium)] max-h-60 overflow-y-auto scrollbar-none py-1 flex flex-col gap-[1px]">
       {renderTree(null, 0)}
       {allContainers.length === 0 && (
-        <div className="text-xs text-muted-foreground p-3 text-center">No available workspaces</div>
+        <div className="text-xs text-muted-foreground p-3 text-center">No available spaces</div>
       )}
     </div>
   );

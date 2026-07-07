@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Plus, Search, FileText, Frame, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useStore, Entity, EditorBlock } from '@/data/store';
+import { useStore, Entity, EditorBlock, generateId } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { SmartTaskStackWidget } from '@/components/workspace/widgets/SmartTaskStackWidget';
@@ -288,7 +288,7 @@ export function Dashboard() {
   }, [user, cachedDisplayName, setCachedDisplayName]);
 
   const setCommandPaletteOpen = useStore(state => state.setCommandPaletteOpen);
-  const openModal = useStore(state => state.openModal);
+  const addEntity = useStore(state => state.addEntity);
   const now = new Date();
   const { resolvedTheme } = useTheme();
 
@@ -296,9 +296,10 @@ export function Dashboard() {
   const recentEntityIds = useStore(state => state.recentEntityIds);
   const entities = useStore(state => state.entities);
   const allBlocks = useStore(state => state.blocks);
-  const workspaces = useStore(state => state.workspaces);
+  const spaces = useStore(state => state.spaces);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
-  const setActiveWorkspaceId = useStore(state => state.setActiveWorkspaceId);
+  const setActiveSpaceId = useStore(state => state.setActiveSpaceId);
+  const activeSpaceId = useStore(state => state.activeSpaceId);
   const isFullWidth = useStore(state => state.isFullWidth);
   const [recentSort, setRecentSort] = useState<'opened' | 'edited'>('opened');
   const [showSortPicker, setShowSortPicker] = useState(false);
@@ -361,13 +362,13 @@ export function Dashboard() {
   const recentEntities = useMemo(() => {
     const list = recentEntityIds
       .map(id => entities.find(e => e.id === id))
-      .filter((e): e is Entity => !!e && (e.type === 'note' || e.type === 'canvas'))
+      .filter((e): e is Entity => !!e && (e.type === 'note' || e.type === 'canvas') && (e.spaceId || 'ws-personal') === activeSpaceId)
       .slice(0, 10);
     if (recentSort === 'edited') {
       return [...list].sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
     }
     return list; // 'opened' order is preserved from recentEntityIds
-  }, [recentEntityIds, entities, recentSort]);
+  }, [recentEntityIds, entities, recentSort, activeSpaceId]);
 
   const scrollSlider = (direction: 'left' | 'right') => {
     if (sliderRef.current) {
@@ -380,8 +381,8 @@ export function Dashboard() {
   };
 
   const handleCardClick = (entity: Entity) => {
-    if (entity.workspaceId) {
-      setActiveWorkspaceId(entity.workspaceId);
+    if (entity.spaceId) {
+      setActiveSpaceId(entity.spaceId);
     }
     setActiveEntityId(entity.id);
   };
@@ -434,7 +435,15 @@ export function Dashboard() {
                   <button
                     key={opt.type}
                     onClick={() => {
-                      openModal({ kind: 'newItem', initialType: opt.type, defaultToFirstCollection: true });
+                      const newId = generateId();
+                      addEntity({
+                        id: newId,
+                        title: `Untitled ${opt.label}`,
+                        type: opt.type,
+                        parentId: null,
+                        lastModified: Date.now(),
+                      });
+                      setActiveEntityId(newId);
                       setShowPlusPopup(false);
                     }}
                     className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
@@ -510,7 +519,7 @@ export function Dashboard() {
               {recentEntities.map(entity => {
                 const isNote = entity.type === 'note';
                 const Icon = isNote ? FileText : Frame;
-                const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
+                const ws = entity.spaceId ? spaces.find(w => w.id === entity.spaceId) : null;
                 const parentEntity = entity.parentId ? entities.find(e => e.id === entity.parentId) : null;
                 const locationLabel = parentEntity?.title || 'Unsorted';
 

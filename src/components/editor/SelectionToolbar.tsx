@@ -16,7 +16,8 @@ const HIGHLIGHT_COLORS = [
   { name: 'orange', class: 'highlight-orange', color: 'rgba(249, 115, 22, 0.5)' },
 ];
 
-export function SelectionToolbar({ editorRef }: { editorRef: React.RefObject<HTMLDivElement | null> }) {
+export function SelectionToolbar({ editorRef, isReadOnly = false }: { editorRef: React.RefObject<HTMLDivElement | null>; isReadOnly?: boolean }) {
+  if (isReadOnly) return null;
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [activeFmt, setActiveFmt] = useState<Set<string>>(new Set());

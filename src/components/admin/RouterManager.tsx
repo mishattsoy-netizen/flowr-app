@@ -218,7 +218,7 @@ export default function RouterManager({
   const ALL_CATEGORIES: IntentCategory[] = [
     'REGULAR', 'COMPLEX', 'CLASSIFIER',
     'VISION', 'IMAGE_GEN', 'WEB_SEARCH', 'RESEARCH',
-    'TOOLS', 'CODING', 'THINKING', 'ADVISOR',
+    'CODING', 'THINKING', 'ADVISOR',
   ]
   const [isSubchainView, setIsSubchainView] = useState(false)
   const [subchains, setSubchains] = useState<SubchainConfig[]>([])

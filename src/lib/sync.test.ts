@@ -27,7 +27,7 @@ describe('self-originated DELETE echo suppression', () => {
   });
 
   it('suppresses a task delete echo (disabling cloud sync deletes a workspace task)', () => {
-    // Tasks share the same self-delete tracking as entities/workspaces.
+    // Tasks share the same self-delete tracking as entities/spaces.
     markSelfDeleted('task-42');
     expect(consumeSelfDeleteEcho('task-42')).toBe(true);
   });

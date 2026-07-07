@@ -1,7 +1,10 @@
-Task 1: complete (commit e93c869, review clean - existing code, verified inline)
-Task 2: complete (commit 6e19bb6, review clean - one-line gate, verified inline)
-Task 3: complete (commit 4381940, review clean - 5/5 tests passing, verified inline; frontmatter test format corrected from plan's quoted-key example to match actual serializeFrontmatter output; window mock switched to globalThis.window assignment since bare `window` global doesn't exist in vitest node environment)
-Task 4: complete (commit 8aedc93, tsc --noEmit clean, verified inline; ModalType union in current codebase lacked the plan's assumed 'newTask' kind, so syncFileCleanup was appended after 'summaryPreview' instead of before it — no functional difference)
-Task 5: complete (commit 51b60c3, tsc --noEmit clean, verified inline; SupabaseProvider.tsx structure matched plan closely, scanForStaleLocalFiles wired in after setInitialSync(false) in the initial load .then() block)
-Final whole-branch review (Tasks 2-5, e93c869..51b60c3): Ready to merge with fixes. No Critical findings (destructive-delete path verified safe: loadFromSupabase has no entity filter, Entity has no soft-delete field, parseVaultFile requires Flowr id+syncMode so plain user files are never offered for deletion). Important #1 (keep-local-copy not durable, re-nags every launch) and #2 (batch modal copy claimed per-file choice but only offered all-or-nothing) fixed in commit 14708d8 — added persisted ignore-list (localStorage, keyed by entity id or path) via markFilesKeptByUser/isFileKeptByUser/clearKeptFileForEntity in syncFileScan.ts, consulted by the startup scan; batch modal copy reworded to match all-or-nothing behavior. Minor findings (unused entityId field — now used by ignore-list; O(n) vault scan per mode-switch; no automated test for scan classification) left as-is, judged non-blocking.
-Task 6 (manual E2E in desktop app): deferred by user request, not yet performed.
+# SDD Progress — canvas-production-ready (plan: docs/superpowers/plans/2026-07-04-split-view-v3-paired-columns.md)
+Task 1: complete (commit 075b995; store.types.ts — pairedEntityId on Entity, new AppState fields, updated action signatures; tsc errors in downstream files as expected)
+Task 2: complete (commit 6f42cec; store.ts — toggleSplitView/setColumnEntity/togglePin/exitSplitView, v22 migration, auto-split in setActiveEntityId, split-aware removeTab, partialize update, fixed 4 pairedEntityId missing sites)
+Task 3: complete (commit c6068e6; ColumnHeader.tsx rewritten — single-entity header with icon+title+X+Pin+Columns2)
+Task 4: complete (commit c6068e6; ColumnPlaceholder.tsx created — logo, quick actions, search, recents, drag instruction)
+Task 5: complete (commit c6068e6; SplitViewLayout.tsx rewritten — two columns with drop targets, divider, placeholder support, resize logic)
+Task 6: complete (commit c6068e6; Shell.tsx — replaced old subscriptions with splitViewActive, simplified conditional)
+Task 7: complete (commit c6068e6; HeaderBar.tsx — removed column indicator strips, old subscriptions, dead Fragment wrapper)
+Task 8: complete (tsc --noEmit zero errors, all commits verified)
+ALL 8 TASKS COMPLETE.

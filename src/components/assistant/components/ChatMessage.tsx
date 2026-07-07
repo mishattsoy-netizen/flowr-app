@@ -2,7 +2,7 @@
 
 import React, { memo, useState, useRef, useEffect, useMemo, createContext, useContext } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
-import { Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink } from 'lucide-react';
+import { Layout, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, File, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink, Folder, Frame, Box, Hash } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
 import { useStore, generateId } from '@/data/store';
 import type { AIMessage, AIAttachment, EditorBlock } from '@/data/store';
@@ -15,6 +15,7 @@ import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
 import { useWordReveal } from '../hooks/useWordReveal';
 import { cn } from '@/lib/utils';
+import { getEntityIcon } from '@/data/icons';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseMarkdownToBlocks } from '@/lib/editor/markdownBlocks';
@@ -189,6 +190,10 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
 
   text = text.replace(ALL_TOOLS_FULL_REGEX, "");
 
+  // Strip XML tool tags from the UI so the user only sees the final response
+  const XML_TOOLS_REGEX = /<(create_note|edit_note|delete_entity|move_entity|read_tasks|read_workspace_content|read_all_content|web_search|deep_research|generate_image|read_workspace|add_task|edit_canvas|create_canvas|edit_task|create_workspace)[^>]*>([\s\S]*?)<\/\1>|<(create_note|edit_note|delete_entity|move_entity|read_tasks|read_workspace_content|read_all_content|web_search|deep_research|generate_image|read_workspace|add_task|edit_canvas|create_canvas|edit_task|create_workspace)[^>]*\/>/gi;
+  text = text.replace(XML_TOOLS_REGEX, "");
+
   // Filter out internal reasoning patterns
   const reasoningPatterns = [
     /\*Neutrality:\*.*?\n/gi,
@@ -321,8 +326,8 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   // \mathbf{x}, \text{x}, \mathrm{x}, \textbf{x}, \textit{x} etc. → keep content
   text = text.replace(/\\(?:mathbf|mathit|mathrm|mathsf|mathtt|text|textbf|textit|textrm|boldsymbol|hat|bar|vec|tilde|dot|ddot|overline|underline)\{([^}]*)\}/g, '$1');
   // Convert ^{...} and _{...} to Unicode super/subscripts where possible.
-  const SUP_MAP: Record<string, string> = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','a':'ᵃ','b':'ᵇ','i':'ⁱ','j':'ʲ','+':'⁺','-':'⁻','(':'⁽',')':'⁾' };
-  const SUB_MAP: Record<string, string> = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','n':'ₙ','a':'ₐ','i':'ᵢ','j':'ⱼ' };
+  const SUP_MAP: Record<string, string> = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', 'a': 'ᵃ', 'b': 'ᵇ', 'i': 'ⁱ', 'j': 'ʲ', '+': '⁺', '-': '⁻', '(': '⁽', ')': '⁾' };
+  const SUB_MAP: Record<string, string> = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', 'n': 'ₙ', 'a': 'ₐ', 'i': 'ᵢ', 'j': 'ⱼ' };
   const toSup = (s: string) => s.split('').map(c => SUP_MAP[c] ?? c).join('');
   const toSub = (s: string) => s.split('').map(c => SUB_MAP[c] ?? c).join('');
   // ^{expr} and ^single-char
@@ -528,7 +533,7 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
 
         if (!activeEntity || activeEntity.type !== 'canvas') {
           // Create new auto-generated canvas first!
-          const newCanvasId = addEntity({ type: 'canvas', title: 'Applied Flow Workspace' });
+          const newCanvasId = addEntity({ type: 'canvas', title: 'Applied Flow Space' });
           if (newCanvasId) {
             setActiveEntityId(newCanvasId);
             targetCanvasId = newCanvasId;
@@ -618,6 +623,80 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
   );
 };
 
+export const getEntityIconReact = (type: string, iconName?: string) => {
+  if (iconName) {
+    const IconComp = getEntityIcon(iconName);
+    if (iconName.length > 2) {
+      // It's an icon name (not emoji) — use the Lucide component
+      return <IconComp className="w-3.5 h-3.5 opacity-60" />;
+    }
+    // It's an emoji
+    return <span className="font-emoji text-[12px] leading-none text-center">{iconName}</span>
+  }
+  
+  if (type === 'workspace') return <Box className="w-3.5 h-3.5 opacity-60" />;
+  switch (type) {
+    case 'note': return <FileText className="w-3.5 h-3.5 opacity-60" />;
+    case 'folder': return <Folder className="w-3.5 h-3.5 opacity-60" />;
+    case 'canvas': return <Frame className="w-3.5 h-3.5 opacity-60" />;
+    default: return <Hash className="w-3.5 h-3.5 opacity-60" />;
+  }
+}
+
+export const parseMentions = (contentArray: any[], entities: any[], spaces: any[]) => {
+  const allMentionables = [
+    ...entities.filter(e => ['folder', 'note', 'canvas'].includes(e.type)).map(e => ({ title: e.title, type: e.type, id: e.id, icon: e.icon })),
+    ...spaces.map(w => ({ title: w.name, type: 'workspace', id: w.id, icon: w.icon || (w.type === 'personal' ? 'User' : 'Box') }))
+  ];
+  allMentionables.sort((a, b) => (b.title || '').length - (a.title || '').length);
+
+  let renderedContent: any[] = contentArray;
+  for (const item of allMentionables) {
+    if (!item.title) continue;
+    const mentionText = `@${item.title.trim()}`;
+    const regex = new RegExp(`(?<=\\s|^)(${mentionText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?=[\\s\\.,:;?!]|$)`, 'g');
+
+    renderedContent = renderedContent.flatMap(part => {
+      if (typeof part === 'string' && part.match(regex)) {
+        const subParts = part.split(regex);
+        const newParts: any[] = [];
+        subParts.forEach((sub, i) => {
+          if (sub === mentionText) {
+            if (item.type === 'workspace') {
+              newParts.push(
+                <button
+                  key={`${item.id}-${i}`}
+                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  onClick={() => useStore.getState().setActiveSpaceId(item.id)}
+                  title={`Switch to ${item.title}`}
+                >
+                  {getEntityIconReact(item.type, item.icon)}<span>{item.title}</span>
+                </button>
+              );
+            } else {
+              newParts.push(
+                <button
+                  key={`${item.id}-${i}`}
+                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  onClick={() => useStore.getState().addTab(item.id)}
+                  title={`Open ${item.title}`}
+                >
+                  {getEntityIconReact(item.type)}<span>{item.title}</span>
+                </button>
+              );
+            }
+          } else {
+            newParts.push(sub);
+          }
+        });
+        return newParts;
+      }
+      return part;
+    });
+  }
+  return renderedContent;
+};
+
 const UserMessageBubble = ({
   msg,
   targetContent,
@@ -631,6 +710,11 @@ const UserMessageBubble = ({
 }) => {
   const { resolvedTheme } = useTheme();
   const msgFontWeight = resolvedTheme === 'dark' ? 400 : 500;
+
+  const entities = useStore(state => state.entities);
+  const spaces = useStore(state => state.spaces);
+  const renderedTargetContent = useMemo(() => parseMentions([targetContent], entities, spaces), [targetContent, entities, spaces]);
+
   return (
     <div className="flex items-end gap-2 max-w-full">
       <div
@@ -638,7 +722,9 @@ const UserMessageBubble = ({
         style={{ backgroundColor: 'var(--app-dark)', borderRadius: '12px', fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}
       >
         <div className="flex flex-col gap-3">
-          <div className="break-words" style={{ fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}>{targetContent}</div>
+          <div className="break-words whitespace-pre-wrap" style={{ fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}>
+            {renderedTargetContent.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)}
+          </div>
           {msg.attachments && msg.attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-1">
               {msg.attachments.map((att: AIAttachment, i: number) => (
@@ -722,7 +808,7 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
           rel="noopener noreferrer"
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
-          className="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline"
+          className="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline"
         >
           {faviconUrl && (
             <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none">
@@ -825,7 +911,8 @@ export const ChatMessage = memo(({
   handleAddImageToWorkspace,
   onRegenerate,
   onReply,
-  compact = false
+  compact = false,
+  chatPageMode = false
 }: {
   msg: AIMessage;
   isAILoading: boolean;
@@ -834,7 +921,7 @@ export const ChatMessage = memo(({
   handleAddImageToWorkspace: (url: string) => void;
   onRegenerate?: () => void;
   onReply: (msg: AIMessage) => void;
-  compact?: boolean;
+  compact?: boolean; chatPageMode?: boolean;
 }) => {
   const openModal = useStore(state => state.openModal);
   const activeEntityId = useStore(state => state.activeEntityId);
@@ -850,12 +937,12 @@ export const ChatMessage = memo(({
   const currentVariantIndex = msg.variantIndex ?? 0;
 
   const activeNote = useMemo(() => activeEntityId ? entities.find(e => e.id === activeEntityId) : null, [activeEntityId, entities]);
-  const isNoteActive = activeNote?.type === 'note' || activeNote?.type === 'mixed';
+  const isNoteActive = activeNote?.type === 'note';
 
   const handleCopyToNote = (asNew: boolean = false) => {
     const cleanContent = sanitizeContent(msg.content || '', false, false);
     const blocks = parseMarkdownToBlocks(cleanContent);
-    
+
     // Scan the parsed blocks to check which URLs have already been rendered as inline links
     const seenUrls = new Set<string>();
     const scanBlockForUrls = (b: EditorBlock) => {
@@ -880,20 +967,20 @@ export const ChatMessage = memo(({
     if (remainingCitations.length > 0) {
       const sourceButtonsHtml = remainingCitations.map(url => {
         let domain = 'Source';
-        try { domain = new URL(url).hostname.replace('www.', ''); } catch {}
-        
+        try { domain = new URL(url).hostname.replace('www.', ''); } catch { }
+
         let faviconUrl = '';
         try {
           faviconUrl = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
-        } catch (e) {}
+        } catch (e) { }
 
-        const faviconHtml = faviconUrl 
+        const faviconHtml = faviconUrl
           ? `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span>`
           : `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 pointer-events-none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>`;
 
-        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${domain}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${domain}</span></a>`;
+        return `<a href="${url}" class="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline" contenteditable="false" data-url="${url}" data-label="${domain}">${faviconHtml}<span class="max-w-[120px] truncate font-medium pointer-events-none">${domain}</span></a>`;
       }).join(' ');
-      
+
       blocks.push({
         id: generateId(),
         type: 'text',
@@ -1076,9 +1163,14 @@ export const ChatMessage = memo(({
           }
         }
 
+        // Basic client-side mention replacement for rendering (purely visual)
+        const entities = useStore.getState().entities;
+        const spaces = useStore.getState().spaces;
+        const renderedContent = parseMentions(childrenArray, entities, spaces);
+
         return (
           <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
-            {renderContentWithStyles(children)}
+            {renderedContent.map((c, i) => <React.Fragment key={i}>{typeof c === 'string' ? renderContentWithStyles(c) : c}</React.Fragment>)}
           </div>
         );
       },
@@ -1419,7 +1511,7 @@ export const ChatMessage = memo(({
         return (
           <InTableContext.Provider value={true}>
             <div className={cn(
-              "overflow-x-auto mt-3 mb-6 border border-[var(--bone-6)] rounded-2xl w-full bg-panel",
+              "overflow-x-auto mt-3 mb-6 border border-[var(--bone-10)] rounded-2xl w-full bg-panel",
               inList && "ml-[-12px] !w-[calc(100%+12px)]"
             )}>
               <table className={cn("w-full border-collapse font-sans", compact ? "text-[11.5px]" : "text-[13px]")}>{children}</table>
@@ -1429,14 +1521,14 @@ export const ChatMessage = memo(({
       },
       thead: ({ children }: any) => (
         <InHeaderContext.Provider value={true}>
-          <thead className="bg-[var(--bone-2)] border-b border-b-[var(--bone-6)]">{children}</thead>
+          <thead className="bg-[var(--bone-5)] border-b border-b-[var(--bone-10)]">{children}</thead>
         </InHeaderContext.Provider>
       ),
       tbody: ({ children }: any) => <tbody>{children}</tbody>,
-      tr: ({ children }: any) => <tr className="border-b border-b-[var(--bone-6)] last:border-b-0">{children}</tr>,
-      th: ({ children }: any) => <th className={cn("px-3 py-2.5 text-left font-bold uppercase tracking-wider text-bone-100 font-sans border-r border-r-[var(--bone-6)] last:border-r-0", compact ? "text-[9.5px]" : "text-[10.5px]")}>{children}</th>,
+      tr: ({ children }: any) => <tr className="border-b border-b-[var(--bone-10)] last:border-b-0">{children}</tr>,
+      th: ({ children }: any) => <th className={cn("px-3 py-2.5 text-left font-bold uppercase tracking-wider text-bone-100 font-sans border-r border-r-[var(--bone-10)] last:border-r-0", compact ? "text-[9.5px]" : "text-[10.5px]")}>{children}</th>,
       td: ({ children }: any) => (
-        <td className="px-3 py-2.5 text-bone-100 font-sans leading-snug first:font-semibold first:text-bone-100 border-r border-r-[var(--bone-6)] last:border-r-0">
+        <td className="px-3 py-2.5 text-bone-100 font-sans leading-snug first:font-semibold first:text-bone-100 border-r border-r-[var(--bone-10)] last:border-r-0">
           {children}
         </td>
       ),
@@ -1700,27 +1792,67 @@ export const ChatMessage = memo(({
 
                     {msg.toolResults && msg.toolResults.length > 0 && (
                       <div className="flex flex-col gap-2 w-full mt-3">
-                        {msg.toolResults.map((tr, i) => (
-                          <div
-                            key={i}
-                            onClick={() => tr.id && setActiveEntityId(tr.id)}
-                            className={cn(
-                              "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] cursor-pointer transition-all duration-200",
-                              "bg-white/5 hover:bg-white/10 border border-white/10 group/card"
-                            )}
-                          >
-                            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-                              <FileText strokeWidth={2} className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-bone-100 truncate">{tr.title || tr.type}</p>
-                              {tr.content_preview && (
-                                <p className="text-xs text-bone-40 truncate mt-0.5">{tr.content_preview}</p>
+                        {msg.toolResults.filter(tr => {
+                          const name = String((tr as any).tool || tr.type || '')
+                          return ['create_content', 'update_content', 'append_to_note', 'move_content'].includes(name)
+                        }).map((tr, i) => {
+                          const actionName = String((tr as any).tool || tr.type || '')
+                          const isTask = tr.type === 'task' || (tr.id && tr.id.startsWith('task-'))
+                          const isCanvas = tr.type === 'canvas' || (tr.id && tr.id.startsWith('canvas-'))
+                          const isFolder = tr.type === 'folder' || tr.type === 'workspace' || (tr.id && (tr.id.startsWith('folder-') || tr.id.startsWith('workspace-')))
+
+                          let actionText: string
+                          if (actionName === 'create_content') {
+                            const type = (tr.type && tr.type !== actionName) ? tr.type : (isTask ? 'Task' : isCanvas ? 'Canvas' : isFolder ? 'Folder' : 'Note')
+                            actionText = `New ${String(type).charAt(0).toUpperCase() + String(type).slice(1)}`
+                          } else if (actionName === 'update_content' || actionName === 'append_to_note') {
+                            actionText = 'Edited'
+                          } else if (actionName === 'move_content') {
+                            actionText = 'Moved'
+                          } else {
+                            actionText = 'Action'
+                          }
+
+                          const entityTitle = tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled')
+
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => {
+                                if (!tr.id) return;
+                                if (isTask) {
+                                  useStore.getState().openTaskPanel(tr.id);
+                                } else {
+                                  setActiveEntityId(tr.id);
+                                }
+                              }}
+                              className={cn(
+                                "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] cursor-pointer transition-all duration-200",
+                                "bg-white/5 hover:bg-white/10 border border-white/10 group/card"
                               )}
+                            >
+                              <div className="flex items-center text-bone-80 opacity-30 shrink-0 group-hover/card:opacity-80 transition-all">
+                                {isTask ? (
+                                  <CheckCircle2 strokeWidth={1.5} className="w-8 h-8" />
+                                ) : isCanvas ? (
+                                  <Layout strokeWidth={1.5} className="w-8 h-8" />
+                                ) : isFolder ? (
+                                  <Folder strokeWidth={1.5} className="w-8 h-8" />
+                                ) : (
+                                  <FileText strokeWidth={1.5} className="w-8 h-8" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <p className="text-[10px] uppercase tracking-wider text-bone-100 opacity-40 font-semibold mb-0.5">{actionText}</p>
+                                <p className="text-base font-serif font-medium tracking-tight text-bone-100 opacity-80 group-hover/card:opacity-100 transition-opacity truncate">{entityTitle}</p>
+                                {tr.content_preview && (
+                                  <p className="text-xs text-bone-40 truncate mt-0.5">{tr.content_preview}</p>
+                                )}
+                              </div>
+                              <ChevronRight strokeWidth={2} className="w-4 h-4 text-bone-30 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" />
                             </div>
-                            <ChevronRight strokeWidth={2} className="w-4 h-4 text-bone-30 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" />
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
 
@@ -1831,47 +1963,33 @@ export const ChatMessage = memo(({
                                 </button>
                               </Tooltip>
 
-                              {/* Copy to Note Split Button */}
+                              {/* Copy to Note Button */}
                               <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
                               <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
-                                <Tooltip content={isNoteActive ? "Append to active note" : "No active note to append"}>
-                                  <button
-                                    onClick={() => handleCopyToNote(false)}
-                                    disabled={!isNoteActive}
-                                    className={cn(
-                                      "h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors border-r border-white/5",
-                                      !isNoteActive && "opacity-30 cursor-not-allowed"
-                                    )}
-                                  >
-                                    <FileText className="w-2.5 h-2.5" />
-                                    <span>Note</span>
-                                  </button>
-                                </Tooltip>
-                                <DropdownMenu.Root>
-                                  <DropdownMenu.Trigger asChild>
-                                    <button className="h-full px-1 text-[var(--bone-30)] hover:text-bone-100 hover:bg-white/5 transition-colors flex items-center justify-center outline-none">
-                                      <ChevronDown className="w-2.5 h-2.5" />
-                                    </button>
-                                  </DropdownMenu.Trigger>
-                                  <DropdownMenu.Portal>
-                                    <DropdownMenu.Content
-                                      className="z-50 min-w-[160px] popup-glass-small p-1.5 flex flex-col gap-[3px]"
-                                      align="end"
-                                      sideOffset={5}
+                                {chatPageMode || !isNoteActive ? (
+                                  <Tooltip content="Create a new note with this message">
+                                    <button
+                                      onClick={() => handleCopyToNote(true)}
+                                      className="h-full px-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
                                     >
-                                      <DropdownMenu.Item
-                                        onSelect={() => handleCopyToNote(true)}
-                                        className="popup-item select-none outline-none"
-                                      >
-                                        <ClipboardCopy className="w-4 h-4" />
-                                        <span>Create New Note</span>
-                                      </DropdownMenu.Item>
-                                    </DropdownMenu.Content>
-                                  </DropdownMenu.Portal>
-                                </DropdownMenu.Root>
+                                      <FileText className="w-3 h-3" />
+                                      <span>New Note</span>
+                                    </button>
+                                  </Tooltip>
+                                ) : (
+                                  <Tooltip content="Append to active note">
+                                    <button
+                                      onClick={() => handleCopyToNote(false)}
+                                      className="h-full px-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      <span>Add to Note</span>
+                                    </button>
+                                  </Tooltip>
+                                )}
                               </div>
                               {/* Copy Transcript - only in dev server */}
-                              {process.env.NODE_ENV === 'development' && (
+                              {process.env.NODE_ENV === 'development' && chatPageMode && (
                                 (msg as any).transcript_md ? (
                                   <>
                                     <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
@@ -1901,7 +2019,7 @@ export const ChatMessage = memo(({
                             </>
                           )}
 
-                          {msg.model && (
+                          {msg.model && chatPageMode && (
                             <div className={cn(
                               "flex items-center px-2 py-0.5 rounded-full bg-[var(--app-dark)] opacity-40 hover:opacity-100 transition-all duration-300",
                               !isAILoading ? "ml-1" : "ml-0"

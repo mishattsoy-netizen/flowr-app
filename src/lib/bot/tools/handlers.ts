@@ -3,420 +3,391 @@ import { supabaseAdmin } from '../../supabase'
 import { parseMarkdownToBlocks, normalizeBlocks } from '../../editor/markdownBlocks'
 import type { BlockInput } from '../../editor/markdownBlocks'
 
-/**
- * Execution logic for the Flowr Utility Pack.
- */
+// Helper: resolve active space ID for a user
+async function resolveSpaceId(context: any): Promise<string | null> {
+  let spaceId = context?.activeSpaceId || null
+  if (context?.userId && context.userId !== 'anonymous') {
+    const { data: user } = await supabaseAdmin!
+      .from('profiles')
+      .select('active_space_id')
+      .eq('id', context.userId)
+      .single()
+    if (user?.active_space_id) spaceId = user.active_space_id
+  }
+  return spaceId
+}
+
+// Helper: parse content to blocks JSON string
+function contentToBlocks(content?: string, blocks?: BlockInput[]): any {
+  if (content) return parseMarkdownToBlocks(content)
+  if (blocks) return blocks
+  return []
+}
+
 export const toolHandlers: Record<string, (args: any, context?: any) => Promise<any>> = {
-  /**
-   * Crypto Price via CoinGecko
-   */
-  async get_crypto_price({ symbol }: { symbol: string }) {
-    try {
-      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol.toLowerCase()}&vs_currencies=usd`)
-      const data = await response.json()
-      const price = data[symbol.toLowerCase()]?.usd
-      return price ? { price, currency: 'USD', symbol } : { error: 'Symbol not found' }
-    } catch (e) {
-      return { error: 'Failed to fetch crypto price' }
-    }
-  },
 
-  /**
-   * Web Scraper
-   */
-  async fetch_web_page({ url }: { url: string }) {
-    try {
-      const response = await fetch(url)
-      const html = await response.text()
-      const text = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 3000)
-      return { content: text, source: url }
-    } catch (e) {
-      return { error: 'Failed to fetch web content' }
-    }
-  },
+  // ── CREATE CONTENT ────────────────────────────────────────────────────────────
+  async create_content(args: any, context: any) {
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    if (!context?.userId) return { error: 'User not identified' }
 
-  /**
-   * Tavily Search
-   */
-  async tavily_search({ query }: { query: string }, context?: any) {
-    const { runWebSearchChain } = await import('../providers/tavily')
-    const results = await runWebSearchChain(query, context)
-    return { results }
-  },
+    const { type, title, content, blocks, parentId, assignedWorkspaceId,
+            status, priority, tag, dueDate, description, subtasks } = args
 
-  /**
-   * Exa Search
-   */
-  async exa_search({ query }: { query: string }, context?: any) {
-    const { runExaSearchChain } = await import('../providers/exa')
-    const results = await runExaSearchChain(query, context)
-    return { results }
-  },
-
-  /**
-   * Weather via Open-Meteo (Zero Key)
-   */
-  async get_weather({ location }: { location: string }) {
-    try {
-      // 1. Geocoding
-      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`)
-      const geoData = await geoRes.json()
-      if (!geoData.results?.length) return { error: `Location '${location}' not found.` }
-      
-      const { latitude, longitude, name, country } = geoData.results[0]
-
-      // 2. Weather
-      const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto`)
-      const weatherData = await weatherRes.json()
-
-      return {
-        location: `${name}, ${country}`,
-        current: weatherData.current_weather,
-        forecast_today: {
-          max: weatherData.daily.temperature_2m_max[0],
-          min: weatherData.daily.temperature_2m_min[0]
-        },
-        unit: 'Celsius'
-      }
-    } catch (e) {
-      return { error: 'Weather service unavailable' }
-    }
-  },
-
-  /**
-   * Currency Converter via Frankfurter
-   */
-  async convert_currency({ amount, from, to }: { amount: number, from: string, to: string }) {
-    try {
-      const response = await fetch(`https://api.frankfurter.app/latest?amount=${amount}&from=${from.toUpperCase()}&to=${to.toUpperCase()}`)
-      const data = await response.json()
-      if (data.error) return { error: data.error }
-      return { result: data.rates[to.toUpperCase()], from, to, amount }
-    } catch (e) {
-      return { error: 'Currency service unavailable' }
-    }
-  },
-
-  /**
-   * Stock Price (Using a reliable free JSON endpoint)
-   */
-  async get_stock_price({ symbol }: { symbol: string }) {
-    try {
-      // Note: In production, use Alpha Vantage or Yahoo Finance API keys
-      // Placeholder for free pricing logic
-      return { error: 'Stock market tool requires an Alpha Vantage API key in the vault to proceed.' }
-    } catch (e) {
-      return { error: 'Stock service unavailable' }
-    }
-  },
-
-  /**
-   * Set Reminder (Persistent)
-   */
-  async set_reminder({ text, time_duration }: { text: string, time_duration: string }, context: any) {
-    if (!context?.chatId && !context?.userId && !context?.activeWorkspaceId) {
-      return { error: 'Unable to identify user session.' }
-    }
+    if (!type) return { error: "'type' is required (note | folder | workspace | task)" }
+    if (!title) return { error: "'title' is required" }
 
     try {
-      const now = new Date()
-      let remindAt = new Date(now.getTime() + 60 * 60 * 1000) // Default 1h
+      const spaceId = await resolveSpaceId(context)
 
-      if (time_duration.includes('minute')) {
-        const mins = parseInt(time_duration) || 15
-        remindAt = new Date(now.getTime() + mins * 60 * 1000)
-      } else if (time_duration.includes('hour')) {
-        const hrs = parseInt(time_duration) || 1
-        remindAt = new Date(now.getTime() + hrs * 60 * 60 * 1000)
-      } else if (time_duration.includes('day')) {
-        const days = parseInt(time_duration) || 1
-        remindAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
-      }
+      // --- DEDUPLICATION CHECK ---
+      // Prevent duplicate creation of entities during router fallback retries.
+      // We check if an entity with the same type, title, and parentId was created recently.
+      if (type === 'workspace' || type === 'folder' || type === 'note') {
+        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+        let query = supabaseAdmin.from('entities')
+          .select('id')
+          .eq('title', title)
+          .eq('type', type)
+          .eq('owner_id', context.userId)
+          .gte('created_at', thirtySecondsAgo);
+        
+        if (parentId) query = query.eq('parent_id', parentId);
+        else query = query.is('parent_id', null);
 
-      // Resolve workspace_id: web app passes it directly, Telegram looks it up
-      let workspaceId = context.activeWorkspaceId
-
-      if (!workspaceId && context.chatId) {
-        const { data: tgUser, error: userError } = await supabaseAdmin
-          .from('telegram_users')
-          .select('workspace_id')
-          .eq('telegram_id', context.chatId)
-          .single()
-        if (userError || !tgUser?.workspace_id) {
-          return { error: 'No workspace linked to this Telegram account.' }
+        const { data: existing } = await query;
+        if (existing && existing.length > 0) {
+          return { success: true, id: existing[0].id, type, title, parentId, deduplicated: true }
         }
-        workspaceId = tgUser.workspace_id
       }
 
-      if (!workspaceId && context.userId && context.userId !== 'anonymous') {
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('active_workspace_id')
-          .eq('id', context.userId)
-          .single()
-        workspaceId = profile?.active_workspace_id
-      }
-
-      if (!workspaceId) return { error: 'No active workspace found. Please select a workspace first.' }
-
-      const taskId = 'task-' + Date.now().toString()
-
-      const { error } = await supabaseAdmin
-        .from('tasks')
-        .insert({
-          id: taskId,
-          workspace_id: workspaceId,
-          title: text,
-          due_date: remindAt.toISOString().split('T')[0],
-          completed: false,
-          created_at: Date.now()
+      // --- TASK ---
+      if (type === 'task') {
+        const id = 'task-' + Date.now().toString()
+        const { error } = await supabaseAdmin.from('tasks').insert({
+          id,
+          title,
+          description: description || null,
+          status: status || 'todo',
+          priority: priority || null,
+          tag: tag || null,
+          due_date: dueDate || null,
+          end_date: args.endDate || null,
+          include_time: args.includeTime ?? null,
+          reminder: args.reminder || null,
+          subtasks: subtasks || null,
+          space_id: spaceId || null,
+          entity_id: assignedWorkspaceId || null,
+          owner_id: context.userId,
+          completed: status === 'done',
+          created_at: new Date().toISOString()
         })
-        .select()
+        if (error) throw error
+        return { success: true, id, type: 'task', title }
+      }
 
-      if (error) throw error
-      return { success: true, text, due_date: remindAt.toISOString().split('T')[0] }
-    } catch (e) {
-      logger.error('Failed to set reminder (task):', e)
-      return { error: 'Failed to create reminder. Please try again.' }
+      // --- WORKSPACE ---
+      if (type === 'workspace') {
+        const id = 'workspace-' + Date.now().toString()
+        const { error } = await supabaseAdmin.from('entities').insert({
+          id,
+          title,
+          type: 'workspace',
+          space_id: spaceId || null,
+          owner_id: context.userId,
+          parent_id: null
+        })
+        if (error) throw error
+        return { success: true, id, type: 'workspace', title }
+      }
+
+      // --- FOLDER ---
+      if (type === 'folder') {
+        if (!parentId) return { error: 'Folders must have a parentId (workspace or folder). Folders cannot be unsorted.' }
+        const id = 'folder-' + Date.now().toString()
+        const { error } = await supabaseAdmin.from('entities').insert({
+          id,
+          title,
+          type: 'folder',
+          space_id: spaceId || null,
+          owner_id: context.userId,
+          parent_id: parentId
+        })
+        if (error) throw error
+        return { success: true, id, type: 'folder', title, parentId }
+      }
+
+      // --- NOTE ---
+      if (type === 'note') {
+        const id = 'doc-' + Date.now().toString()
+        const { error } = await supabaseAdmin.from('entities').insert({
+          id,
+          title,
+          type: 'note',
+          content: contentToBlocks(content, blocks),
+          space_id: spaceId || null,
+          owner_id: context.userId,
+          parent_id: parentId || null
+        })
+        if (error) throw error
+        return { success: true, id, type: 'note', title }
+      }
+
+      return { error: `Unknown type '${type}'. Must be: note | folder | workspace | task` }
+    } catch (e: any) {
+      logger.error('create_content failed:', e.message)
+      return { error: e.message }
     }
   },
 
-  /**
-   * Create Note
-   */
-  async create_note({ title, content, blocks, parentId }: { title: string, content?: string, blocks?: BlockInput[], parentId?: string }, context: any) {
+  // ── UPDATE CONTENT ────────────────────────────────────────────────────────────
+  async update_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
     if (!context?.userId) return { error: 'User not identified' }
 
+    const { id, title, content, blocks, assignedWorkspaceId,
+            status, priority, tag, dueDate, endDate, includeTime, reminder, description, subtasks } = args
+
+    if (!id) return { error: "'id' is required" }
+
     try {
-      let workspaceId = context.activeWorkspaceId
+      const isTask = id.startsWith('task-')
 
-      if (context.userId && context.userId !== 'anonymous') {
-        const { data: user } = await supabaseAdmin.from('profiles').select('active_workspace_id').eq('id', context.userId).single()
-        if (user?.active_workspace_id) workspaceId = user.active_workspace_id
-      }
-
-      if (!workspaceId) return { error: 'No active workspace identified. Please select a workspace first.' }
-
-      let noteContent: any[]
-      if (blocks && Array.isArray(blocks) && blocks.length > 0) {
-        try {
-          noteContent = normalizeBlocks(blocks as BlockInput[])
-        } catch (e: any) {
-          return { error: `Invalid blocks: ${e.message}` }
+      if (isTask) {
+        // --- UPDATE TASK ---
+        const updates: any = {}
+        if (title !== undefined) updates.title = title
+        if (description !== undefined) updates.description = description
+        if (status !== undefined) {
+          updates.status = status
+          updates.completed = status === 'done'
         }
-      } else if (content) {
-        noteContent = parseMarkdownToBlocks(content)
+        if (priority !== undefined) updates.priority = priority
+        if (tag !== undefined) updates.tag = tag
+        if (assignedWorkspaceId !== undefined) {
+          updates.entity_id = assignedWorkspaceId || null;
+        }
+        if (dueDate !== undefined) updates.due_date = dueDate || null;
+        if (endDate !== undefined) updates.end_date = endDate || null;
+        if (includeTime !== undefined) updates.include_time = includeTime;
+        if (reminder !== undefined) updates.reminder = reminder || null;
+        if (subtasks !== undefined) updates.subtasks = subtasks;
+
+        const { error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId)
+        if (error) throw error
+        return { success: true, id, ...updates }
       } else {
-        noteContent = []
+        // --- UPDATE NOTE / CANVAS ---
+        const updates: any = {}
+        if (title !== undefined) updates.title = title
+        if (content !== undefined) updates.content = parseMarkdownToBlocks(content)
+        else if (blocks !== undefined) updates.content = blocks
+
+        const { error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId)
+        if (error) throw error
+        return { success: true, id, ...updates }
       }
-
-      const id = 'note-' + Date.now().toString()
-      const { error } = await supabaseAdmin.from('entities').insert({
-        id,
-        title,
-        type: 'note',
-        content: noteContent,
-        parent_id: parentId || null,
-        workspace_id: workspaceId,
-        last_modified: Date.now()
-      })
-
-      if (error) throw error
-      return { success: true, id, title, content: noteContent }
     } catch (e: any) {
-      logger.error('Failed to create note:', e.message)
+      logger.error('update_content failed:', e.message)
       return { error: e.message }
     }
   },
 
-  /**
-   * Update Note
-   */
-  async update_note({ id, title, content, blocks }: { id: string, title?: string, content?: string, blocks?: BlockInput[] }, context: any) {
+  // ── APPEND TO NOTE ────────────────────────────────────────────────────────────
+  async append_to_note(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
     if (!context?.userId) return { error: 'User not identified' }
 
-    try {
-      const updates: any = { last_modified: Date.now() }
-      if (title) updates.title = title
-      let updatedContent: any[] | undefined
-      if (blocks && Array.isArray(blocks) && blocks.length > 0) {
-        try {
-          updatedContent = normalizeBlocks(blocks as BlockInput[])
-          updates.content = updatedContent
-        } catch (e: any) {
-          return { error: `Invalid blocks: ${e.message}` }
-        }
-      } else if (content) {
-        updatedContent = parseMarkdownToBlocks(content)
-        updates.content = updatedContent
-      }
-
-      const { error } = await supabaseAdmin.from('entities').update(updates).eq('id', id)
-      if (error) throw error
-      return { success: true, id, content: updatedContent, title: title }
-    } catch (e: any) {
-      logger.error('Failed to update note:', e.message)
-      return { error: e.message }
-    }
-  },
-
-  /**
-   * Append Blocks to Note
-   */
-  async append_note_blocks({ id, blocks }: { id: string, blocks: BlockInput[] }, context: any) {
-    if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+    const { id, content, blocks } = args
+    if (!id) return { error: "'id' is required" }
+    if (!content && !blocks) return { error: "'content' or 'blocks' is required" }
 
     try {
-      let normalized: any[]
-      try {
-        normalized = normalizeBlocks(blocks)
-      } catch (e: any) {
-        return { error: `Invalid blocks: ${e.message}` }
-      }
-
-      const { data: entity, error: fetchError } = await supabaseAdmin
+      const { data, error: fetchError } = await supabaseAdmin
         .from('entities')
         .select('content')
         .eq('id', id)
+        .eq('owner_id', context.userId)
         .single()
 
-      if (fetchError || !entity) return { error: 'Note not found' }
+      if (fetchError) throw fetchError
 
-      const existing = Array.isArray(entity.content) ? entity.content : []
-      const mergedContent = [...existing, ...normalized]
+      let existingBlocks: any[] = []
+      try {
+        existingBlocks = data?.content
+          ? (typeof data.content === 'string' ? JSON.parse(data.content) : data.content)
+          : []
+      } catch (_) {}
+
+      const newBlocks = content
+        ? parseMarkdownToBlocks(content)
+        : normalizeBlocks(blocks as BlockInput[])
+
+      const updatedBlocks = [...existingBlocks, ...newBlocks]
+
+      const { error: updateError } = await supabaseAdmin
+        .from('entities')
+        .update({ content: updatedBlocks })
+        .eq('id', id)
+        .eq('owner_id', context.userId)
+
+      if (updateError) throw updateError
+      return { success: true, id, appendedCount: newBlocks.length }
+    } catch (e: any) {
+      logger.error('append_to_note failed:', e.message)
+      return { error: e.message }
+    }
+  },
+
+  // ── MOVE CONTENT ──────────────────────────────────────────────────────────────
+  async move_content(args: any, context: any) {
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    if (!context?.userId) return { error: 'User not identified' }
+
+    const { id, parentId } = args
+    if (!id) return { error: "'id' is required" }
+
+    try {
       const { error } = await supabaseAdmin
         .from('entities')
-        .update({ content: mergedContent, last_modified: Date.now() })
+        .update({ parent_id: parentId || null })
         .eq('id', id)
+        .eq('owner_id', context.userId)
 
       if (error) throw error
-      return { success: true, id, content: mergedContent }
+      return { success: true, id, movedTo: parentId || 'unsorted' }
     } catch (e: any) {
-      logger.error('Failed to append note blocks:', e.message)
+      logger.error('move_content failed:', e.message)
       return { error: e.message }
     }
   },
 
-  /**
-   * Delete Note/Entity
-   */
-  async delete_note({ id }: { id: string }, context: any) {
+  // ── LIST CONTENT ──────────────────────────────────────────────────────────────
+  async list_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
     if (!context?.userId) return { error: 'User not identified' }
 
     try {
-      const { error } = await supabaseAdmin.from('entities').delete().eq('id', id)
-      if (error) throw error
-      return { success: true, id }
-    } catch (e: any) {
-      logger.error('Failed to delete entity:', e.message)
-      return { error: e.message }
-    }
-  },
+      const spaceId = await resolveSpaceId(context)
 
-  /**
-   * Create Folder
-   */
-  async create_folder({ title, parentId }: { title: string, parentId?: string }, context: any) {
-    if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
+      const types: string[] = args.types || ['workspace', 'folder', 'note', 'canvas', 'task']
+      const readContent = args.readContent === true
+      const actualLimit = readContent
+        ? Math.min(args.limit || 10, 10)
+        : Math.min(args.limit || 100, 100)
 
-    try {
-      let workspaceId = context.activeWorkspaceId
-      
-      if (context.userId && context.userId !== 'anonymous') {
-        const { data: user } = await supabaseAdmin.from('profiles').select('active_workspace_id').eq('id', context.userId).single()
-        if (user?.active_workspace_id) workspaceId = user.active_workspace_id
+      let rawResults: any[] = []
+
+      // 1. Fetch Entities (workspace, folder, note, canvas)
+      const entityTypes = types.filter((t) => ['workspace', 'folder', 'note', 'canvas'].includes(t))
+      if (entityTypes.length > 0) {
+        let query = supabaseAdmin
+          .from('entities')
+          .select(readContent
+            ? 'id, title, type, content, parent_id, last_modified'
+            : 'id, title, type, parent_id, last_modified')
+          .eq('owner_id', context.userId)
+          .in('type', entityTypes)
+
+        // Only filter by spaceId if spaceId is provided AND we are not explicitly ONLY searching for workspaces
+        if (spaceId && !entityTypes.every(t => t === 'workspace')) {
+           // Wait, if it's a mix (e.g. note and workspace), filtering by spaceId will exclude root workspaces.
+           // Let's use an OR condition if we are searching for workspaces.
+           if (entityTypes.includes('workspace')) {
+             query = query.or(`space_id.eq.${spaceId},type.eq.workspace`)
+           } else {
+             query = query.eq('space_id', spaceId)
+           }
+        }
+
+        if (args.parentId) query = query.eq('parent_id', args.parentId)
+        if (args.searchQuery) query = query.ilike('title', `%${args.searchQuery}%`)
+
+        const { data: entityData, error: eError } = await query
+        if (eError) throw eError
+        if (entityData) rawResults.push(...entityData)
       }
 
-      if (!workspaceId) return { error: 'No active workspace identified. Please select a workspace first.' }
+      // 2. Fetch Tasks
+      if (types.includes('task')) {
+        let query = supabaseAdmin
+          .from('tasks')
+          .select(readContent
+            ? '*'
+            : 'id, title, status, priority, due_date, tag, space_id, entity_id, created_at')
+          .eq('owner_id', context.userId)
+        
+        if (spaceId) {
+          query = query.eq('space_id', spaceId)
+        }
 
-      const id = 'folder-' + Date.now().toString()
-      const { error } = await supabaseAdmin.from('entities').insert({
-        id,
-        title,
-        type: 'folder',
-        parent_id: parentId || null,
-        workspace_id: workspaceId,
-        last_modified: Date.now()
+        if (args.assignedWorkspaceId) query = query.eq('entity_id', args.assignedWorkspaceId)
+        if (args.searchQuery) query = query.ilike('title', `%${args.searchQuery}%`)
+
+        if (args.taskFilters) {
+          const tf = args.taskFilters
+          if (tf.status) query = query.eq('status', tf.status)
+          if (tf.priority) query = query.eq('priority', tf.priority)
+          if (tf.tag) query = query.eq('tag', tf.tag)
+          if (tf.dueDate) {
+            if (tf.dueDate.toLowerCase() === 'overdue') {
+              query = query.lt('due_date', new Date().toISOString())
+            } else {
+              query = query.eq('due_date', tf.dueDate)
+            }
+          }
+        }
+
+        const { data: taskData, error: tError } = await query
+        if (tError) throw tError
+
+        if (taskData) {
+          const formatted = taskData.map((t: any) => ({
+            ...t,
+            type: 'task',
+            assignedWorkspaceId: t.entity_id,
+            last_modified: new Date(t.created_at).getTime()
+          }))
+          rawResults.push(...formatted)
+        }
+      }
+
+      // 3. Sort
+      if (args.sortBy === 'alphabetical') {
+        rawResults.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+      } else if (args.sortBy === 'dueDate') {
+        rawResults.sort((a, b) => {
+          const dA = a.due_date ? new Date(a.due_date).getTime() : Infinity
+          const dB = b.due_date ? new Date(b.due_date).getTime() : Infinity
+          return dA - dB
+        })
+      } else {
+        rawResults.sort((a, b) => (b.last_modified || 0) - (a.last_modified || 0))
+      }
+
+      rawResults = rawResults.slice(0, actualLimit)
+
+      // 4. Dynamic Payload Truncation (40k chars ~ 13k tokens)
+      let runningLength = 0
+      const MAX_CHARS = 40000
+
+      const processedResults = rawResults.map((item: any) => {
+        let itemString = JSON.stringify(item)
+        if (runningLength + itemString.length > MAX_CHARS) {
+          if (item.content) item.content = '[TRUNCATED_DUE_TO_SIZE]'
+          if (item.description) item.description = '[TRUNCATED_DUE_TO_SIZE]'
+          if (item.subtasks) item.subtasks = '[TRUNCATED_DUE_TO_SIZE]'
+          itemString = JSON.stringify(item)
+        }
+        runningLength += itemString.length
+
+        if (item.type === 'task') delete item.last_modified
+        return item
       })
 
-      if (error) throw error
-      return { success: true, id, title }
+      return { success: true, count: processedResults.length, items: processedResults }
     } catch (e: any) {
-      logger.error('Failed to create folder:', e.message)
-      return { error: e.message }
-    }
-  },
-
-  /**
-   * List Notes
-   */
-  async list_notes(_: any, context: any) {
-    if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!context?.userId) return { error: 'User not identified' }
-
-    try {
-      let workspaceId = context.activeWorkspaceId
-      if (context.userId && context.userId !== 'anonymous') {
-        const { data: user } = await supabaseAdmin.from('profiles').select('active_workspace_id').eq('id', context.userId).single()
-        if (user?.active_workspace_id) workspaceId = user.active_workspace_id
-      }
-
-      if (!workspaceId) return { error: 'No active workspace found' }
-
-      const { data, error } = await supabaseAdmin
-        .from('entities')
-        .select('id, title, type, parent_id')
-        .eq('workspace_id', workspaceId)
-
-      if (error) throw error
-      return { entities: data }
-    } catch (e: any) {
-      logger.error('Failed to list notes:', e.message)
-      return { error: e.message }
-    }
-  },
-
-  /**
-   * Search Notes by Title
-   */
-  async search_notes({ query }: { query: string }, context: any) {
-    if (!supabaseAdmin) return { error: 'Supabase not configured' }
-    if (!query?.trim()) return { error: 'Search query is required' }
-
-    try {
-      let workspaceId = context?.activeWorkspaceId
-
-      if (context?.userId && context.userId !== 'anonymous') {
-        const { data: user } = await supabaseAdmin
-          .from('profiles')
-          .select('active_workspace_id')
-          .eq('id', context.userId)
-          .single()
-        if (user?.active_workspace_id) workspaceId = user.active_workspace_id
-      }
-
-      if (!workspaceId) return { error: 'No active workspace identified' }
-
-      const { data, error } = await supabaseAdmin
-        .from('entities')
-        .select('id, title, type')
-        .eq('workspace_id', workspaceId)
-        .ilike('title', `%${query}%`)
-        .limit(10)
-
-      if (error) throw error
-
-      return {
-        results: data ?? [],
-        total: data?.length ?? 0
-      }
-    } catch (e: any) {
-      logger.error('Failed to search notes:', e.message)
+      logger.error('list_content failed:', e.message)
       return { error: e.message }
     }
   }

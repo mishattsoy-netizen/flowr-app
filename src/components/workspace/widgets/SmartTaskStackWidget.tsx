@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X, Check, Play, ArrowUpRight } from 'lucide-react';
+import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X, Check, Play, ArrowUpRight, Paperclip } from 'lucide-react';
 import { stripHtml } from '@/lib/utils';
 import type { WidgetProps } from './types';
 import type { AppTask } from '@/data/store.types';
@@ -38,7 +38,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
   const addTask = useStore(state => state.addTask);
   const openTaskPanel = useStore(state => state.openTaskPanel);
   const entities = useStore(state => state.entities);
-  const activeWorkspaceId = useStore(state => state.activeWorkspaceId);
+  const activeSpaceId = useStore(state => state.activeSpaceId);
   const addTab = useStore(state => state.addTab);
 
   const filteredTasks = useMemo(() => {
@@ -49,7 +49,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
     if (!entity) return [];
     const childIds = new Set(entities.filter(e => e.parentId === entity.id).map(e => e.id));
     childIds.add(entity.id);
-    return tasks.filter(t => t.workspaceId === entity.id || (t.entityId && childIds.has(t.entityId)));
+    return tasks.filter(t => t.spaceId === entity.id || (t.entityId && childIds.has(t.entityId)));
   }, [tasks, entities, contextId]);
 
   const hiddenTabs: TabId[] = (data?.hiddenTabs ?? []) as TabId[];
@@ -180,7 +180,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
       isSubmitting.current = true;
       const taskData: Partial<AppTask> = {
         title: t,
-        workspaceId: (!contextId || contextId === 'dashboard') ? activeWorkspaceId : contextId
+        spaceId: (!contextId || contextId === 'dashboard') ? activeSpaceId : contextId
       };
 
       // Smart defaults based on active tab to ensure visibility
@@ -340,7 +340,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
         {displayTasks.length > 0 ? (
           <div className="space-y-1">
             {displayTasks.map(t => {
-              const workspaceName = entities.find(e => e.id === t.workspaceId)?.title || null;
+              const workspaceName = entities.find(e => e.id === t.spaceId)?.title || null;
               const todayStr = getLocalDateStr();
               const isOverdue = !t.completed && t.dueDate && t.dueDate < todayStr;
               return (
@@ -368,27 +368,48 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 select-none">
+                    {t.attachments && t.attachments.length > 0 && (
+                      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] shrink-0">
+                        <Paperclip className="w-2.5 h-2.5 opacity-70" />
+                        <span>{t.attachments.length}</span>
+                      </div>
+                    )}
                     {t.priority && (
-                      <div className={cn(
-                        "px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0 leading-none",
+                      <span className={cn(
+                        "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
                         t.priority === 'high' ? "bg-red-500/15 text-red-400" :
                           t.priority === 'medium' ? "bg-amber-500/15 text-amber-400" :
                             "bg-blue-500/15 text-blue-400"
                       )}>
                         {t.priority}
-                      </div>
+                      </span>
+                    )}
+                    {t.tag && (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[80px] bg-[var(--bone-10)] text-[var(--bone-70)]"
+                        title={t.tag}
+                      >
+                        <span className="text-fade truncate max-w-full">
+                          {t.tag}
+                        </span>
+                      </span>
                     )}
                     {workspaceName && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] shrink-0 capitalize leading-none">
-                        {workspaceName}
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-80)] shrink-0 capitalize max-w-[90px]"
+                        title={workspaceName}
+                      >
+                        <span className="text-fade truncate max-w-full">
+                          {workspaceName}
+                        </span>
                       </span>
                     )}
                     {t.dueDate && (
-                      <div className="flex items-center gap-1 text-[var(--bone-30)] group-hover:text-[var(--bone-60)] transition-colors">
-                        <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-100)] opacity-30")} />
                         <span className={cn(
-                          "text-[10px] font-medium tabular-nums shrink-0 leading-none",
-                          isOverdue ? "text-red-400 font-semibold" : "text-[var(--bone-40)]"
+                          "text-[10px] font-ui",
+                          isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-40)]"
                         )}>
                           {formatDate(t.dueDate)}
                         </span>

@@ -3,9 +3,9 @@
 import { useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 import {
-  ArrowLeft, ArrowRight, RotateCw, LayoutDashboard, MessageSquare,
+  ArrowLeft, ArrowRight, RotateCw, Home, MessageCircle,
   ListTodo, Menu, X, ChevronRight, ChevronLeft, Plus, PanelLeft, Columns2,
-  FileText, Frame, Search
+  FileText, Frame, Folder, Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -38,7 +38,7 @@ function ConcaveCorner({ side, r = 8 }: { side: 'left' | 'right'; r?: number }) 
   );
 }
 
-const POPUP_LEAVE_DELAY = 100;
+
 
 export const HeaderBar = memo(function HeaderBar() {
   const activeEntityId       = useStore(s => s.activeEntityId);
@@ -71,15 +71,7 @@ export const HeaderBar = memo(function HeaderBar() {
   const R_ACTIVE   = 12;                  // concave bridge under selected tab
   const R_INACTIVE = 8;                    // selected top corners + unselected hover container
 
-  // ─── Hover popup ──────────────────────────────────────────────────────────
-  const [hoveredTab, setHoveredTab] = useState<{ id: string; rect: DOMRect; path: any[] } | null>(null);
-  const leaveTimer = useRef<NodeJS.Timeout | null>(null);
   const [newItemPopup, setNewItemPopup] = useState<{ x: number; y: number } | null>(null);
-  const onTabHover = (e: React.MouseEvent, id: string, path: any[]) => {
-    if (leaveTimer.current) clearTimeout(leaveTimer.current);
-    setHoveredTab({ id, rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), path });
-  };
-  const onTabLeave = () => { leaveTimer.current = setTimeout(() => setHoveredTab(null), POPUP_LEAVE_DELAY); };
 
   // ─── Drag-to-reorder (push-aside model) ───────────────────────────────────
   // The array order is FIXED during drag. The dragged tab is translated to follow
@@ -278,7 +270,7 @@ export const HeaderBar = memo(function HeaderBar() {
 
   const getPath = (id: string | null): any[] => {
     if (!id || id === 'dashboard') return [];
-    if (id === 'chat')    return [{ id: 'chat',    title: 'Chat',  icon: 'MessageSquare' }];
+    if (id === 'chat')    return [{ id: 'chat',    title: 'Chat',  icon: 'MessageCircle' }];
     if (id === 'tracker') return [{ id: 'tracker', title: 'Tasks', icon: 'ListTodo' }];
     const entity = entities.find(e => e.id === id);
     if (!entity) return [];
@@ -295,10 +287,10 @@ export const HeaderBar = memo(function HeaderBar() {
     const entity = entities.find(e => e.id === tabId);
     let title = entity?.title;
     let Icon: any = null;
-    if      (tabId === 'dashboard') { title = 'Dashboard'; Icon = LayoutDashboard; }
-    else if (tabId === 'chat')      { const ac = chatConversations.find(c => c.id === activeChatId); title = isTempChat ? 'Temporary Chat' : (ac?.title || 'Chat'); Icon = MessageSquare; }
+    if      (tabId === 'dashboard') { title = 'Dashboard'; Icon = Home; }
+    else if (tabId === 'chat')      { const ac = chatConversations.find(c => c.id === activeChatId); title = isTempChat ? 'Temporary Chat' : (ac?.title || 'Chat'); Icon = MessageCircle; }
     else if (tabId === 'tracker')   { title = 'Tasks'; Icon = ListTodo; }
-    else if (entity)                { Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : FileText; }
+    else if (entity)                { Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : FileText; }
     return { title, Icon };
   };
 
@@ -390,20 +382,18 @@ export const HeaderBar = memo(function HeaderBar() {
           }
 
           return (
-            <div
-                key={tabId}
+            <Tooltip key={tabId} content={stripHtml(title || '')} position="bottom">
+              <div
                 data-tab-id={tabId}
-                onMouseEnter={e => onTabHover(e, tabId, path)}
-                onMouseLeave={onTabLeave}
                 onMouseDown={e => onTabMouseDown(e, tabId)}
                 className="relative flex-shrink min-w-0 max-w-[250px] [-webkit-app-region:no-drag] cursor-pointer select-none group"
-              style={{
-                height:     BAR_H, // fixed height → icon/title always vertically centered, never reposition on switch
-                zIndex,
-                transform,
-                transition,
-              }}
-            >
+                style={{
+                  height:     BAR_H,
+                  zIndex,
+                  transform,
+                  transition,
+                }}
+              >
               {/* ─── Visual tab background (swaps per state; content layer never moves) ─── */}
               <div
                 className={cn(
@@ -428,8 +418,8 @@ export const HeaderBar = memo(function HeaderBar() {
               <div
                 className="relative z-10 w-full h-full flex items-center gap-[5px]"
                 style={{
-                  paddingLeft: 12,
-                  paddingRight: openTabIds.length > 1 ? M : 12
+    paddingLeft: 12,
+    paddingRight: openTabIds.length > 1 ? M : 14
                 }}
               >
                 {Icon && (
@@ -478,6 +468,7 @@ export const HeaderBar = memo(function HeaderBar() {
                 )}
               </div>
             </div>
+          </Tooltip>
           );
         })}
 
@@ -508,14 +499,15 @@ export const HeaderBar = memo(function HeaderBar() {
           className="flex items-center justify-center shrink-0"
           style={{ height: BAR_H }}
         >
-          <button
-            onClick={e => { e.stopPropagation(); toggleSplitView(); }}
-            className="flex items-center justify-center text-[var(--bone-100)] rounded-[10px] shrink-0 [-webkit-app-region:no-drag] hover:bg-[var(--bone-6)]"
-            style={{ width: 28, height: 28 }}
-            title="Split view"
-          >
-            <Columns2 strokeWidth={2} className="w-4 h-4"/>
-          </button>
+          <Tooltip content="Split view">
+            <button
+              onClick={e => { e.stopPropagation(); toggleSplitView(); }}
+              className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag] hover:bg-[var(--bone-6)]"
+              style={{ width: 28, height: 28 }}
+            >
+              <Columns2 strokeWidth={2} className="w-4 h-4"/>
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -555,45 +547,7 @@ export const HeaderBar = memo(function HeaderBar() {
         </Portal>
       )}
 
-      {/* Path popup */}
-      {hoveredTab && hoveredTab.path.length > 0 && (
-        <Portal>
-          <div
-            onMouseEnter={() => { if (leaveTimer.current) clearTimeout(leaveTimer.current); }}
-            onMouseLeave={() => setHoveredTab(null)}
-            className="fixed z-[9999] pt-1"
-            style={{ top: hoveredTab.rect.bottom, left: Math.max(8, hoveredTab.rect.left) }}
-          >
-            <div className="popup-glass-small backdrop-blur-xl p-1 min-w-[180px] flex flex-col gap-[2px]">
-              {hoveredTab.path.length > 1 && hoveredTab.path.slice(0, -1).map(p => (
-                <button key={p.id} onClick={() => { setActiveEntityId(p.id); setHoveredTab(null); }} className="popup-item">
-                  {p.icon && (() => { const I = getEntityIcon(p.icon); return <I strokeWidth={2} className="w-4 h-4 shrink-0"/>; })()}
-                  <span className="text-fade flex-1 text-left">{stripHtml(p.title || '')}</span>
-                  <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 ml-auto opacity-30"/>
-                </button>
-              ))}
-              {hoveredTab.path.length > 1 && <div className="popup-divider"/>}
-              <div className="flex items-center gap-3 px-3 py-[4px] text-[13.5px] font-semibold text-[var(--bone-100)]">
-                {(() => {
-                  const last = hoveredTab.path[hoveredTab.path.length - 1];
-                  let I: any = FileText;
-                  if (last.id === 'tracker') I = ListTodo;
-                  else if (last.id === 'chat') I = MessageSquare;
-                  else if (last.icon) I = getEntityIcon(last.icon);
-                  else { const ent = entities.find(e => e.id === last.id); if (ent?.type === 'canvas') I = Frame; }
-                  return <I strokeWidth={2} className="w-4 h-4 shrink-0"/>;
-                })()}
-                <span className="text-fade flex-1 text-left">{stripHtml(hoveredTab.path[hoveredTab.path.length - 1].title || '')}</span>
-                {hoveredTab.path.length <= 1 && (
-                  <span className="ml-auto text-[10px] font-normal opacity-40 uppercase tracking-widest">
-                    {hoveredTab.id === 'dashboard' ? 'Dashboard' : 'Page'}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </Portal>
-      )}
+
     </div>
   );
 });

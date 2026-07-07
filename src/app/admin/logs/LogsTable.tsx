@@ -69,7 +69,7 @@ function truncate(text: string | null, max = 100) {
 
 const KNOWN_CATEGORIES = new Set([
   'FAST_SIMPLE', 'COMPLEX', 'MEDIUM_THINKING', 'AUDIO',
-  'TOOLS', 'IMAGE_GEN', 'WEB_SEARCH', 'CLASSIFIER', 'VISION', 'CODING', 'RESEARCH',
+  'IMAGE_GEN', 'WEB_SEARCH', 'CLASSIFIER', 'VISION', 'CODING', 'RESEARCH',
   'THINKING', 'ORCHESTRATOR', 'AI', 'KEYWORD', 'TAG',
 ])
 

@@ -17,7 +17,7 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
 
 /**
  * Walks parentId upward from an entity to find its nearest ancestor of type
- * 'workspace' or 'collection' — the sidebar-workspace root that entity lives
+ * 'workspace' - the sidebar-workspace root that entity lives
  * under. These roots are always top-level (parentId: null), so the walk
  * terminates there. Returns null if no such ancestor exists (e.g. the entity
  * itself is a root, or is orphaned).
@@ -25,7 +25,7 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
 export function findWorkspaceRoot(entities: Entity[], startParentId: string | null): Entity | null {
   let current: Entity | null = startParentId ? (entities.find(e => e.id === startParentId) ?? null) : null;
   while (current) {
-    if (current.type === 'workspace' || current.type === 'collection') {
+    if (current.type === 'workspace') {
       return current;
     }
     const pid = current.parentId;

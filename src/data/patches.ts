@@ -10,6 +10,7 @@ export interface Patch {
   build: string;
   date: string;
   title: string;
+  featured?: boolean;
   sections: PatchSection[];
   images?: {
     before: string;
@@ -20,6 +21,44 @@ export interface Patch {
 }
 
 export const PATCHES: Patch[] = [
+  {
+    version: '1.2.0',
+    build: '1200',
+    date: '2026-07-07',
+    title: 'Date Picker Rebuilt, Color System Unified & AI Scheduling',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Brand new Notion-style date & time picker — set a simple date, a date range, a specific time, or a reminder, all from one clean popup.',
+          'Drag to select date ranges directly on the calendar — press and slide across days to paint your range instantly.',
+          'Single-date dragging: if no end date is set, you can drag the selected date to any other day on the calendar.',
+          'AI can now set dates with time, end dates, and reminders on tasks when you ask it to — all fields stored and ready to fire when reminders go live.',
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Date/time input fields are now clean text-only — no icon clutter, just date on the left and time on the right separated by a thin divider.',
+          'Focused input gets a sharp 1.5px blue border with no layout shift, using the same blue as the rest of the app.',
+          'Month navigation is now instant — no flicker or transition when switching months.',
+          'Previous and next month dates are significantly more faded so the current month is always the focus.',
+          'Calendar nav arrows are slightly bolder (2.5px stroke) and the "Today" button matches their style exactly.',
+          'Popup shadow reduced to feel lighter and less heavy on screen.',
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Unified all blue accents across the app — toggle switches, focus rings, calendar highlights, and canvas handles all use a single --brand-blue variable. Change one value in CSS and everything updates.',
+          'Removed a duplicate --color-brand-blue CSS variable that existed alongside --brand-blue but was never used.',
+          'Time fields in the date picker were not editable — typing would snap back immediately. Now you can type freely and it commits on blur or Enter.',
+          'Fixed content shifting when the input border changed thickness on focus.',
+        ]
+      }
+    ]
+  },
   {
     version: '1.1.4',
     build: '1104',

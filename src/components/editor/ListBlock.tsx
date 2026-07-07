@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditorBlock, BlockType, generateId } from '@/data/store';
@@ -69,6 +69,7 @@ interface ListBlockProps {
   onExitTop: () => void;
   onFocus?: (id: string) => void;
   isDraggingGlobal?: boolean;
+  isReadOnly?: boolean;
   onMouseMove?: (e: React.MouseEvent) => void;
   onMouseLeave?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -85,6 +86,7 @@ function RowEl({
   onFocusBlock,
   registerRef,
   isDraggingGlobal = false,
+  isReadOnly = false,
   onMouseMove,
   onMouseLeave,
   onContextMenu,
@@ -99,12 +101,20 @@ function RowEl({
   onFocusBlock: () => void;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
   isDraggingGlobal?: boolean;
+  isReadOnly?: boolean;
   onMouseMove?: (e: React.MouseEvent) => void;
   onMouseLeave?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const lastContent = useRef<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isFocused && elRef.current && document.activeElement !== elRef.current) {
+      elRef.current.focus();
+    }
+  }, [isFocused]);
 
   useEffect(() => {
     const el = elRef.current;
@@ -159,9 +169,9 @@ function RowEl({
         {blockType === 'checklist' ? (
           <div className={cn(
             "w-[16px] h-[16px] shrink-0 rounded-[4px] border flex items-center justify-center cursor-pointer border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--app-dark)]",
-            isDraggingGlobal && "pointer-events-none"
+            (isDraggingGlobal || isReadOnly) && "pointer-events-none opacity-50 cursor-default"
           )}
-            onClick={isDraggingGlobal ? undefined : () => onRowUpdate(row.id, '__toggle_checked__')}
+            onClick={(isDraggingGlobal || isReadOnly) ? undefined : () => onRowUpdate(row.id, '__toggle_checked__')}
           >
             {row.checked && <Check className="w-[10px] h-[10px] text-[var(--bone-100)]" strokeWidth={3} />}
           </div>
@@ -171,7 +181,7 @@ function RowEl({
       </div>
       <div
         ref={elRef}
-        contentEditable
+        contentEditable={(isFocused && !isReadOnly) ? true : undefined}
         suppressContentEditableWarning
         className={cn(
           "flex-1 outline-none min-h-[1.5em] leading-[1.6] text-[16px] font-normal font-display tracking-[-0.02em]",
@@ -184,13 +194,22 @@ function RowEl({
           ...(row.checked ? { textDecoration: 'line-through', textDecorationThickness: '1px', textDecorationColor: 'var(--bone-70)' } : {}),
         }}
         dir="ltr"
-        onFocus={onFocusBlock}
+        onFocus={() => {
+          if (!isReadOnly) {
+            setIsFocused(true);
+            onFocusBlock();
+          }
+        }}
+        onBlur={() => setIsFocused(false)}
         onInput={() => {
           const content = elRef.current?.innerHTML ?? '';
           lastContent.current = content;
           onRowUpdate(row.id, content);
         }}
         onKeyDown={e => onKeyDown(e, rowIndex)}
+        onMouseDown={() => {
+          if (!isReadOnly && !isFocused) setIsFocused(true);
+        }}
         onPaste={e => {
           e.preventDefault();
           const text = e.clipboardData.getData('text/plain');
@@ -204,7 +223,7 @@ function RowEl({
   );
 }
 
-export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus, isDraggingGlobal = false, onMouseMove, onMouseLeave, onContextMenu }: ListBlockProps) {
+export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop, onFocus, isDraggingGlobal = false, isReadOnly = false, onMouseMove, onMouseLeave, onContextMenu }: ListBlockProps) {
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingFocusId = useRef<string | null>(null);
   // Keep a stable ref to current rows so keyboard handlers don't go stale
@@ -457,6 +476,7 @@ export function ListBlock({ block, listNumber, onUpdate, onExitBottom, onExitTop
           onFocusBlock={() => onFocus?.(block.id)}
           registerRef={registerRef}
           isDraggingGlobal={isDraggingGlobal}
+          isReadOnly={isReadOnly}
           onMouseMove={onMouseMove}
           onMouseLeave={onMouseLeave}
           onContextMenu={onContextMenu}

@@ -18,7 +18,7 @@ function blockToRow(b: EditorBlock, userId: string, workspaceId: string): Record
     id:           b.id,
     canvas_id:    b.canvasId!,
     user_id:      userId,
-    workspace_id: workspaceId,
+    space_id:     workspaceId,
     type:         b.type,
     shape_kind:   b.shapeKind ?? null,
     x:            b.x ?? null,
@@ -65,6 +65,49 @@ function rowToBlock(row: Record<string, unknown>): EditorBlock {
 // ─── Debounce ─────────────────────────────────────────────────────────────────
 
 const pendingUpserts = new Map<string, ReturnType<typeof setTimeout>>();
+// Rows queued behind the debounce, kept alongside the timer so a flush (page hide/unload) can
+// write them immediately instead of losing them when the timer never gets to fire.
+const pendingRows = new Map<string, Record<string, unknown>>();
+
+async function writeRow(row: Record<string, unknown>): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from('canvas_blocks').upsert(row, { onConflict: 'id' });
+  if (error) console.error('[canvasSync] upsertCanvasBlock', error.message, error.details, error.hint, error.code);
+}
+
+/**
+ * Same upsert as writeRow, but issued with `fetch(..., { keepalive: true })` so the browser
+ * finishes sending it even after the page has started tearing down (normal supabase-js
+ * requests get aborted by the tab close/reload before their promise ever resolves). Auth is
+ * read synchronously from the same client's already-restored local session — no network round
+ * trip — so this stays fast enough to fire from a `pagehide`/`visibilitychange` handler.
+ */
+async function writeRowKeepalive(row: Record<string, unknown>): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const apikey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const baseUrl = (supabase as any).supabaseUrl as string | undefined;
+  if (!token || !apikey || !baseUrl) {
+    // Fall back to the regular client — best effort, may not survive teardown.
+    return writeRow(row);
+  }
+  try {
+    await fetch(`${baseUrl}/rest/v1/canvas_blocks?on_conflict=id`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        apikey,
+        Authorization: `Bearer ${token}`,
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify([row]),
+    });
+  } catch (e) {
+    console.error('[canvasSync] writeRowKeepalive', e);
+  }
+}
 
 export async function upsertCanvasBlock(
   block: EditorBlock, userId?: string, workspaceId?: string
@@ -72,32 +115,49 @@ export async function upsertCanvasBlock(
   if (!supabase || !block.canvasId) return;
   const existing = pendingUpserts.get(block.id);
   if (existing) clearTimeout(existing);
-  pendingUpserts.set(block.id, setTimeout(async () => {
+
+  let resolvedUid = userId;
+  if (!resolvedUid) {
+    const { data } = await supabase.auth.getUser();
+    resolvedUid = data?.user?.id;
+  }
+  if (!resolvedUid) return;
+
+  let resolvedWsId: string = workspaceId || 'ws-personal';
+  if (!workspaceId) {
+    const { data } = await supabase
+      .from('entities')
+      .select('space_id')
+      .eq('id', block.canvasId)
+      .single();
+    if (data?.space_id) {
+      resolvedWsId = data.space_id;
+    }
+  }
+
+  const row = blockToRow(block, resolvedUid, resolvedWsId);
+  pendingRows.set(block.id, row);
+  pendingUpserts.set(block.id, setTimeout(() => {
     pendingUpserts.delete(block.id);
-    
-    let resolvedUid = userId;
-    if (!resolvedUid) {
-      const { data } = await supabase.auth.getUser();
-      resolvedUid = data?.user?.id;
-    }
-    if (!resolvedUid) return;
-
-    let resolvedWsId: string = workspaceId || 'ws-personal';
-    if (!workspaceId) {
-      const { data } = await supabase
-        .from('entities')
-        .select('workspace_id')
-        .eq('id', block.canvasId)
-        .single();
-      if (data?.workspace_id) {
-        resolvedWsId = data.workspace_id;
-      }
-    }
-
-    const row = blockToRow(block, resolvedUid, resolvedWsId);
-    const { error } = await supabase.from('canvas_blocks').upsert(row, { onConflict: 'id' });
-    if (error) console.error('[canvasSync] upsertCanvasBlock', error);
+    pendingRows.delete(block.id);
+    writeRow(row);
   }, 300));
+}
+
+/**
+ * Writes every debounced-but-not-yet-sent block immediately. A hard refresh/tab close tears
+ * down the page well before a 300ms debounce timer fires, silently dropping the write (the
+ * edit looks saved locally, then reverts once the next session's initial load overwrites it
+ * with the last row that actually reached Supabase). Call this from a `pagehide`/
+ * `visibilitychange` listener so the pending edit lands before that can happen.
+ */
+export function flushPendingCanvasUpserts(): void {
+  if (pendingRows.size === 0) return;
+  for (const timer of pendingUpserts.values()) clearTimeout(timer);
+  pendingUpserts.clear();
+  const rows = [...pendingRows.values()];
+  pendingRows.clear();
+  for (const row of rows) writeRowKeepalive(row);
 }
 
 export async function deleteCanvasBlock(blockId: string): Promise<void> {

@@ -161,6 +161,11 @@ export async function runGoogle(
               },
             })
           }
+          if (finalPrompt.trim() === '') {
+             logger.error(`[DEBUG] finalPrompt is entirely empty or whitespace: "${finalPrompt}"`);
+          } else {
+             logger.info(`[DEBUG] finalPrompt is not empty. Length: ${finalPrompt.length}, Content: "${finalPrompt}"`);
+          }
           pts.push({ text: finalPrompt })
 
           let rslt: any
@@ -216,53 +221,56 @@ export async function runGoogle(
             return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
           }
 
+          const safeHistory: any[] = []
           if (history && history.length > 0) {
-            const safeHistory: any[] = []
             for (const msg of history) {
               const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
               if (msg.role === expectedRole) safeHistory.push(msg)
             }
             if (safeHistory.length % 2 !== 0) safeHistory.pop()
+          }
 
-            const chat = m.startChat({ history: safeHistory })
-            logger.info(`[runGoogle] Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length})`)
-            rslt = await withSignal(withTimeout(chat.sendMessage(pts), activeTimeout), (context as any)?.signal)
+          const chat = m.startChat({ history: safeHistory })
+          logger.info(`[runGoogle] Chat to ${sanitizedId} (Key ${keyIndex + 1}, Hist ${safeHistory.length}${useGrounding ? ', grounded' : ''})`)
+          rslt = await withSignal(withTimeout(chat.sendMessage(pts), activeTimeout), (context as any)?.signal)
 
-            // Tool Handling
-            let currentResponse = rslt.response
-            const MAX_TOOL_HOPS = 4
-            let hops = 0
+          // Tool Handling
+          let currentResponse = rslt.response
+          const MAX_TOOL_HOPS = 4
+          let hops = 0
 
-            while (currentResponse.functionCalls() && currentResponse.functionCalls().length > 0 && hops < MAX_TOOL_HOPS) {
-              hops++
-              const toolCalls = currentResponse.functionCalls()
-              const toolResults = []
-              for (const call of toolCalls) {
-                const handler = toolHandlers[call.name]
-                if (handler) {
-                  const output = await (handler as any)(call.args, context)
-                  toolResults.push({ functionResponse: { name: call.name, response: output } })
-                  if (['create_note', 'update_note', 'delete_note', 'create_folder', 'create_task'].includes(call.name)) {
-                    capturedToolCalls.push({ type: call.name, ...output, ...call.args })
-                  }
+          while (currentResponse.functionCalls() && currentResponse.functionCalls().length > 0 && hops < MAX_TOOL_HOPS) {
+            hops++
+            const toolCalls = currentResponse.functionCalls()
+            const toolResults = []
+            for (const call of toolCalls) {
+              const handler = toolHandlers[call.name]
+              if (handler) {
+                const output = await (handler as any)(call.args, context)
+                toolResults.push({ functionResponse: { name: call.name, response: output } })
+                if (([] as string[]).includes(call.name)) {
+                  capturedToolCalls.push({ ...call.args, ...output, tool: call.name })
+                } else {
+                  capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error })
                 }
               }
-              rslt = await withSignal(chat.sendMessage(toolResults), (context as any)?.signal)
-              currentResponse = rslt.response
             }
-            responseContent = currentResponse.text()
-            usage = extractUsage(currentResponse)
-            reasoning = extractReasoning(currentResponse)
-            var finalRespForCitations: any = currentResponse
-          } else {
-            // No history
-            logger.info(`[runGoogle] Content for ${sanitizedId} (Key ${keyIndex + 1}${useGrounding ? ', grounded' : ''})`)
-            rslt = await withSignal(withTimeout(m.generateContent({ contents: [{ role: 'user', parts: pts }] }), activeTimeout), (context as any)?.signal)
-            responseContent = rslt.response.text()
-            usage = extractUsage(rslt.response)
-            reasoning = extractReasoning(rslt.response)
-            finalRespForCitations = rslt.response
+            rslt = await withSignal(chat.sendMessage(toolResults), (context as any)?.signal)
+            currentResponse = rslt.response
           }
+          
+          try {
+            responseContent = currentResponse.text()
+          } catch (e) {
+            logger.warn(`[runGoogle] Could not extract text from final tool response (might be empty).`)
+            responseContent = ''
+          }
+          if (!responseContent && capturedToolCalls.length > 0) {
+            responseContent = `Successfully executed ${capturedToolCalls.length} tool action(s).`
+          }
+          usage = extractUsage(currentResponse)
+          reasoning = extractReasoning(currentResponse)
+          var finalRespForCitations: any = currentResponse
 
           const citations = extractCitations(finalRespForCitations)
           return { content: responseContent, usage, reasoning, capturedToolCalls, citations }
@@ -344,3 +352,7 @@ function extractCitations(response: any): string[] | undefined {
     return undefined
   }
 }
+
+
+
+

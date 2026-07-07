@@ -169,8 +169,18 @@ export async function classifyIntentWithModel(
     }
   }
 
-  // Retry logic for DB config load
-  let activePrompt: string | null = null
+  // Read active prompt from file
+  let activePrompt = DEFAULT_CLASSIFIER_PROMPT
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const promptPath = path.join(process.cwd(), 'src/lib/bot/prompts/chains/classifier.txt')
+    activePrompt = fs.readFileSync(promptPath, 'utf8')
+  } catch (err) {
+    logger.warn(`Failed to read classifier.txt, using default.`)
+  }
+
+  // Load keywords config
   let keywordsEnabled = true
   let keywordsObj: any = null
   let retryCount = 0
@@ -178,19 +188,12 @@ export async function classifyIntentWithModel(
 
   while (retryCount <= maxRetries) {
     try {
-      const [keywordsEnabledResult, promptResult, keywordsResult] = await Promise.all([
+      const [keywordsEnabledResult, keywordsResult] = await Promise.all([
         supabaseAdmin
           .from('bot_settings')
           .select('is_active')
           .eq('category', 'classifier_keywords_enabled')
           .eq('mode', 'global')
-          .limit(1)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('bot_settings')
-          .select('content')
-          .eq('category', 'classifier_prompt')
-          .eq('mode', mode)
           .limit(1)
           .maybeSingle(),
         supabaseAdmin
@@ -204,32 +207,18 @@ export async function classifyIntentWithModel(
 
       if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
 
-      if (!promptResult.error && promptResult.data?.content) {
-        activePrompt = promptResult.data.content
-      } else if (promptResult.error) {
-        throw new Error(promptResult.error.message)
-      }
-
       if (!keywordsResult.error && keywordsResult.data?.content) {
         try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch { /* ignore */ }
       }
-
-      // If we got the prompt, we are good
-      if (activePrompt) break
+      break
     } catch (err) {
       if (retryCount === maxRetries) {
-        logger.warn(`Classifier DB load failed after ${maxRetries} retries, using local fallback prompt.`)
-        activePrompt = DEFAULT_CLASSIFIER_PROMPT
+        logger.warn(`Classifier keywords DB load failed after ${maxRetries} retries.`)
         break
       }
       retryCount++
       await new Promise(r => setTimeout(r, 500 * retryCount)) // Backoff
     }
-  }
-
-  // Fallback if still missing
-  if (!activePrompt) {
-    activePrompt = DEFAULT_CLASSIFIER_PROMPT
   }
 
   // Keyword fast-path — only runs if keywords are configured and enabled

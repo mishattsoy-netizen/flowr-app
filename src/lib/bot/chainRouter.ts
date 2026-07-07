@@ -30,53 +30,9 @@ import { expandImagePrompt } from './prompt-expansion'
 import { TraceCollector } from './tracing'
 import { buildTranscript } from './transcript'
 import { getAiUserDescription } from '@/app/settings/ai/actions'
-
-function logCost(cost: {
-  model_id: string; provider: string; prompt_cost: number; completion_cost: number;
-  total_cost: number; prompt_tokens: number; completion_tokens: number;
-}) {
-  if (!supabaseAdmin) return
-  // Only insert fields that exist on cost_log table
-  const { chain, subprovider, ...safe } = cost as any
-  supabaseAdmin.from('cost_log').insert(safe)
-    .then(({ error }: { error: any }) => { if (error) logger.warn(`[CostLog] insert failed: ${error.message}`) })
-    .catch((err: any) => logger.warn(`[CostLog] error: ${err?.message ?? String(err)}`))
-}
-
-async function trackModelUsage(p_model_id: string, p_provider: string) {
-  if (!supabaseAdmin) return
-  try {
-    const today = new Date().toISOString().split('T')[0]
-
-    // 1. Check if we need a global reset for the day
-    const { data: model, error: fetchError } = await supabaseAdmin
-      .from('models')
-      .select('last_reset_date')
-      .eq('id', p_model_id)
-      .maybeSingle()
-
-    if (!fetchError && model && model.last_reset_date !== today) {
-      logger.info(`[RPD] New day detected (${today}). Resetting all model usage...`)
-      await supabaseAdmin
-        .from('models')
-        .update({
-          usage_today: 0,
-          last_reset_date: today
-        })
-        .neq('last_reset_date', today)
-    }
-
-    // 2. Increment usage (creates or updates the model row)
-    const { error } = await supabaseAdmin.rpc('increment_model_usage', { p_model_id, p_provider })
-    if (error) throw error
-  } catch (error: any) {
-    logger.warn(`Usage track failed [${p_model_id}]: ${error.message}`)
-  }
-}
-
-
-// Generates alternative search queries when initial search fails
-
+import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from './services/providerExecution'
+import { buildSystemPrompt } from './services/promptBuilder'
+import { fetchConversationHistory, manageSessionCompaction } from './services/memoryManager'
 
 // Augments search query with context from conversation history
 function augmentSearchQuery(originalQuery: string, history: any[]): string {
@@ -115,26 +71,7 @@ function augmentSearchQuery(originalQuery: string, history: any[]): string {
 }
 
 
-function generateOptimizedQuery(originalPrompt: string): string[] {
-  const queries: string[] = [originalPrompt]
-  
-  // If comparison format, generate individual entity queries
-  const compareMatch = originalPrompt.match(/compare\s+(.+?)\s+(?:and|vs|with|versus)\s+(.+)/i)
-  if (compareMatch) {
-    const a = compareMatch[1].trim().replace(/^(?:the|a|an)\s+/i, '').slice(0, 100)
-    const b = compareMatch[2].trim().replace(/^(?:the|a|an)\s+/i, '').slice(0, 100)
-    queries.push(`${a} specifications capabilities`)
-    queries.push(`${b} specifications capabilities`)
-  }
-  
-  // Strip conversational framing
-  const stripped = originalPrompt.replace(/^(?:can you|could you|i want to know|tell me about|what about|how about|what is|what are|do you know)\s+/i, '').trim()
-  if (stripped !== originalPrompt && stripped.length > 5) {
-    queries.push(stripped)
-  }
-  
-  return queries
-}
+
 // Circuit breaker — cooldown duration depends on failure severity, with exponential backoff on repeats.
 // hard:  auth / quota / 4xx — model is genuinely unavailable, back off long.
 // soft:  5xx / timeout / empty / network — transient, retry sooner.
@@ -224,7 +161,7 @@ export async function runChain(
     aiApiKey?: string;
     activeEntityId?: string;
     activeChatId?: string | null;
-    activeWorkspaceId?: string;
+    activeSpaceId?: string;
     classificationModelId?: string;
     temperature?: number;
     mode?: BotMode;
@@ -268,34 +205,19 @@ export async function runChain(
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
 
-  let history: any[] = []
-  if (context?.chatId) {
-    history = await getConversationMemory(context.chatId, historyLimit)
-  } else if (context?.userId && context.userId !== 'anonymous' && !context?.isTempChat && context?.activeChatId) {
-    // Only fetch DB history when we have a real chatId to scope the query.
-    // Without activeChatId the query returns messages from ALL the user's chats (cross-chat leakage).
-    // Temp chats and chatId-less requests fall through to clientHistory below.
-    history = await getWebConversationMemory(context.userId, historyLimit, context.activeChatId)
-  }
-  // Fallback to client-provided history when DB lookup returns nothing
-  // (anonymous users, temp chats, or missing message_logs rows)
-  if (history.length === 0 && context?.clientHistory && context.clientHistory.length > 0) {
-    history = context.clientHistory.slice(-historyLimit)
-  }
-  let currentSummary = sessionState?.distilled_summary || null
+  let history = await fetchConversationHistory({
+    chatId: context?.chatId,
+    userId: context?.userId,
+    isTempChat: context?.isTempChat,
+    activeChatId: context?.activeChatId,
+    clientHistory: context?.clientHistory
+  }, historyLimit)
 
-  // Pre-request compaction: if cumulative tokens exceed threshold and no summary exists,
-  // compact before processing this request so it benefits from trimmed context.
-  if (sessionState && !currentSummary && history.length >= 5
-    && sessionState.token_usage_total > sessionState.context_limit * sessionState.compaction_threshold) {
-    logger.info(`Pre-request compaction for ${sessionId} (${sessionState.token_usage_total}/${sessionState.context_limit})`)
-    await summarizeSession(sessionId, history, null)
-    const updated = await getSessionState(sessionId)
-    if (updated?.distilled_summary) {
-      currentSummary = updated.distilled_summary
-      sessionState.distilled_summary = updated.distilled_summary
-      sessionState.token_usage_total = updated.token_usage_total ?? sessionState.token_usage_total
-    }
+  let currentSummary = sessionState?.distilled_summary || null
+  const compactionResult = await manageSessionCompaction(sessionId, history, sessionState)
+  currentSummary = compactionResult.currentSummary
+  if (sessionState) {
+    Object.assign(sessionState, compactionResult.updatedSessionState)
   }
 
   // 1. Specialized Vision Flow (Buffer or URL)
@@ -437,26 +359,15 @@ export async function runChain(
         // block that must be stripped server-side before reaching the user.
         const visionContext = context ? { ...context, onChunk: undefined } : context
 
-        switch (modelConfig.provider.toLowerCase()) {
-          case 'google':
-          case 'gemini':
-            // Strip 'google/' prefix if user added it, as SDK doesn't always like it
-            const sanitizedId = modelConfig.id.replace(/^google\//, '')
-            visionRes = await runGoogle(sanitizedId, activePrompt, systemPromptCombined, activeBuffers, visionContext as any, history)
-            break
-          case 'openrouter':
-            visionRes = await runOpenRouter(modelConfig.id, activePrompt, systemPromptCombined, history, context?.aiApiKey, { openrouterProvider: modelConfig.openrouter_provider, sessionId }, activeBuffers)
-            break
-          case 'groq':
-            visionRes = await runGroq(modelConfig.id, activePrompt, systemPromptCombined, context?.aiApiKey, visionContext, history, activeBuffers)
-            break
-          case 'nvidia':
-            visionRes = await runNvidia(modelConfig.id, activePrompt, systemPromptCombined, history, context?.aiApiKey, visionContext, activeBuffers)
-            break
-          default:
-            logger.warn(`Vision provider ${modelConfig.provider} not specifically handled in router. Falling back to runGoogle.`)
-            visionRes = await runGoogle(modelConfig.id, activePrompt, systemPromptCombined, activeBuffers, visionContext as any, history)
-        }
+        visionRes = await executeVisionProvider(
+          modelConfig,
+          activePrompt,
+          systemPromptCombined,
+          activeBuffers,
+          visionContext,
+          history,
+          sessionId
+        )
 
         if (visionRes) {
           const visionUsage = typeof visionRes === 'object' ? (visionRes as any).usage : undefined
@@ -710,7 +621,7 @@ export async function runChain(
   // Normalize legacy / internal categories
   if (rawCategory === 'FAST_SIMPLE') rawCategory = 'REGULAR'
   if (rawCategory === 'MEDIUM_THINKING') rawCategory = 'COMPLEX'
-  if (rawCategory === 'TOOLS') rawCategory = 'COMPLEX'
+
 
   let category: IntentCategory = rawCategory
   logger.info(`[Router] Starting runChain for category: ${category} | prompt: "${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`)
@@ -725,83 +636,26 @@ export async function runChain(
   let { chain, system_prompt: routerOverridePrompt, temperature, thinking_budget } = await getRouterChain(category)
 
   // Fetch internal pipeline prompt if available (from Admin > Bot > Global)
-  const internalPipelinePrompt = await getInternalPrompt(category, context?.mode ?? 'default')
-
-  // UNIFICATION: Global Bot Prompt + Internal Pipeline Prompt + Router Override
-  // Order: 1. Global (Rules/Personality) 2. Internal (Instructions) 3. Router Override (Specific overrides)
-  let finalSysPrompt = dateContext
-
-  // Only inject global prompt if the category is enabled in pipeline settings.
-  // When no admin setting exists, default to ALL categories (original behavior).
-  // The admin can configure exclusions via Pipeline Settings → Global Prompt Enabled Categories.
   const isGlobalPromptEnabled = pipelineSettings.globalPromptEnabledCategories
     ? pipelineSettings.globalPromptEnabledCategories.includes(category)
     : true
 
-  if (globalPrompt && isGlobalPromptEnabled) finalSysPrompt += "\n\n" + globalPrompt
-  // Inject user's personal description if available
-  if (userDescription) {
-    finalSysPrompt += `\n\n[ABOUT THE USER]\nThe following is what the user has shared about themselves. Use this information to personalize your responses and understand who they are:\n${userDescription}\n`
-  }
-  // Static identity context about Flowr and its creator
-  finalSysPrompt += `\n\n[ABOUT THE APP & CREATOR]
-Flowr is a productivity platform that combines knowledge management, task planning, visual whiteboarding, and a personal context-aware AI agent — all in one seamless workspace. Designed to keep you in a flow state. Not a cryptocurrency, blockchain, or financial service.
-
-What Flowr does:
-- Note & knowledge management (notes as local files with optional cloud sync, similar to an Obsidian vault)
-- Visual whiteboards, moodboards, and diagrams (canvas with shapes, connectors, alignment guides — ranging from simple Excalidraw-style to advanced Figma-like capabilities)
-- Task & planning management (structured task tracking integrated with your workspace)
-- Personal AI agent that can interact with your content, answer questions, and help you organize
-
-Two usage modes:
-- **Desktop (local):** files live on your device. Use offline for privacy and full local control.
-- **Web (sync):** access from multiple devices with cloud sync.
-Both modes give you access to your personal AI assistant and full task management.
-
-Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and student. What started as a Notion + Figma + Tasks hybrid evolved into a full desktop + web platform with an integrated AI agent.\n`
-  // Skip internal pipeline prompt for chains that have their own router override —
-  // the router prompt already contains [ANSWER MODE] instructions and mixing both
-  // causes the model to default to PIPELINE structured output instead of user-facing answers.
-  const PIPELINE_PROMPT_CHAINS = ['WEB_SEARCH', 'RESEARCH']
-  if (internalPipelinePrompt && !PIPELINE_PROMPT_CHAINS.includes(category)) finalSysPrompt += "\n\n" + internalPipelinePrompt
-  // Inject tool instructions for categories that have function-calling tools enabled
-  if (['REGULAR', 'COMPLEX', 'CODING'].includes(category)) {
-    const { TOOL_INSTRUCTIONS } = await import('./tools/prompt')
-    finalSysPrompt += "\n\n" + TOOL_INSTRUCTIONS
-  }
-  if (routerOverridePrompt) finalSysPrompt += "\n\n" + routerOverridePrompt
-  if (context?.pageContext) finalSysPrompt += `\n\n[PAGE CONTEXT]\n${context.pageContext}\n`
-
-  // Deduplicate [RESTRICTIONS] — the compiled global prompt already contains it,
-  // and it may also appear in the router override or internal prompt.
-  // Keep only the first occurrence to save tokens.
-  let restrictionsDeduped = false
-  finalSysPrompt = finalSysPrompt.replace(/^\[RESTRICTIONS\][\s\S]*?(?=\n\n\[|$)/gm, (match) => {
-    if (restrictionsDeduped) return ''
-    restrictionsDeduped = true
-    return match
+  const skipSummary = category === 'WEB_SEARCH' || category === 'RESEARCH' || context?._skipSessionSummary || context?.isTempChat
+  let { staticPrompt: system_prompt, dynamicContext } = await buildSystemPrompt(category, routerOverridePrompt, {
+    userId: context?.userId,
+    pageContext: context?.pageContext,
+    vision_notes: context?.vision_notes,
+    replyContext: context?.replyContext,
+    isGlobalPromptEnabled: isGlobalPromptEnabled ?? true,
+    skipSummary: !!skipSummary,
+    currentSummary
   })
 
-  let system_prompt = finalSysPrompt
-
-  if (context?.vision_notes) {
-    system_prompt = `[VISION DATA]\n${context.vision_notes}\n\n` + system_prompt
-  }
-
-  // Inject global session summary if available.
-  // Skip for WEB_SEARCH/RESEARCH and fallbacks from those chains — poisoned summaries override search results.
-  const skipSummary = category === 'WEB_SEARCH' || category === 'RESEARCH' || context?._skipSessionSummary || context?.isTempChat
-  if (currentSummary && !skipSummary) {
-    system_prompt = `[SESSION MEMORY SUMMARY]\n${currentSummary}\n\n` + system_prompt
-  }
-
-  if (context?.replyContext?.attentionBlock) {
-    system_prompt = context.replyContext.attentionBlock + "\n\n" + (system_prompt || "")
-  }
+  // Removed legacy attention block handling as it's now inside dynamicContext
+  let activePromptForGen = prompt
 
   let finalUsageType: 'chat' | 'tool' | 'search' | 'vision' | 'image' = 'chat'
   if (category === 'WEB_SEARCH' || category === 'RESEARCH') finalUsageType = 'search'
-  if (category === 'TOOLS') finalUsageType = 'tool'
   if (category === 'IMAGE_GEN') finalUsageType = 'image'
 
   const fallbackMode = fallbackModes[category] || 'model_first'
@@ -851,7 +705,6 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
   }
 
   // ── Iterative search for RESEARCH ──
-  let activePromptForGen = prompt
   if (category === 'RESEARCH') {
     onStatus({ chain: 'RESEARCH', goal: 'Running iterative web research', status: 'running', label: getStatusLabel('RESEARCH') })
     const researchResult = await runDeepResearchChain(prompt, context)
@@ -939,7 +792,7 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
   }
 
   // ── Status label for text-processing categories ──
-  const STATUS_CATEGORIES = ['REGULAR', 'COMPLEX', 'CODING', 'TOOLS', 'ADVISOR', 'AUDIO', 'WEB_SEARCH']
+  const STATUS_CATEGORIES = ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'AUDIO', 'WEB_SEARCH']
   if (STATUS_CATEGORIES.includes(category)) {
     onStatus({
       chain: category,
@@ -1028,7 +881,7 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
           const routeContext: any = {
             ...(context || {}),
             sessionId,
-            useTools: ['REGULAR', 'COMPLEX', 'CODING', 'TOOLS', 'ADVISOR'].includes(category),
+            useTools: ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'WEB_SEARCH', 'RESEARCH'].includes(category),
             // Ground a Gemini step only when no search engine has fed it data yet.
             // [SEARCH DATA] is injected once tavily/exa run, so a Gemini model placed
             // ABOVE the search engine self-grounds, while one BELOW it synthesizes the
@@ -1077,6 +930,10 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
           const isTokenLimitEnabled = enabledCats.length > 0
             ? enabledCats.includes(category)
             : !SEARCH_CHAINS.includes(category)
+          const finalUserPrompt = dynamicContext 
+            ? `${dynamicContext}\n\n[CURRENT REQUEST]\n${activePromptForGen}` 
+            : activePromptForGen;
+
           if (isTokenLimitEnabled) {
             // Apply Output Limit (max_tokens)
             if (pipelineSettings.outputTokenLimit > 0) {
@@ -1085,7 +942,7 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
             
             // Apply Input Limit (Hard trimming)
             if (pipelineSettings.inputTokenLimit > 0) {
-              const currentPromptTokens = estimateTokens(system_prompt + activePromptForGen)
+              const currentPromptTokens = estimateTokens(system_prompt + finalUserPrompt)
               const budgetForHistory = pipelineSettings.inputTokenLimit - currentPromptTokens
               
               if (budgetForHistory <= 0) {
@@ -1108,128 +965,47 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
             }
           }
 
-          const traceMeta = {
-            chain: category,
-            model: modelConfig.id,
-            provider: modelConfig.provider,
-            key: `${key} ${k + 1}`,
-            input_system: system_prompt,
-            input_user: activePromptForGen,
-            input_history_count: historyForChain.length,
-          }
-          const t0 = Date.now()
-
-          try {
-            switch (modelConfig.provider.toLowerCase()) {
-              case 'google':
-              case 'gemini':
-                response = await runGoogle(modelConfig.id, activePromptForGen, system_prompt, undefined, routeContext, historyForChain)
-                break
-              case 'groq':
-                response = await runGroq(modelConfig.id, activePromptForGen, system_prompt, activeKey || context?.aiApiKey, routeContext, historyForChain)
-                break
-              case 'huggingface':
-                if (category === 'IMAGE_GEN') {
-                  response = await runHuggingFace(modelConfig.id, activePromptForGen, activeKey || context?.aiApiKey)
-                } else {
-                  response = await runHuggingFaceText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || context?.aiApiKey, routeContext)
-                }
-                break
-              case 'cloudflare':
-                response = await runCloudflare(modelConfig.id, activePromptForGen, activeKey || context?.aiApiKey, system_prompt, historyForChain, category, routeContext)
-                break
-              case 'core':
-              case 'exa':
-              case 'tavily': {
-                // If we already have search data (from Thinking pass, Web Search, or Deep Research), skip redundant search
-                // Note: Deep Research results are often in activePromptForGen instead of system_prompt
-                const hasSearchData =
-                  system_prompt.includes('[SEARCH DATA:') ||
-                  system_prompt.includes('[SEARCH DATA]\n') ||
-                  system_prompt.includes('[SEARCH RESULTS') ||
-                  system_prompt.includes('RESEARCH FINDINGS:') ||
-                  activePromptForGen.includes('RESEARCH FINDINGS:')
-
-                if (hasSearchData) {
-                  logger.info(`Skipping redundant search for ${modelConfig.id} - data already present from prior pass.`)
-                  continue modelLoop
-                }
-
-                const SEARCH_FAILURE_STRINGS = ['search failed', 'unavailable', 'could not retrieve', 'failed to retrieve', 'unable to find', 'no results']
-                let searchResult: string | null = null
-                // Augment search query with conversation context for disambiguation
-                const searchQuery = augmentSearchQuery(prompt, history)
-                if (modelConfig.id.includes('tavily')) searchResult = await runWebSearchChain(searchQuery, routeContext, system_prompt)
-                else if (modelConfig.id.includes('duckduckgo')) searchResult = await runDuckDuckGoSearchChain(searchQuery, routeContext, system_prompt)
-                else if (modelConfig.id.includes('exa')) searchResult = await runExaSearchChain(searchQuery, routeContext, system_prompt)
-                else {
-                  // Fallback: try based on provider name if ID doesn't match
-                  if (modelConfig.provider === 'tavily') searchResult = await runWebSearchChain(searchQuery, routeContext, system_prompt)
-                  else if (modelConfig.provider === 'exa') searchResult = await runExaSearchChain(searchQuery, routeContext, system_prompt)
-                }
-
-                let isSearchFailure = !searchResult || SEARCH_FAILURE_STRINGS.some(f => searchResult!.toLowerCase().includes(f))
-
-                if (isSearchFailure) {
-                  // Retry with optimized query (one retry per engine)
-                  const altQueries = generateOptimizedQuery(searchQuery)
-                  for (const altQuery of altQueries) {
-                    if (altQuery === searchQuery) continue
-                    logger.info(`Retrying ${modelConfig.id} with optimized query: "${altQuery}"`)
-                    let retryResult: string | null = null
-                    if (modelConfig.id.includes('tavily')) retryResult = await runWebSearchChain(altQuery, routeContext, system_prompt)
-                    else if (modelConfig.id.includes('duckduckgo')) retryResult = await runDuckDuckGoSearchChain(altQuery, routeContext, system_prompt)
-                    else if (modelConfig.id.includes('exa')) retryResult = await runExaSearchChain(altQuery, routeContext, system_prompt)
-                    
-                    const retryFailed = !retryResult || SEARCH_FAILURE_STRINGS.some(f => retryResult!.toLowerCase().includes(f))
-                    if (!retryFailed) {
-                      searchResult = retryResult
-                      isSearchFailure = false
-                      logger.info(`Retry succeeded for ${modelConfig.id} with query: "${altQuery}"`)
-                      break
-                    }
-                  }
-                }
-
-                if (isSearchFailure) {
-                  const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
-                  routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false, status: 'empty' })
-                  tracer.recordFailed({ ...traceMeta, error: 'search failed to retrieve results' }, Date.now() - t0)
-                  break
-                }
-
-                // Success: update system_prompt for the next model and set response to trigger success path
-                system_prompt = `${system_prompt}\n\n[SEARCH DATA: ${modelConfig.id}]\n${searchResult}\n\n`
-                response = { content: searchResult }
-                break
-              }
-              case 'pollinations':
-                if (category === 'IMAGE_GEN') {
-                  response = await runPollinations(activePromptForGen, modelConfig.id)
-                } else {
-                  response = await runPollinationsText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
-                }
-                break
-              case 'openrouter':
-                if (modelConfig.openrouter_provider) routeContext.openrouterProvider = modelConfig.openrouter_provider
-                response = await runOpenRouter(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || context?.aiApiKey || providerKeys[0], routeContext)
-                break
-              case 'local':
-              case 'ollama':
-              case 'ollama(my pc)':
-                response = await runOllama(modelConfig.id, activePromptForGen, system_prompt, historyForChain, temperature, routeContext)
-                break
-              case 'siliconflow':
-                if (category === 'IMAGE_GEN') {
-                  response = await runSiliconFlow(modelConfig.id, activePromptForGen, activeKey || providerKeys[0])
-                } else {
-                  response = await runSiliconFlowText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
-                }
-                break
-              case 'nvidia':
-                response = await runNvidia(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
-                break
+            const traceMeta = {
+              chain: category,
+              model: modelConfig.id,
+              provider: modelConfig.provider,
+              key: `${key} ${k + 1}`,
+              input_system: system_prompt,
+              input_user: finalUserPrompt,
+              input_history_count: historyForChain.length,
             }
+            const t0 = Date.now()
+
+            try {
+              const result = await executeProvider(
+                modelConfig,
+                category,
+                finalUserPrompt,
+                system_prompt,
+                historyForChain,
+              activeKey,
+              providerKeys,
+              context,
+              routeContext,
+              temperature,
+              prompt,
+              augmentSearchQuery
+            )
+            
+            if (result.searchFailed) {
+              const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
+              routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false, status: 'empty' })
+              tracer.recordFailed({ ...traceMeta, error: 'search failed to retrieve results' }, Date.now() - t0)
+              break
+            }
+            if (result.searchResult) {
+              system_prompt = `${system_prompt}\n\n[SEARCH DATA: ${modelConfig.id}]\n${result.searchResult}\n\n`
+            }
+            
+            if (result.response === null) {
+              continue modelLoop
+            }
+            response = result.response
           } catch (providerErr: any) {
             tracer.recordFailed({ ...traceMeta, error: providerErr?.message }, Date.now() - t0)
             throw providerErr
@@ -1477,8 +1253,6 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
               classificationTrace,
               routingTrace,
               systemPrompt: system_prompt,
-              globalPrompt: (globalPrompt as string) || undefined,
-              internalPrompt: (internalPipelinePrompt as string) || undefined,
               routerPrompt: (routerOverridePrompt as string) || undefined,
               dateContext,
               currentSummary,
@@ -1498,6 +1272,7 @@ Flowr was created by Mikhail Tsoy, a 19-year-old independent developer and stude
               chainDuration: Date.now() - t0,
               usageType: finalUsageType,
               modelChain: detailedModelChain,
+              capturedToolCalls,
             })
 
             return {

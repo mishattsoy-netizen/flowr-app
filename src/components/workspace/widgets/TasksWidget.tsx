@@ -18,7 +18,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
   const toggleTask = useStore(s => s.toggleTask);
   const addTask = useStore(s => s.addTask);
   const entities = useStore(s => s.entities);
-  const activeWorkspaceId = useStore(s => s.activeWorkspaceId);
+  const activeSpaceId = useStore(s => s.activeSpaceId);
   const view: ViewMode = data?.view ?? 'list';
 
   const entity = useMemo(() => {
@@ -34,7 +34,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
     if (!entity) return [];
     const childIds = new Set(entities.filter(e => e.parentId === entity.id).map(e => e.id));
     childIds.add(entity.id);
-    return tasks.filter(t => t.workspaceId === entity.id || (t.entityId && childIds.has(t.entityId)));
+    return tasks.filter(t => t.spaceId === entity.id || (t.entityId && childIds.has(t.entityId)));
   }, [tasks, entities, entity, contextId]);
 
   const [newTitle, setNewTitle] = useState('');
@@ -47,7 +47,7 @@ export function TasksWidget({ entity: propEntity, contextId, data, onUpdateData 
     if (!title) { setIsAdding(false); return; }
     addTask({
       title,
-      workspaceId: entity?.id ?? activeWorkspaceId ?? null,
+      spaceId: entity?.id ?? activeSpaceId ?? null,
       status: activeTab === 'in-progress' ? 'in-progress' : 'todo'
     });
     setNewTitle('');

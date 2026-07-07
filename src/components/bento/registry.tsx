@@ -3,7 +3,7 @@ import { ComponentType } from 'react';
 // Dashboard widgets
 import { ClockWidget } from '@/components/workspace/widgets/ClockWidget';
 
-// Workspace widgets
+// Space widgets
 import { AllFilesWidget } from '@/components/workspace/widgets/AllFilesWidget';
 import { TasksWidget } from '@/components/workspace/widgets/TasksWidget';
 import { TimerWidget } from '@/components/workspace/widgets/TimerWidget';

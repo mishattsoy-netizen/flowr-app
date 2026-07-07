@@ -6,6 +6,9 @@ const fsp = require('fs/promises');
 const net = require('net');
 const os = require('os');
 
+// Must match PAGE_MARGIN_MM in src/components/modals/PdfExportModal.tsx.
+const PAGE_MARGIN_MM_EXPORT = 15;
+
 // Configure autoUpdater
 autoUpdater.autoDownload = true;
 autoUpdater.logger = {
@@ -482,6 +485,40 @@ app.whenReady().then(() => {
   ipcMain.handle('dialog:pickVaultFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
     return result.filePaths[0] || null;
+  });
+
+  // Generates a PDF via Electron's native printToPDF, then prompts a save location - no OS
+  // print dialog. pageWidthMicrons/pageHeightMicrons let custom page sizes (square,
+  // presentation) print at their exact dimensions instead of a named size like 'A4'.
+  // printToPDF does NOT reliably apply @media print / doesn't re-run paged.js's on-screen
+  // pagination, so the export path renders un-paginated source content (margin applied via
+  // the `margins` option below, not CSS @page, since that interaction is undocumented) and
+  // lets Chromium's native print engine fragment it - rather than reusing paged.js's
+  // pre-built page boxes, which risks doubled/blank sheets when re-flowed by Electron's own
+  // print pipeline.
+  //
+  // IMPORTANT: printToPDF's custom `pageSize` object takes width/height in INCHES, not
+  // microns - passing microns (e.g. 210000) throws "Failed to generate PDF: Printing failed"
+  // with no indication of why. Verified empirically: pageSize as a string ('A4') or an
+  // inches object both work; a microns-scale object fails every time. `margins` is
+  // separately documented as inches, matching this.
+  ipcMain.handle('pdf:export', async (_, { defaultFileName, pageWidthMicrons, pageHeightMicrons }) => {
+    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultFileName || 'export.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePath) return { canceled: true };
+
+    const marginIn = (PAGE_MARGIN_MM_EXPORT / 25.4);
+    const pageWidthIn = pageWidthMicrons / 1000 / 25.4;
+    const pageHeightIn = pageHeightMicrons / 1000 / 25.4;
+    const pdfBuffer = await mainWindow.webContents.printToPDF({
+      pageSize: { width: pageWidthIn, height: pageHeightIn },
+      printBackground: true,
+      margins: { top: marginIn, bottom: marginIn, left: marginIn, right: marginIn },
+    });
+    await fsp.writeFile(filePath, pdfBuffer);
+    return { canceled: false, filePath };
   });
 
   ipcMain.handle('updater:checkForUpdates', async () => {

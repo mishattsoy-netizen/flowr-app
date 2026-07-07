@@ -7,7 +7,7 @@ export interface FrontmatterMeta {
   lastModified: number;
   version: number;
   tags?: string[];
-  workspaceId?: string;
+  spaceId?: string;
   blocks?: EditorBlock[];
 }
 

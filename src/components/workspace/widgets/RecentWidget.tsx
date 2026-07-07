@@ -28,9 +28,10 @@ const ALL_FILTERS = [
 export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { data?: { filter?: Filter } }) {
   const recentEntityIds = useStore(s => s.recentEntityIds);
   const entities = useStore(s => s.entities);
-  const workspaces = useStore(s => s.workspaces);
+  const spaces = useStore(s => s.spaces);
+  const activeSpaceId = useStore(s => s.activeSpaceId);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
-  const setActiveWorkspaceId = useStore(s => s.setActiveWorkspaceId);
+  const setActiveSpaceId = useStore(s => s.setActiveSpaceId);
   const addEntity = useStore(s => s.addEntity);
   const filter: Filter = data?.filter ?? 'all';
 
@@ -44,8 +45,8 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
       // Find in entities (pages, folders, etc.)
       const entity = entities.find(e => e.id === id);
       if (entity) return entity;
-      // Find in workspaces
-      const workspace = workspaces.find(w => w.id === id);
+      // Find in spaces
+      const workspace = spaces.find(w => w.id === id);
       if (workspace) {
         return {
           id: workspace.id,
@@ -55,7 +56,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
           lastModified: workspace.createdAt || Date.now(),
           icon: workspace.icon,
           color: workspace.color,
-          workspaceId: workspace.id,
+          spaceId: workspace.id,
           syncMode: workspace.syncMode,
           pairedEntityId: null,
         } as Entity;
@@ -63,16 +64,19 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
       return null;
     }).filter((e): e is Entity => !!e);
 
+    // Filter by activeSpaceId (excluding workspaces themselves to still show up globally or if we want them isolated too)
+    list = list.filter(e => e.type === 'workspace' || (e.spaceId || 'ws-personal') === activeSpaceId);
+
     if (contextId && contextId !== 'dashboard') {
-      // Exclude workspaces and collections inside a specific workspace dashboard to avoid self-listing
-      list = list.filter(e => e.type !== 'workspace' && e.type !== 'collection');
+      // Exclude spaces inside a specific workspace dashboard to avoid self-listing
+      list = list.filter(e => e.type !== 'workspace');
 
       list = list.filter(e => {
         let curr: Entity | undefined = e;
         const visited = new Set<string>();
         while (curr) {
           if (curr.id === contextId) return true;
-          if (curr.workspaceId === contextId) return true;
+          if (curr.spaceId === contextId) return true;
           if (curr.parentId) {
             if (visited.has(curr.parentId)) break;
             visited.add(curr.parentId);
@@ -86,7 +90,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
       });
     }
     return list.filter(e => filter === 'all' || e.type === filter);
-  }, [recentEntityIds, entities, workspaces, filter, contextId]);
+  }, [recentEntityIds, entities, spaces, filter, contextId]);
 
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const [pillStyle, setPillStyle] = useState({ left: 3, width: 40 });
@@ -163,15 +167,15 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
             if (entity.type === 'canvas') return Frame;
             return Folder;
           })();
-          const ws = entity.workspaceId ? workspaces.find(w => w.id === entity.workspaceId) : null;
+          const ws = entity.spaceId ? spaces.find(w => w.id === entity.spaceId) : null;
           return (
             <button key={entity.id} onClick={() => {
               if (entity.type === 'workspace') {
-                setActiveWorkspaceId(entity.id);
+                setActiveSpaceId(entity.id);
                 setActiveEntityId(null);
               } else {
-                if (entity.workspaceId) {
-                  setActiveWorkspaceId(entity.workspaceId);
+                if (entity.spaceId) {
+                  setActiveSpaceId(entity.spaceId);
                 }
                 setActiveEntityId(entity.id);
               }
@@ -184,7 +188,7 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
                 <div className="text-[13px] leading-snug truncate text-[var(--bone-100)]">{stripHtml(entity.title || '')}</div>
                 <div className="text-[10px] text-[var(--bone-30)] flex items-center gap-1">
                   {entity.type === 'workspace' ? (
-                    <span>Workspace</span>
+                    <span>Space</span>
                   ) : (
                     <>
                       <span>{formatAge(entity.lastModified)} ago</span>

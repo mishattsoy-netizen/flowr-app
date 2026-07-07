@@ -8,6 +8,7 @@ import { ResizeHandle, HandlePosition } from './ResizeHandle';
 import { useDrag } from '@/hooks/useDrag';
 import { buildArrowPaths } from '@/lib/geometry/arrowPath';
 import { getCornerRadius } from '@/lib/geometry/outline';
+import { blockOutlineKind } from '@/lib/geometry/binding';
 import { activeDragOffsets } from '@/lib/canvasDragState';
 import { CanvasTextElement } from './CanvasTextElement';
 import { getBoundText, layoutLabelInShape, pathMidpoint } from '@/lib/canvas/boundText';
@@ -672,44 +673,66 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         </div>
       )}
 
-      {/* Bind highlight + side-center dots (only on the hovered bindable element while
-          the arrow/line tool is active). Replaces the old always-on 8-dot grid with
-          Excalidraw-style hover affordance for the 3 binding modes. */}
-      {bindHighlight && (
-        <>
-          <div className="absolute -inset-[2px] border-2 border-[var(--accent)] rounded-[inherit] pointer-events-none z-[95] opacity-70" />
-          {(['top', 'right', 'bottom', 'left'] as const).filter(side => side === bindHoverDotSide).map(side => (
-            <div
-              key={side}
-              className={cn(
-                // pointer-events-auto: frame roots are pointer-events-none, and these dots
-                // must stay clickable on frames too (frames are bindable).
-                "absolute w-3 h-3 rounded-full bg-[var(--accent)] border-2 border-background z-[100] cursor-crosshair pointer-events-auto",
-                side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
-                side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
-                side === 'bottom' && "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2",
-                side === 'left' && "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
+      {/* Bind highlight: a SOLID BLUE trace of the shape's own outline (not a generic
+          bounding box) while an arrow endpoint is being aimed at it — either drawing a new
+          connection or dragging an existing endpoint onto it. Traced with the same outline
+          geometry used for hit-testing (blockOutlineKind + getCornerRadius) so it always
+          matches the real silhouette: rounded/sharp rect, ellipse, or diamond. Alongside it,
+          the 4 side-center dots light up individually on cursor proximity for quick
+          side-midpoint connections while the arrow/line tool is active. */}
+      {bindHighlight && (() => {
+        const w = size.width, h = size.height || containerRef.current?.offsetHeight || 100;
+        const kind = blockOutlineKind(block);
+        const cornerRadius = kind === 'rect' ? getCornerRadius(block.canvasStyleExt?.roundCorners, w, h) : 0;
+        return (
+          <>
+            <svg
+              className="absolute -inset-0 pointer-events-none z-[95] overflow-visible"
+              width={w} height={h}
+            >
+              {kind === 'ellipse' && (
+                <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} fill="none" stroke="var(--brand-blue)" strokeWidth={2} />
               )}
-              onPointerDown={(e) => {
-                // stopPropagation: this app's flow-drawing is click-to-add-point (not
-                // drag-to-create), so the dot must fully drive start/commit itself via
-                // onSideDotDown, exactly like the connection points it replaces —
-                // letting the event bubble would double-fire the canvas-bg click handler.
-                e.stopPropagation();
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const canvasRect = document.getElementById('canvas-bg')?.getBoundingClientRect();
-                if (canvasRect && onSideDotDown) {
-                  onSideDotDown(
-                    side,
-                    (rect.left - canvasRect.left + rect.width / 2 - viewport.x) / viewport.scale,
-                    (rect.top - canvasRect.top + rect.height / 2 - viewport.y) / viewport.scale
-                  );
-                }
-              }}
-            />
-          ))}
-        </>
-      )}
+              {kind === 'diamond' && (
+                <polygon points={`${w / 2},0 ${w},${h / 2} ${w / 2},${h} 0,${h / 2}`} fill="none" stroke="var(--brand-blue)" strokeWidth={2} />
+              )}
+              {kind === 'rect' && (
+                <rect x={1} y={1} width={Math.max(w - 2, 0)} height={Math.max(h - 2, 0)} rx={cornerRadius} ry={cornerRadius} fill="none" stroke="var(--brand-blue)" strokeWidth={2} />
+              )}
+            </svg>
+            {(['top', 'right', 'bottom', 'left'] as const).filter(side => side === bindHoverDotSide).map(side => (
+              <div
+                key={side}
+                className={cn(
+                  // pointer-events-auto: frame roots are pointer-events-none, and these dots
+                  // must stay clickable on frames too (frames are bindable).
+                  "absolute w-3 h-3 rounded-full bg-[var(--brand-blue)] border-2 border-background z-[100] cursor-crosshair pointer-events-auto",
+                  side === 'top' && "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                  side === 'right' && "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
+                  side === 'bottom' && "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2",
+                  side === 'left' && "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
+                )}
+                onPointerDown={(e) => {
+                  // stopPropagation: this app's flow-drawing is click-to-add-point (not
+                  // drag-to-create), so the dot must fully drive start/commit itself via
+                  // onSideDotDown — letting the event bubble would double-fire the
+                  // canvas-bg click handler.
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const canvasRect = document.getElementById('canvas-bg')?.getBoundingClientRect();
+                  if (canvasRect && onSideDotDown) {
+                    onSideDotDown(
+                      side,
+                      (rect.left - canvasRect.left + rect.width / 2 - viewport.x) / viewport.scale,
+                      (rect.top - canvasRect.top + rect.height / 2 - viewport.y) / viewport.scale
+                    );
+                  }
+                }}
+              />
+            ))}
+          </>
+        );
+      })()}
 
       {/* CONTENT */}
       {isBoundLabel ? (

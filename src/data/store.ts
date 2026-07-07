@@ -6,7 +6,7 @@ import {
   upsertTask,
   deleteTaskFromDB,
   clearAllDataFromCloud,
-  upsertWorkspace
+  upsertSpace
 } from '@/lib/sync';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import {
@@ -29,7 +29,7 @@ export type {
   EditingSource, AIAttachment, AIMessage, AICursor, ModelStatus,
   PriorityModel, ProjectQuota, FlowIntentCategory, FlowRouterModel,
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
-  WorkspaceType, Workspace, SidebarSectionId, SidebarSectionSettings, SortMode,
+  SpaceType, Space, SidebarSectionId, SidebarSectionSettings, SortMode,
   BotMode, ShapeKind, CanvasStyleExt, ArrowBinding, ArrowheadStyle, ArrowheadType,
 } from './store.types';
 
@@ -39,7 +39,7 @@ export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
 // Internal type imports (used within this file's store implementation)
 import type {
   Entity, EditorBlock, AIMessage,
-  AppState, Workspace, WidgetConfig, AppTask, TaskAttachment, BotMode,
+  AppState, Space, WidgetConfig, AppTask, TaskAttachment, BotMode,
 } from './store.types';
 
 
@@ -88,13 +88,14 @@ const SYSTEM_ROUTES = ['chat', 'dashboard', 'tracker', 'settings'];
 const getChatSessionId = (
   activeChatId: string | null,
   activeEntityId: string | null,
+  activeSpaceId: string | null,
   fallback: string
 ) => {
   if (activeChatId) return activeChatId;
   if (activeEntityId && !SYSTEM_ROUTES.includes(activeEntityId)) {
     return activeEntityId;
   }
-  return fallback;
+  return `${fallback}_${activeSpaceId || 'ws-personal'}`;
 };
 
 const TEMP_CHAT_GREETINGS = [
@@ -129,25 +130,25 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       entities: [
-        { id: 'c1', title: 'Collection 1', type: 'collection', parentId: null, lastModified: initialTime, icon: 'Folder', workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'c2', title: 'Collection 2', type: 'collection', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], workspaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'c1', title: 'Space 1', type: 'workspace', parentId: null, lastModified: initialTime, icon: 'Folder', spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'c2', title: 'Space 2', type: 'workspace', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
+        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
       ],
 
       tasks: [
-        { id: 't1', title: 'Review mockups', completed: false, dueDate: new Date(Date.now() - oneDayMs).toISOString().split('T')[0], entityId: 'cv1', color: '#EF4444', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't2', title: 'Outline next week', completed: true, dueDate: new Date().toISOString().split('T')[0], entityId: 'n1', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't3', title: 'Design review meeting', completed: false, dueDate: new Date(Date.now() + oneDayMs).toISOString().split('T')[0], entityId: null, color: '#3B82F6', workspaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't4', title: 'Prepare assets', completed: false, dueDate: new Date().toISOString().split('T')[0], entityId: null, workspaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't1', title: 'Review mockups', completed: false, dueDate: new Date(Date.now() - oneDayMs).toISOString().split('T')[0], entityId: 'cv1', color: '#EF4444', spaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't2', title: 'Outline next week', completed: true, dueDate: new Date().toISOString().split('T')[0], entityId: 'n1', spaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't3', title: 'Design review meeting', completed: false, dueDate: new Date(Date.now() + oneDayMs).toISOString().split('T')[0], entityId: null, color: '#3B82F6', spaceId: 'ws-personal', syncMode: 'cloud-only' },
+        { id: 't4', title: 'Prepare assets', completed: false, dueDate: new Date().toISOString().split('T')[0], entityId: null, spaceId: 'ws-personal', syncMode: 'cloud-only' },
       ],
 
       blocks: [
         { id: 'b1', type: 'text', content: 'Explore unified navigation.', x: 100, y: 100, canvasId: 'cv1' },
       ],
 
-      workspaces: [
+      spaces: [
         {
           id: 'ws-personal',
           name: 'Personal',
@@ -157,9 +158,9 @@ export const useStore = create<AppState>()(
           syncMode: 'cloud-only',
         },
       ],
-      activeWorkspaceId: 'ws-personal',
-      trackerFilterWorkspace: null,
+      activeSpaceId: 'ws-personal',
       trackerFilterTag: null,
+      trackerFilterEntityId: null,
       shortcuts: {},
       cachedDisplayName: '',
       lastSaved: null,
@@ -181,12 +182,12 @@ export const useStore = create<AppState>()(
 
         set(s => ({
           entities: s.entities.map(e => targetIds.has(e.id) ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
-          workspaces: s.workspaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
+          spaces: s.spaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
         }));
 
-        const ws = get().workspaces.find(w => w.id === entityId);
+        const ws = get().spaces.find(w => w.id === entityId);
         if (ws) {
-          upsertWorkspace(ws);
+          upsertSpace(ws);
         }
 
         const { saveEntity } = await import('@/lib/persistence');
@@ -220,7 +221,16 @@ export const useStore = create<AppState>()(
       },
       setLastSaved: (time) => set({ lastSaved: time }),
 
-      setEntities: (entities) => set({ entities }),
+      setEntities: (entities) => {
+        set((s) => {
+          let newActiveSpaceId = s.activeSpaceId;
+          const globalSpaces = s.spaces; // Use actual global spaces, not entities
+          if (!newActiveSpaceId || !globalSpaces.some(ws => ws.id === newActiveSpaceId)) {
+            newActiveSpaceId = globalSpaces.length > 0 ? globalSpaces[0].id : 'ws-personal';
+          }
+          return { entities, activeSpaceId: newActiveSpaceId };
+        });
+      },
       setRecentEntityIds: (recentEntityIds) => set({ recentEntityIds }),
 
 
@@ -263,6 +273,7 @@ export const useStore = create<AppState>()(
       isAIAssistantOpen: false,
       isTaskPanelOpen: false,
       activeTaskId: null as string | null,
+      taskPanelPresets: null as Partial<AppTask> | null,
       taskPanelWidth: 500,
       aiWasOpenBeforeTaskPanel: false,
       activeChatId: null,
@@ -283,7 +294,7 @@ export const useStore = create<AppState>()(
       sidebarSectionSettings: {
         pinned: { sortMode: 'lastModified', itemLimit: 20 },
         unsorted: { sortMode: 'lastModified', itemLimit: 20 },
-        workspaces: { sortMode: 'lastModified', itemLimit: 20 },
+        spaces: { sortMode: 'lastModified', itemLimit: 20 },
       },
       trackerColumnSortModes: {
         todo: 'automatic',
@@ -292,13 +303,18 @@ export const useStore = create<AppState>()(
         overdue: 'automatic',
         completed: 'recently_added'
       },
-      trackerColumnSortLocks: {},
+      trackerColumnSortLocks: {
+        todo: true,
+        inProgress: true,
+        today: true,
+        overdue: true,
+        completed: true,
+      },
       hiddenEntityIds: [],
       isCommandPaletteOpen: false,
       selectedSidebarIds: [],
       aiSessionContext: null,
       activeMode: 'default' as BotMode,
-      activeIntentTag: null,
       activeReplyMessage: null,
       assistantInput: "",
       thinkingEnabled: false,
@@ -320,7 +336,7 @@ export const useStore = create<AppState>()(
 
       stopAIGeneration: () => {
         const { activeChatId, activeEntityId, isTempChat, abortControllersMap } = get();
-        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const sid = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const controller = abortControllersMap[sid];
         if (controller) {
           controller.abort();
@@ -449,6 +465,15 @@ export const useStore = create<AppState>()(
           }));
         }
       },
+      swapColumns: () => {
+        const state = get();
+        set({
+          splitViewLeftId: state.splitViewRightId,
+          splitViewRightId: state.splitViewLeftId,
+          activeEntityId: state.splitViewRightId ?? state.activeEntityId,
+          activeTabId: state.splitViewRightId ?? state.activeTabId,
+        });
+      },
       exitSplitView: () => {
         const state = get();
         set({
@@ -465,10 +490,10 @@ export const useStore = create<AppState>()(
       toggleTabsHeader: () => set((state) => ({ isTabsHeaderVisible: !state.isTabsHeaderVisible })),
       setAppStyle: (appStyle) => set({ appStyle }),
 
-      setWorkspaces: (workspaces) => set({ workspaces }),
+      setSpaces: (spaces) => set({ spaces }),
 
-      setActiveWorkspaceId: (id) => {
-        set({ activeWorkspaceId: id });
+      setActiveSpaceId: (id) => {
+        set({ activeSpaceId: id });
         if (id && id !== 'dashboard') {
           const nextRecent = [id, ...get().recentEntityIds.filter(rid => rid !== id)].slice(0, 10);
           set({ recentEntityIds: nextRecent });
@@ -476,18 +501,18 @@ export const useStore = create<AppState>()(
         }
       },
 
-      setTrackerFilterWorkspace: (id) => {
-        set({ trackerFilterWorkspace: id });
-      },
       setTrackerFilterTag: (tag) => {
         set({ trackerFilterTag: tag });
       },
+      setTrackerFilterEntityId: (id) => {
+        set({ trackerFilterEntityId: id });
+      },
 
-      createWorkspace: (input) => {
+      createSpace: (input) => {
         const id = input.id ?? generateId();
-        const workspace: Workspace = {
+        const workspace: Space = {
           id,
-          name: input.name ?? 'Workspace',
+          name: input.name ?? 'Space',
           type: input.type ?? 'personal',
           ownerId: input.ownerId ?? null,
           createdAt: Date.now(),
@@ -496,25 +521,28 @@ export const useStore = create<AppState>()(
           settings: input.settings,
           syncMode: 'cloud-only',
         };
-        set(s => ({ workspaces: [...s.workspaces, workspace] }));
-        upsertWorkspace(workspace);
+        set(s => ({ spaces: [...s.spaces, workspace] }));
+        upsertSpace(workspace);
         return id;
       },
 
-      updateWorkspace: (id, patch) => {
+      updateSpace: (id, patch) => {
         set(s => ({
-          workspaces: s.workspaces.map(w => w.id === id ? { ...w, ...patch } : w),
+          spaces: s.spaces.map(w => w.id === id ? { ...w, ...patch } : w),
         }));
-        const updated = get().workspaces.find(w => w.id === id);
-        if (updated) upsertWorkspace(updated);
+        const updated = get().spaces.find(w => w.id === id);
+        if (updated) upsertSpace(updated);
       },
 
-      deleteWorkspace: (id) => set(s => ({
-        workspaces: s.workspaces.filter(w => w.id !== id),
-        activeWorkspaceId: s.activeWorkspaceId === id
-          ? (s.workspaces.find(w => w.id !== id)?.id ?? null)
-          : s.activeWorkspaceId,
-      })),
+      deleteSpace: (id) => {
+        set(s => ({
+          spaces: s.spaces.filter(w => w.id !== id),
+          activeSpaceId: s.activeSpaceId === id
+            ? (s.spaces.find(w => w.id !== id)?.id ?? null)
+            : s.activeSpaceId,
+        }));
+        import('@/lib/sync').then(({ deleteSpaceFromDB }) => deleteSpaceFromDB(id));
+      },
 
 
 
@@ -529,15 +557,17 @@ export const useStore = create<AppState>()(
         activeTaskId: state.isAIAssistantOpen ? state.activeTaskId : null,
       })),
       setAIAssistantOpen: (open) => set({ isAIAssistantOpen: open }),
-      openTaskPanel: (taskId: string) => set((state) => ({
+      openTaskPanel: (taskId: string, presets?: Partial<AppTask>) => set((state) => ({
         isTaskPanelOpen: true,
         activeTaskId: taskId,
+        taskPanelPresets: presets || null,
         aiWasOpenBeforeTaskPanel: state.isAIAssistantOpen,
         isAIAssistantOpen: false,
       })),
       closeTaskPanel: () => set((state) => ({
         isTaskPanelOpen: false,
         activeTaskId: null,
+        taskPanelPresets: null,
         isAIAssistantOpen: state.aiWasOpenBeforeTaskPanel,
         aiWasOpenBeforeTaskPanel: false,
       })),
@@ -596,7 +626,7 @@ export const useStore = create<AppState>()(
 
       clearAIChat: async () => {
         const { activeEntityId, activeChatId, isTempChat, fetchAISessionContext } = get();
-        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const sid = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         set(s => ({
           aiMessages: [],
           tempChatMessages: [],
@@ -746,6 +776,7 @@ export const useStore = create<AppState>()(
             image_description: m.image_description,
             image_prompt: m.image_prompt,
             attachments: m.attachments,
+            toolResults: (m as any).toolResults,
             citations: (m as any).citations,
           }));
           set(s => ({
@@ -881,7 +912,7 @@ export const useStore = create<AppState>()(
               headers['Authorization'] = `Bearer ${session.access_token}`;
             }
           }
-          const sid = getChatSessionId(activeChatId, activeEntityId, 'global');
+          const sid = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, 'global');
           const res = await fetch('/api/ai/memory/compact', { 
             method: 'POST', 
             headers,
@@ -899,8 +930,8 @@ export const useStore = create<AppState>()(
 
       finishAILoading: async (chatId) => {
         const { activeChatId, activeEntityId, isTempChat } = get();
-        const sid = chatId || getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
-        const currentActiveId = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const sid = chatId || getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
+        const currentActiveId = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const isActive = !chatId || chatId === currentActiveId;
         set(s => ({
           isAILoading: isActive ? false : s.isAILoading,
@@ -931,24 +962,29 @@ export const useStore = create<AppState>()(
       setThinkingEnabled: (enabled) => set({ thinkingEnabled: enabled }),
       setAdvisorEnabled: (enabled) => set({ advisorEnabled: enabled }),
       setPendingAdvisorState: (state) => set({ pendingAdvisorState: state }),
-      setActiveIntentTag: (tag) => set({ activeIntentTag: tag }),
       setReplyMessage: (msg) => set({ activeReplyMessage: msg }),
       setShowPaidModels: (show) => set({ showPaidModels: show }),
       setAssistantInput: (input) => {
         const { activeChatId, activeEntityId, isTempChat } = get();
-        const sid = getChatSessionId(activeChatId, activeEntityId, isTempChat ? 'temp' : 'global');
+        const sid = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         set(s => ({
           assistantInput: input,
-          chatInputs: { ...s.chatInputs, [sid]: input }
+            chatInputs: { ...s.chatInputs, [sid]: input }
         }));
       },
 
-      sendAIMessage: async (content, attachments = [], pageContext) => {
+      sendAIMessage: async (content, attachments = [], pageContext, isHidden = false) => {
+        const CHAIN_TAGS = ['/search', '/research', '/image'];
+        const parts = content.trim().split(' ');
+        const extractedIntent = CHAIN_TAGS.includes(parts[0]) ? parts[0] : null;
+        const cleanContent = extractedIntent ? content.trim().substring(extractedIntent.length).trim() : content;
+
+        if (!cleanContent && attachments.length === 0 && !extractedIntent) return;
         // Create pending new chat on first message
         if (get().pendingNewChat) {
           const conv = await createConversation('New Chat');
           if (conv) {
-            const title = content.slice(0, 60);
+            const title = cleanContent.slice(0, 60);
             await updateConversationTitle(conv.id, title);
             conv.title = title;
             set({
@@ -968,15 +1004,14 @@ export const useStore = create<AppState>()(
         const isTemp = get().isTempChat;
         const activeChatId = get().activeChatId;
         const activeEntityId = get().activeEntityId;
-        const activeWorkspaceId = get().activeWorkspaceId;
+        const activeSpaceId = get().activeSpaceId;
         const aiApiKey = get().aiApiKey;
         const aiClassificationModelId = get().aiClassificationModelId;
         const activeMode = get().activeMode;
-        const activeIntentTag = get().activeIntentTag;
         const pendingState = get().pendingAdvisorState;
         const thinkingEnabled = get().thinkingEnabled;
         const advisorEnabled = get().advisorEnabled;
-        const targetChatId = getChatSessionId(activeChatId, activeEntityId, isTemp ? 'temp' : 'global');
+        const targetChatId = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTemp ? 'temp' : 'global');
 
         let replyContext: any = null;
         if (activeReplyMessage) {
@@ -1010,7 +1045,8 @@ export const useStore = create<AppState>()(
         const userMessage: AIMessage = {
           id: generateId(),
           role: 'user',
-          content,
+          content: cleanContent,
+          isHidden,
           timestamp: Date.now(),
           attachments,
         };
@@ -1024,7 +1060,7 @@ export const useStore = create<AppState>()(
 
         set(s => {
           const updated = [...(s.chatMessagesMap[targetChatId] || s.aiMessages), userMessage, placeholderMessage];
-          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
           const isActive = currentActiveId === targetChatId;
           return {
             chatMessagesMap: {
@@ -1040,8 +1076,8 @@ export const useStore = create<AppState>()(
           };
         });
 
-        // Persist user message if in a named conversation
-        if (activeChatId && !isTemp) {
+        // Persist user message if in a named conversation (and not hidden tool result)
+        if (activeChatId && !isTemp && !isHidden) {
           insertMessage(activeChatId, 'user', content, undefined, undefined, undefined, undefined, attachments).catch(e => console.warn('[Store] Failed to persist user message:', e));
         }
 
@@ -1106,6 +1142,14 @@ export const useStore = create<AppState>()(
               } else if (m.role === 'user' && !m.image_description && m.attachments?.some(a => a.type === 'image' || a.type === 'pdf')) {
                 text = `${text}\n[Image attached]`.trim()
               }
+              
+              if (m.role === 'user' && m.attachments) {
+                const textAttachments = m.attachments.filter(a => a.type === 'text' && a.textContent);
+                if (textAttachments.length > 0) {
+                  text += '\n\n' + textAttachments.map(a => `[ATTACHED FILE: ${a.name}]\n${a.textContent}\n`).join('\n\n');
+                }
+              }
+
               return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text }] }
             })
 
@@ -1115,21 +1159,27 @@ export const useStore = create<AppState>()(
             abortControllersMap: { ...s.abortControllersMap, [targetChatId]: controller }
           }));
 
+          let finalPrompt = content;
+          const textAttachments = resolvedAttachments.filter(a => a.type === 'text' && a.textContent);
+          if (textAttachments.length > 0) {
+            finalPrompt += '\n\n' + textAttachments.map(a => `[ATTACHED FILE: ${a.name}]\n${a.textContent}\n`).join('\n\n');
+          }
+
           const res = await fetch('/api/ai/chat', {
             method: 'POST',
             headers,
             signal: controller.signal,
             body: JSON.stringify({
-              prompt: content,
+              prompt: finalPrompt,
               buffer: imageBuffer,
               images: imagesArray,
               activeEntityId,
               activeChatId,
               aiApiKey,
-              activeWorkspaceId,
+              activeSpaceId,
               classificationModelId: aiClassificationModelId,
               mode: activeMode,
-              intentTag: activeIntentTag ?? null,
+              intentTag: extractedIntent,
               replyContext,
               thinkingEnabled,
               advisorEnabled,
@@ -1147,7 +1197,7 @@ export const useStore = create<AppState>()(
                 ? { ...m, content: err.error || 'Something went wrong.', model: err.model || 'system' }
                 : m
               );
-              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1208,7 +1258,7 @@ export const useStore = create<AppState>()(
                     }
                       : m
                   );
-                  const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+                  const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
                   const isActive = currentActiveId === targetChatId;
                   return {
                     chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updatedMessages },
@@ -1247,13 +1297,13 @@ export const useStore = create<AppState>()(
                         isStreamDone = true;
                         flushUpdate();
                         break;
-                      } else if (parsed.content) {
+                      } else if (parsed.content !== undefined || parsed.model !== undefined || parsed.toolResults !== undefined) {
                         const isFinalMetadata = parsed.type !== undefined;
                         if (isFinalMetadata && accumulatedContent.length > 0) {
                           // Final metadata with streamed content before it — skip to avoid double
                         } else {
                           // Streaming chunk, or final metadata with no prior stream (e.g. advisor)
-                          accumulatedContent = isFinalMetadata ? parsed.content : accumulatedContent + parsed.content;
+                          accumulatedContent = isFinalMetadata ? (parsed.content || accumulatedContent) : accumulatedContent + (parsed.content || '');
                           pendingContent = accumulatedContent;
 
                           if (!flushTimer) {
@@ -1281,7 +1331,7 @@ export const useStore = create<AppState>()(
                               ? { ...m, status: parsed.status }
                               : m
                           );
-                          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+                          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
                           const isActive = currentActiveId === targetChatId;
                           return {
                             chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1299,7 +1349,7 @@ export const useStore = create<AppState>()(
               }
               // Final flush: ensure all accumulated content is rendered
               if (flushTimer) clearTimeout(flushTimer);
-              if (!accumulatedContent) {
+              if (!accumulatedContent && (!lastToolResults || lastToolResults.length === 0)) {
                 accumulatedContent = 'No response received from the server. Please try again.';
                 pendingContent = accumulatedContent;
                 lastModel = 'system';
@@ -1321,6 +1371,99 @@ export const useStore = create<AppState>()(
               }
             }
             await get().finishAILoading(targetChatId);
+
+            // ====== ZERO-LOOP XML INTERCEPTOR ======
+            // Intercept complete XML tool calls from the AI response
+            if (lastModel !== 'system' && accumulatedContent) {
+              const xmlRegex = /<(create_note|edit_note|delete_entity|move_entity|read_tasks|read_workspace_content|read_all_content|web_search|deep_research|generate_image)[^>]*>([\s\S]*?)<\/\1>|<(delete_entity|move_entity|read_tasks|read_workspace_content|read_all_content)[^>]*\/>/i;
+              const match = accumulatedContent.match(xmlRegex);
+              if (match) {
+                const tagFull = match[0];
+                const tagName = (match[1] || match[3] || '').toLowerCase();
+                const innerContent = match[2] || '';
+                
+                let resultObj: any = { success: false, error: 'Unknown tool' };
+                
+                try {
+                  if (tagName === 'create_note') {
+                    const lines = innerContent.trim().split('\\n');
+                    const title = lines[0].startsWith('# ') ? lines[0].substring(2) : 'New Note';
+                    const id = get().addEntity({ type: 'note', title, content: [] });
+                    resultObj = { success: true, id, title };
+                  } else if (tagName === 'delete_entity') {
+                    const idMatch = tagFull.match(/id="([^"]+)"/);
+                    if (idMatch) {
+                      get().deleteEntity(idMatch[1]);
+                      resultObj = { success: true, message: `Entity ${idMatch[1]} deleted.` };
+                    } else {
+                      resultObj = { success: false, error: 'Missing id attribute' };
+                    }
+                  } else if (tagName === 'edit_note') {
+                    const idMatch = tagFull.match(/id="([^"]+)"/);
+                    if (idMatch) {
+                      // Note: proper block parsing would go here
+                      get().updateEntityContent(idMatch[1], [{ id: crypto.randomUUID(), type: 'text', content: innerContent }]);
+                      resultObj = { success: true, message: `Note ${idMatch[1]} updated.` };
+                    } else {
+                      resultObj = { success: false, error: 'Missing id attribute' };
+                    }
+                  } else if (tagName === 'read_tasks') {
+                    const statusMatch = tagFull.match(/status="([^"]+)"/);
+                    const priorityMatch = tagFull.match(/priority="([^"]+)"/);
+                    const tagMatch = tagFull.match(/tag="([^"]+)"/);
+                    const dueDateMatch = tagFull.match(/due_date="([^"]+)"/);
+                    const wsMatch = tagFull.match(/spaceId="([^"]+)"/);
+                    
+                    let filteredTasks = get().tasks;
+                    if (statusMatch) filteredTasks = filteredTasks.filter(t => t.status === statusMatch[1]);
+                    if (priorityMatch) filteredTasks = filteredTasks.filter(t => t.priority === priorityMatch[1]);
+                    if (tagMatch) filteredTasks = filteredTasks.filter(t => t.tag === tagMatch[1]);
+                    if (dueDateMatch) filteredTasks = filteredTasks.filter(t => t.dueDate === dueDateMatch[1]);
+                    if (wsMatch) filteredTasks = filteredTasks.filter(t => t.spaceId === wsMatch[1] || (wsMatch[1] === 'ws-personal' && !t.spaceId));
+
+                    const tasks = filteredTasks.map(t => ({
+                      id: t.id,
+                      title: t.title,
+                      status: t.status,
+                      priority: t.priority,
+                      due_date: t.dueDate,
+                      spaceId: t.spaceId || 'ws-personal',
+                      tag: t.tag,
+                      description: t.description || t.note,
+                      subtasks: t.subtasks?.map(st => ({ text: st.text, completed: st.completed })),
+                      attachments: t.attachments?.map(a => ({ name: a.name, type: a.type }))
+                    }));
+                    resultObj = { success: true, tasks };
+                  } else if (tagName === 'read_workspace_content') {
+                    const wsMatch = tagFull.match(/spaceId="([^"]+)"/);
+                    const targetWsId = wsMatch ? wsMatch[1] : get().activeSpaceId;
+                    const entities = get().entities
+                      .filter(e => e.spaceId === targetWsId || (targetWsId === 'ws-personal' && !e.spaceId))
+                      .map(e => ({ id: e.id, title: e.title, type: e.type }));
+                    resultObj = { success: true, entities };
+                  } else if (tagName === 'read_all_content') {
+                    const entities = get().entities.map(e => ({ id: e.id, title: e.title, type: e.type }));
+                    const tasks = get().tasks.map(t => ({ id: t.id, title: t.title, type: 'task' }));
+                    resultObj = { success: true, entities, tasks };
+                  } else {
+                    // For tools handled by backend or not locally mockable yet (like web_search),
+                    // they shouldn't trigger local intercept loop directly unless backend delegates it.
+                    // But if they do, we'll just acknowledge it.
+                    resultObj = { success: true, message: `Tool ${tagName} intercepted.` };
+                  }
+                } catch (err: any) {
+                  resultObj = { success: false, error: err?.message || 'Execution failed' };
+                }
+
+                // Silently re-enter API with the result
+                const toolResultMsg = `[TOOL RESULT: ${tagName}]\\n${JSON.stringify(resultObj)}`;
+                setTimeout(() => {
+                  get().sendAIMessage(toolResultMsg, [], undefined, true);
+                }, 500);
+              }
+            }
+            // =======================================
+
             // Backfill image_description onto the user message so future history
             // turns can reference what was in the image, even for non-vision chains
             if (lastImageDescription) {
@@ -1328,7 +1471,7 @@ export const useStore = create<AppState>()(
                 const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
                   m.id === userMessage.id ? { ...m, image_description: lastImageDescription } : m
                 );
-                const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+                const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
                 const isActive = currentActiveId === targetChatId;
                 return {
                   chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1346,7 +1489,7 @@ export const useStore = create<AppState>()(
             }
             // Persist assistant reply
             if (activeChatId && !isTemp && accumulatedContent) {
-              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
+              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations, lastToolResults).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
               // Auto-set title from first message if still default
               const conv = get().chatConversations.find(c => c.id === activeChatId);
               if (conv && conv.title === 'New Chat' && content) {
@@ -1363,39 +1506,76 @@ export const useStore = create<AppState>()(
               let blocksUpdated = false;
 
               for (const tr of lastToolResults) {
-                // create_note: add the new entity to the store
-                if (tr.type === 'create_note' && tr.success && tr.id) {
+                if (tr.tool === 'create_content' && tr.type === 'workspace' && tr.success && tr.id) {
                   const exists = currentEntities.find(e => e.id === tr.id);
                   if (!exists) {
                     const newEntity = {
                       id: tr.id,
-                      title: tr.title || 'Untitled',
-                      type: 'note' as const,
+                      title: tr.title || 'New Space',
+                      type: 'workspace' as const,
                       content: tr.content || [],
-                      parentId: (tr as any).parentId || null,
+                      parentId: null,
                       lastModified: Date.now(),
                       tags: [] as string[],
-                      syncMode: 'cloud-only' as const,
+                      syncMode: 'full-sync' as const,
                     };
                     get().addEntity(newEntity);
                     entitiesUpdated = true;
                   }
                 }
 
-                // update_note: update the entity in the store
-                if (tr.type === 'update_note' && tr.success && tr.id && tr.content) {
+                // create_task: add new task to store
+                if (tr.tool === 'create_content' && tr.type === 'task' && tr.success && tr.id) {
+                  const currentTasks = get().tasks;
+                  if (!currentTasks.find(t => t.id === tr.id)) {
+                    get().addTask({
+                      id: tr.id,
+                      title: tr.title || 'New Task',
+                      status: (tr.status as any) || 'todo',
+                      completed: tr.status === 'done',
+                      spaceId: tr.spaceId || null,
+                      entityId: tr.assignedWorkspaceId || null,
+                      dueDate: tr.dueDate || null,
+                      priority: tr.priority || null,
+                      tag: tr.tag || null,
+                      syncMode: 'full-sync'
+                    });
+                  }
+                }
+
+                // create_note / create_folder: add the new entity to the store
+                if (tr.tool === 'create_content' && (tr.type === 'note' || tr.type === 'folder') && tr.success && tr.id) {
+                  const exists = currentEntities.find(e => e.id === tr.id);
+                  if (!exists) {
+                    const newEntity = {
+                      id: tr.id,
+                      title: tr.title || 'Untitled',
+                      type: tr.type as 'note' | 'folder',
+                      content: (typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content) || [],
+                      parentId: (tr as any).parentId || null,
+                      lastModified: Date.now(),
+                      tags: [] as string[],
+                      syncMode: 'full-sync' as const,
+                    };
+                    get().addEntity(newEntity);
+                    entitiesUpdated = true;
+                  }
+                }
+
+                // update_content: update the entity in the store
+                if (tr.tool === 'update_content' && tr.success && tr.id && tr.content) {
                   set(s => ({
                     entities: s.entities.map(e =>
                       e.id === tr.id
-                        ? { ...e, content: tr.content, title: tr.title || e.title, lastModified: Date.now() }
+                        ? { ...e, content: typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content, title: tr.title || e.title, lastModified: Date.now() }
                         : e
                     ),
                   }));
                   entitiesUpdated = true;
                 }
 
-                // append_note_blocks: append blocks to the entity's content
-                if (tr.type === 'append_note_blocks' && tr.success && tr.id && tr.content) {
+                // append_to_note: append blocks to the entity's content
+                if (tr.tool === 'append_to_note' && tr.success && tr.id && tr.content) {
                   set(s => ({
                     entities: s.entities.map(e =>
                       e.id === tr.id
@@ -1431,7 +1611,7 @@ export const useStore = create<AppState>()(
               if (m.id === userMessage.id && data.image_description) return { ...m, image_description: data.image_description }
               return m
             });
-            const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+            const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
             const isActive = currentActiveId === targetChatId;
             return {
               chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1443,7 +1623,7 @@ export const useStore = create<AppState>()(
 
           // Persist non-streaming assistant reply
           if (activeChatId && !isTemp && data.content) {
-            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
+            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt, undefined, undefined, (data as any).toolResults).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
             // Auto-set title from first message if still default
             const conv = get().chatConversations.find(c => c.id === activeChatId);
             if (conv && conv.title === 'New Chat' && content) {
@@ -1460,7 +1640,7 @@ export const useStore = create<AppState>()(
                   ? { ...m, content: interruptedContent, interrupted: true }
                   : m
               );
-              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1479,7 +1659,7 @@ export const useStore = create<AppState>()(
                 ? { ...m, content: errMsg, model: 'system' }
                 : m
               );
-              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.isTempChat ? 'temp' : 'global');
+              const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
               const isActive = currentActiveId === targetChatId;
               return {
                 chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
@@ -1586,16 +1766,25 @@ export const useStore = create<AppState>()(
             headers,
             signal: controller.signal,
             body: JSON.stringify({
-              prompt: userContent,
+              prompt: (() => {
+                const CHAIN_TAGS = ['/search', '/research', '/image'];
+                const parts = userContent.trim().split(' ');
+                const extractedIntent = CHAIN_TAGS.includes(parts[0]) ? parts[0] : null;
+                return extractedIntent ? userContent.trim().substring(extractedIntent.length).trim() : userContent;
+              })(),
               buffer: imageBuffer,
               images: imagesArray,
               activeEntityId: get().activeEntityId,
               activeChatId: get().activeChatId,
               aiApiKey: get().aiApiKey,
-              activeWorkspaceId: get().activeWorkspaceId,
+              activeSpaceId: get().activeSpaceId,
               classificationModelId: get().aiClassificationModelId,
               mode: get().activeMode,
-              intentTag: get().activeIntentTag ?? null,
+              intentTag: (() => {
+                const CHAIN_TAGS = ['/search', '/research', '/image'];
+                const parts = userContent.trim().split(' ');
+                return CHAIN_TAGS.includes(parts[0]) ? parts[0] : null;
+              })(),
               replyContext: null,
               thinkingEnabled: get().thinkingEnabled,
               advisorEnabled: get().advisorEnabled,
@@ -1968,24 +2157,24 @@ export const useStore = create<AppState>()(
             };
           }
         }
-        const activeWorkspaceId = get().activeWorkspaceId;
+        const activeSpaceId = get().activeSpaceId;
         const maxSortOrder = Math.max(...get().entities.map(e => e.sortOrder || 0), 0);
 
-        // Enforce flat hierarchy for workspaces and collections
-        const isRootOnly = entity.type === 'workspace' || entity.type === 'collection';
+        // Enforce flat hierarchy for spaces
+        const isRootOnly = entity.type === 'workspace';
         const finalParentId = isRootOnly ? null : (entity.parentId ?? null);
 
         // Inherit sync mode from the entity's nearest ancestor workspace/collection
-        // root — NOT from Entity.workspaceId, which is an account-level id shared
+        // root — NOT from Entity.spaceId, which is an account-level id shared
         // by every entity in the same account regardless of sidebar workspace.
         const workspaceRoot = findWorkspaceRoot(get().entities, entity.parentId ?? null);
-        const defaultSyncMode: import('./store.types').SyncMode = workspaceRoot ? workspaceRoot.syncMode : 'cloud-only';
+        const defaultSyncMode: import('./store.types').SyncMode = workspaceRoot ? workspaceRoot.syncMode : 'full-sync';
 
         const finalEntity = {
           ...entity,
           id: entity.id || generateId(),
           parentId: finalParentId,
-          workspaceId: entity.workspaceId || activeWorkspaceId,
+          spaceId: entity.spaceId || activeSpaceId,
           sortOrder: entity.sortOrder ?? (maxSortOrder + 1),
           syncMode: entity.syncMode ?? defaultSyncMode,
           lastModified: entity.lastModified || Date.now()
@@ -1999,18 +2188,26 @@ export const useStore = create<AppState>()(
         const state = get();
         const descendantIds = getDescendantIds(state.entities, id);
         const idsToRemove = new Set([id, ...descendantIds]);
+
+        let newActiveSpaceId = state.activeSpaceId;
+        if (newActiveSpaceId && idsToRemove.has(newActiveSpaceId)) {
+          const remainingSpaces = state.entities.filter(e => e.type === 'workspace' && !idsToRemove.has(e.id));
+          newActiveSpaceId = remainingSpaces.length > 0 ? remainingSpaces[0].id : 'ws-personal';
+        }
+
         set((s) => ({
           entities: s.entities.filter(e => !idsToRemove.has(e.id)),
           favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
           activeEntityId: idsToRemove.has(s.activeEntityId ?? '') ? 'dashboard' : s.activeEntityId,
+          activeSpaceId: newActiveSpaceId,
         }));
         idsToRemove.forEach(eid => deleteEntityFromDB(eid));
       },
 
-      moveEntity: (id, newParentId, newWorkspaceId) => {
+      moveEntity: (id, newParentId, newSpaceId) => {
         const state = get();
         const prevEntity = state.entities.find(e => e.id === id);
-        const isRootOnlyPrev = prevEntity && (prevEntity.type === 'workspace' || prevEntity.type === 'collection');
+        const isRootOnlyPrev = prevEntity && prevEntity.type === 'workspace';
         const finalParentIdForLookup = isRootOnlyPrev ? null : newParentId;
 
         const prevRoot = prevEntity ? findWorkspaceRoot(state.entities, prevEntity.parentId ?? null) : null;
@@ -2022,14 +2219,14 @@ export const useStore = create<AppState>()(
           entities: state.entities.map(e => {
             if (e.id !== id) return e;
 
-            // Enforce flat hierarchy for workspaces and collections
-            const isRootOnly = e.type === 'workspace' || e.type === 'collection';
+            // Enforce flat hierarchy for spaces
+            const isRootOnly = e.type === 'workspace';
             const finalParentId = isRootOnly ? null : newParentId;
 
             return {
               ...e,
               parentId: finalParentId,
-              workspaceId: newWorkspaceId !== undefined ? newWorkspaceId : e.workspaceId,
+              spaceId: newSpaceId !== undefined ? newSpaceId : e.spaceId,
               syncMode: destinationSyncMode ?? e.syncMode,
               lastModified: Date.now()
             };
@@ -2059,13 +2256,13 @@ export const useStore = create<AppState>()(
       renameEntity: (id, newTitle) => {
         set((state) => ({
           entities: state.entities.map(e => e.id === id ? { ...e, title: newTitle, lastModified: Date.now() } : e),
-          workspaces: state.workspaces.map(w => w.id === id ? { ...w, name: newTitle } : w),
+          spaces: state.spaces.map(w => w.id === id ? { ...w, name: newTitle } : w),
           editingEntity: null
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated) upsertEntity(updated);
-        const updatedWs = get().workspaces.find(w => w.id === id);
-        if (updatedWs) upsertWorkspace(updatedWs);
+        const updatedWs = get().spaces.find(w => w.id === id);
+        if (updatedWs) upsertSpace(updatedWs);
       },
 
       duplicateEntity: (id: string) => {
@@ -2088,12 +2285,12 @@ export const useStore = create<AppState>()(
       setEntityIcon: (id, icon) => {
         set((state) => ({
           entities: state.entities.map(e => e.id === id ? { ...e, icon, lastModified: Date.now() } : e),
-          workspaces: state.workspaces.map(w => w.id === id ? { ...w, icon } : w)
+          spaces: state.spaces.map(w => w.id === id ? { ...w, icon } : w)
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated) upsertEntity(updated);
-        const updatedWs = get().workspaces.find(w => w.id === id);
-        if (updatedWs) upsertWorkspace(updatedWs);
+        const updatedWs = get().spaces.find(w => w.id === id);
+        if (updatedWs) upsertSpace(updatedWs);
       },
 
       setEditingEntityId: (id, source) => set({ editingEntity: id && source ? { id, source } : null }),
@@ -2172,7 +2369,7 @@ export const useStore = create<AppState>()(
         }));
         const canvas = get().entities.find(e => e.id === block.canvasId);
         if (canvas && canvas.syncMode !== 'local-only') {
-          upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+          upsertCanvasBlock(block, undefined, canvas.spaceId || undefined);
         }
       },
       updateCanvasBlock: (id: string, updates: Partial<EditorBlock>) => {
@@ -2183,7 +2380,7 @@ export const useStore = create<AppState>()(
         if (block && block.canvasId) {
           const canvas = get().entities.find(e => e.id === block.canvasId);
           if (canvas && canvas.syncMode !== 'local-only') {
-            upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+            upsertCanvasBlock(block, undefined, canvas.spaceId || undefined);
           }
         }
       },
@@ -2202,7 +2399,7 @@ export const useStore = create<AppState>()(
           if (block && block.canvasId) {
             const canvas = get().entities.find(e => e.id === block.canvasId);
             if (canvas && canvas.syncMode !== 'local-only') {
-              upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(block, undefined, canvas.spaceId || undefined);
             }
           }
         });
@@ -2240,7 +2437,7 @@ export const useStore = create<AppState>()(
           if (dep && dep.canvasId) {
             const canvas = get().entities.find(e => e.id === dep.canvasId);
             if (canvas && canvas.syncMode !== 'local-only') {
-              upsertCanvasBlock(dep, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(dep, undefined, canvas.spaceId || undefined);
             }
           }
         });
@@ -2296,11 +2493,11 @@ export const useStore = create<AppState>()(
         if (frameBlock && frameBlock.canvasId) {
           const canvas = get().entities.find(e => e.id === frameBlock.canvasId);
           if (canvas && canvas.syncMode !== 'local-only') {
-            upsertCanvasBlock(frameBlock, undefined, canvas.workspaceId || undefined);
+            upsertCanvasBlock(frameBlock, undefined, canvas.spaceId || undefined);
 
             const childBlocks = get().blocks.filter(b => b.parentId === frameId);
             childBlocks.forEach(b => {
-              upsertCanvasBlock(b, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(b, undefined, canvas.spaceId || undefined);
             });
           }
         }
@@ -2324,7 +2521,7 @@ export const useStore = create<AppState>()(
           if (block && block.canvasId) {
             const canvas = get().entities.find((e) => e.id === block.canvasId);
             if (canvas && canvas.syncMode !== 'local-only') {
-              upsertCanvasBlock(block, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(block, undefined, canvas.spaceId || undefined);
             }
           }
         });
@@ -2345,7 +2542,7 @@ export const useStore = create<AppState>()(
           if (b.canvasId) {
             const canvas = get().entities.find((e) => e.id === b.canvasId);
             if (canvas && canvas.syncMode !== 'local-only') {
-              upsertCanvasBlock(b, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(b, undefined, canvas.spaceId || undefined);
             }
           }
         });
@@ -2408,7 +2605,7 @@ export const useStore = create<AppState>()(
           if (clone.canvasId) {
             const canvas = get().entities.find((e) => e.id === clone.canvasId);
             if (canvas && canvas.syncMode !== 'local-only') {
-              upsertCanvasBlock(clone, undefined, canvas.workspaceId || undefined);
+              upsertCanvasBlock(clone, undefined, canvas.spaceId || undefined);
             }
           }
         });
@@ -2422,16 +2619,16 @@ export const useStore = create<AppState>()(
       toggleCollapsed: (id) => set((state) => ({ collapsedIds: state.collapsedIds.includes(id) ? state.collapsedIds.filter(cid => cid !== id) : [...state.collapsedIds, id] })),
 
       addTask: (task) => {
-        const activeWorkspaceId = get().activeWorkspaceId;
+        const activeSpaceId = get().activeSpaceId;
         const finalTask = {
           id: generateId(),
           completed: false,
           ...task,
           userDueDate: task.userDueDate || task.dueDate || undefined,
-          workspaceId: task.workspaceId || activeWorkspaceId
+          spaceId: task.spaceId || activeSpaceId
         } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
-        upsertTask(finalTask);
+        return upsertTask(finalTask);
       },
 
       toggleTask: (id) => {
@@ -2481,7 +2678,7 @@ export const useStore = create<AppState>()(
           },
           trackerColumnSortLocks: {
             ...s.trackerColumnSortLocks,
-            [columnId]: mode === 'manual' ? false : !!s.trackerColumnSortLocks?.[columnId]
+            [columnId]: mode === 'manual' ? false : (s.trackerColumnSortLocks?.[columnId] ?? true)
           }
         }));
       },
@@ -2490,7 +2687,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           trackerColumnSortLocks: {
             ...s.trackerColumnSortLocks,
-            [columnId]: !s.trackerColumnSortLocks?.[columnId]
+            [columnId]: !(s.trackerColumnSortLocks?.[columnId] ?? true)
           }
         }));
       },
@@ -2503,13 +2700,20 @@ export const useStore = create<AppState>()(
               const completedAt = nextCompleted 
                 ? (t.completed ? t.completedAt : Date.now()) 
                 : undefined;
-              return { ...t, ...updates, completedAt };
+              
+              // If dueDate is changing, we should keep/update userDueDate
+              const userDueDate = updates.dueDate !== undefined 
+                ? (updates.dueDate || undefined)
+                : t.userDueDate;
+
+              return { ...t, ...updates, userDueDate, completedAt };
             }
             return t;
           })
         }));
         const updated = get().tasks.find(t => t.id === id);
-        if (updated) upsertTask(updated);
+        if (updated) return upsertTask(updated);
+        return Promise.resolve({ error: null });
       },
 
       updateWidgetLayout: (entityId, layout) => {
@@ -2619,7 +2823,7 @@ export const useStore = create<AppState>()(
           };
         }
         if (version < 9) {
-          // Phase 4: workspace entity type + widgetLayout on entities + workspaceId on tasks
+          // Phase 4: workspace entity type + widgetLayout on entities + spaceId on tasks
           if (Array.isArray(state.entities)) {
             state.entities = state.entities.map((e: any) => ({
               ...e,
@@ -2629,7 +2833,7 @@ export const useStore = create<AppState>()(
           if (Array.isArray(state.tasks)) {
             state.tasks = state.tasks.map((t: any) => ({
               ...t,
-              workspaceId: t.workspaceId ?? null,
+              spaceId: t.spaceId ?? null,
             }));
           }
         }
@@ -2640,45 +2844,45 @@ export const useStore = create<AppState>()(
           // v12: reset stale model IDs (no-op for v15+ users)
         }
         if (version < 13) {
-          // Phase 01: introduce Workspace model — assign all existing entities/tasks to ws-personal
-          if (!Array.isArray(state.workspaces) || state.workspaces.length === 0) {
+          // Phase 01: introduce Space model — assign all existing entities/tasks to ws-personal
+          if (!Array.isArray(state.spaces) || state.spaces.length === 0) {
             state = {
               ...state,
-              workspaces: [{
+              spaces: [{
                 id: 'ws-personal',
                 name: 'Personal',
                 type: 'personal',
                 ownerId: null,
                 createdAt: Date.now(),
               }],
-              activeWorkspaceId: 'ws-personal',
+              activeSpaceId: 'ws-personal',
             };
           }
           if (Array.isArray(state.entities)) {
             state.entities = state.entities.map((e: any) => ({
               ...e,
-              workspaceId: e.workspaceId ?? 'ws-personal',
+              spaceId: e.spaceId ?? 'ws-personal',
             }));
           }
           if (Array.isArray(state.tasks)) {
             state.tasks = state.tasks.map((t: any) => ({
               ...t,
-              workspaceId: t.workspaceId ?? 'ws-personal',
+              spaceId: t.spaceId ?? 'ws-personal',
             }));
           }
         }
         if (version < 14) {
-          // Backfill workspaceId on any entity or task that is still missing it
+          // Backfill spaceId on any entity or task that is still missing it
           if (Array.isArray(state.entities)) {
             state.entities = state.entities.map((e: any) => ({
               ...e,
-              workspaceId: e.workspaceId || 'ws-personal',
+              spaceId: e.spaceId || 'ws-personal',
             }));
           }
           if (Array.isArray(state.tasks)) {
             state.tasks = state.tasks.map((t: any) => ({
               ...t,
-              workspaceId: t.workspaceId || 'ws-personal',
+              spaceId: t.spaceId || 'ws-personal',
             }));
           }
         }
@@ -2758,8 +2962,8 @@ export const useStore = create<AppState>()(
         entities: state.entities,
         tasks: state.tasks,
         blocks: state.blocks,
-        workspaces: state.workspaces,
-        activeWorkspaceId: state.activeWorkspaceId,
+        spaces: state.spaces,
+        activeSpaceId: state.activeSpaceId,
 
         favoriteIds: state.favoriteIds,
         collapsedIds: state.collapsedIds,
@@ -2789,8 +2993,9 @@ export const useStore = create<AppState>()(
         hiddenEntityIds: state.hiddenEntityIds,
         recentEntityIds: state.recentEntityIds,
         activeMode: state.activeMode,
-        activeIntentTag: state.activeIntentTag,
         activeChatId: state.activeChatId,
+        isTempChat: state.isTempChat,
+        pendingNewChat: state.pendingNewChat,
         chatHistoryOpen: state.chatHistoryOpen,
         chatInputs: state.chatInputs,
         chatMessagesMap: state.chatMessagesMap,

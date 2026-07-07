@@ -11,13 +11,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid file data' }, { status: 400 })
     }
 
-    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-    if (!match) {
+    const commaIndex = dataUrl.indexOf(',')
+    if (commaIndex === -1) {
       return NextResponse.json({ error: 'Invalid data URL format' }, { status: 400 })
     }
 
-    const mimeType = match[1]
-    const base64Data = match[2]
+    const header = dataUrl.substring(0, commaIndex)
+    const base64Data = dataUrl.substring(commaIndex + 1)
+
+    if (!header.startsWith('data:') || !header.endsWith(';base64')) {
+      return NextResponse.json({ error: 'Invalid data URL format' }, { status: 400 })
+    }
+
+    const mimeType = header.substring(5, header.length - 7)
     const buffer = Buffer.from(base64Data, 'base64')
 
     // Determine extension safely

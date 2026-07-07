@@ -1,60 +1,64 @@
-# Task 1: Add task panel state to Zustand store
+# Task 1: Update Store Types (store.types.ts)
 
-**Files:**
-- Modify: `src/data/store.ts`
+**BASE:** 1e56d24
 
-**Context:** This is the first task of the Task Inspector Panel feature. Add Zustand store state for a floating task inspection panel that replaces the AI assistant panel on the right side when a task card is clicked.
+## Goal
 
-## What to do
+Add `pairedEntityId` to the Entity interface, replace old split-view fields (`isSplitView`, `splitViewLeftId`, `splitViewRightId`) with new ones (`splitViewActive`, `splitViewLeftId`, `splitViewRightId`, `splitViewPinned`), and update action signatures.
 
-### Step 1: Add initial state fields (~line 227)
-Find `isAIAssistantOpen: false,`. Add right after it:
-```typescript
-isTaskPanelOpen: false,
-activeTaskId: null as string | null,
-taskPanelWidth: 500,
-aiWasOpenBeforeTaskPanel: false,
+## Files
+
+- Modify: `src/data/store.types.ts`
+
+## Steps
+
+### Step 1: Add `pairedEntityId` to Entity interface
+
+In `src/data/store.types.ts`, in the Entity interface (around line 184, after `workspaceId?: string | null;`), add:
+
+```ts
+  workspaceId?: string | null;
+
+  pairedEntityId: string | null;
+  sortOrder?: number;
 ```
 
-### Step 2: Add actions (~line 379)
-Find `toggleAIAssistant`/`setAIAssistantOpen` block. Add right after `setAIAssistantOpen`:
-```typescript
-openTaskPanel: (taskId) => set((state) => ({
-  isTaskPanelOpen: true,
-  activeTaskId: taskId,
-  aiWasOpenBeforeTaskPanel: state.isAIAssistantOpen,
-  isAIAssistantOpen: false,
-})),
-closeTaskPanel: () => set((state) => ({
-  isTaskPanelOpen: false,
-  activeTaskId: null,
-  isAIAssistantOpen: state.aiWasOpenBeforeTaskPanel,
-  aiWasOpenBeforeTaskPanel: false,
-})),
-setTaskPanelWidth: (width) => set({ taskPanelWidth: width }),
+### Step 2: Replace old split fields with new ones in AppState
+
+In `src/data/store.types.ts`, in AppState interface, remove these three lines:
+
+```ts
+  isSplitView: boolean;
+  splitViewLeftId: string | null;
+  splitViewRightId: string | null;
 ```
 
-### Additional: Update toggleAIAssistant
-Update `toggleAIAssistant: () => set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),` to also close task panel when opening AI:
-```typescript
-toggleAIAssistant: () => set((state) => ({
-  isAIAssistantOpen: !state.isAIAssistantOpen,
-  isTaskPanelOpen: state.isAIAssistantOpen ? state.isTaskPanelOpen : false,
-  activeTaskId: state.isAIAssistantOpen ? state.activeTaskId : null,
-})),
+And add these four lines (keep `splitViewPosition: number;` — it stays):
+
+```ts
+  splitViewActive: boolean;
+  splitViewLeftId: string | null;
+  splitViewRightId: string | null;
+  splitViewPinned: boolean;
 ```
 
-### Step 3: Add to partialize (~line 2484)
-Find `partialize:` block. Add `taskPanelWidth` after `aiSidebarWidth`:
-```typescript
-taskPanelWidth: state.taskPanelWidth,
+### Step 3: Replace action signatures
+
+Remove:
+```ts
+  assignTabToColumn: (tabId: string, column: 'left' | 'right') => void;
 ```
 
-### Step 4: Commit
-```bash
-git add src/data/store.ts
-git commit -m "feat: add task panel state to store (isTaskPanelOpen, activeTaskId, taskPanelWidth)"
+Add:
+```ts
+  setColumnEntity: (column: 'left' | 'right', entityId: string | null) => void;
+  togglePin: () => void;
+  exitSplitView: () => void;
 ```
 
-## Global constraints
-- taskPanelWidth defaults to 500, persisted via partialize
+Note: `toggleSplitView` and `setSplitViewPosition` action signatures remain unchanged.
+
+## Verification
+
+Run: `npx tsc --noEmit 2>&1 | head -40`
+Expected: Errors in store.ts referencing old field names (`isSplitView`, old `splitViewLeftId`/`splitViewRightId`, `assignTabToColumn`). These are expected and will be resolved in Task 2. store.types.ts itself should compile clean.

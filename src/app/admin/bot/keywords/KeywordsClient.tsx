@@ -10,7 +10,7 @@ const INTENT_COLORS: Record<string, { bg: string; text: string; border: string }
   COMPLEX:          { bg: 'bg-green-500/10',  text: 'text-green-400',  border: 'border-green-500/20' },
   IMAGE_GEN:        { bg: 'bg-pink-500/10',   text: 'text-pink-400',   border: 'border-pink-500/20' },
   WEB_SEARCH:       { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  TOOLS:            { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
+
   AUDIO:            { bg: 'bg-teal-500/10',   text: 'text-teal-400',   border: 'border-teal-500/20' },
   VISION:           { bg: 'bg-cyan-500/10',   text: 'text-cyan-400',   border: 'border-cyan-500/20' },
   CODING:           { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/20' },
@@ -19,7 +19,7 @@ const INTENT_COLORS: Record<string, { bg: string; text: string; border: string }
 
 const CATEGORIES = [
   'REGULAR', 'COMPLEX', 'IMAGE_GEN',
-  'WEB_SEARCH', 'TOOLS', 'AUDIO', 'VISION', 'CODING', 'RESEARCH',
+  'WEB_SEARCH', 'AUDIO', 'VISION', 'CODING', 'RESEARCH',
 ]
 
 function toInputs(kw: Record<string, string[]>): Record<string, string> {

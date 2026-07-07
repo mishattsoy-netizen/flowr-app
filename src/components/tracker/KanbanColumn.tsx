@@ -10,6 +10,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { Plus, MoreHorizontal, Trash2, ArrowUpDown, Check } from 'lucide-react';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { shouldShowEmptyState } from './dragLogic';
+import { Tooltip } from '@/components/layout/Tooltip';
 
 const DOT_COLORS: Record<string, string> = {
   todo: '#3B82F6',       // Blue
@@ -77,10 +78,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
   }, [id]);
 
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
@@ -92,9 +89,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false);
-      }
       if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
         setIsSortMenuOpen(false);
       }
@@ -127,17 +121,32 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1.5 text-[var(--bone-40)]">
-          <button
-            ref={sortButtonRef}
-            onClick={() => setIsSortMenuOpen(prev => !prev)}
-            className={cn(
-              "p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] transition-none",
-              isSortMenuOpen ? "text-[var(--bone-100)] bg-[var(--app-dark)]" : "hover:text-[var(--bone-100)]"
-            )}
-            title="Sort tasks"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={2.5} />
-          </button>
+          {id === 'completed' && (
+            <Tooltip content="Clear completed tasks" position="bottom" delay={400}>
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to clear all completed tasks?")) {
+                    useStore.getState().clearCompletedTasks();
+                  }
+                }}
+                className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-red-400 transition-none cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Sort tasks" position="bottom" delay={400}>
+            <button
+              ref={sortButtonRef}
+              onClick={() => setIsSortMenuOpen(prev => !prev)}
+              className={cn(
+                "p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] transition-none",
+                isSortMenuOpen ? "text-[var(--bone-100)] bg-[var(--app-dark)]" : "hover:text-[var(--bone-100)]"
+              )}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </button>
+          </Tooltip>
           {isSortMenuOpen && typeof document !== 'undefined' && createPortal(
             <div
               ref={sortMenuRef}
@@ -152,7 +161,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
                 type="button"
                 onClick={() => {
                   setTrackerColumnSortMode(id, 'manual');
-                  setIsSortMenuOpen(false);
                 }}
                 className={cn(
                   "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
@@ -166,7 +174,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
                 type="button"
                 onClick={() => {
                   setTrackerColumnSortMode(id, 'automatic');
-                  setIsSortMenuOpen(false);
                 }}
                 className={cn(
                   "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
@@ -180,7 +187,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
                 type="button"
                 onClick={() => {
                   setTrackerColumnSortMode(id, 'recently_added');
-                  setIsSortMenuOpen(false);
                 }}
                 className={cn(
                   "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
@@ -196,7 +202,6 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
                   <div
                     onClick={() => {
                       toggleTrackerColumnSortLock(id);
-                      setIsSortMenuOpen(false);
                     }}
                     className={cn(
                       "popup-item flex items-center justify-between gap-3 text-left w-full transition-none",
@@ -220,42 +225,31 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
             document.body
           )}
 
-          <button
-            onClick={() => useStore.getState().openTaskPanel(generateId())}
-            className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-          </button>
-          <button
-            ref={buttonRef}
-            onClick={() => id === 'completed' && setIsMenuOpen(prev => !prev)}
-            className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" strokeWidth={2.5} />
-          </button>
-          {isMenuOpen && id === 'completed' && typeof document !== 'undefined' && createPortal(
-            <div
-              ref={menuRef}
-              className="fixed popup-glass-small z-[9999] min-w-[150px] p-1.5 flex flex-col gap-[3px] shadow-2xl"
-              style={{
-                top: (buttonRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
-                left: (buttonRef.current?.getBoundingClientRect().right ?? 0) - 150,
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+          {id !== 'completed' && (
+            <Tooltip content="New task" position="bottom" delay={400}>
               <button
-                type="button"
                 onClick={() => {
-                  useStore.getState().clearCompletedTasks();
-                  setIsMenuOpen(false);
+                  const presets: any = { entityId: useStore.getState().trackerFilterEntityId || undefined };
+                  if (id === 'todo') {
+                    presets.status = 'todo';
+                  } else if (id === 'inProgress') {
+                    presets.status = 'in-progress';
+                  } else if (id === 'today') {
+                    presets.status = 'todo';
+                    presets.dueDate = new Date().toISOString().split('T')[0];
+                  } else if (id === 'overdue') {
+                    presets.status = 'todo';
+                    const d = new Date();
+                    d.setDate(d.getDate() - 1);
+                    presets.dueDate = d.toISOString().split('T')[0];
+                  }
+                  useStore.getState().openTaskPanel(generateId(), presets);
                 }}
-                className="popup-item-danger gap-2"
+                className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
               >
-                <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Clear completed</span>
+                <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
               </button>
-            </div>,
-            document.body
+            </Tooltip>
           )}
         </div>
       </div>

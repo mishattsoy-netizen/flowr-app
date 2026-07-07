@@ -199,8 +199,10 @@ export async function runOpenRouter(
                 try {
                   const args = JSON.parse(call.function.arguments)
                   output = await handler(args, normContext)
-                  if (['create_note', 'update_note', 'delete_note', 'create_folder'].includes(call.function.name)) {
-                    capturedToolCalls.push({ type: call.function.name, ...output, ...args })
+                  if (([] as string[]).includes(call.function.name)) {
+                    capturedToolCalls.push({ ...args, ...output, tool: call.function.name })
+                  } else {
+                    capturedToolCalls.push({ ...args, ...output, tool: call.function.name, success: !output?.error })
                   }
                 } catch (e: any) {
                   output = { error: e.message }
@@ -221,8 +223,13 @@ export async function runOpenRouter(
               total_tokens: data.usage.total_tokens,
             } : undefined
 
+            let finalContent = message.content || ''
+            if (!finalContent && capturedToolCalls.length > 0) {
+              finalContent = `Successfully executed ${capturedToolCalls.length} tool action(s).`
+            }
+
             return {
-              content: message.content,
+              content: finalContent,
               provider: actualProvider,
               usage,
               reasoning: message.reasoning || undefined,
@@ -402,3 +409,7 @@ export async function runOpenRouter(
 
   return null
 }
+
+
+
+

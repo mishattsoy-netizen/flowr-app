@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { useStore, EditorBlock } from '@/data/store';
-import { classifyBindingAt, findBindableBlockAt } from '@/lib/canvas/classifyBinding';
+import { classifyBindingAt, findBindableBlockAt, rectOf } from '@/lib/canvas/classifyBinding';
+import { blockOutlineKind } from '@/lib/geometry/binding';
+import { nearestPointOnOutline } from '@/lib/geometry/outline';
 
 export interface UseBindingDragArgs {
   entityId: string;
@@ -35,14 +37,20 @@ export function useBindingDrag({
       const live = useStore.getState().blocks.filter(b => b.canvasId === entityId && b.id !== blockId);
       const target = findBindableBlockAt(p, live);
       setHoverBindTargetId(target?.id ?? null);
-      // live preview: temporarily write the endpoint as a free point
+      // Live preview: while hovering a bindable target, snap the tip to the nearest point on
+      // its actual outline (not the raw cursor position) so it slides smoothly along the edge
+      // as the cursor moves, matching what release will commit via classifyBindingAt. Off any
+      // target, fall back to a free point that just follows the cursor.
+      const previewPt = target
+        ? nearestPointOnOutline(blockOutlineKind(target), rectOf(target), p)
+        : p;
       const block = useStore.getState().blocks.find(b => b.id === blockId);
       if (!block) return;
       if (end === 'start') {
-        useStore.getState().updateCanvasBlock(blockId, { startBinding: undefined, points: [p, ...(block.startBinding ? (block.points ?? []) : (block.points ?? []).slice(1))] });
+        useStore.getState().updateCanvasBlock(blockId, { startBinding: undefined, points: [previewPt, ...(block.startBinding ? (block.points ?? []) : (block.points ?? []).slice(1))] });
       } else {
         const pts = block.endBinding ? (block.points ?? []) : (block.points ?? []).slice(0, -1);
-        useStore.getState().updateCanvasBlock(blockId, { endBinding: undefined, points: [...pts, p] });
+        useStore.getState().updateCanvasBlock(blockId, { endBinding: undefined, points: [...pts, previewPt] });
       }
     };
     const up = (ev: PointerEvent) => {

@@ -9,8 +9,8 @@ import { ColumnPlaceholder } from './ColumnPlaceholder';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 
 const COLLAPSE_THRESHOLD_PX = 180;
-const MIN_COLUMN_PCT = 15;
-const MAX_COLUMN_PCT = 85;
+const MIN_COLUMN_PCT = 30;
+const MAX_COLUMN_PCT = 70;
 
 export function SplitViewLayout() {
   const splitViewLeftId = useStore(s => s.splitViewLeftId);
@@ -26,6 +26,8 @@ export function SplitViewLayout() {
   const isResizingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [dragOverLeft, setDragOverLeft] = useState(false);
+  const [dragOverRight, setDragOverRight] = useState(false);
 
   // ── Drop targets for sidebar drag-and-drop ──
   useEffect(() => {
@@ -40,7 +42,10 @@ export function SplitViewLayout() {
         const entityType = source.data.entityType as string | undefined;
         return entityType === 'note' || entityType === 'canvas';
       },
+      onDragEnter: () => setDragOverLeft(true),
+      onDragLeave: () => setDragOverLeft(false),
       onDrop: ({ source }) => {
+        setDragOverLeft(false);
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('left', entityId);
       },
@@ -53,7 +58,10 @@ export function SplitViewLayout() {
         const entityType = source.data.entityType as string | undefined;
         return entityType === 'note' || entityType === 'canvas';
       },
+      onDragEnter: () => setDragOverRight(true),
+      onDragLeave: () => setDragOverRight(false),
       onDrop: ({ source }) => {
+        setDragOverRight(false);
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('right', entityId);
       },
@@ -140,7 +148,10 @@ export function SplitViewLayout() {
       {/* ── Left Column ── */}
       <div
         ref={leftColRef}
-        className="flex flex-col h-full min-h-0 bg-[var(--app-background)]"
+        className={cn(
+          "flex flex-col h-full min-h-0 bg-[var(--app-background)] transition-colors duration-150",
+          dragOverLeft && "bg-[var(--bone-4)]"
+        )}
         style={{
           width: `${clampedPosition}%`,
           transition: isResizing ? 'none' : undefined,
@@ -180,8 +191,10 @@ export function SplitViewLayout() {
       {/* ── Right Column ── */}
       <div
         ref={rightColRef}
-        className="flex flex-col h-full min-h-0 flex-1"
-        style={{ background: 'var(--app-background)' }}
+        className={cn(
+          "flex flex-col h-full min-h-0 flex-1 transition-colors duration-150",
+          dragOverRight ? "bg-[var(--bone-4)]" : "bg-[var(--app-background)]"
+        )}
       >
         <ColumnHeader column="right" entityId={splitViewRightId} />
         {splitViewRightId ? (

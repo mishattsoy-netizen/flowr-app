@@ -66,4 +66,44 @@ describe('resolvePoints (bound arrow end-to-end)', () => {
     expect(pts[1][0]).toBeLessThanOrEqual(304);     // enters B near its left side
     expect(pts[0][0]).toBeLessThan(pts[1][0]);
   });
+
+  it('with a waypoint present, moving one shape leaves the other endpoint and the waypoint fixed', () => {
+    const s1 = shape({ id: 'A', x: 0, y: 0, width: 100, height: 100 });
+    const s2 = shape({ id: 'B', x: 300, y: 0, width: 100, height: 100 });
+    const arrow: EditorBlock = {
+      id: 'ar', type: 'shape', shapeKind: 'arrow', content: '', canvasId: 'c1',
+      x: 0, y: 0, width: 0, height: 0, points: [[200, 50]],
+      startBinding: { blockId: 'A', focus: 0.5, gap: 4 },
+      endBinding: { blockId: 'B', focus: 0.5, gap: 4 },
+    };
+    const before = resolvePoints(arrow, [s1, s2, arrow]);
+    // Move only shape B: A's endpoint aims at the waypoint (unchanged), so it must not move.
+    const s2moved = { ...s2, x: 350, y: 80 };
+    const after = resolvePoints(arrow, [s1, s2moved, arrow]);
+    expect(after[0][0]).toBeCloseTo(before[0][0], 4);
+    expect(after[0][1]).toBeCloseTo(before[0][1], 4);
+    expect(after[1]).toEqual([200, 50]); // waypoint untouched
+  });
+
+  it('overlapping bound shapes still resolve to finite, sane endpoints (no flip to far edges)', () => {
+    const s1 = shape({ id: 'A', x: 0, y: 0, width: 200, height: 200 });
+    // B dragged to heavily overlap A
+    const s2 = shape({ id: 'B', x: 100, y: 50, width: 200, height: 200 });
+    const arrow: EditorBlock = {
+      id: 'ar', type: 'shape', shapeKind: 'arrow', content: '', canvasId: 'c1',
+      x: 0, y: 0, width: 0, height: 0, points: [],
+      startBinding: { blockId: 'A', focus: 0.5, gap: 4 },
+      endBinding: { blockId: 'B', focus: 0.5, gap: 4 },
+    };
+    const pts = resolvePoints(arrow, [s1, s2, arrow]);
+    expect(pts.length).toBe(2);
+    for (const p of pts) {
+      expect(Number.isFinite(p[0])).toBe(true);
+      expect(Number.isFinite(p[1])).toBe(true);
+    }
+    // Endpoints aim at each other's centers, so both must sit between the two centers —
+    // start clipped on A's outline toward B's center (right/downward), not flipped away.
+    expect(pts[0][0]).toBeGreaterThanOrEqual(100 - 6); // toward B's center (200,150)
+    expect(pts[1][0]).toBeLessThanOrEqual(200 + 6);    // toward A's center (100,100)
+  });
 });

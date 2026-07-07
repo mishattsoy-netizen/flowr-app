@@ -67,7 +67,7 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
     // Find the entity currently occupying this path
     const match = state.entities.find(e => {
       if (e.syncMode === 'cloud-only') return false;
-      const expectedRelPath = getEntityPath(e, state.entities, state.workspaces);
+      const expectedRelPath = getEntityPath(e, state.entities, state.spaces);
       return expectedRelPath.toLowerCase() === normalizedFilename.toLowerCase();
     });
 
@@ -142,7 +142,7 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
         id: meta.id,
         title: meta.title || titleFromFilename,
         type: 'note',
-        parentId: meta.workspaceId || null,
+        parentId: meta.spaceId || null,
         syncMode: (meta.syncMode as any) || 'full-sync',
         content: blocks,
         lastModified: meta.lastModified || Date.now()
@@ -157,7 +157,7 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
     const parts = normalizedFilename.split('/');
     if (parts.length > 1) {
       const firstFolder = parts[0];
-      const matchWs = state.workspaces.find(w => sanitizeFileName(w.name).toLowerCase() === firstFolder.toLowerCase());
+      const matchWs = state.spaces.find(w => sanitizeFileName(w.name).toLowerCase() === firstFolder.toLowerCase());
       if (matchWs) parentWorkspaceId = matchWs.id;
     }
 
@@ -165,7 +165,7 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
       title: titleFromFilename,
       type: 'note',
       parentId: null, // Starts at root of workspace/vault
-      workspaceId: parentWorkspaceId, // Auto-assign to matched workspace folder
+      spaceId: parentWorkspaceId, // Auto-assign to matched workspace folder
       syncMode: 'full-sync',
       content: blocks
     });

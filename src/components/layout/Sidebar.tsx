@@ -6,7 +6,7 @@ import type { EntityType, Entity, SidebarSectionId } from '@/data/store';
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
 
-import { Search, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, Layers, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageSquare, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut } from 'lucide-react';
+import { Search, Home, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ import { TreeItem } from './TreeItem';
 import { ScrollArea } from './ScrollArea';
 import { Tooltip } from './Tooltip';
 import { useTooltipSuppression } from './TooltipOverlayContext';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { SpaceSwitcher } from './SpaceSwitcher';
 import InstallButton from '@/components/pwa/InstallButton';
 import UpdateBanner from './UpdateBanner';
 import { SidebarSkeleton } from './SidebarSkeleton';
@@ -47,6 +47,9 @@ function DroppableZone({ id, children, className }: { id: string, children: Reac
 
 export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId }: { forceFull?: boolean, initialEntityId?: string }) {
   const entities = useStore(state => state.entities);
+  const [collapsedTrackerWorkspaces, setCollapsedTrackerWorkspaces] = useState<Record<string, boolean>>({});
+  const trackerFilterTag = useStore(state => state.trackerFilterTag);
+  const setTrackerFilterTag = useStore(state => state.setTrackerFilterTag);
   const activeEntityId = useStore(state => state.activeEntityId);
   const favoriteIds = useStore(state => state.favoriteIds);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
@@ -55,6 +58,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const openContextMenu = useStore(state => state.openContextMenu);
   const isSidebarCollapsed = useStore(state => state.isSidebarCollapsed);
   const isSidebarPinned = useStore(state => state.isSidebarPinned);
+  const trackerFilterEntityId = useStore(state => state.trackerFilterEntityId);
   const toggleSidebar = useStore(state => state.toggleSidebar);
   const toggleSidebarPinned = useStore(state => state.toggleSidebarPinned);
   const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
@@ -64,11 +68,10 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   }, [resolvedTheme, setTheme]);
   const toggleFavorite = useStore(state => state.toggleFavorite);
-  const storeWorkspaces = useStore(state => state.workspaces);
+  const storeWorkspaces = useStore(state => state.spaces);
   const allTasks = useStore(state => state.tasks);
-  const activeWorkspaceId = useStore(state => state.activeWorkspaceId);
-  const trackerFilterWorkspace = useStore(state => state.trackerFilterWorkspace);
-  const setTrackerFilterWorkspace = useStore(state => state.setTrackerFilterWorkspace);
+  const spaces = useStore(state => state.spaces);
+  const activeSpaceId = useStore(state => state.activeSpaceId);
   const reorderEntities = useStore(state => state.reorderEntities);
   const sidebarSectionSettings = useStore(state => state.sidebarSectionSettings);
   const hiddenEntityIds = useStore(state => state.hiddenEntityIds);
@@ -112,7 +115,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [isFavoritesCollapsed, setIsFavoritesCollapsed] = useState(false);
   const [isWorkspacesCollapsed, setIsWorkspacesCollapsed] = useState(false);
   const [isUnsortedCollapsed, setIsUnsortedCollapsed] = useState(false);
-  const [sectionOrder] = useState(['favorites', 'unsorted', 'workspaces']);
+  const [sectionOrder] = useState(['favorites', 'unsorted', 'spaces']);
   const [chatEditingId, setChatEditingId] = useState<string | null>(null);
   const [chatEditTitle, setChatEditTitle] = useState('');
   const [chatConfirmDeleteId, setChatConfirmDeleteId] = useState<string | null>(null);
@@ -222,13 +225,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   }, [isMounted, updateScrollFade, favoriteIds]);
 
   const activeWorkspace = useMemo(
-    () => storeWorkspaces.find(w => w.id === activeWorkspaceId),
-    [storeWorkspaces, activeWorkspaceId]
+    () => storeWorkspaces.find(w => w.id === activeSpaceId),
+    [storeWorkspaces, activeSpaceId]
   );
 
   const isEntityVisible = useMemo(() => (e: Entity) => {
-    return (e.workspaceId || 'ws-personal') === activeWorkspaceId && !hiddenEntityIds.includes(e.id);
-  }, [activeWorkspaceId, hiddenEntityIds]);
+    const effectiveSpaceId = activeSpaceId || 'ws-personal';
+    return (e.spaceId || 'ws-personal') === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
+  }, [activeSpaceId, hiddenEntityIds]);
 
   const sortEntities = (entities: Entity[], sectionId: SidebarSectionId) => {
     const mode = (sidebarSectionSettings as any)[sectionId]?.sortMode || 'lastModified';
@@ -237,8 +241,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     return [...entities].sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
   };
 
-  const workspacesBase = useMemo(
-    () => sortEntities(entities.filter(e => (e.type === 'collection' || e.type === 'workspace') && isEntityVisible(e)), 'workspaces'),
+  const spacesBase = useMemo(
+    () => sortEntities(entities.filter(e => e.type === 'workspace' && isEntityVisible(e)), 'spaces'),
     [entities, isEntityVisible, sidebarSectionSettings]
   );
   const favoriteEntitiesBase = useMemo(
@@ -248,7 +252,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const unsortedEntitiesBase = useMemo(
     () => sortEntities(
       entities.filter(e =>
-        (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') &&
+        (e.type === 'note' || e.type === 'canvas') &&
         (!e.parentId || !entities.some(p => p.id === e.parentId)) &&
         isEntityVisible(e)
       ),
@@ -257,11 +261,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     [entities, isEntityVisible, sidebarSectionSettings]
   );
 
-  const displayWorkspaces = workspacesBase;
+  const displayWorkspaces = spacesBase;
   const displayFavorites = favoriteEntitiesBase;
   const displayUnsorted = unsortedEntitiesBase;
 
-  // Build a flat list of all selectable entity IDs (pinned + unsorted — NOT workspaces)
+  // Build a flat list of all selectable entity IDs (pinned + unsorted — NOT spaces)
   const selectableIds = useMemo(() => {
     const ids: string[] = [];
     favoriteEntitiesBase.forEach(e => ids.push(e.id));
@@ -325,7 +329,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           const entity = entities.find(e => e.id === entityId);
           if (!entity) return;
 
-          const isDraggingWorkspace = entity.type === 'workspace' || entity.type === 'collection';
+          const isDraggingWorkspace = entity.type === 'workspace';
 
           // Look up overEntity early so the edge calculation can check the target type.
           let overEntity = entities.find(e => e.id === overId);
@@ -334,28 +338,28 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           const getSortedSiblings = (targetEntity: Entity) => {
             const freshEntities = useStore.getState().entities;
             const hiddenEntityIds = useStore.getState().hiddenEntityIds;
-            const isWorkspaceOrCollection = (type: EntityType) => type === 'workspace' || type === 'collection';
+            const isWorkspace = (type: EntityType) => type === 'workspace';
 
-            const getSectionId = (): 'workspaces' | 'unsorted' | null => {
+            const getSectionId = (): 'spaces' | 'unsorted' | null => {
               if (targetEntity.parentId && freshEntities.some(p => p.id === targetEntity.parentId)) return null;
-              return isWorkspaceOrCollection(targetEntity.type) ? 'workspaces' : 'unsorted';
+              return isWorkspace(targetEntity.type) ? 'spaces' : 'unsorted';
             };
 
             const getSectionSiblings = () => {
               const sectionId = getSectionId();
-              if (sectionId === 'workspaces') {
+              if (sectionId === 'spaces') {
                 return freshEntities.filter(e =>
-                  (e.type === 'workspace' || e.type === 'collection') &&
+                  e.type === 'workspace' &&
                   (!e.parentId || !freshEntities.some(p => p.id === e.parentId)) &&
-                  (e.workspaceId || 'ws-personal') === (targetEntity.workspaceId || 'ws-personal') &&
+                  (e.spaceId || 'ws-personal') === (targetEntity.spaceId || 'ws-personal') &&
                   !hiddenEntityIds.includes(e.id)
                 );
               }
               if (sectionId === 'unsorted') {
                 return freshEntities.filter(e =>
-                  (e.type === 'note' || e.type === 'canvas' || e.type === 'mixed') &&
+                  (e.type === 'note' || e.type === 'canvas') &&
                   (!e.parentId || !freshEntities.some(p => p.id === e.parentId)) &&
-                  (e.workspaceId || 'ws-personal') === (targetEntity.workspaceId || 'ws-personal') &&
+                  (e.spaceId || 'ws-personal') === (targetEntity.spaceId || 'ws-personal') &&
                   !hiddenEntityIds.includes(e.id)
                 );
               }
@@ -406,7 +410,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           // Bottom-edge redirect: if the target is an expanded folder, redirect bottom edge
           // to top edge of its first child (if it has children) to match visual insertion line.
           const collapsedIds = useStore.getState().collapsedIds;
-          const isOverFolder = overEntity && (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace');
+          const isOverFolder = overEntity && (overEntity.type === 'folder' || overEntity.type === 'workspace');
           const isOverExpanded = isOverFolder && !collapsedIds.includes(overId);
           if (edge === 'bottom' && isOverExpanded) {
             const folderChildren = entities
@@ -443,10 +447,10 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           if (activeId === overId) return;
 
           if (edge !== null && overEntity) {
-            if ((entity.parentId || null) === (overEntity.parentId || null) && (entity.workspaceId || null) === (overEntity.workspaceId || null)) {
-              const isWorkspaceOrCollection = (type: EntityType) => type === 'workspace' || type === 'collection';
-              const isDragWS = isWorkspaceOrCollection(entity.type);
-              const isTargetWS = isWorkspaceOrCollection(overEntity.type);
+            if ((entity.parentId || null) === (overEntity.parentId || null) && (entity.spaceId || null) === (overEntity.spaceId || null)) {
+              const isWorkspace = (type: EntityType) => type === 'workspace';
+              const isDragWS = isWorkspace(entity.type);
+              const isTargetWS = isWorkspace(overEntity.type);
 
               if (isDragWS === isTargetWS) {
                 const siblings = getSortedSiblings(overEntity);
@@ -495,7 +499,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
           // A pinned item is just a shortcut to the real entity. Dragging it OUT of
           // the pinned section unpins it only — it must never move or reorder the
-          // underlying entity in workspaces/unsorted.
+          // underlying entity in spaces/unsorted.
           if (isPinnedDrag) {
             toggleFavorite(entityId);
             return;
@@ -504,31 +508,31 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           const moveEntityAction = useStore.getState().moveEntity;
 
           let newParentId: string | null = entity.parentId;
-          let newWorkspaceId = entity.workspaceId;
+          let newSpaceId = entity.spaceId;
 
           if (overId === 'unsorted-container') {
             newParentId = null;
-            newWorkspaceId = 'ws-personal';
-          } else if (overId === 'workspaces-container') {
+            newSpaceId = 'ws-personal';
+          } else if (overId === 'spaces-container') {
             newParentId = null;
-            newWorkspaceId = activeWorkspaceId;
+            newSpaceId = activeSpaceId;
           } else if (overEntity) {
-            if (overEntity.type === 'folder' || overEntity.type === 'collection' || overEntity.type === 'workspace') {
+            if (overEntity.type === 'folder' || overEntity.type === 'workspace') {
               if (edge === null) {
                 newParentId = overEntity.id;
-                newWorkspaceId = overEntity.workspaceId;
+                newSpaceId = overEntity.spaceId;
               } else {
                 newParentId = overEntity.parentId;
-                newWorkspaceId = overEntity.workspaceId;
+                newSpaceId = overEntity.spaceId;
               }
             } else {
               newParentId = overEntity.parentId;
-              newWorkspaceId = overEntity.workspaceId;
+              newSpaceId = overEntity.spaceId;
             }
           }
 
           // Enforce depth constraint: only allow outdenting by at most 1 level per drag within the same workspace and same folder tree
-          if (newWorkspaceId === entity.workspaceId && newParentId) {
+          if (newSpaceId === entity.spaceId && newParentId) {
             const getRootAncestorId = (id: string): string => {
               let cur = entities.find(e => e.id === id);
               while (cur && cur.parentId) {
@@ -577,7 +581,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
           const normParent = (id: string | null | undefined) => id || null;
           const normWS = (id: string | null | undefined) => id || 'ws-personal';
-          if (normParent(newParentId) === normParent(entity.parentId) && normWS(newWorkspaceId) === normWS(entity.workspaceId) && edge === null && !isInsertInsideBottom) {
+          if (normParent(newParentId) === normParent(entity.parentId) && normWS(newSpaceId) === normWS(entity.spaceId) && edge === null && !isInsertInsideBottom) {
             return; // No-op: dropped inside its current parent container
           }
 
@@ -586,13 +590,13 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           if (newParentId && descendantIds.includes(newParentId)) return;
 
           // Guard: folders must always have a parent — a folder with parentId: null
-          // is invisible in the sidebar (it matches neither the workspaces section
+          // is invisible in the sidebar (it matches neither the spaces section
           // nor the unsorted section). Block the move entirely.
-          const isRootOnlyType = entity.type === 'workspace' || entity.type === 'collection';
+          const isRootOnlyType = entity.type === 'workspace';
           if (!newParentId && !isRootOnlyType && entity.type === 'folder') return;
 
-          if (newParentId !== entity.parentId || newWorkspaceId !== entity.workspaceId) {
-            moveEntityAction(entityId, newParentId, newWorkspaceId);
+          if (newParentId !== entity.parentId || newSpaceId !== entity.spaceId) {
+            moveEntityAction(entityId, newParentId, newSpaceId);
           }
 
           const freshEntities = useStore.getState().entities;
@@ -618,8 +622,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
               if (favoriteIds.includes(entityId)) {
                 setSectionSortMode('pinned', 'manual');
-              } else if (entity.type === 'workspace' || entity.type === 'collection') {
-                setSectionSortMode('workspaces', 'manual');
+              } else if (entity.type === 'workspace') {
+                setSectionSortMode('spaces', 'manual');
               } else {
                 setSectionSortMode('unsorted', 'manual');
               }
@@ -639,7 +643,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         }
       }
     });
-  }, [entities, favoriteIds, favoriteEntitiesBase, activeWorkspaceId, toggleFavorite, reorderEntities, setSectionSortMode]);
+  }, [entities, favoriteIds, favoriteEntitiesBase, activeSpaceId, toggleFavorite, reorderEntities, setSectionSortMode]);
 
   const navItemClass = (isActive: boolean) => cn(
     "sidebar-item-row flex items-center w-full cursor-pointer select-none text-sm group",
@@ -655,16 +659,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     const cls = cn("w-4 h-4 shrink-0 ", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]");
 
     const renderIcon = () => {
-      if ((type === 'collection' || type === 'folder' || type === 'workspace') && entity?.icon) {
+      if ((type === 'folder' || type === 'workspace') && entity?.icon) {
         const CustomIcon = getEntityIcon(entity.icon);
         return <CustomIcon strokeWidth={2} className={cls} />;
       }
       switch (type) {
         case 'canvas': return <Frame strokeWidth={2} className={cls} />;
         case 'note': return <FileText strokeWidth={2} className={cls} />;
-        case 'mixed': return <Layers strokeWidth={2} className={cls} />;
         case 'folder': return <Folder strokeWidth={2} className={cls} />;
-        case 'collection':
         case 'workspace': return <Folder strokeWidth={2} className={cls} />;
         default: return <Frame strokeWidth={2} className={cls} />;
       }
@@ -688,10 +690,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         activeDragId && "is-dragging"
       )}
     >
-      {(!isTabsHeaderVisible || !isDesktop()) && (
         <div
           className={cn(
-            "flex items-center px-[10px] pt-4 pb-2",
+            "flex items-center px-[10px] pt-4 pb-2 shrink-0",
             effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
           )}
         >
@@ -702,21 +703,19 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           )}
 
           <div className={cn("flex items-center", effectiveCollapsed ? "" : "gap-0.5 mr-[3px]")}>
-            {(!isTabsHeaderVisible || !isDesktop()) && (
-              <Tooltip content="Toggle Sidebar">
-                <button
-                  onClick={toggleSidebar}
-                  className={cn(
-                    "flex items-center justify-center text-[var(--bone-100)] opacity-70 hover:opacity-100 transition-colors border border-transparent",
-                    effectiveCollapsed
-                      ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]"
-                      : "w-[26px] h-[26px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)]"
-                  )}
-                >
-                  <PanelLeft strokeWidth={2} className="w-4 h-4" />
-                </button>
-              </Tooltip>
-            )}
+            <Tooltip content="Toggle Sidebar">
+              <button
+                onClick={toggleSidebar}
+                className={cn(
+                  "flex items-center justify-center text-[var(--bone-100)] opacity-70 hover:opacity-100 transition-colors border border-transparent",
+                  effectiveCollapsed
+                    ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]"
+                    : "w-[26px] h-[26px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)]"
+                )}
+              >
+                <PanelLeft strokeWidth={2} className="w-4 h-4" />
+              </button>
+            </Tooltip>
             {!effectiveCollapsed && (
               <Tooltip content="Search">
                 <button
@@ -729,7 +728,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             )}
           </div>
         </div>
-      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
 
@@ -748,7 +746,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     : "bg-transparent text-[var(--bone-70)] border-transparent hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                 )}
               >
-                <LayoutDashboard strokeWidth={2} className="w-4 h-4" />
+                <Home strokeWidth={2} className="w-4 h-4" />
               </button>
             </Tooltip>
             <Tooltip content="Tasks">
@@ -780,7 +778,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     : "bg-transparent text-[var(--bone-70)] border-transparent hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                 )}
               >
-                <MessageSquare strokeWidth={2} className="w-4 h-4" />
+                <MessageCircle strokeWidth={2} className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
@@ -798,9 +796,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 }}
               />
               {[
-                { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+                { id: 'dashboard', label: 'Home', icon: Home },
                 { id: 'tracker', label: 'Tasks', icon: ListTodo },
-                { id: 'chat', label: 'Chat', icon: MessageSquare }
+                { id: 'chat', label: 'Chat', icon: MessageCircle }
               ].map(tab => {
                 const isActive = (tab.id === 'dashboard')
                   ? (activeEntityId !== 'tracker' && activeEntityId !== 'chat')
@@ -1002,7 +1000,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
-                      onClick={() => openTaskPanel(generateId())}
+                      onClick={() => openTaskPanel(generateId(), { entityId: trackerFilterEntityId || undefined })}
                       className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
@@ -1011,19 +1009,22 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">New Task</span>
                     </button>
                     <button
-                      onClick={() => setTrackerFilterWorkspace(null)}
+                      onClick={() => {
+                        useStore.getState().setTrackerFilterEntityId(null);
+                        setTrackerFilterTag(null);
+                      }}
                       className={cn(
                         "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
-                        trackerFilterWorkspace === null && "!bg-dark !text-[var(--bone-100)]"
+                        trackerFilterEntityId === null && trackerFilterTag === null && "!bg-dark !text-[var(--bone-100)]"
                       )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
                         <ListTodo strokeWidth={2} className="w-3.5 h-3.5" />
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">All tasks</span>
-                      {allTasks.filter(t => !t.completed).length > 0 && (
+                      {allTasks.filter(t => !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length > 0 && (
                         <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
-                          {allTasks.filter(t => !t.completed).length}
+                          {allTasks.filter(t => !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length}
                         </span>
                       )}
                     </button>
@@ -1031,33 +1032,124 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] py-2">
                     <div className="flex flex-col gap-[1px]">
-                      {workspacesBase.map(ws => {
-                        const count = allTasks.filter(t => t.workspaceId === ws.id && !t.completed).length;
+                      {spacesBase.map(ws => {
+                        const count = allTasks.filter(t => t.entityId === ws.id && !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length;
+                        const wsTags = Array.from(new Set(
+                          allTasks
+                            .filter(t => t.entityId === ws.id && t.tag && t.tag.trim() && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId)))
+                            .map(t => t.tag!.trim())
+                        )).sort();
+                        const hasTags = wsTags.length > 0;
+                        const isCollapsed = collapsedTrackerWorkspaces[ws.id] ?? false;
+                        const isActive = trackerFilterEntityId === ws.id && trackerFilterTag === null;
+
                         return (
-                          <button
-                            key={ws.id}
-                            onClick={() => setTrackerFilterWorkspace(ws.id)}
-                            className={cn(
-                              "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
-                              trackerFilterWorkspace === ws.id && "!bg-dark !text-[var(--bone-100)]"
-                            )}
-                          >
-                            <div className={cn(
-                              "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)] opacity-30 group-hover:opacity-100 transition-opacity duration-200",
-                              trackerFilterWorkspace === ws.id && "!opacity-100"
-                            )}>
-                              {(() => {
-                                const WorkspaceIcon = getEntityIcon(ws.icon);
-                                return <WorkspaceIcon strokeWidth={2} className="w-3.5 h-3.5" />;
-                              })()}
+                          <div key={ws.id} className="relative group/treeitem flex flex-col gap-[1px]">
+                            {/* Space Row */}
+                            <div
+                              onClick={() => {
+                                useStore.getState().setTrackerFilterEntityId(ws.id);
+                                setTrackerFilterTag(null);
+                              }}
+                              className={cn(
+                                "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
+                                isActive
+                                  ? "!bg-dark text-[var(--bone-100)] font-normal"
+                                  : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+                                "text-[14px]"
+                              )}
+                              style={{ paddingLeft: '8px', paddingRight: '3px' }}
+                            >
+                              {/* Icon & Hover Chevron Overlay */}
+                              <div className="relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-[var(--bone-100)]">
+                                {/* The main icon, which hides on hover if collapsible */}
+                                <div className={cn(
+                                  "flex items-center justify-center w-full h-full",
+                                  hasTags && "group-hover:opacity-0"
+                                )}>
+                                  {(() => {
+                                    const WorkspaceIcon = getEntityIcon(ws.icon);
+                                    return <WorkspaceIcon strokeWidth={2} className="w-3.5 h-3.5" />;
+                                  })()}
+                                </div>
+
+                                {/* Hover collapse/expand chevron button */}
+                                {hasTags && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCollapsedTrackerWorkspaces(prev => ({ ...prev, [ws.id]: !isCollapsed }));
+                                    }}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    className="sidebar-actions absolute btn-sidebar-utility opacity-0 group-hover:opacity-100"
+                                    style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronRight strokeWidth={2} className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <ChevronDown strokeWidth={2} className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
+                              <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{ws.title}</span>
+                              {count > 0 && (
+                                <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+                                  {count}
+                                </span>
+                              )}
                             </div>
-                            <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{ws.title}</span>
-                            {count > 0 && (
-                              <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
-                                {count}
-                              </span>
+
+                            {/* Tags list (depth 1) */}
+                            {hasTags && (
+                              <div
+                                className={cn(
+                                  "grid transition-all duration-100 ease-out",
+                                  !isCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                                )}
+                              >
+                                <div className="overflow-hidden">
+                                  <div className="flex flex-col gap-[1px]">
+                                    {wsTags.map(tag => {
+                                      const isTagActive = trackerFilterEntityId === ws.id && trackerFilterTag === tag;
+                                      const tagCount = allTasks.filter(t => t.entityId === ws.id && t.tag?.trim() === tag && !t.completed && (t.spaceId || activeSpaceId) === activeSpaceId).length;
+                                      return (
+                                        <div
+                                          key={tag}
+                                          onClick={() => {
+                                            useStore.getState().setTrackerFilterEntityId(ws.id);
+                                            setTrackerFilterTag(tag);
+                                          }}
+                                          className={cn(
+                                            "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
+                                            isTagActive
+                                              ? "!bg-dark text-[var(--bone-100)] font-normal"
+                                              : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+                                            "text-[14px]"
+                                          )}
+                                          style={{ paddingLeft: '26px', paddingRight: '3px' }}
+                                        >
+                                          <div className={cn(
+                                            "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
+                                            isTagActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
+                                          )}>
+                                            <Tag strokeWidth={2} className="w-3.5 h-3.5" />
+                                          </div>
+                                          <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{tag}</span>
+                                          {tagCount > 0 && (
+                                            <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+                                              {tagCount}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
                             )}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1095,7 +1187,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
-                        <LayoutDashboard strokeWidth={2} className="w-3.5 h-3.5" />
+                        <Home strokeWidth={2} className="w-3.5 h-3.5" />
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Dashboard</span>
                     </button>
@@ -1164,7 +1256,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       ref={pinnedScrollRef}
                                       className=""
                                     >
-                                      <DroppableZone id="pinned-container" className="flex flex-col mt-[1px] sidebar-list mb-2">
+                                      <DroppableZone id="pinned-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
                                         {displayFavorites.map(entity => (
                                           <TreeItem
                                             key={`pinned-${entity.id}`}
@@ -1233,7 +1325,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <div
                                       className=""
                                     >
-                                      <DroppableZone id="unsorted-container" className="flex flex-col mt-[1px] sidebar-list mb-2">
+                                      <DroppableZone id="unsorted-container" className="flex flex-col gap-[1px] mt-[1px] sidebar-list mb-2">
                                         {displayUnsorted.map(entity => (
                                           <TreeItem key={entity.id} entity={entity} depth={0} disableNesting={true} isMultiSelected={selectedSidebarIds.includes(entity.id)} onShiftClick={handleShiftClick} />
                                         ))}
@@ -1245,13 +1337,13 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                             );
                           }
 
-                          if (sectionId === 'workspaces') {
+                          if (sectionId === 'spaces') {
                             return (
-                              <div key="workspaces" className="flex flex-col gap-[1px]">
+                              <div key="spaces" className="flex flex-col gap-[1px]">
                                 <div
                                   className={cn(
                                     "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-pointer select-none rounded-[var(--radius-small)] ",
-                                    contextMenu?.entityId === 'workspaces'
+                                    contextMenu?.entityId === 'spaces'
                                       ? "text-[var(--bone-100)]"
                                       : "text-[var(--bone-30)]"
                                   )}
@@ -1271,7 +1363,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        openModal({ kind: 'newCollection' });
+                                        openModal({ kind: 'newWorkspace' });
                                       }}
                                       className="btn-sidebar-utility opacity-30 hover:opacity-100"
                                     >
@@ -1281,11 +1373,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const rect = e.currentTarget.getBoundingClientRect();
-                                        openContextMenu('workspaces', rect.right, rect.top, 'sidebar-section');
+                                        openContextMenu('spaces', rect.right, rect.top, 'sidebar-section');
                                       }}
                                       className={cn(
                                         "btn-sidebar-utility opacity-30 hover:opacity-100",
-                                        contextMenu?.entityId === 'workspaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                                        contextMenu?.entityId === 'spaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
                                       )}
                                     >
                                       <Settings2 strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
@@ -1302,7 +1394,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <div
                                       className=""
                                     >
-                                      <DroppableZone id="workspaces-container" className="flex flex-col mt-[1px] mb-2">
+                                      <DroppableZone id="spaces-container" className="flex flex-col gap-[1px] mt-[1px] mb-2">
                                         {displayWorkspaces.map(workspace => (
                                           <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
                                         ))}

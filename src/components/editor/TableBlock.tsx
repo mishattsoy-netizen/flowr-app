@@ -12,6 +12,7 @@ interface TableBlockProps {
   block: EditorBlock;
   onUpdate: (id: string, updates: Partial<EditorBlock>) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  isReadOnly?: boolean;
 }
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
@@ -34,7 +35,7 @@ function RowHandle({
   return (
     <td
       className={cn(
-        "w-8 border-b border-[var(--bone-6)] bg-[var(--bone-2)] relative border-r border-[var(--bone-6)]",
+        "w-8 border-b border-[var(--bone-10)] bg-[var(--bone-5)] relative border-r border-[var(--bone-10)]",
         isSelected && "bg-[var(--bone-3)]"
       )}
     >
@@ -62,6 +63,7 @@ function TableCell({
   ci,
   onMoveColumn,
   onLinkContextMenu,
+  isReadOnly = false,
 }: {
   initialValue: string;
   onUpdate: (html: string) => void;
@@ -74,6 +76,7 @@ function TableCell({
   ci: number;
   onMoveColumn?: (ci: number, direction: 'left' | 'right') => void;
   onLinkContextMenu?: (e: React.MouseEvent) => void;
+  isReadOnly?: boolean;
 }) {
   const editableRef = useRef<HTMLDivElement | HTMLTableCellElement>(null);
   const lastValueRef = useRef(initialValue);
@@ -95,12 +98,6 @@ function TableCell({
     }
   };
 
-  const handleInput = () => {
-    if (editableRef.current) {
-      lastValueRef.current = editableRef.current.innerHTML;
-    }
-  };
-
   if (isHeader) {
     return (
       <td
@@ -110,15 +107,13 @@ function TableCell({
       >
         <div
           ref={editableRef as React.RefObject<HTMLDivElement | null>}
-          contentEditable
+          contentEditable={!isReadOnly ? true : undefined}
           suppressContentEditableWarning
           className="outline-none"
           onBlur={handleBlur}
-          onInput={handleInput}
           onContextMenu={onLinkContextMenu}
-          dangerouslySetInnerHTML={{ __html: initialValue }}
         />
-        {onMoveColumn && (
+        {onMoveColumn && !isReadOnly && (
           <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/cell:opacity-100 z-10">
             <button
               onClick={(e) => { e.stopPropagation(); onMoveColumn(ci, 'left'); }}
@@ -141,13 +136,11 @@ function TableCell({
   return (
     <td
       ref={editableRef as React.RefObject<HTMLTableCellElement | null>}
-      contentEditable
+      contentEditable={!isReadOnly ? true : undefined}
       suppressContentEditableWarning
       className={className}
       onBlur={handleBlur}
-      onInput={handleInput}
       onContextMenu={onLinkContextMenu}
-      dangerouslySetInnerHTML={{ __html: initialValue }}
     />
   );
 }
@@ -167,6 +160,7 @@ function SortableRow({
   onMoveColumn,
   blockId,
   onLinkContextMenu,
+  isReadOnly = false,
 }: {
   id: string;
   row: string[];
@@ -182,6 +176,7 @@ function SortableRow({
   onMoveColumn?: (ci: number, direction: 'left' | 'right') => void;
   blockId: string;
   onLinkContextMenu?: (e: React.MouseEvent) => void;
+  isReadOnly?: boolean;
 }) {
   const elementRef = useRef<HTMLTableRowElement | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -191,7 +186,7 @@ function SortableRow({
   useEffect(() => {
     const el = elementRef.current;
     const dragHandle = dragHandleRef.current;
-    if (!el || !dragHandle) return;
+    if (!el || !dragHandle || isReadOnly) return;
 
     return draggable({
       element: el,
@@ -200,11 +195,11 @@ function SortableRow({
       onDragStart: () => setIsDragging(true),
       onDrop: () => setIsDragging(false),
     });
-  }, [id, ri, blockId]);
+  }, [id, ri, blockId, isReadOnly]);
 
   useEffect(() => {
     const el = elementRef.current;
-    if (!el) return;
+    if (!el || isReadOnly) return;
 
     return dropTargetForElements({
       element: el,
@@ -218,7 +213,7 @@ function SortableRow({
       onDragLeave: () => setClosestEdge(null),
       onDrop: () => setClosestEdge(null),
     });
-  }, [id, ri, blockId]);
+  }, [id, ri, blockId, isReadOnly]);
 
   return (
     <tr
@@ -231,12 +226,14 @@ function SortableRow({
         closestEdge === 'bottom' && "[&>td]:border-b-2 [&>td]:border-b-[var(--bone-35)]"
       )}
     >
-      <RowHandle
-        dragHandleRef={dragHandleRef}
-        isSelected={isSelected}
-        onSelect={onSelect}
-        onContextMenu={onContextMenu}
-      />
+      {!isReadOnly && (
+        <RowHandle
+          dragHandleRef={dragHandleRef}
+          isSelected={isSelected}
+          onSelect={onSelect}
+          onContextMenu={onContextMenu}
+        />
+      )}
       {ri === 0 ? (
         row.map((cell: string, ci: number) => (
           <TableCell
@@ -244,8 +241,8 @@ function SortableRow({
             initialValue={cell}
             onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
-              "relative px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-6)] last:border-r-0 outline-none transition-colors leading-snug group/cell",
-              "font-bold text-bone-100 bg-[var(--bone-2)] text-[10.5px] uppercase tracking-wider",
+              "relative px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug group/cell",
+              "font-bold text-bone-100 bg-[var(--bone-5)] text-[10.5px] uppercase tracking-wider",
               ci === 0 && "font-semibold",
               ri === colCount - 1 && "border-b-0",
               selectedCol === ci && "!bg-[var(--bone-3)]"
@@ -258,6 +255,7 @@ function SortableRow({
             ci={ci}
             onMoveColumn={onMoveColumn}
             onLinkContextMenu={onLinkContextMenu}
+            isReadOnly={isReadOnly}
           />
         ))
       ) : (
@@ -267,17 +265,20 @@ function SortableRow({
             initialValue={cell}
             onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
-              "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-6)] last:border-r-0 outline-none transition-colors leading-snug",
+              "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug",
               "text-bone-100 focus:bg-[var(--bone-2)]",
               ci === 0 && "font-semibold text-bone-100",
               ri === colCount - 1 && "border-b-0",
               selectedCol === ci && "bg-[var(--bone-3)]"
             )}
+            onClick={(e) => { e.stopPropagation(); onColSelect?.(ci); }}
+            onContextMenu={(e) => onColContextMenu?.(e, ci)}
             isHeader={false}
             colCount={colCount}
             ri={ri}
             ci={ci}
             onLinkContextMenu={onLinkContextMenu}
+            isReadOnly={isReadOnly}
           />
         ))
       )}
@@ -285,7 +286,7 @@ function SortableRow({
   );
 }
 
-export function TableBlock({ block, onUpdate, onContextMenu }: TableBlockProps) {
+export function TableBlock({ block, onUpdate, onContextMenu, isReadOnly = false }: TableBlockProps) {
   const tableData = block.tableData ?? [['', '', ''], ['', '', ''], ['', '', '']];
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [selectedCol, setSelectedCol] = useState<number | null>(null);
@@ -429,7 +430,7 @@ export function TableBlock({ block, onUpdate, onContextMenu }: TableBlockProps) 
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <div className="border border-[var(--bone-6)] rounded-3xl overflow-hidden bg-panel">
+      <div className="border border-[var(--bone-10)] rounded-3xl overflow-hidden bg-panel">
         <table className="w-full border-collapse">
           <tbody>
             {tableData.map((row: string[], ri: number) => (
@@ -449,30 +450,35 @@ export function TableBlock({ block, onUpdate, onContextMenu }: TableBlockProps) 
                 onMoveColumn={handleMoveColumn}
                 blockId={block.id}
                 onLinkContextMenu={onContextMenu}
+                isReadOnly={isReadOnly}
               />
             ))}
           </tbody>
         </table>
       </div>
 
-      <button
-        onClick={() => {
-          const cols = tableData[0]?.length ?? 3;
-          onUpdate(block.id, { tableData: [...tableData, Array(cols).fill('')] });
-        }}
-        className="h-6 w-full opacity-0 group-hover/table:opacity-100 flex items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-b-[var(--radius-medium)] transition-all mt-0.5 uppercase tracking-widest"
-      >
-        + Add Row
-      </button>
+      {!isReadOnly && (
+        <>
+          <button
+            onClick={() => {
+              const cols = tableData[0]?.length ?? 3;
+              onUpdate(block.id, { tableData: [...tableData, Array(cols).fill('')] });
+            }}
+            className="h-6 w-full opacity-0 group-hover/table:opacity-100 flex items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-b-[var(--radius-medium)] transition-all mt-0.5 uppercase tracking-widest"
+          >
+            + Add Row
+          </button>
 
-      <button
-        onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })}
-        className="absolute top-0 bottom-0 right-[-1.5rem] w-5 opacity-0 group-hover/table:opacity-100 flex flex-col items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-r-[var(--radius-medium)] transition-all [writing-mode:vertical-rl] uppercase tracking-widest"
-      >
-        + Add Column
-      </button>
+          <button
+            onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })}
+            className="absolute top-0 bottom-0 right-[-1.5rem] w-5 opacity-0 group-hover/table:opacity-100 flex flex-col items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-r-[var(--radius-medium)] transition-all [writing-mode:vertical-rl] uppercase tracking-widest"
+          >
+            + Add Column
+          </button>
+        </>
+      )}
 
-      {contextMenu && typeof document !== 'undefined' && createPortal(
+      {!isReadOnly && contextMenu && typeof document !== 'undefined' && createPortal(
         <div
           ref={contextMenuRef}
           className="fixed popup-glass-small z-[9999] min-w-[140px] p-1.5 flex flex-col gap-[3px] shadow-2xl"

@@ -7,6 +7,9 @@ import { buildArrowPaths, computeRenderPoints } from '@/lib/geometry/arrowPath';
 import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { ResizeHandle, HandlePosition } from '../ResizeHandle';
 import { activeDragOffsets } from '@/lib/canvasDragState';
+import { classifyBindingAt, findBindableBlockAt, rectOf } from '@/lib/canvas/classifyBinding';
+import { blockOutlineKind } from '@/lib/geometry/binding';
+import { nearestPointOnOutline } from '@/lib/geometry/outline';
 
 interface VectorPathProps {
   block: EditorBlock;
@@ -24,6 +27,9 @@ interface VectorPathProps {
   showIndividualSelection?: boolean;
   /** Eraser tool: this arrow/line is currently marked for deletion mid-gesture — render dimmed. */
   erasing?: boolean;
+  /** Drives the shape-outline glow highlight (CanvasBlock's bindHighlight) while a free
+   * (unbound) endpoint is being dragged toward a bindable shape. */
+  setHoverBindTargetId?: (id: string | null) => void;
 }
 
 const POSITION_MAP: Record<HandlePosition, number> = {
@@ -37,7 +43,7 @@ const POSITION_MAP: Record<HandlePosition, number> = {
   w: 7,
 };
 
-export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect, showIndividualSelection = true, erasing }: VectorPathProps) {
+export function VectorPath({ block, selected, editing, activeTool, viewportScale, viewport, selectedPointIndex, onSelect, onBindingDragStart, onDoubleClick, onDragStart, onPointSelect, showIndividualSelection = true, erasing, setHoverBindTargetId }: VectorPathProps) {
   const allBlocks = useStore(s => s.blocks);
   const updateCanvasBlock = useStore(s => s.updateCanvasBlock);
   const canvasBlocks = useMemo(() => allBlocks.filter(b => b.canvasId === block.canvasId), [allBlocks, block.canvasId]);
@@ -90,16 +96,27 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
 
     setDraggingPt(index);
 
-    // Initialize rotation center if not set
-    if (!style.pivot && bounds) {
-      const cx = bounds.x + bounds.w / 2;
-      const cy = bounds.y + bounds.h / 2;
-      updateCanvasBlock(block.id, { canvasStyleExt: { ...style, pivot: [cx, cy] } });
-    }
+    // Initialize rotation center if not set. Deliberately NOT written to the store here: an
+    // update mid-gesture would re-render VectorPath with a fresh `block` prop, which swaps out
+    // the very DOM nodes handleMove is patching mid-drag out from under it — visible as the
+    // whole arrow suddenly jumping/re-clipping partway through the first drag on a fresh arrow
+    // (the only time style.pivot is still unset). Commit it together with the final point
+    // update on pointerup instead, same as the rest of this gesture's imperative-then-commit
+    // pattern.
+    const pivotToCommit = !style.pivot && bounds ? [bounds.x + bounds.w / 2, bounds.y + bounds.h / 2] as [number, number] : null;
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
     const currentDragPts = [...waypoints];
-    const hasStart = !!block.startBinding;
+
+    // This drag is a true arrow endpoint (not an interior waypoint) exactly when it's the
+    // first or last entry of `points` AND that end isn't already bound (a bound end's dot
+    // goes through onBindingDragStart/useBindingDrag instead, never through here). Endpoints
+    // get Excalidraw-style bind-on-hover: snap the tip to the nearest bindable shape's outline
+    // and highlight it, falling back to a free point when not over anything bindable.
+    const isStartEndpoint = index === 0 && !block.startBinding;
+    const isEndEndpoint = index === waypoints.length - 1 && !block.endBinding;
+    const isBindableEndpoint = isStartEndpoint || isEndEndpoint;
+    const otherBlocks = canvasBlocks.filter(b => b.id !== block.id);
 
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
@@ -110,23 +127,39 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
       const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-      const localPt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
+      const rawPt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
+
+      let target: EditorBlock | null = null;
+      let localPt = rawPt;
+      if (isBindableEndpoint) {
+        target = findBindableBlockAt(rawPt, otherBlocks);
+        setHoverBindTargetId?.(target?.id ?? null);
+        if (target) {
+          localPt = nearestPointOnOutline(blockOutlineKind(target), rectOf(target), rawPt);
+        }
+      }
       currentDragPts[index] = localPt;
 
       if (gEl) {
-        // 1. Update waypoints circles
-        const circleEls = gEl.querySelectorAll('circle');
-        if (circleEls[index]) {
-          circleEls[index].setAttribute('cx', String(localPt[0]));
-          circleEls[index].setAttribute('cy', String(localPt[1]));
+        // 1. Update waypoint circles (both the visible dot and its invisible drag hitbox
+        // share the same coordinates, so both need to move in lockstep during the drag)
+        const dotEl = gEl.querySelector(`circle[data-waypoint-dot="${index}"]`);
+        if (dotEl) {
+          dotEl.setAttribute('cx', String(localPt[0]));
+          dotEl.setAttribute('cy', String(localPt[1]));
+        }
+        const hitboxEl = gEl.querySelector(`circle[data-waypoint-hitbox="${index}"]`);
+        if (hitboxEl) {
+          hitboxEl.setAttribute('cx', String(localPt[0]));
+          hitboxEl.setAttribute('cy', String(localPt[1]));
         }
 
-        // 2. Update path + arrowhead d attributes, recomputed from the SAME resolved points
-        // so the head's stable-direction calculation sees exactly what will be committed —
-        // this is what keeps the head from spinning as a waypoint nears the tip.
-        const resolvedPtsCopy = [...resolvedPts];
-        const resolvedIndex = hasStart ? index + 1 : index;
-        resolvedPtsCopy[resolvedIndex] = localPt;
+        // 2. Update path + arrowhead d attributes. Re-run the FULL resolve (not just patching
+        // the dragged index into a pre-drag snapshot): a bound endpoint aims at its adjacent
+        // waypoint, so dragging a waypoint legitimately re-clips the bound ends — resolving
+        // live keeps the preview pixel-identical to what pointerup will commit, instead of
+        // the endpoints visibly jumping at release.
+        const resolvedPtsCopy = resolvePoints({ ...block, points: currentDragPts as [number, number][] }, canvasBlocks);
 
         const paths = buildArrowPaths(block, resolvedPtsCopy);
         const hitboxPath = gEl.querySelector(`path[data-connection-hitbox="${block.id}"]`);
@@ -144,10 +177,11 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       setDraggingPt(null);
       document.removeEventListener('pointermove', handleMove);
       document.removeEventListener('pointerup', handleUp);
+      setHoverBindTargetId?.(null);
 
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
-      
+
       const angle = style.rotation ?? 0;
       const rad = -angle * Math.PI / 180;
       const localDX = dx * Math.cos(rad) - dy * Math.sin(rad);
@@ -157,7 +191,27 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       const finalPts = [...waypoints];
       finalPts[index] = finalPt;
 
-      updateCanvasBlock(block.id, { points: finalPts as [number, number][] });
+      let bindingUpdate: Partial<EditorBlock> = {};
+      if (isBindableEndpoint) {
+        const target = findBindableBlockAt(finalPt, otherBlocks);
+        const binding = target ? classifyBindingAt(finalPt, target) : null;
+        if (binding) {
+          // The bound end is dropped from `points` — resolvePoints re-derives it every render
+          // from the binding + outline, same convention as a fresh drawn/bound arrow.
+          if (isStartEndpoint) {
+            bindingUpdate = { startBinding: binding, points: finalPts.slice(1) as [number, number][] };
+          } else {
+            bindingUpdate = { endBinding: binding, points: finalPts.slice(0, -1) as [number, number][] };
+          }
+        }
+      }
+
+      updateCanvasBlock(block.id, {
+        ...(bindingUpdate.startBinding || bindingUpdate.endBinding
+          ? bindingUpdate
+          : { points: finalPts as [number, number][] }),
+        ...(pivotToCommit ? { canvasStyleExt: { ...style, pivot: pivotToCommit } } : {}),
+      });
     };
 
     document.addEventListener('pointermove', handleMove);
@@ -185,11 +239,14 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
     onPointSelect?.(insertAt);
 
     const gEl = document.getElementById(block.id) as SVGGElement | null;
-    const hasStart = !!block.startBinding;
 
     // The ghost handle itself doubles as the live-dragged point's visual — no new <circle>
     // needs to be created until commit, since the store (and thus the DOM) hasn't changed yet.
-    const ghostEl = e.currentTarget as SVGCircleElement;
+    // Two circles share this handle (invisible hitbox + visible dimmed dot), so both need to
+    // move together rather than relying on e.currentTarget (which is only the hitbox, since
+    // that's the one with pointerEvents enabled).
+    const ghostHitboxEl = e.currentTarget as SVGCircleElement;
+    const ghostDotEl = gEl?.querySelector(`circle[data-ghost-midpoint-dot="${block.id}"]`) ?? null;
 
     const handleMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
@@ -200,13 +257,21 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       const localDY = dx * Math.sin(rad) + dy * Math.cos(rad);
       const pt = [orig[0] + localDX, orig[1] + localDY] as [number, number];
 
-      if (ghostEl) {
-        ghostEl.setAttribute('cx', String(pt[0]));
-        ghostEl.setAttribute('cy', String(pt[1]));
+      if (ghostHitboxEl) {
+        ghostHitboxEl.setAttribute('cx', String(pt[0]));
+        ghostHitboxEl.setAttribute('cy', String(pt[1]));
+      }
+      if (ghostDotEl) {
+        ghostDotEl.setAttribute('cx', String(pt[0]));
+        ghostDotEl.setAttribute('cy', String(pt[1]));
       }
       if (gEl) {
-        const resolvedPtsCopy = [...resolvedPts];
-        resolvedPtsCopy.splice(hasStart ? insertAt + 1 : insertAt, 0, pt);
+        // Full re-resolve (same as handleWaypointDown): bound endpoints aim at the adjacent
+        // waypoint, so the just-inserted point re-clips them — resolving live keeps the
+        // preview identical to what pointerup commits.
+        const previewPts = [...waypoints];
+        previewPts.splice(insertAt, 0, pt);
+        const resolvedPtsCopy = resolvePoints({ ...block, points: previewPts as [number, number][] }, canvasBlocks);
         const paths = buildArrowPaths(block, resolvedPtsCopy);
         const hitboxPath = gEl.querySelector(`path[data-connection-hitbox="${block.id}"]`);
         if (hitboxPath) hitboxPath.setAttribute('d', paths.line);
@@ -393,7 +458,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
   return (
     <g id={block.id} transform={gTransform} style={erasing ? { opacity: 0.3 } : undefined}>
       {/* HTML Selection frame via portal */}
-      {selected && showIndividualSelection && !editing && bounds && viewportContent && createPortal(
+      {selected && showIndividualSelection && !editing && draggingPt === null && bounds && viewportContent && createPortal(
         <div
           id={`arrow-overlay-${block.id}`}
           className="absolute select-none z-[190] cursor-move"
@@ -520,19 +585,34 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         <>
           {waypoints.map((pt, i) => {
             const isSelected = selectedPointIndex === i;
+            const handlePointerDown = (e: React.PointerEvent<SVGCircleElement>) => {
+              if (draggingPt !== null) return;
+              // Collapse any multi-selection down to just this arrow — leftover selection
+              // boxes on other shapes are pure noise while manipulating an arrow's points.
+              onSelect?.(block.id, false);
+              if (isSelected) {
+                onPointSelect?.(null);
+              } else {
+                onPointSelect?.(i);
+              }
+              handleWaypointDown(i, e);
+            };
             return (
-              <circle key={`wp-${i}`} cx={pt[0]} cy={pt[1]} r={isSelected ? 8 : 5}
-                fill="white" stroke={isSelected ? 'var(--brand-blue)' : strokeColor} strokeWidth={isSelected ? 2 : 1.5}
-                style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
-                onPointerDown={e => {
-                  if (draggingPt !== null) return;
-                  if (isSelected) {
-                    onPointSelect?.(null);
-                  } else {
-                    onPointSelect?.(i);
-                  }
-                  handleWaypointDown(i, e);
-                }} />
+              <React.Fragment key={`wp-${i}`}>
+                {/* Invisible, much larger hitbox — the visible dot stays small so it doesn't
+                    visually clutter the path, but a 5-8px radius is hard to land a pointer on
+                    precisely, especially at lower zoom. Same pattern as the line's own
+                    transparent-stroke hitbox above. */}
+                <circle cx={pt[0]} cy={pt[1]} r={14 / scale}
+                  fill="transparent"
+                  style={{ cursor: draggingPt === i ? 'grabbing' : 'grab', pointerEvents: 'auto' }}
+                  onPointerDown={handlePointerDown}
+                  data-waypoint-hitbox={i} />
+                <circle cx={pt[0]} cy={pt[1]} r={isSelected ? 8 : 5}
+                  fill="white" stroke={isSelected ? 'var(--brand-blue)' : strokeColor} strokeWidth={isSelected ? 2 : 1.5}
+                  style={{ pointerEvents: 'none' }}
+                  data-waypoint-dot={i} />
+              </React.Fragment>
             );
           })}
         </>
@@ -552,10 +632,16 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
         const mid: [number, number] = [(sx + ex) / 2, (sy + ey) / 2];
         const insertAt = block.startBinding ? 0 : 1;
         return (
-          <circle cx={mid[0]} cy={mid[1]} r={5}
-            fill="white" stroke={strokeColor} strokeWidth={1.5} opacity={0.45}
-            style={{ cursor: 'grab', pointerEvents: 'auto' }}
-            onPointerDown={e => insertWaypointAndDrag(insertAt, mid, e)} />
+          <React.Fragment>
+            <circle cx={mid[0]} cy={mid[1]} r={14 / scale}
+              fill="transparent"
+              style={{ cursor: 'grab', pointerEvents: 'auto' }}
+              onPointerDown={e => { onSelect?.(block.id, false); insertWaypointAndDrag(insertAt, mid, e); }} />
+            <circle cx={mid[0]} cy={mid[1]} r={5}
+              fill="white" stroke={strokeColor} strokeWidth={1.5} opacity={0.45}
+              style={{ pointerEvents: 'none' }}
+              data-ghost-midpoint-dot={block.id} />
+          </React.Fragment>
         );
       })()}
 
@@ -567,13 +653,13 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
             <circle cx={startPos[0]} cy={startPos[1]} r={6}
               fill="#d38f36" stroke="white" strokeWidth={1.5}
               style={{ cursor: 'grab', pointerEvents: 'auto' }}
-              onPointerDown={e => { e.stopPropagation(); onBindingDragStart?.('start', e); }} />
+              onPointerDown={e => { e.stopPropagation(); onSelect?.(block.id, false); onBindingDragStart?.('start', e); }} />
           )}
           {endPos && (
             <circle cx={endPos[0]} cy={endPos[1]} r={6}
               fill="#d38f36" stroke="white" strokeWidth={1.5}
               style={{ cursor: 'grab', pointerEvents: 'auto' }}
-              onPointerDown={e => { e.stopPropagation(); onBindingDragStart?.('end', e); }} />
+              onPointerDown={e => { e.stopPropagation(); onSelect?.(block.id, false); onBindingDragStart?.('end', e); }} />
           )}
         </>
       )}

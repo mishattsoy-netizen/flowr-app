@@ -5,13 +5,13 @@ import { Sidebar } from './Sidebar';
 import { isDesktop } from '@/lib/env';
 import { HeaderBar } from './HeaderBar';
 import { ContextMenu } from './ContextMenu';
-import { NewCollectionModal } from '../modals/NewCollectionModal';
+import { NewSpaceModal } from '../modals/NewSpaceModal';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
+import { DeleteSpaceConfirmModal } from '../modals/DeleteSpaceConfirmModal';
 import { MoveToModal } from '../modals/MoveToModal';
 import { RenameModal } from '../modals/RenameModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { MediaViewerModal } from '../modals/MediaViewerModal';
-import { NewWorkspaceModal } from '../modals/NewWorkspaceModal';
 import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
 import { VaultSetupModal } from '../modals/VaultSetupModal';
 import { SyncFileCleanupModal } from '../modals/SyncFileCleanupModal';
@@ -461,9 +461,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
                   : "h-full shrink-0 overflow-hidden"
               )}
               style={!isMobile ? {
-                width: `${currentRightPanelWidth}px`,
-                maxWidth: (isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px',
-                transition: (isResizingRight || isResizingLeft) ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+                width: (isTaskPanelVisible || isAiPanelOpen) ? `${currentRightPanelWidth}px` : '0px',
+                transition: (isResizingRight || isResizingLeft) ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
               } : undefined}
             >
               <div className={cn(
@@ -488,14 +487,14 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
         {/* Global overlays */}
         <ContextMenu />
-        <NewCollectionModal key="new-collection" />
         <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
+        <DeleteSpaceConfirmModal key={modal?.kind === 'deleteSpaceConfirm' ? modalKey : 'delete-space-none'} />
         <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
         <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
         {modal?.kind === 'pdfExport' && <PdfExportModal key={modalKey} />}
                 <SettingsModal key="settings-modal" />
         <MediaViewerModal key="media-viewer" />
-        <NewWorkspaceModal key="new-workspace" />
+        <NewSpaceModal key="new-workspace" />
         <SummaryPreviewModal key="summary-preview" />
         <CommandPalette key="command-palette" />
         <VaultSetupModal key="vault-setup" />

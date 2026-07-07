@@ -49,7 +49,7 @@ export function DatePickerTime({
                 type="button"
                 id="date-picker"
                 className={cn(
-                  "w-full flex items-center font-medium text-xs h-8 pl-3 pr-8 rounded-[6px] border-none bg-[var(--bone-6)] hover:bg-[var(--bone-10)] transition-all text-left cursor-pointer outline-none focus:outline-none",
+                  "w-full flex items-center font-medium text-xs h-8 pl-3 pr-8 rounded-[6px] border-none bg-[var(--bone-6)] hover:bg-[var(--bone-10)] focus:bg-[var(--bone-10)] transition-all text-left cursor-pointer outline-none focus:outline-none",
                   !activeDate && "text-[var(--bone-30)]",
                   activeDate && "text-[var(--bone-90)]"
                 )}

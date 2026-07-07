@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     supabaseClient = supabase;
   }
 
-  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeWorkspaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
             aiApiKey,
             activeEntityId,
             activeChatId: activeChatId ?? null,
-            activeWorkspaceId,
+            activeSpaceId,
             classificationModelId,
             mode: activeMode,
             intentTag: intentTag ?? null,

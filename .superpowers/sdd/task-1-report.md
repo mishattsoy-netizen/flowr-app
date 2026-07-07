@@ -78,3 +78,22 @@ Net: 20 files changed, 34 insertions(+), 1104 deletions(-).
 
 ## Concerns
 None blocking. The three cascades beyond the brief's literal file list (frameLayout.ts partial delete, CanvasStylePanel.tsx auto-layout UI removal, 8 store actions removed) are a direct, unavoidable consequence of Step 1's type deletions — flagged per the task instructions rather than treated as a reason to stop.
+
+## Fix Report (review round 1)
+
+### Changes made
+1. **src/components/canvas/CanvasStylePanel.tsx** (line 1170–1195): Removed the entire Gap input row (the stubbed-out child-spacing display block that was associated with the now-deleted auto-layout system). This conditional block rendered when a single frame had ≥2 uniformly-spaced children; the input had `onChange={() => {}}` and served no purpose.
+2. **src/components/dashboard/Dashboard.tsx** (line 84): Removed `'comment'` and `'connection'` string literals from the NoteBlockPreview filter array. Updated from `['shape', 'frame', 'comment', 'connection', 'column']` to `['shape', 'frame', 'column']`.
+3. **src/components/dashboard/Dashboard.tsx** (line 543): Removed `'comment'` and `'connection'` string literals from the inline filter in the recent documents preview. Updated from `!['shape','frame','comment','connection','column'].includes(b.type)` to `!['shape','frame','column'].includes(b.type)`.
+4. **src/components/workspace/WorkspacePage.tsx** (line 66): Removed `'comment'` and `'connection'` string literals from the NoteBlockPreview filter array. Updated from `['shape', 'frame', 'comment', 'connection', 'column']` to `['shape', 'frame', 'column']`.
+5. **src/components/workspace/WorkspacePage.tsx** (line 607): Removed `'comment'` and `'connection'` string literals from the inline filter in recent documents preview. Updated from `!['shape','frame','comment','connection','column'].includes(b.type)` to `!['shape','frame','column'].includes(b.type)`.
+
+Note: `computeGroupSpacing` import retained in CanvasStylePanel.tsx — it remains used at line 731 in the group-selection Layout panel, which is unaffected and functional.
+
+### Verification
+- **npx tsc --noEmit**: 0 errors
+- **npx vitest run**: 14 test files passed, 144 tests passed (0 failures)
+
+### Commit
+- SHA: `650e515`
+- Message: `fix(canvas): remove stubbed frame gap input and leftover removed-type literals`

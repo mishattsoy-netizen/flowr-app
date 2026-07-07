@@ -1,7 +1,6 @@
+import { unstable_cache } from 'next/cache'
 import { supabaseAdmin as supabase } from './supabase'
 import { logger } from './logger'
-import fs from 'fs'
-import path from 'path'
 
 export interface RouterModel {
   id: string
@@ -17,7 +16,6 @@ export type IntentCategory =
   | 'REGULAR'
   | 'COMPLEX'
   | 'AUDIO'
-  | 'TOOLS'
   | 'IMAGE_GEN'
   | 'WEB_SEARCH'
   | 'CLASSIFIER'
@@ -30,9 +28,7 @@ export type IntentCategory =
 
 export type Platform = 'telegram'
 
-export async function getRouterChain(
-  category: IntentCategory
-): Promise<{ chain: RouterModel[], system_prompt?: string; temperature?: number; thinking_budget?: string | number }> {
+async function fetchRouterChainFromDb(category: IntentCategory): Promise<{ chain: RouterModel[], system_prompt?: string; temperature?: number; thinking_budget?: string | number }> {
   let retryCount = 0
   const maxRetries = 2
 
@@ -113,70 +109,34 @@ export async function getRouterChain(
         }
       })
       
-      const result = {
+      return {
         chain: enrichedChain,
         system_prompt: (chainResult.data as any).system_prompt || undefined,
         temperature: customTemp,
         thinking_budget: customBudget
       }
-
-      // Background save to cache for future resiliency
-      saveChainToCache(category, result)
-
-      return result
     } catch (err) {
       if (retryCount === maxRetries) {
-        logger.error(`RouterChain DB load failed for ${category} after ${maxRetries} retries: ${(err as Error).message}. Attempting local cache fallback.`)
-        
-        // Final fallback: Local cache
-        try {
-          const cachePath = path.join(process.cwd(), 'bot configs(premission to edit needed!)', 'router-chains.json')
-          if (fs.existsSync(cachePath)) {
-            const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
-            if (cache[category]) {
-              logger.info(`Loaded ${category} chain from local cache fallback.`)
-              return cache[category]
-            }
-          }
-        } catch (cacheErr) {
-          logger.error(`RouterChain local cache load failed for ${category}:`, cacheErr)
-        }
-
+        logger.error(`RouterChain DB load failed for ${category} after ${maxRetries} retries: ${(err as Error).message}.`)
         return { chain: [] }
       }
       retryCount++
-      await new Promise(r => setTimeout(r, 1000 * retryCount)) // Increased backoff
+      await new Promise(r => setTimeout(r, 1000 * retryCount))
     }
   }
   return { chain: [] }
 }
 
-/**
- * Persists a successfully fetched router chain to the local filesystem for resiliency.
- */
-async function saveChainToCache(category: string, data: any) {
-  try {
-    const cacheDir = path.join(process.cwd(), 'bot configs(premission to edit needed!)')
-    const cachePath = path.join(cacheDir, 'router-chains.json')
-    
-    let cache: Record<string, any> = {}
-    if (fs.existsSync(cachePath)) {
-      try {
-        cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
-      } catch {
-        cache = {}
-      }
-    }
-    
-    cache[category] = data
-    fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2))
-  } catch (err) {
-    logger.warn(`Failed to save router chain ${category} to cache:`, err)
-  }
+export async function getRouterChain(category: IntentCategory) {
+  const getCached = unstable_cache(
+    async () => fetchRouterChainFromDb(category),
+    ['router-chain', category],
+    { tags: ['router-config'], revalidate: false }
+  )
+  return getCached()
 }
 
-
-export async function getFallbackModes(): Promise<Record<string, 'model_first' | 'api_key_first'>> {
+async function fetchFallbackModesFromDb(): Promise<Record<string, 'model_first' | 'api_key_first'>> {
   const { data, error } = await supabase
     .from('settings')
     .select('value')
@@ -186,6 +146,15 @@ export async function getFallbackModes(): Promise<Record<string, 'model_first' |
 
   if (error || !data?.value) return {}
   return data.value as Record<string, 'model_first' | 'api_key_first'>
+}
+
+export async function getFallbackModes() {
+  const getCached = unstable_cache(
+    async () => fetchFallbackModesFromDb(),
+    ['router-fallback-modes'],
+    { tags: ['router-config'], revalidate: false }
+  )
+  return getCached()
 }
 
 export interface PipelineSettings {
@@ -203,7 +172,7 @@ export interface PipelineSettings {
   tokenLimitEnabledCategories?: IntentCategory[]
 }
 
-export async function getPipelineSettings(): Promise<PipelineSettings> {
+async function fetchPipelineSettingsFromDb(): Promise<PipelineSettings> {
   try {
     const { data: rows, error } = await supabase
       .from('settings')
@@ -225,7 +194,7 @@ export async function getPipelineSettings(): Promise<PipelineSettings> {
       }
     }
 
-    const result: PipelineSettings = {
+    return {
       orchestratorEnabled: map['orchestrator_enabled'] !== false,
       maxPipelineSteps: typeof map['max_pipeline_steps'] === 'number' ? map['max_pipeline_steps'] : 20,
       historyLimit: typeof map['history_limit'] === 'number' ? map['history_limit'] : 20,
@@ -239,24 +208,8 @@ export async function getPipelineSettings(): Promise<PipelineSettings> {
       outputTokenLimit: typeof map['output_token_limit'] === 'number' ? map['output_token_limit'] : 0,
       tokenLimitEnabledCategories: map['token_limit_enabled_categories'] || undefined
     }
-
-    // Save to cache
-    try {
-      const cachePath = path.join(process.cwd(), 'bot configs(premission to edit needed!)', 'pipeline-settings.json')
-      fs.writeFileSync(cachePath, JSON.stringify(result, null, 2))
-    } catch { /* ignore */ }
-
-    return result
   } catch (err) {
-    logger.warn(`Pipeline settings DB load failed, trying local cache: ${(err as Error).message}`)
-    
-    try {
-      const cachePath = path.join(process.cwd(), 'bot configs(premission to edit needed!)', 'pipeline-settings.json')
-      if (fs.existsSync(cachePath)) {
-        return JSON.parse(fs.readFileSync(cachePath, 'utf8'))
-      }
-    } catch { /* ignore */ }
-
+    logger.warn(`Pipeline settings DB load failed: ${(err as Error).message}`)
     return {
       orchestratorEnabled: true,
       maxPipelineSteps: 20,
@@ -269,4 +222,13 @@ export async function getPipelineSettings(): Promise<PipelineSettings> {
       outputTokenLimit: 0,
     }
   }
+}
+
+export async function getPipelineSettings() {
+  const getCached = unstable_cache(
+    async () => fetchPipelineSettingsFromDb(),
+    ['pipeline-settings'],
+    { tags: ['router-config'], revalidate: false }
+  )
+  return getCached()
 }

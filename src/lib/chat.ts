@@ -20,6 +20,7 @@ export interface ChatMessage {
   image_description?: string;
   image_prompt?: string;
   citations?: string[];
+  toolResults?: any[];
   created_at: string;
   attachments?: any[];
 }
@@ -81,13 +82,46 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
   return (data ?? []).map((m: any) => {
     let cleanContent = m.content;
     let attachments: any[] | undefined = undefined;
+    let toolResults: any[] | undefined = m.tool_results;
+    let pipelineSteps: any[] | undefined = m.pipeline_steps;
+    let citations: string[] | undefined = m.citations;
     
     if (m.content) {
-      const match = m.content.match(/[\s\S]*?\n\n<!-- ATTACHMENTS_JSON:([\s\S]*?) -->/);
+      const toolMatch = m.content.match(/[\s\S]*?\n\n<!-- TOOL_RESULTS_JSON:([\s\S]*?) -->/);
+      if (toolMatch) {
+        try {
+          toolResults = JSON.parse(toolMatch[1]);
+          cleanContent = cleanContent.replace(/\n\n<!-- TOOL_RESULTS_JSON:[\s\S]*? -->/, '');
+        } catch (e) {
+          console.error('Failed to parse toolResults JSON from content:', e);
+        }
+      }
+
+      const pipeMatch = cleanContent.match(/[\s\S]*?\n\n<!-- PIPELINE_STEPS_JSON:([\s\S]*?) -->/);
+      if (pipeMatch) {
+        try {
+          pipelineSteps = JSON.parse(pipeMatch[1]);
+          cleanContent = cleanContent.replace(/\n\n<!-- PIPELINE_STEPS_JSON:[\s\S]*? -->/, '');
+        } catch (e) {
+          console.error('Failed to parse pipelineSteps JSON from content:', e);
+        }
+      }
+
+      const citMatch = cleanContent.match(/[\s\S]*?\n\n<!-- CITATIONS_JSON:([\s\S]*?) -->/);
+      if (citMatch) {
+        try {
+          citations = JSON.parse(citMatch[1]);
+          cleanContent = cleanContent.replace(/\n\n<!-- CITATIONS_JSON:[\s\S]*? -->/, '');
+        } catch (e) {
+          console.error('Failed to parse citations JSON from content:', e);
+        }
+      }
+
+      const match = cleanContent.match(/[\s\S]*?\n\n<!-- ATTACHMENTS_JSON:([\s\S]*?) -->/);
       if (match) {
         try {
           attachments = JSON.parse(match[1]);
-          cleanContent = m.content.replace(/\n\n<!-- ATTACHMENTS_JSON:[\s\S]*? -->/, '');
+          cleanContent = cleanContent.replace(/\n\n<!-- ATTACHMENTS_JSON:[\s\S]*? -->/, '');
         } catch (e) {
           console.error('Failed to parse attachments JSON from content:', e);
         }
@@ -98,6 +132,9 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
       ...m,
       content: cleanContent,
       attachments,
+      toolResults,
+      pipelineSteps,
+      citations,
     };
   });
 }
@@ -111,15 +148,28 @@ export async function insertMessage(
   imageDescription?: string,
   imagePrompt?: string,
   attachments?: any[],
-  citations?: string[]
+  citations?: string[],
+  toolResults?: any[]
 ): Promise<ChatMessage> {
   let finalContent = content;
   if (attachments && attachments.length > 0) {
     const sanitizedAttachments = attachments.map(att => {
-      const { type, url, name } = att;
-      return { type, url, name };
+      const { type, url, name, textContent } = att;
+      return { type, url, name, textContent };
     });
-    finalContent = `${content}\n\n<!-- ATTACHMENTS_JSON:${JSON.stringify(sanitizedAttachments)} -->`;
+    finalContent = `${finalContent}\n\n<!-- ATTACHMENTS_JSON:${JSON.stringify(sanitizedAttachments)} -->`;
+  }
+  
+  if (toolResults && toolResults.length > 0) {
+    finalContent = `${finalContent}\n\n<!-- TOOL_RESULTS_JSON:${JSON.stringify(toolResults)} -->`;
+  }
+
+  if (pipelineSteps && pipelineSteps.length > 0) {
+    finalContent = `${finalContent}\n\n<!-- PIPELINE_STEPS_JSON:${JSON.stringify(pipelineSteps)} -->`;
+  }
+
+  if (citations && citations.length > 0) {
+    finalContent = `${finalContent}\n\n<!-- CITATIONS_JSON:${JSON.stringify(citations)} -->`;
   }
 
   const insertPayload: Record<string, any> = {
@@ -133,6 +183,7 @@ export async function insertMessage(
   if (imageDescription !== undefined) insertPayload.image_description = imageDescription;
   if (imagePrompt !== undefined) insertPayload.image_prompt = imagePrompt;
   if (citations !== undefined) insertPayload.citations = citations;
+  if (toolResults !== undefined) insertPayload.tool_results = toolResults;
 
   const { data, error } = await supabase
     .from('messages')

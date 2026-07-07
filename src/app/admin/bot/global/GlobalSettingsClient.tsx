@@ -67,7 +67,7 @@ export default function GlobalSettingsClient({
   const [meta, setMeta] = useState(compiledMeta)
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
-  const ALL_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'TOOLS', 'IMAGE_GEN', 'VISION', 'AUDIO', 'CLASSIFIER', 'ADVISOR', 'THINKING', 'COMPACTION']
+  const ALL_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'VISION', 'AUDIO', 'CLASSIFIER', 'ADVISOR', 'THINKING', 'COMPACTION']
 
   const [historyLimit, setHistoryLimit] = useState(initialPipelineSettings.history_limit ?? 20)
   const [historyCats, setHistoryCats] = useState<string[]>(initialPipelineSettings.history_enabled_categories || ALL_CATS)

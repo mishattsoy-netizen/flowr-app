@@ -1,9 +1,10 @@
 "use client";
 
 import { AppTask, useStore } from '@/data/store';
-import { Calendar, Check } from 'lucide-react';
+import { Calendar, Check, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import React, { useEffect, useRef, useState } from 'react';
+import { format } from 'date-fns';
 import { createPortal } from 'react-dom';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -37,10 +38,11 @@ export function TaskCardUI({
   // each drag commit. Select only what this card actually depends on.
   const toggleTask = useStore(s => s.toggleTask);
   const updateTask = useStore(s => s.updateTask);
-  const workspaceName = useStore(s => s.entities.find(e => e.id === task.workspaceId)?.title || null);
+  const workspaceName = useStore(s => task.entityId ? s.entities.find(e => e.id === task.entityId)?.title || null : null);
   const isSelected = useStore(s => s.selectedTaskIds.includes(task.id));
   const toggleTaskSelection = useStore(s => s.toggleTaskSelection);
   const openTaskContextMenu = useStore(s => s.openTaskContextMenu);
+  const trackerFilterTag = useStore(s => s.trackerFilterTag);
 
   const handleToggleSubtask = (subId: string) => {
     if (!task.subtasks) return;
@@ -96,25 +98,23 @@ export function TaskCardUI({
     >
       <div className="flex flex-col gap-2 w-full h-full">
         {/* ID Line */}
+        {/* Note: we don't need to show the raw entityId hash anymore as the pill is fixed */}
+        {/*
         {task.entityId && (
           <div className="flex items-center justify-end gap-2">
             <span className="text-[10px] text-[var(--bone-30)] font-ui">#{task.entityId.slice(-4)}</span>
           </div>
         )}
+        */}
 
-        {/* Title & Checkbox */}
+        {/* Title & Color Dot */}
         <div className="flex items-start gap-2.5">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleTask(task.id);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="shrink-0 w-4 h-4 rounded-[4px] border flex items-center justify-center focus:outline-none cursor-pointer border-[var(--bone-30)] hover:border-[var(--bone-70)] bg-[var(--bone-6)] hover:bg-[var(--app-dark)] transition-colors duration-200 ease-in-out mt-[2px]"
-          >
-            {task.completed && <Check className="w-[10px] h-[10px] text-[var(--bone-100)] stroke-[3px]" />}
-          </button>
+          {task.color && (
+            <span
+              className="shrink-0 w-2 h-2 rounded-full mt-[5px]"
+              style={{ backgroundColor: task.completed ? 'var(--bone-20)' : task.color }}
+            />
+          )}
           <h3 className={cn(
             "text-sm font-medium leading-snug break-words flex-1",
             task.completed ? "text-[var(--bone-40)] line-through" : "text-[var(--bone-100)]"
@@ -146,7 +146,7 @@ export function TaskCardUI({
                 >
                   {sub.completed && <Check className="w-2.5 h-2.5 text-[var(--bone-100)] stroke-[3px]" />}
                 </button>
-                <span className={cn("flex-1 leading-snug", sub.completed && "line-through text-[var(--bone-40)]")}>{sub.text}</span>
+                <span className={cn("flex-1 leading-snug truncate", sub.completed && "line-through text-[var(--bone-40)]")}>{sub.text}</span>
               </div>
             ))}
             {task.subtasks.length > 3 && (
@@ -155,46 +155,81 @@ export function TaskCardUI({
           </div>
         )}
 
-        {/* Meta (Due Date, Priority & Workspace) */}
-        <div className="flex items-center justify-between mt-auto pt-1">
+        {/* Meta (Due Date, Priority & Space) */}
+        <div className="flex flex-wrap items-center gap-2 mt-auto pt-1 w-full justify-between">
           {task.dueDate ? (
-            <div className="flex items-center gap-1.5">
-              <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-30)]")} />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Calendar className={cn("w-3 h-3", isOverdue ? "text-red-400" : "text-[var(--bone-100)] opacity-30")} />
               <span className={cn(
-                "text-[10px] font-ui",
+                "text-[10px] font-ui whitespace-nowrap",
                 isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-40)]"
               )}>
-                {task.dueDate}
+                {(() => {
+                  const formatTaskDate = (dateStr?: string | null, includeTime?: boolean) => {
+                    if (!dateStr) return '';
+                    try {
+                      const date = new Date(dateStr);
+                      const currentYear = new Date().getFullYear();
+                      const formatStr = (date.getFullYear() === currentYear)
+                        ? (includeTime ? "MMM d h:mma" : "MMM d")
+                        : (includeTime ? "MMM d, yyyy h:mma" : "MMM d, yyyy");
+                      return format(date, formatStr);
+                    } catch (e) {
+                      return dateStr;
+                    }
+                  };
+                  const startStr = formatTaskDate(task.dueDate, task.includeTime);
+                  if (task.endDate) {
+                    const endStr = formatTaskDate(task.endDate, task.includeTime);
+                    return `${startStr} → ${endStr}`;
+                  }
+                  return startStr;
+                })()}
               </span>
             </div>
           ) : <div />}
 
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex flex-wrap items-center gap-1.5 justify-end">
+            {task.attachments && task.attachments.length > 0 && (
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] shrink-0">
+                <Paperclip className="w-2.5 h-2.5 opacity-70" />
+                <span>{task.attachments.length}</span>
+              </div>
+            )}
             {task.priority && (
-              <div className={cn(
-                "px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
+              <span className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
                 task.priority === 'high' ? "bg-red-500/15 text-red-400" :
                   task.priority === 'medium' ? "bg-amber-500/15 text-amber-400" :
                     "bg-blue-500/15 text-blue-400"
               )}>
                 {task.priority}
-              </div>
+              </span>
+            )}
+            {task.tag && (
+              <span 
+                className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[80px] bg-[var(--bone-10)] text-[var(--bone-70)]"
+                title={task.tag}
+              >
+                <span className="text-fade truncate max-w-full">
+                  {task.tag}
+                </span>
+              </span>
             )}
             {workspaceName && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-80)] shrink-0 capitalize">
-                {workspaceName}
+              <span 
+                className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium bg-[var(--bone-10)] text-[var(--bone-80)] shrink-0 capitalize max-w-[90px]"
+                title={workspaceName}
+              >
+                <span className="text-fade truncate max-w-full">
+                  {workspaceName}
+                </span>
               </span>
             )}
           </div>
         </div>
 
-        {/* Decorative side strip */}
-        {task.color && (
-          <div
-            className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full"
-            style={{ backgroundColor: task.completed ? 'var(--bone-20)' : task.color }}
-          />
-        )}
+
       </div>
     </div>
   );
@@ -279,9 +314,9 @@ function TaskCardInner({
         const stack =
           sel.length > 1 && sel.includes(task.id)
             ? sel
-                .filter(id => id !== task.id)
-                .map(id => all.find(t => t.id === id))
-                .filter((t): t is AppTask => !!t)
+              .filter(id => id !== task.id)
+              .map(id => all.find(t => t.id === id))
+              .filter((t): t is AppTask => !!t)
             : [];
         setPreview({ stackBehind: stack });
       },

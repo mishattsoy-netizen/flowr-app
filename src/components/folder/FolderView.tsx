@@ -1,82 +1,355 @@
 "use client";
 
-import { Entity, useStore, EntityType, generateId } from '@/data/store';
+import { Entity, useStore, generateId, EditorBlock } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
-import { LayoutGrid, Search, Folder, MoreHorizontal, FileText, Frame, Layers, X, ChevronDown, Pencil, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { IconPicker } from '@/components/layout/IconPicker';
+import { useState, useMemo, useRef, useEffect, useSyncExternalStore } from 'react';
+import { Plus, Folder, FileText, Frame, Pencil, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { cn, stripHtml } from '@/lib/utils';
 import { Tooltip } from '@/components/layout/Tooltip';
+import { ShortcutsWidget } from '@/components/workspace/widgets/ShortcutsWidget';
+import { HorizontalOverlayScrollbar } from '@/components/tracker/HorizontalOverlayScrollbar';
+import { useTheme } from '@/components/ThemeProvider';
+import { getDescendantIds } from '@/data/store.helpers';
+
+function formatAge(ts: number) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
+
+function parseInlineContent(html: string): React.ReactNode {
+  const parts = html.split(/(<a\b[^>]*class="[^"]*inline-link-btn[^"]*"[^>]*>[\s\S]*?<\/a>)/gi);
+  if (parts.length === 1) {
+    const plain = decodeEntities(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    return plain || null;
+  }
+  return parts.map((part, idx) => {
+    if (/inline-link-btn/i.test(part)) {
+      const labelMatch = part.match(/data-label="([^"]*)"/i);
+      const innerMatch = part.match(/>([^<]*)</);
+      const label = decodeEntities((labelMatch?.[1] || innerMatch?.[1] || 'link').trim());
+      if (!label) return null;
+      return (
+        <span key={idx} className="underline underline-offset-2 decoration-[var(--bone-30)] text-[var(--bone-50)]">
+          {label}
+        </span>
+      );
+    }
+    const plain = decodeEntities(part.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    return plain || null;
+  });
+}
+
+function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
+  if (!blocks || blocks.length === 0) {
+    return <span className="text-[11px] text-[var(--bone-30)] italic">No preview content</span>;
+  }
+
+  const previewBlocks = blocks
+    .filter(b => !['shape', 'frame', 'column'].includes(b.type));
+
+  const rows: React.ReactNode[] = previewBlocks.map((b, i) => {
+    const text = stripHtml(b.content || '');
+
+    switch (b.type) {
+      case 'text': {
+        const isH = b.style === 'title' || b.style === 'heading' || b.style === 'subheading';
+        const isMono = b.style === 'mono';
+        const content = parseInlineContent(b.content || '');
+        if (!content) return null;
+        return (
+          <div key={i} className={cn(
+            'truncate',
+            isH ? 'font-semibold text-[12px] text-[var(--bone-80)]' :
+            isMono ? 'font-mono text-[10px] text-[var(--bone-50)] bg-black/20 px-1.5 py-[1px] rounded' :
+            'text-[11px] text-[var(--bone-60)]'
+          )}>
+            {content}
+          </div>
+        );
+      }
+      case 'bulletList':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-[5px] h-[5px] rounded-full bg-[var(--bone-30)] flex-shrink-0" />
+            <span className="truncate">{text || '...'}</span>
+          </div>
+        );
+      case 'dashedList':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-[8px] h-[1.5px] bg-[var(--bone-30)] flex-shrink-0" />
+            <span className="truncate">{text || '...'}</span>
+          </div>
+        );
+      case 'numberedList':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="text-[var(--bone-30)] flex-shrink-0 font-mono">{i + 1}.</span>
+            <span className="truncate">{text || '...'}</span>
+          </div>
+        );
+      case 'checklist':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-60)]">
+            <span className="w-2.5 h-2.5 rounded-[2px] border border-[var(--bone-20)] flex-shrink-0 translate-y-[0.5px]" />
+            <span className="truncate">{text || '...'}</span>
+          </div>
+        );
+      case 'quote':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--bone-50)] italic">
+            <div className="w-[2px] h-3 bg-[var(--bone-30)] rounded-full flex-shrink-0" />
+            <span className="truncate">{text || '...'}</span>
+          </div>
+        );
+      case 'table':
+        return (
+          <div key={i} className="flex flex-col gap-[2px] w-full">
+            <div className="h-[5px] w-full rounded-[1px] bg-[var(--bone-10)]" />
+            <div className="h-[4px] w-4/5 rounded-[1px] bg-[var(--bone-6)]" />
+            <div className="h-[4px] w-4/5 rounded-[1px] bg-[var(--bone-6)]" />
+          </div>
+        );
+      case 'image':
+      case 'video':
+        return (
+          <div key={i} className="flex items-center gap-1.5 text-[10px] text-[var(--bone-40)]">
+            <span className="text-[11px]">{b.type === 'image' ? '[Image]' : '[Video]'}</span>
+          </div>
+        );
+      case 'link': {
+        let label = '';
+        try { if (b.linkUrl) label = new URL(b.linkUrl).hostname; } catch {}
+        if (!label) label = stripHtml(b.content || '') || 'Link';
+        return (
+          <span key={i} className="truncate text-[11px] text-[var(--bone-50)] underline underline-offset-2 decoration-[var(--bone-30)]">
+            {label}
+          </span>
+        );
+      }
+      case 'divider':
+        return <div key={i} className="w-full h-[1px] bg-[var(--bone-6)] my-[3px]" />;
+      case 'columns':
+        return (
+          <div key={i} className="flex gap-1 w-full">
+            <div className="h-[5px] flex-1 rounded-[1px] bg-[var(--bone-10)]" />
+            <div className="h-[5px] flex-1 rounded-[1px] bg-[var(--bone-10)]" />
+          </div>
+        );
+      default:
+        if (!text) return null;
+        return (
+          <div key={i} className="truncate text-[11px] text-[var(--bone-50)]">{text}</div>
+        );
+    }
+  }).filter(Boolean);
+
+  if (rows.length === 0) {
+    return <span className="text-[11px] text-[var(--bone-30)] italic">No preview content</span>;
+  }
+
+  return <div className="flex flex-col gap-[5px] w-full">{rows}</div>;
+}
+
+function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
+  const visualBlocks = canvasBlocks.filter(b => typeof b.x === 'number' && typeof b.y === 'number');
+
+  if (visualBlocks.length === 0) {
+    return (
+      <div className="relative w-full h-full bg-[color-mix(in_srgb,black_15%,var(--card-bg))] border border-[var(--bone-6)] rounded-md overflow-hidden flex items-center justify-center">
+        <div
+          className="absolute inset-0 opacity-[0.01]"
+          style={{
+            backgroundImage: 'linear-gradient(to right, var(--bone-100) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-100) 1px, transparent 1px)',
+            backgroundSize: '8px 8px',
+          }}
+        />
+        <span className="text-[10px] font-medium text-[var(--bone-40)] select-none">Empty board</span>
+      </div>
+    );
+  }
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  visualBlocks.forEach(b => {
+    const x = b.x ?? 0;
+    const y = b.y ?? 0;
+    const w = b.width ?? 100;
+    const h = b.height ?? 80;
+    if (x < minX) minX = x;
+    if (x + w > maxX) maxX = x + w;
+    if (y < minY) minY = y;
+    if (y + h > maxY) maxY = y + h;
+  });
+
+  const mapW = maxX - minX;
+  const mapH = maxY - minY;
+  const targetW = 248 - 12;
+  const targetH = 120 - 12;
+
+  const scale = Math.min(targetW / (mapW || 1), targetH / (mapH || 1), 0.15);
+  const offsetX = 6 + (targetW - mapW * scale) / 2;
+  const offsetY = 6 + (targetH - mapH * scale) / 2;
+
+  return (
+    <div className="relative w-full h-full bg-[color-mix(in_srgb,black_15%,var(--card-bg))] border border-[var(--bone-6)] rounded-md overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-[0.01]"
+        style={{
+          backgroundImage: 'linear-gradient(to right, var(--bone-100) 1px, transparent 1px), linear-gradient(to bottom, var(--bone-100) 1px, transparent 1px)',
+          backgroundSize: '8px 8px',
+        }}
+      />
+      {visualBlocks.map(b => {
+        const left = offsetX + ((b.x ?? 0) - minX) * scale;
+        const top = offsetY + ((b.y ?? 0) - minY) * scale;
+        const width = Math.max((b.width ?? 100) * scale, 1.5);
+        const height = Math.max((b.height ?? 80) * scale, 1.5);
+
+        const fill = b.canvasStyleExt?.fill || b.bgColor || 'var(--bone-20)';
+        const isCircle = b.shapeKind === 'ellipse';
+        const isLine = b.shapeKind === 'line' || b.shapeKind === 'arrow';
+
+        if (isLine) {
+          return (
+            <div
+              key={b.id}
+              className="absolute bg-[var(--bone-30)] opacity-60"
+              style={{ left, top, width, height, borderRadius: 1 }}
+            />
+          );
+        }
+
+        return (
+          <div
+            key={b.id}
+            className={cn(
+              "absolute border-[0.5px] border-white/10 opacity-70",
+              isCircle ? "rounded-full" : "rounded-[1.5px]"
+            )}
+            style={{ left, top, width, height, backgroundColor: fill }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function getEntityIconByType(type: string, cls: string) {
+  switch (type) {
+    case 'canvas': return <Frame className={cls} />;
+    case 'note': return <FileText className={cls} />;
+    case 'folder':
+    case 'workspace': return <Folder className={cls} />;
+    default: return <Frame className={cls} />;
+  }
+}
 
 interface FolderViewProps {
   entity: Entity;
 }
 
 export function FolderView({ entity }: FolderViewProps) {
-  const {
-    entities,
-    setActiveEntityId,
-    openContextMenu,
-    openModal,
-    editingEntity,
-    setEditingEntityId,
-    renameEntity,
-    contextMenu,
-    addEntity
-  } = useStore();
+  const entities = useStore(state => state.entities);
+  const setActiveEntityId = useStore(state => state.setActiveEntityId);
+  const openContextMenu = useStore(state => state.openContextMenu);
+  const editingEntity = useStore(state => state.editingEntity);
+  const setEditingEntityId = useStore(state => state.setEditingEntityId);
+  const renameEntity = useStore(state => state.renameEntity);
+  const addEntity = useStore(state => state.addEntity);
+  const recentEntityIds = useStore(state => state.recentEntityIds);
+  const allBlocks = useStore(state => state.blocks);
+  const isFullWidth = useStore(state => state.isFullWidth);
+  const contextMenu = useStore(state => state.contextMenu);
+  const { resolvedTheme } = useTheme();
 
-  const [newItemPopupPos, setNewItemPopupPos] = useState<{ x: number; y: number } | null>(null);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'name-asc' | 'name-desc'>('recent');
+  const [recentSort, setRecentSort] = useState<'opened' | 'edited'>('opened');
+  const [showSortPicker, setShowSortPicker] = useState(false);
   const [tempTitle, setTempTitle] = useState(entity.title);
-  const tempTitleRef = useRef(entity.title);
-  const [itemTempTitle, setItemTempTitle] = useState('');
-  const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [showNewItemPopup, setShowNewItemPopup] = useState(false);
+  const [contentSort, setContentSort] = useState<'recent' | 'name'>('recent');
+  const [showContentSortPicker, setShowContentSortPicker] = useState(false);
+
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const sortPickerRef = useRef<HTMLDivElement>(null);
+  const contentSortPickerRef = useRef<HTMLDivElement>(null);
 
   const isMounted = useSyncExternalStore(() => () => { }, () => true, () => false);
 
   useEffect(() => {
     if (editingEntity?.id === entity.id && editingEntity.source === 'view') {
       setTempTitle(entity.title);
-      tempTitleRef.current = entity.title;
     }
   }, [editingEntity, entity.id, entity.title]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortPickerRef.current && !sortPickerRef.current.contains(e.target as Node)) {
+        setShowSortPicker(false);
+      }
+      if (contentSortPickerRef.current && !contentSortPickerRef.current.contains(e.target as Node)) {
+        setShowContentSortPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const children = useMemo(() => {
     return entities.filter(e => e.parentId === entity.id);
   }, [entities, entity.id]);
 
-  const filteredChildren = useMemo(() => {
-    let result = children;
-    if (searchQuery.trim()) {
-      const lowerQ = searchQuery.toLowerCase();
-      result = result.filter(e => e.title.toLowerCase().includes(lowerQ));
-    }
-
-    return result.sort((a, b) => {
-      switch (sortBy) {
-        case 'name-asc': return a.title.localeCompare(b.title);
-        case 'name-desc': return b.title.localeCompare(a.title);
-        case 'oldest': return a.lastModified - b.lastModified;
-        case 'recent':
-        default: return b.lastModified - a.lastModified;
-      }
+  const sortedChildren = useMemo(() => {
+    return [...children].sort((a, b) => {
+      if (contentSort === 'name') return a.title.localeCompare(b.title);
+      return b.lastModified - a.lastModified;
     });
-  }, [children, searchQuery, sortBy]);
+  }, [children, contentSort]);
 
-  const folders = filteredChildren.filter(e => e.type === 'folder' || e.type === 'collection' || e.type === 'workspace');
-  const files = filteredChildren.filter(e => e.type !== 'folder' && e.type !== 'collection' && e.type !== 'workspace');
+  const recentEntities = useMemo(() => {
+    const descendantIds = new Set(getDescendantIds(entities, entity.id));
+    const list = recentEntityIds
+      .map(id => entities.find(e => e.id === id))
+      .filter((e): e is Entity => !!e && descendantIds.has(e.id) && (e.type === 'note' || e.type === 'canvas'))
+      .slice(0, 10);
+    if (recentSort === 'edited') {
+      return [...list].sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
+    }
+    return list;
+  }, [recentEntityIds, entities, recentSort, entity.id]);
 
-  const getIcon = (type: EntityType, cls: string) => {
-    switch (type) {
-      case 'canvas': return <Frame className={cls} />;
-      case 'note': return <FileText className={cls} />;
-      case 'mixed': return <Layers className={cls} />;
-      case 'folder':
-      case 'collection':
-      case 'workspace': return <Folder className={cls} />;
-      default: return <Frame className={cls} />;
+  const scrollSlider = (direction: 'left' | 'right') => {
+    if (sliderRef.current) {
+      const scrollAmount = 360;
+      sliderRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleCardClick = (targetEntity: Entity) => {
+    setActiveEntityId(targetEntity.id);
+  };
+
+  const handleRename = () => {
+    if (tempTitle.trim() && tempTitle !== entity.title) {
+      renameEntity(entity.id, tempTitle.trim());
+    } else {
+      setEditingEntityId(null);
+      setTempTitle(entity.title);
     }
   };
 
@@ -85,284 +358,334 @@ export function FolderView({ entity }: FolderViewProps) {
     return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d);
   };
 
-  const handleOptionsClick = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openContextMenu(id, rect.right - 180, rect.top + 20, 'view');
-  };
-
-  const handleMainRename = () => {
-    const title = tempTitleRef.current.trim();
-    if (title && title !== entity.title) {
-      renameEntity(entity.id, title);
-    } else {
-      setEditingEntityId(null);
-    }
-  };
-
-  const handleItemRename = (id: string, originalTitle: string) => {
-    if (itemTempTitle.trim() && itemTempTitle !== originalTitle) {
-      renameEntity(id, itemTempTitle.trim());
-    } else {
-      setEditingEntityId(null);
-    }
-  };
-
   if (!isMounted) return null;
 
   return (
-    <div className="flex-1 overflow-y-auto px-10 py-8 flex flex-col h-full">
-      <div className="max-w-5xl mx-auto w-full flex flex-col flex-1">
+    <>
+      <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col h-full bg-background select-none items-center">
+        <div className={cn("w-full flex flex-col gap-4 flex-1 min-h-0", isFullWidth ? "w-full" : "max-w-[1200px] mx-auto")}>
+          {/* Header */}
+          <header className="flex items-center justify-between py-2 select-none h-16 shrink-0">
+            <div className="flex-1 min-w-0 flex items-center gap-3">
+              <div className="shrink-0 w-10 h-10 flex items-center justify-center rounded-[var(--radius-small)]">
+                <Folder className="w-9 h-9 text-[var(--bone-100)]" />
+              </div>
 
-        {/* Header Section */}
-        <header className="flex items-center justify-between mb-6">
-          <div className="flex-1 min-w-0">
-            <h1
-              onDoubleClick={() => {
-                setTempTitle(entity.title);
-                tempTitleRef.current = entity.title;
-                setEditingEntityId(entity.id, 'view');
-              }}
-              className="group text-4xl font-display font-medium leading-none text-foreground mb-1 flex items-center gap-3"
-            >
-              {(entity.type === 'collection' || entity.type === 'workspace') ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setIconPickerAnchor({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
-                  }}
-                  className="shrink-0 w-10 h-10 flex items-center justify-center hover:bg-hover rounded-xl transition-colors"
-                  title="Change icon"
-                >
-                  {(() => { const Icon = getEntityIcon(entity.icon); return <Icon className="w-8 h-8 text-[var(--bone-100)]" />; })()}
-                </button>
-              ) : (
-                <div className="shrink-0 w-10 h-10 flex items-center justify-center hover:bg-hover rounded-xl transition-colors">
-                  <Folder className="w-8 h-8 text-[var(--bone-100)] shrink-0" />
-                </div>
-              )}
-              {editingEntity?.id === entity.id && editingEntity.source === 'view' ? (
-                <input
-                  autoFocus
-                  type="text"
-                  defaultValue={tempTitle}
-                  onChange={e => {
-                    setTempTitle(e.target.value);
-                    tempTitleRef.current = e.target.value;
-                  }}
-                  onBlur={handleMainRename}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleMainRename();
-                    if (e.key === 'Escape') {
-                      setEditingEntityId(null);
-                      setTempTitle(entity.title);
-                    }
-                  }}
-                  className="bg-transparent border-none p-0 outline-none w-full max-w-[500px] text-foreground inline-block font-display leading-none"
-                />
-              ) : (
-                <>
-                  <span className="truncate">{entity.title}</span>
-                  <Tooltip content="Rename">
-                    <button
-                      type="button"
-                      aria-label="Rename item"
-                      onClick={(e) => {
-                        e.stopPropagation();
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                {(editingEntity?.id === entity.id && editingEntity.source === 'view') ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={tempTitle}
+                    onChange={e => setTempTitle(e.target.value)}
+                    onBlur={handleRename}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleRename();
+                      if (e.key === 'Escape') {
+                        setEditingEntityId(null);
                         setTempTitle(entity.title);
-                        tempTitleRef.current = entity.title;
-                        setEditingEntityId(entity.id, 'view');
-                      }}
-                      className="ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-medium)] text-muted-foreground opacity-0 "
-                    >
-                      <Pencil strokeWidth={2} className="h-4 w-4" />
-                    </button>
-                  </Tooltip>
-                </>
-              )}
-            </h1>
-            <p className="text-muted-foreground text-sm font-medium">
-              {children.length} total items
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4 ml-4">
-            {/* Folder-specific search */}
-            <div className="relative flex items-center bg-[var(--bone-5)] border border-[var(--bone-6)] px-2.5 h-7 rounded-[var(--radius-medium)] text-xs group focus-within:border-[var(--bone-20)] transition-all">
-              <Search className="w-3.5 h-3.5 text-[var(--bone-30)] mr-2 group-focus-within:text-[var(--bone-70)] shrink-0 transition-colors" />
-              <input
-                type="text"
-                placeholder={`Search in ${entity.title}...`}
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="bg-transparent outline-none text-foreground placeholder-[var(--bone-20)] w-full text-xs"
-              />
-              {searchQuery && (
-                <Tooltip content="Clear Search">
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 p-1 text-muted-foreground hover:text-foreground rounded-[var(--radius-medium)] "
-                  >
-                    <X strokeWidth={2} className="w-3 h-3" />
-                  </button>
-                </Tooltip>
-              )}
-            </div>
-
-            {/* Sort Toggle */}
-            <div className="relative group h-7">
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'recent' | 'oldest' | 'name-asc' | 'name-desc')}
-                className="appearance-none bg-[var(--bone-5)] border border-[var(--bone-6)] rounded-[var(--radius-medium)] pl-3 pr-7 h-full text-xs text-[var(--bone-70)] hover:text-[var(--bone-100)] outline-none transition-all cursor-pointer"
-              >
-                <option value="recent">Recent</option>
-                <option value="oldest">Oldest</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--bone-30)] group-hover:text-[var(--bone-70)] transition-colors" />
-            </div>
-
-            <button
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                setNewItemPopupPos({ x: rect.left - 60, y: rect.bottom + 4 });
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 px-3 h-7 rounded-[var(--radius-medium)] text-xs font-bold bg-[var(--accent)] text-[var(--bone-100)] hover:opacity-90 transition-opacity border-none shadow-none"
-            >
-              <Plus strokeWidth={2} className="w-3.5 h-3.5" />
-              New Item
-            </button>
-          </div>
-        </header>
-
-        {filteredChildren.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-sm">
-            <LayoutGrid className="w-12 h-12 mb-4 opacity-20" />
-            <p>No items inside this folder.</p>
-          </div>
-        ) : (
-          <section className="bg-panel border border-[var(--bone-6)] p-5 rounded-[var(--radius-big)] widget-shadow flex-1">
-            <div className="flex flex-col gap-1">
-              {filteredChildren.map(item => {
-                const isEditing = editingEntity?.id === item.id && editingEntity.source === 'view';
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      if (!isEditing) {
-                        setActiveEntityId(item.id);
                       }
                     }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      setItemTempTitle(item.title);
-                      setEditingEntityId(item.id, 'view');
+                    className="bg-transparent border-none p-0 outline-none w-full max-w-[500px] text-foreground inline-block font-display text-3xl font-medium leading-[1.2]"
+                  />
+                ) : (
+                  <h1
+                    onDoubleClick={() => {
+                      setTempTitle(entity.title);
+                      setEditingEntityId(entity.id, 'view');
                     }}
-                    className={cn(
-                      "group flex items-center justify-between px-3 py-2 rounded-[10px] cursor-pointer transition-all",
-                      isEditing
-                        ? "bg-accent/5 text-[var(--bone-100)]"
-                        : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
-                    )}
+                    className="text-3xl font-display font-medium leading-[1.2] text-foreground overflow-hidden whitespace-nowrap py-1"
+                    style={{ textOverflow: 'clip' }}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {getIcon(item.type, "w-4 h-4 text-[var(--bone-100)] opacity-30 shrink-0 group-hover:opacity-100 transition-opacity duration-200")}
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          value={itemTempTitle}
-                          onChange={e => setItemTempTitle(e.target.value)}
-                          onBlur={() => handleItemRename(item.id, item.title)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleItemRename(item.id, item.title);
-                            if (e.key === 'Escape') setEditingEntityId(null);
-                          }}
-                          onClick={e => e.stopPropagation()}
-                          className="bg-transparent border-none outline-none text-sm font-medium text-foreground w-full py-0 flex-1"
-                        />
-                      ) : (
-                        <span className="text-[13.8px] font-medium text-[var(--bone-100)] truncate">{item.title}</span>
-                      )}
-                    </div>
+                    {entity.title}
+                  </h1>
+                )}
+                <Tooltip content="Rename">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTempTitle(entity.title);
+                      setEditingEntityId(entity.id, 'view');
+                    }}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-medium)] text-muted-foreground opacity-60 hover:opacity-100 transition-opacity"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
-                      {!isEditing && (
-                        <span className="text-[11px] text-[var(--bone-30)] group-hover:text-[var(--bone-70)] transition-colors">
-                          {formatDateTime(item.lastModified)}
-                        </span>
-                      )}
+            <div className="relative">
+              <button
+                onClick={() => setShowNewItemPopup(p => !p)}
+                className="group w-9 h-9 flex items-center justify-center rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 shadow-none"
+              >
+                <Plus className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={2} />
+              </button>
 
+              {showNewItemPopup && (
+                <>
+                  <div className="fixed inset-0 z-[299]" onClick={() => setShowNewItemPopup(false)} />
+                  <div className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]">
+                    {[
+                      { type: 'note' as const, label: 'Note', icon: FileText },
+                      { type: 'canvas' as const, label: 'Canvas', icon: Frame },
+                    ].map(opt => (
                       <button
-                        onClick={(e) => handleOptionsClick(e, item.id)}
-                        className={cn(
-                          "btn-sidebar-utility opacity-0 group-hover:opacity-100 transition-all",
-                          contextMenu?.entityId === item.id
-                            ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--app-dark)]"
-                            : "opacity-0 group-hover:opacity-100 text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
-                        )}
+                        key={opt.type}
+                        onClick={() => {
+                          const newId = generateId();
+                          addEntity({
+                            id: newId,
+                            title: `Untitled ${opt.label}`,
+                            type: opt.type,
+                            parentId: entity.id,
+                            lastModified: Date.now()
+                          });
+                          setActiveEntityId(newId);
+                          setShowNewItemPopup(false);
+                        }}
+                        className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
                       >
-                        <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                        <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                        <span className="flex-1 text-left font-medium tracking-wide">{opt.label}</span>
                       </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </header>
+
+          {/* Recents Widget */}
+          <section
+            className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col min-h-[180px] max-h-[365px] basis-0"
+            style={{ flexGrow: 261 }}
+          >
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Recents</h2>
+              <div className="flex items-center gap-1.5 no-drag select-none">
+                <div ref={sortPickerRef} className="relative">
+                  <button
+                    onClick={() => setShowSortPicker(p => !p)}
+                    className="flex items-center gap-1 pl-3 pr-2 h-7 rounded-[var(--radius-small)] text-[11px] font-medium text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                  >
+                    {recentSort === 'opened' ? 'Last opened' : 'Last edited'}
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {showSortPicker && (
+                    <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] p-1 flex flex-col gap-[2px]">
+                      {([['opened', 'Last opened'], ['edited', 'Last edited']] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => { setRecentSort(val); setShowSortPicker(false); }}
+                          className={cn(
+                            "popup-item",
+                            recentSort === val && "text-[var(--bone-100)] bg-[var(--app-dark)]"
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {recentEntities.length > 3 && (
+                  <>
+                    <button
+                      onClick={() => scrollSlider('left')}
+                      className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => scrollSlider('right')}
+                      className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {recentEntities.length > 0 ? (
+              <HorizontalOverlayScrollbar
+                scrollRef={node => { sliderRef.current = node; }}
+                scrollClassName="flex gap-4 pb-1.5 pr-10"
+              >
+                {recentEntities.map(entityItem => {
+                  const isNote = entityItem.type === 'note';
+                  const Icon = isNote ? FileText : Frame;
+                  const parentEntity = entityItem.parentId ? entities.find(e => e.id === entityItem.parentId) : null;
+                  const locationLabel = parentEntity?.title || 'Unsorted';
+
+                  return (
+                    <button
+                      key={entityItem.id}
+                      onClick={() => handleCardClick(entityItem)}
+                      className="group flex-shrink-0 w-[280px] h-full min-h-0 bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl text-left flex flex-col hover:bg-[var(--app-dark)] transition-all duration-200 cursor-pointer overflow-hidden"
+                      style={{ paddingTop: '0.875rem', paddingLeft: '1rem', paddingRight: '1rem', paddingBottom: isNote ? 0 : '1rem' }}
+                    >
+                      <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium shrink-0 mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Icon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30" />
+                          <span>{isNote ? 'Note' : 'Canvas'}</span>
+                          <span>.</span>
+                          <span className="truncate max-w-[85px]">{locationLabel}</span>
+                        </div>
+                        <span>{formatAge(entityItem.lastModified)}</span>
+                      </div>
+
+                      <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 shrink-0 mb-2.5">
+                        {entityItem.title || 'Untitled'}
+                      </h3>
+
+                      <div className="relative flex-1 min-h-0 overflow-hidden">
+                        {isNote ? (
+                          <NoteBlockPreview blocks={(entityItem.content || []).filter(b => !['shape', 'frame', 'column'].includes(b.type))} />
+                        ) : (
+                          <CanvasMiniPreview canvasBlocks={allBlocks.filter(b => b.canvasId === entityItem.id)} />
+                        )}
+                        {isNote && (
+                          <div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none bg-gradient-to-b from-transparent to-[var(--card-bg)] group-hover:to-[var(--app-dark)] transition-colors duration-200" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </HorizontalOverlayScrollbar>
+            ) : (
+              <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+                <div className="text-center max-w-[320px]">
+                  <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
+                  <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases in this Folder will appear here.</p>
+                </div>
+              </div>
+            )}
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+              style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+            />
+          </section>
+
+          {/* Bottom widgets grid */}
+          <div
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[320px] max-h-[680px] basis-0 select-none"
+            style={{ flexGrow: 485 }}
+          >
+            {/* Contents (2/3 width) */}
+            <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
+              <section className="bg-panel px-5 pb-5 pt-4 widget-shadow h-full flex flex-col">
+                <div className="flex items-center justify-between mb-4 shrink-0">
+                  <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Contents</h2>
+                  <div className="flex items-center gap-1.5">
+                    <div ref={contentSortPickerRef} className="relative">
+                      <button
+                        onClick={() => setShowContentSortPicker(p => !p)}
+                        className="flex items-center gap-1 pl-3 pr-2 h-7 rounded-[var(--radius-small)] text-[11px] font-medium text-[var(--bone-60)] bg-[var(--bone-3)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+                      >
+                        {contentSort === 'recent' ? 'Recent' : 'Name'}
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                      {showContentSortPicker && (
+                        <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[120px] p-1 flex flex-col gap-[2px]">
+                          <button
+                            onClick={() => { setContentSort('recent'); setShowContentSortPicker(false); }}
+                            className={cn("popup-item", contentSort === 'recent' && "text-[var(--bone-100)] bg-[var(--app-dark)]")}
+                          >
+                            Recent
+                          </button>
+                          <button
+                            onClick={() => { setContentSort('name'); setShowContentSortPicker(false); }}
+                            className={cn("popup-item", contentSort === 'name' && "text-[var(--bone-100)] bg-[var(--app-dark)]")}
+                          >
+                            Name
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+
+                <div className="flex-1 overflow-y-auto no-scrollbar">
+                  {sortedChildren.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {sortedChildren.map(item => {
+                        const IconComponent = item.icon ? getEntityIcon(item.icon) : null;
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setActiveEntityId(item.id)}
+                            className="group flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-medium)] cursor-pointer text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-[background-color,color,opacity] duration-200 ease-in-out"
+                          >
+                            <div                             className="flex items-center gap-3 min-w-0 flex-1">
+                              {IconComponent ? (
+                                <IconComponent className="w-[18px] h-[18px] text-[var(--bone-100)] opacity-40 shrink-0" />
+                              ) : (
+                                getEntityIconByType(item.type, "w-[18px] h-[18px] text-[var(--bone-100)] opacity-40 shrink-0")
+                              )}
+                              <span className="text-sm text-foreground/90 font-medium truncate tracking-wide">{item.title}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-[11px] text-[var(--bone-30)] group-hover:text-[var(--bone-60)] transition-colors">
+                                {formatDateTime(item.lastModified)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                  openContextMenu(item.id, rect.right - 180, rect.top + 20, 'view');
+                                }}
+                                className={cn(
+                                  "btn-sidebar-utility opacity-0 group-hover:opacity-100 transition-all",
+                                  contextMenu?.entityId === item.id
+                                    ? "opacity-100 !text-[var(--bone-100)] !bg-[var(--app-dark)]"
+                                    : "text-[var(--bone-30)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+                                )}
+                              >
+                                <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+                      <div className="text-center max-w-[320px]">
+                        <p className="text-base font-semibold text-bone-100 opacity-40">Empty folder</p>
+                        <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">No items inside this folder yet. Use the + button to create a Note or Canvas.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+              <div
+                className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+                style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+              />
             </div>
-          </section>
-        )}
+
+            {/* Shortcuts (1/3 width) */}
+            <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
+              <div className="flex-1 min-h-0">
+                <ShortcutsWidget contextId={entity.id} />
+              </div>
+              <div
+                className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
+                style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Icon Picker */}
-      {iconPickerAnchor && (
-        <IconPicker
-          entityId={entity.id}
-          anchorRect={iconPickerAnchor}
-          onClose={() => setIconPickerAnchor(null)}
-        />
+      {showNewItemPopup && (
+        <div className="fixed inset-0 z-[299]" onClick={() => setShowNewItemPopup(false)} />
       )}
-
-      {newItemPopupPos && (
-        <>
-          <div className="fixed inset-0 z-[299]" onClick={() => setNewItemPopupPos(null)} />
-          <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1.5 flex flex-col gap-[3px]"
-            style={{ left: newItemPopupPos.x, top: newItemPopupPos.y }}
-          >
-            {[
-              { type: 'note' as const, label: 'Note', icon: FileText },
-              { type: 'canvas' as const, label: 'Canvas', icon: Frame },
-            ].map(opt => (
-              <button
-                key={opt.type}
-                onClick={() => {
-                  const newId = generateId();
-                  addEntity({
-                    id: newId,
-                    title: `Untitled ${opt.label}`,
-                    type: opt.type,
-                    parentId: entity.id,
-                    lastModified: Date.now()
-                  });
-                  setActiveEntityId(newId);
-                  setNewItemPopupPos(null);
-                }}
-                className="popup-item group w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-none"
-              >
-                <opt.icon strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
-                <span className="flex-1 text-left font-medium tracking-wide">{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    </>
   );
 }
-

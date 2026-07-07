@@ -2,6 +2,7 @@
 
 import { useStore, AppTask } from '@/data/store';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { preventUnhandled } from '@atlaskit/pragmatic-drag-and-drop/prevent-unhandled';
 import { KanbanColumn } from './KanbanColumn';
@@ -100,12 +101,32 @@ function buildColumns(
 }
 
 export function TrackerPage() {
-  const trackerFilterWorkspace = useStore(s => s.trackerFilterWorkspace);
+  const activeSpaceId = useStore(s => s.activeSpaceId);
+  const trackerFilterTag = useStore(s => s.trackerFilterTag);
+  const setTrackerFilterTag = useStore(s => s.setTrackerFilterTag);
+  const trackerFilterEntityId = useStore(s => s.trackerFilterEntityId);
+  const spaces = useStore(s => s.spaces);
   const allTasks = useStore(s => s.tasks);
   const tasks = useMemo(() => {
-    const rawTasks = trackerFilterWorkspace === null
-      ? allTasks
-      : allTasks.filter(t => (t.workspaceId || 'ws-personal') === trackerFilterWorkspace);
+    // 1. Filter by global space (activeSpaceId)
+    // If a task doesn't have a spaceId, or its spaceId no longer exists, show it in the current space.
+    let rawTasks = allTasks.filter(t => {
+      if (!t.spaceId) return true;
+      if (t.spaceId === activeSpaceId) return true;
+      const spaceExists = spaces.some(s => s.id === t.spaceId);
+      if (!spaceExists) return true;
+      return false;
+    });
+
+    // 2. Filter by Workspace Entity (trackerFilterEntityId)
+    if (trackerFilterEntityId !== null) {
+      rawTasks = rawTasks.filter(t => t.entityId === trackerFilterEntityId);
+    }
+
+    // 3. Filter by Tag
+    if (trackerFilterTag !== null) {
+      rawTasks = rawTasks.filter(t => t.tag === trackerFilterTag);
+    }
 
     // Defensive check: filter out null/undefined, tasks without a valid ID, and duplicates by ID
     const seen = new Set<string>();
@@ -116,7 +137,7 @@ export function TrackerPage() {
       seen.add(t.id);
       return true;
     });
-  }, [allTasks, trackerFilterWorkspace]);
+  }, [allTasks, activeSpaceId, trackerFilterEntityId, trackerFilterTag]);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const trackerColumnSortModes = useStore(s => s.trackerColumnSortModes);
@@ -205,12 +226,12 @@ export function TrackerPage() {
     })();
     switch (destColumn) {
       case 'todo': {
-        const userDueDate = task?.userDueDate;
+        const userDueDate = task?.userDueDate || task?.dueDate;
         const restoredDate = (userDueDate && userDueDate > today) ? userDueDate : undefined;
         return { status: 'todo', dueDate: restoredDate, completed: false };
       }
       case 'inProgress': {
-        const userDueDate = task?.userDueDate;
+        const userDueDate = task?.userDueDate || task?.dueDate;
         return { status: 'in-progress', dueDate: userDueDate || undefined, completed: false };
       }
       case 'today':      return { status: 'todo', dueDate: today, completed: false };
@@ -268,9 +289,8 @@ export function TrackerPage() {
       ...updatedCols.overdue,
       ...updatedCols.completed,
     ];
-    const otherTasks = allTasks.filter(t =>
-      trackerFilterWorkspace !== null && (t.workspaceId || 'ws-personal') !== trackerFilterWorkspace
-    );
+    const visibleTaskIds = new Set(orderedFilteredTasks.map(t => t.id));
+    const otherTasks = allTasks.filter(t => !visibleTaskIds.has(t.id));
     useStore.setState({ tasks: [...orderedFilteredTasks, ...otherTasks] });
     
     // Always persist task status and position changes to the DB!
@@ -584,9 +604,9 @@ export function TrackerPage() {
         }
       },
     });
-    // Closures read storeColumns/allTasks/today/trackerFilterWorkspace, so
+    // Closures read storeColumns/allTasks/today/activeSpaceId, so
     // re-subscribe when those change to avoid stale reads.
-  }, [storeColumns, allTasks, today, trackerFilterWorkspace]);
+  }, [storeColumns, allTasks, today, activeSpaceId]);
 
   // Clear any pending drop-settle timer on unmount.
   useEffect(() => () => {
@@ -608,7 +628,7 @@ export function TrackerPage() {
   return (
     <div
       ref={boardRef}
-      className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative py-5"
+      className="flex-1 flex flex-col min-h-0 bg-[var(--color-background)] h-full overflow-hidden relative pt-6 pb-6"
       onClick={(e) => {
         // Click on empty board space (not on a card) clears the selection.
         if (
@@ -619,17 +639,8 @@ export function TrackerPage() {
         }
       }}
     >
-      <header className="flex items-end justify-between mb-3 px-8 shrink-0">
-        <div>
-          <h1 className="text-2xl font-display font-medium text-foreground mb-1">Tasks</h1>
-          <p className="text-muted-foreground text-sm font-medium">
-            Manage your progress across all workspaces.
-          </p>
-        </div>
-      </header>
-
-        <div className="flex-1 overflow-x-auto min-h-0 pb-3">
-          <div className="flex gap-3 h-full min-w-max">
+      <div className="flex-1 overflow-x-auto min-h-0 pb-0">
+        <div className="flex gap-3 h-full min-w-max">
             <div className="w-4 shrink-0" />
             {COLUMN_KEYS.map((id) => {
               let title = '';

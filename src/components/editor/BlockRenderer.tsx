@@ -70,6 +70,7 @@ export function BlockRenderer({
   isDragOverlay = false,
   depth = 0,
   isDraggingGlobal = false,
+  isReadOnly = false,
 }: any) {
   const elementRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -82,7 +83,7 @@ export function BlockRenderer({
   useEffect(() => {
     const el = elementRef.current;
     const dragHandle = dragHandleRef.current;
-    if (!el || !dragHandle || isDragOverlay) return;
+    if (!el || !dragHandle || isDragOverlay || isReadOnly) return;
 
     return draggable({
       element: el,
@@ -91,11 +92,11 @@ export function BlockRenderer({
       onDragStart: () => setIsDraggingLocal(true),
       onDrop: () => setIsDraggingLocal(false),
     });
-  }, [block.id, block.type, isDragOverlay]);
+  }, [block.id, block.type, isDragOverlay, isReadOnly]);
 
   useEffect(() => {
     const el = elementRef.current;
-    if (!el || isDragOverlay) return;
+    if (!el || isDragOverlay || isReadOnly) return;
 
     return dropTargetForElements({
       element: el,
@@ -159,7 +160,7 @@ export function BlockRenderer({
       onDragLeave: () => setClosestEdge(null),
       onDrop: () => setClosestEdge(null),
     });
-  }, [block.id, block.type, isDragOverlay]);
+  }, [block.id, block.type, isDragOverlay, isReadOnly]);
 
   const isDragging = isDraggingLocal;
 
@@ -172,6 +173,13 @@ export function BlockRenderer({
   const contentRef = useRef<HTMLDivElement>(null);
   const lastTypedContent = useRef<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isFocused && contentRef.current && document.activeElement !== contentRef.current) {
+      contentRef.current.focus();
+    }
+  }, [isFocused]);
+
   const [copied, setCopied] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -378,7 +386,7 @@ export function BlockRenderer({
               const url = '';
               const label = '';
               a.href = '#';
-              a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+              a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
               a.setAttribute('contenteditable', 'false');
               a.setAttribute('data-url', url);
               a.setAttribute('data-label', label);
@@ -483,7 +491,7 @@ export function BlockRenderer({
             const url = '';
             const label = '';
             a.href = '#';
-            a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+            a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
             a.setAttribute('contenteditable', 'false');
             a.setAttribute('data-url', url);
             a.setAttribute('data-label', label);
@@ -934,7 +942,8 @@ export function BlockRenderer({
     isFocused,
     isSelected,
     dragHandleRef,
-    isDraggingGlobal
+    isDraggingGlobal,
+    isReadOnly
   };
 
   // ─── Divider ──────────────────────────────────────────
@@ -980,7 +989,7 @@ export function BlockRenderer({
           "relative w-full rounded-3xl transition-colors duration-0 group/table",
           isSelected && "bg-[var(--app-dark)]"
         )}>
-          <TableBlock block={block} onUpdate={onUpdate} onContextMenu={handleContextMenu} />
+          <TableBlock block={block} onUpdate={onUpdate} onContextMenu={handleContextMenu} isReadOnly={isReadOnly} />
         </div>
         {closestEdge && (
           <div
@@ -1326,15 +1335,16 @@ export function BlockRenderer({
         data-block-id={block.id}
         style={style}
         className={cn(
-          "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group group/column group-hover:bg-hover/10 group-focus-within:bg-hover/10 transition-colors duration-0",
+          "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group group/column transition-colors duration-0",
+          !isReadOnly && "group-hover:bg-hover/10 group-focus-within:bg-hover/10",
           isSelected && "bg-[var(--app-dark)]",
           !block.children?.length && "empty"
         )}
       >
-        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" dragHandleRef={dragHandleRef} isDraggingGlobal={isDraggingGlobal} />
+        <BlockControls variant="column" blockId={block.id} menuOpen={menuOpen} onInsertAfter={onInsertAfter} onOpenMenu={onOpenMenu} onDragStart={onDragStart} isSelected={isSelected} isFocused={false} topOffset="6px" dragHandleRef={dragHandleRef} isDraggingGlobal={isDraggingGlobal} isReadOnly={isReadOnly} />
         <div className={cn("flex flex-col gap-2 relative z-10")}>
           {(block.children || []).map((subBlock: EditorBlock, sIdx: number) => (
-            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} />
+            <BlockRenderer key={subBlock.id} block={subBlock} index={sIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} isReadOnly={isReadOnly} />
           ))}
         </div>
         {closestEdge && (
@@ -1362,7 +1372,7 @@ export function BlockRenderer({
           <div className="flex gap-4 w-full h-full">
             {(block.children || []).map((colBlock: EditorBlock, cIdx: number) => (
               <div key={colBlock.id} className="relative flex-1 basis-0 min-w-0 flex flex-col">
-                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} />
+                <BlockRenderer block={colBlock} index={cIdx} onUpdate={onUpdate} onDelete={onDelete} onIndent={onIndent} onUnindent={onUnindent} onInsertAfter={onInsertAfter} onSlash={onSlash} onOpenMenu={onOpenMenu} onFocus={onFocus} isInsideColumn={true} onDragStart={onDragStart} isDraggingGlobal={isDraggingGlobal} isReadOnly={isReadOnly} />
               </div>
             ))}
           </div>
@@ -1395,13 +1405,14 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
           "flex-1 flex items-start w-full relative rounded-[var(--radius-medium)] pl-3 pr-1 py-1 transition-all duration-0",
-          isSelected ? "bg-[var(--app-dark)]" : "group-hover:bg-[var(--bone-2)]"
+          isSelected ? "bg-[var(--app-dark)]" : (!isReadOnly && "group-hover:bg-[var(--bone-2)]")
         )}>
           <ListBlock
             block={block}
             listNumber={listNumber}
             onUpdate={onUpdate}
             onFocus={onFocus}
+            isReadOnly={isReadOnly}
             onExitBottom={() => onInsertAfter(block.id, 'text')}
             onExitTop={() => {
               if (index > 0) {
@@ -1445,11 +1456,11 @@ export function BlockRenderer({
         "before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']",
         isFocused && "focused",
         isSelected && "selected-block",
-        isInsideColumn && "rounded-[var(--radius-medium)] break-words min-h-[100px] column-container hover:bg-hover/10",
+        isInsideColumn && ("rounded-[var(--radius-medium)] break-words min-h-[100px] column-container" + (!isReadOnly ? " hover:bg-hover/10" : "")),
         isInsideColumn && !block.content && "empty"
       )}
       style={{ ...style, fontFamily: '"Literata"', letterSpacing: '-0.01em' }}
-      onMouseDown={() => onFocus?.(block.id)}
+      onMouseDown={!isReadOnly ? () => onFocus?.(block.id) : undefined}
     >
       <BlockControls {...controlsProps} topOffset={textTopOffset} />
       <div
@@ -1457,7 +1468,7 @@ export function BlockRenderer({
           effectiveStyle === 'mono'
             ? "relative w-full rounded-3xl transition-colors duration-0"
             : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] pl-3 pr-1 py-1",
-          (!isSelected && effectiveStyle !== 'mono') && (isFocused ? "bg-[var(--bone-2)]" : "group-hover:bg-[var(--bone-2)]"),
+          (!isSelected && effectiveStyle !== 'mono' && !isReadOnly) && (isFocused ? "bg-[var(--bone-2)]" : "group-hover:bg-[var(--bone-2)]"),
           block.bgColor && "border px-[16px] py-[8px]"
         )}
         style={{ ... (block.bgColor ? colorStyle : {}) }}
@@ -1482,10 +1493,15 @@ export function BlockRenderer({
           )}
           <div
             ref={contentRef}
-            contentEditable
+            contentEditable={(isFocused && !isReadOnly) ? true : undefined}
             suppressContentEditableWarning
             spellCheck={effectiveStyle === 'mono' ? "false" : "true"}
-            onFocus={() => { setIsFocused(true); onFocus?.(block.id); }}
+            onFocus={() => {
+              if (!isReadOnly) {
+                setIsFocused(true);
+                onFocus?.(block.id);
+              }
+            }}
             onBlur={() => setIsFocused(false)}
             data-placeholder={getPlaceholder(effectiveStyle, block.type, isFocused)}
             className={cn(
@@ -1509,6 +1525,9 @@ export function BlockRenderer({
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onClick={handleContentClick}
+            onMouseDown={() => {
+              if (!isReadOnly && !isFocused) setIsFocused(true);
+            }}
             onMouseMove={handleContentMouseMove}
             onContextMenu={handleContextMenu}
             onMouseLeave={handleInlineMouseLeave}
@@ -1556,7 +1575,7 @@ function getStyleClasses(style?: BlockStyle): string {
     case 'title': return 'text-[28px] font-semibold tracking-[-0.02em] font-display leading-snug text-bone-100';
     case 'heading': return 'text-[24px] font-semibold tracking-[-0.02em] font-display leading-snug text-bone-100';
     case 'subheading': return 'text-[20px] font-semibold tracking-[-0.02em] font-display text-bone-100 leading-snug';
-    case 'mono': return 'font-mono text-[15px] bg-panel border border-[var(--bone-6)] rounded-3xl px-4 py-3 leading-[1.6] overflow-x-auto whitespace-pre text-[var(--bone-100)] w-full';
+    case 'mono': return 'font-mono text-[14px] bg-panel border border-[var(--bone-6)] rounded-3xl px-4 py-3 leading-relaxed overflow-x-auto whitespace-pre text-[var(--bone-100)] w-full';
     case 'body':
     default: return 'text-[16px] font-normal font-display leading-[1.6] tracking-[-0.02em] text-bone-100';
   }
@@ -1630,6 +1649,7 @@ interface BlockControlsProps extends ControlsProps {
   onDragStart?: (id: string, e: React.DragEvent) => void;
   topOffset?: string;
   dragHandleRef?: React.RefObject<HTMLDivElement | null>;
+  isReadOnly?: boolean;
 }
 
 function BlockControls({
@@ -1645,8 +1665,10 @@ function BlockControls({
   isSelected,
   topOffset,
   dragHandleRef,
-  isDraggingGlobal = false
+  isDraggingGlobal = false,
+  isReadOnly = false
 }: BlockControlsProps) {
+  if (isReadOnly) return null;
   const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bone-10)] text-muted-foreground/40 hover:text-[var(--bone-100)] transition-none";
 
   const handleGripClick = (e: React.MouseEvent) => {

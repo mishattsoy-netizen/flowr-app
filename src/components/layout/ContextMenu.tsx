@@ -16,6 +16,8 @@ interface MenuItem {
   isDivider?: boolean;
   children?: MenuItem[];
   selected?: boolean;
+  hideCheckmark?: boolean;
+  rightElement?: React.ReactNode;
 }
 
 function MenuItemsList({ 
@@ -87,20 +89,29 @@ function MenuItemComponent({
       ref={itemRef}
       className="relative flex flex-col w-full"
     >
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleToggle(e as any);
+          }
+        }}
         className={cn(
           "popup-item group w-full flex items-center gap-2 px-3 py-[4px] text-sm",
           item.danger && "popup-item-danger",
           isOpen && "bg-[var(--app-dark)] text-[var(--bone-100)]",
-          item.selected && "bg-[var(--app-dark)]"
+          item.selected && "bg-[var(--app-dark)] text-[var(--bone-100)]"
         )}
       >
         {item.icon && <div className="w-4 h-4 shrink-0">{item.icon}</div>}
         <span className="flex-1 text-left font-medium tracking-wide">{item.label}</span>
-        {item.selected && <Check strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-70)] group-hover:text-[var(--bone-100)] shrink-0" />}
+        {item.selected && !item.hideCheckmark && <Check strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-70)] group-hover:text-[var(--bone-100)] shrink-0" />}
+        {item.rightElement}
         {item.children && <ChevronRight strokeWidth={2} className={cn("w-3.5 h-3.5 opacity-70", isOpen && "rotate-90")} />}
-      </button>
+      </div>
 
       {item.children && isOpen && (
         <div 
@@ -140,9 +151,9 @@ export function ContextMenu() {
     sidebarSectionSettings,
     hiddenEntityIds,
     activeEntityId,
-    workspaces,
-    activeWorkspaceId,
-    setActiveWorkspaceId,
+    spaces,
+    activeSpaceId,
+    setActiveSpaceId,
     collapsedIds,
     toggleCollapsed,
     addTab,
@@ -291,10 +302,35 @@ export function ContextMenu() {
 
     if (isSpacesMenu) {
       return [
-        ...workspaces.map(ws => ({
+        ...spaces.map(ws => ({
           label: ws.name,
-          icon: ws.id === activeWorkspaceId ? <Check strokeWidth={2} className="w-4 h-4 text-accent" /> : <div className="w-4 h-4" />,
-          onClick: () => { setActiveWorkspaceId(ws.id); closeContextMenu(); }
+          selected: ws.id === (activeSpaceId || 'ws-personal'),
+          hideCheckmark: true,
+          rightElement: (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openModal({ kind: 'rename', entityId: ws.id });
+                  closeContextMenu();
+                }}
+                className="p-[2px] rounded hover:bg-white/10"
+              >
+                <Edit2 strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-[var(--bone-100)] shrink-0" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openModal({ kind: 'deleteSpaceConfirm', spaceId: ws.id });
+                  closeContextMenu();
+                }}
+                className="p-[2px] rounded hover:bg-white/10"
+              >
+                <Trash2 strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-red-400 shrink-0" />
+              </button>
+            </div>
+          ),
+          onClick: () => { setActiveSpaceId(ws.id); closeContextMenu(); }
         })),
         { isDivider: true },
         {
@@ -333,9 +369,9 @@ export function ContextMenu() {
 
     // Standard entity menu
     const isFavorite = favoriteIds.includes(entity!.id);
-    const isCollection = entity!.type === 'collection' || entity!.type === 'workspace';
+    const isWorkspace = entity!.type === 'workspace';
     const isCollapsed = collapsedIds.includes(entity!.id);
-    const isCollapsible = isCollection && entities.some(e => e.parentId === entity!.id);
+    const isCollapsible = isWorkspace && entities.some(e => e.parentId === entity!.id);
 
     const handleCopyLink = () => {
       const parts: string[] = [entity!.title];
@@ -368,7 +404,7 @@ export function ContextMenu() {
       },
     ] as MenuItem[]).filter(item => !item.hidden);
 
-    if (isCollection) {
+    if (isWorkspace) {
       items.push({
         icon: <Palette strokeWidth={2} className="w-4 h-4" />,
         label: 'Change icon',

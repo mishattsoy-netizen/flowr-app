@@ -34,6 +34,7 @@ export interface TranscriptData {
   usageType?: string
   modelChain?: string
   capturedLogs?: LogEntryLight[]
+  capturedToolCalls?: any[]
 }
 
 import { getCapturedLogs } from '../logger'
@@ -296,6 +297,16 @@ export function buildTranscript(d: TranscriptData): string {
     lines.push('')
     lines.push('```')
     lines.push(d.providerReasoning)
+    lines.push('```')
+    lines.push('')
+  }
+
+  // ── Tool Calls ──
+  if (d.capturedToolCalls && d.capturedToolCalls.length > 0) {
+    lines.push('## Tool Calls')
+    lines.push('')
+    lines.push('```json')
+    lines.push(JSON.stringify(d.capturedToolCalls, null, 2))
     lines.push('```')
     lines.push('')
   }

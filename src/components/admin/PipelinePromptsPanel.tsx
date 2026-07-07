@@ -13,7 +13,7 @@ interface Props {
 }
 
 const CHAIN_TYPES = [
-  'ORCHESTRATOR', 'THINKING', 'VISION', 'WEB_SEARCH', 'RESEARCH', 'CODING', 'TOOLS', 'IMAGE_GEN'
+  'ORCHESTRATOR', 'THINKING', 'VISION', 'WEB_SEARCH', 'RESEARCH', 'CODING', 'IMAGE_GEN'
 ]
 
 export default function PipelinePromptsPanel({ initialPrompts }: Props) {

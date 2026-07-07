@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('flowrFS', {
   }
 });
 
+contextBridge.exposeInMainWorld('flowrPdf', {
+  exportPdf: (options) => ipcRenderer.invoke('pdf:export', options),
+});
+
 contextBridge.exposeInMainWorld('flowrUpdater', {
   checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
   installUpdate: () => ipcRenderer.invoke('updater:installUpdate'),

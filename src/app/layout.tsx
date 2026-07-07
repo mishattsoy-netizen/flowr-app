@@ -63,8 +63,10 @@ export default function RootLayout({
       className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <head suppressHydrationWarning>
-        <Script id="flowr-init" strategy="beforeInteractive">
-          {`(function() {
+        <script
+          id="flowr-init"
+          dangerouslySetInnerHTML={{
+            __html: `(function() {
               try {
                 const str = localStorage.getItem('flowr-storage');
                 if (str) {
@@ -88,8 +90,9 @@ export default function RootLayout({
                   }
                 }
               } catch (e) {}
-            })();`}
-        </Script>
+            })();`
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>

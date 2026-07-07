@@ -173,15 +173,10 @@ const moveBlocksRecursive = (
 
 
 const getTagColors = (tag: string) => {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash % 360);
   return {
-    bg: `hsla(${hue}, 40%, 45%, 0.12)`,
-    text: `hsl(${hue}, 70%, 85%)`,
-    border: `hsla(${hue}, 40%, 50%, 0.25)`
+    bg: 'var(--bone-5)',
+    text: 'var(--bone-70)',
+    border: 'var(--bone-10)'
   };
 };
 
@@ -292,20 +287,25 @@ function TagItem({
         }}
       >
         {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={e => {
-              setEditValue(e.target.value);
-              setShowSuggestions(true);
-              setSelectedIndex(-1);
-            }}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            className="bg-transparent outline-none text-[11px] font-medium p-0 m-0 border-none text-inherit max-w-[120px]"
-            style={{ width: `${Math.max(editValue.length, 2)}ch`, color: 'inherit' }}
-          />
+          <div className="relative inline-grid items-center grid-cols-1 min-w-0">
+            <span className="invisible col-start-1 row-start-1 px-0 text-[11px] font-medium whitespace-pre">
+              {editValue.padEnd(3, ' ')}
+            </span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={e => {
+                setEditValue(e.target.value);
+                setShowSuggestions(true);
+                setSelectedIndex(-1);
+              }}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              className="bg-transparent outline-none text-[11px] font-medium p-0 m-0 border-none text-inherit col-start-1 row-start-1 w-0 min-w-full"
+              style={{ color: 'inherit' }}
+            />
+          </div>
         ) : (
           <span className="truncate max-w-[120px]">{tag || "new tag"}</span>
         )}
@@ -313,7 +313,7 @@ function TagItem({
           <button
             onClick={handleDelete}
             aria-label={`Delete tag ${tag}`}
-            className="hover:text-danger rounded-full p-0.5 transition-colors opacity-60 hover:opacity-100"
+            className="hover:text-danger rounded-full p-0.5 transition-all opacity-60 hover:opacity-100"
           >
             <X strokeWidth={2} className="w-3 h-3" />
           </button>
@@ -869,7 +869,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           const url = 'https://flowr.website';
           const label = 'flowr.website';
           a.href = url;
-          a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
+          a.className = 'inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline';
           a.setAttribute('contenteditable', 'false');
           a.setAttribute('data-url', url);
           a.setAttribute('data-label', label);
@@ -1262,7 +1262,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
           <div className="flex flex-col items-center gap-4 mb-4">
               <div 
                 onDoubleClick={(e) => e.stopPropagation()}
-                className="flex flex-col w-full bg-sidebar border border-border rounded-3xl widget-shadow overflow-hidden transition-none"
+                className="flex flex-col w-full bg-panel border border-border rounded-3xl widget-shadow overflow-hidden transition-none"
               >
                 <div 
                   className="pr-9 py-6 group relative transition-none duration-0"
@@ -1292,31 +1292,33 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                   {!isReadMode && (
                     <button
                       onClick={() => setEditingEntityId(entity.id, 'view')}
-                      className="opacity-0 group-hover:opacity-100 p-2 rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors mt-4"
+                      className="opacity-0 group-hover:opacity-40 hover:!opacity-100 p-2 rounded-md hover:bg-hover text-[var(--bone-100)] transition-all mt-4"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
                     </button>
                   )}
                 </div>
                 </div>
 
                 <div 
-                  className="pr-9 py-5 bg-sidebar flex items-start justify-between"
+                  className="pr-9 py-5 bg-panel flex items-start justify-between"
                   style={{ paddingLeft: '44px' }}
                 >
                 <div className="flex items-start gap-x-12 gap-y-4 flex-wrap">
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase opacity-50 leading-none">Last Modified</span>
-                    <span className="text-xs font-semibold text-foreground/80 whitespace-nowrap pt-1 leading-none">
-                      {formatDate(entity.lastModified)}
-                    </span>
+                    <div className="h-6 flex items-center">
+                      <span className="text-xs font-semibold text-foreground/80 whitespace-nowrap leading-none">
+                        {formatDate(entity.lastModified)}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="w-px h-8 bg-border/50 shrink-0" />
+                  <div className="w-px h-8 bg-border/50 shrink-0 self-center" />
 
-                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase opacity-50 leading-none">Tags</span>
-                    <div className="flex items-center gap-2 flex-wrap min-h-0 pt-0.5">
+                    <div className="h-6 flex items-center gap-2 flex-wrap min-h-0">
                       {(entity.tags ?? []).map((tag, idx) => (
                         <TagItem
                           key={`tag-${idx}-${tag}`}

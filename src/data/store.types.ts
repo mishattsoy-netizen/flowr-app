@@ -4,9 +4,9 @@ import type { ChatConversation, ChatMessage as ChatMessageRecord } from '@/lib/c
 // Life types removed in M1
 // Knowledge types removed in M1
 
-export type EntityType = 'collection' | 'folder' | 'note' | 'canvas' | 'workspace' | 'divider' | 'tag';
+export type EntityType = 'folder' | 'note' | 'canvas' | 'workspace' | 'divider' | 'tag';
 
-export type SidebarSectionId = 'pinned' | 'unsorted' | 'workspaces';
+export type SidebarSectionId = 'pinned' | 'unsorted' | 'spaces';
 export type SortMode = 'lastModified' | 'alphabetical' | 'manual';
 export type TrackerSortMode = 'manual' | 'automatic' | 'recently_added';
 
@@ -17,14 +17,14 @@ export interface SidebarSectionSettings {
 
 
 
-export type WorkspaceType = 'personal' | 'shared';
+export type SpaceType = 'personal' | 'shared';
 
 export type SyncMode = 'cloud-only' | 'local-only' | 'full-sync';
 
-export interface Workspace {
+export interface Space {
   id: string;
   name: string;
-  type: WorkspaceType;
+  type: SpaceType;
   ownerId: string | null;
   createdAt: number;
   icon?: string;
@@ -178,7 +178,7 @@ export interface Entity {
   tags?: string[];
   content?: EditorBlock[];
   widgetLayout?: WidgetConfig[];
-  workspaceId?: string | null;
+  spaceId?: string | null;
 
   pairedEntityId: string | null;
   sortOrder?: number;
@@ -204,9 +204,12 @@ export interface AppTask {
   title: string;
   completed: boolean;
   dueDate?: string;
+  endDate?: string;
+  includeTime?: boolean;
+  reminder?: string;
   userDueDate?: string;
   entityId?: string | null;
-  workspaceId?: string | null;
+  spaceId?: string | null;
   note?: string;
   description?: string;
   color?: string;
@@ -226,9 +229,9 @@ export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' 
 
 export type ModalType =
   | null
-  | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType; defaultToFirstCollection?: boolean }
-  | { kind: 'newCollection' }
+  | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType }
   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[]; isChat?: boolean }
+  | { kind: 'deleteSpaceConfirm'; spaceId: string }
   | { kind: 'moveTo'; entityId: string }
   | { kind: 'rename'; entityId: string }
   | { kind: 'settings'; tab?: SettingsTab }
@@ -249,17 +252,19 @@ export interface PipelineStep {
 }
 
 export interface AIAttachment {
-  type: 'image' | 'audio' | 'file' | 'pdf';
+  type: 'image' | 'audio' | 'file' | 'pdf' | 'text';
   url: string;
   name: string;
   uploading?: boolean;
   tempId?: string;
+  textContent?: string;
 }
 
 export interface AIMessage {
   id?: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   content?: string;
+  isHidden?: boolean;
   thought?: string;
   timestamp?: number;
   tool_calls?: any[];
@@ -395,10 +400,10 @@ export interface AppState {
   tasks: AppTask[];
   blocks: EditorBlock[];
 
-  workspaces: Workspace[];
-  activeWorkspaceId: string | null;
-  trackerFilterWorkspace: string | null;
+  spaces: Space[];
+  activeSpaceId: string | null;
   trackerFilterTag: string | null;
+  trackerFilterEntityId: string | null;
 
 
   activeEntityId: string | null;
@@ -440,6 +445,7 @@ export interface AppState {
   isAIAssistantExtended: boolean;
   isTaskPanelOpen: boolean;
   activeTaskId: string | null;
+  taskPanelPresets: Partial<AppTask> | null;
   taskPanelWidth: number;
   aiWasOpenBeforeTaskPanel: boolean;
   isAILoading: boolean;
@@ -463,7 +469,6 @@ export interface AppState {
   lastSaved: number | null;
   aiSessionContext: AISessionContext | null;
   activeMode: BotMode;
-  activeIntentTag: string | null;
   activeReplyMessage: AIMessage | null;
   thinkingEnabled: boolean;
   advisorEnabled: boolean;
@@ -516,23 +521,24 @@ export interface AppState {
   toggleSplitView: () => void;
   setColumnEntity: (column: 'left' | 'right', entityId: string | null) => void;
   togglePin: () => void;
+  swapColumns: () => void;
   exitSplitView: () => void;
   setSplitViewPosition: (pos: number) => void;
   toggleFullWidth: () => void;
   toggleTabsHeader: () => void;
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
-  setWorkspaces: (workspaces: Workspace[]) => void;
+  setSpaces: (spaces: Space[]) => void;
   setRecentEntityIds: (ids: string[]) => void;
-  setActiveWorkspaceId: (id: string | null) => void;
-  setTrackerFilterWorkspace: (id: string | null) => void;
+  setActiveSpaceId: (id: string | null) => void;
   setTrackerFilterTag: (tag: string | null) => void;
-  createWorkspace: (input: Partial<Workspace>) => string;
-  updateWorkspace: (id: string, patch: Partial<Workspace>) => void;
-  deleteWorkspace: (id: string) => void;
+  setTrackerFilterEntityId: (id: string | null) => void;
+  createSpace: (input: Partial<Space>) => string;
+  updateSpace: (id: string, patch: Partial<Space>) => void;
+  deleteSpace: (id: string) => void;
   setAIKey: (key: string | null) => void;
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
-  openTaskPanel: (taskId: string) => void;
+  openTaskPanel: (taskId: string, presets?: Partial<AppTask>) => void;
   closeTaskPanel: () => void;
   setTaskPanelWidth: (width: number) => void;
   clearAIChat: () => void;
@@ -547,7 +553,6 @@ export interface AppState {
   setThinkingEnabled: (enabled: boolean) => void;
   setAdvisorEnabled: (enabled: boolean) => void;
   setPendingAdvisorState: (state: AdvisorSessionState | null) => void;
-  setActiveIntentTag: (tag: string | null) => void;
   setReplyMessage: (msg: AIMessage | null) => void;
   setAIClassificationModelId: (id: string) => void;
   setShowPaidModels: (show: boolean) => void;
@@ -555,7 +560,7 @@ export interface AppState {
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
   finishAILoading: (chatId?: string) => Promise<void>;
-  sendAIMessage: (content: string, attachments?: AIAttachment[], pageContext?: string) => Promise<void>;
+  sendAIMessage: (content: string, attachments?: AIAttachment[], pageContext?: string, isHidden?: boolean) => Promise<void>;
   regenerateAIMessage: (messageId: string, userContent: string, userAttachments?: AIAttachment[]) => Promise<void>;
   setVariantIndex: (messageId: string, index: number) => void;
   setActiveEntityId: (id: string | null) => void;
@@ -568,7 +573,7 @@ export interface AppState {
   goForward: () => void;
   addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => string;
   deleteEntity: (id: string) => void;
-  moveEntity: (id: string, newParentId: string | null, newWorkspaceId?: string | null) => void;
+  moveEntity: (id: string, newParentId: string | null, newSpaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
   renameEntity: (id: string, newTitle: string) => void;
   duplicateEntity: (id: string) => void;
@@ -597,7 +602,7 @@ export interface AppState {
   moveCanvasSection: (sectionId: string, deltaX: number, deltaY: number) => void;
   toggleFavorite: (id: string) => void;
   toggleCollapsed: (id: string) => void;
-  addTask: (task: Partial<AppTask> & { title: string }) => void;
+  addTask: (task: Partial<AppTask> & { title: string }) => Promise<{ error: any }>;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   clearCompletedTasks: () => void;
@@ -609,7 +614,7 @@ export interface AppState {
   clearTaskSelection: () => void;
   openTaskContextMenu: (taskId: string, column: string, x: number, y: number) => void;
   closeTaskContextMenu: () => void;
-  updateTask: (id: string, updates: Partial<AppTask>) => void;
+  updateTask: (id: string, updates: Partial<AppTask>) => Promise<{ error: any }>;
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
   sortEntities: (criteria: 'title' | 'lastModified') => void;
   sortTasks: (criteria: 'title' | 'dueDate') => void;

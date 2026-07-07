@@ -27,9 +27,9 @@ export async function pickVaultFolder(): Promise<string | null> {
 }
 
 export function getEntityPath(
-  entity: { title: string; type: string; parentId: string | null; workspaceId?: string | null },
+  entity: { title: string; type: string; parentId: string | null; spaceId?: string | null },
   entities: Array<{ id: string; title: string; parentId: string | null }>,
-  workspaces: Array<{ id: string; name: string }>
+  spaces: Array<{ id: string; name: string }>
 ): string {
   const segments: string[] = [];
 
@@ -45,8 +45,8 @@ export function getEntityPath(
     currentParentId = parent.parentId;
   }
 
-  if (entity.workspaceId) {
-    const ws = workspaces.find(w => w.id === entity.workspaceId);
+  if (entity.spaceId) {
+    const ws = spaces.find(w => w.id === entity.spaceId);
     if (ws) {
       segments.unshift(sanitizeFileName(ws.name));
     }

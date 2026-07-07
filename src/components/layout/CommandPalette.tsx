@@ -128,21 +128,8 @@ export function CommandPalette() {
       }
     },
     {
-      id: 'split-create',
-      label: 'Create Split Page',
-      description: 'Create a new mixed split page',
-      icon: <Layers strokeWidth={2} className="w-4 h-4" />,
-      shortcut: '/split',
-      action: () => {
-        const id = generateId();
-        addEntity({ id, title: 'Untitled Split Page', type: 'mixed' as EntityType, parentId: null, lastModified: Date.now() });
-        setActiveEntityId(id);
-        close();
-      }
-    },
-    {
       id: 'workspace-create',
-      label: 'Create Workspace',
+      label: 'Create Space',
       description: 'Open workspace creation dialog',
       icon: <Folder strokeWidth={2} className="w-4 h-4" />,
       shortcut: '/workspace',
@@ -484,14 +471,13 @@ export function CommandPalette() {
 // Helper to get entity icon
 function getEntityTypeIcon(type: EntityType, entity?: Entity) {
   const cls = "w-4 h-4";
-  if ((type === 'collection' || type === 'folder' || type === 'workspace') && entity?.icon) {
+  if ((type === 'folder' || type === 'workspace') && entity?.icon) {
     const CustomIcon = getEntityIcon(entity.icon);
     return <CustomIcon strokeWidth={2} className={cls} />;
   }
   switch (type) {
     case 'canvas': return <Frame strokeWidth={2} className={cls} />;
     case 'note': return <FileText strokeWidth={2} className={cls} />;
-    case 'mixed': return <Layers strokeWidth={2} className={cls} />;
     case 'workspace': return <Folder strokeWidth={2} className={cls} />;
     default: return <Frame strokeWidth={2} className={cls} />;
   }

@@ -71,9 +71,25 @@
   --radius-small: 6px;
   --radius-tiny: 4px;
 
-  --color-brand-blue: #2A78D6;
   --brand-blue: #2A78D6;
+  --brand-blue-rgb: 42, 120, 214;
   color-scheme: light;
+
+  /* PDF export tokens: fixed light/dark pairs (unlike --bone-*, which flips with .dark on
+     <html> and reflects the APP's current theme). The export modal has its own independent
+     light/dark toggle, so its content needs colors that resolve the same way regardless of
+     which theme the app happens to be in right now - read via getComputedStyle from
+     PdfExportModal.tsx's buildContentCss(), not by class-scoping like the rest of this file. */
+  --export-text-light: #111111;
+  --export-text-dark: #f5f5f5;
+  --export-page-bg-light: #ffffff;
+  --export-page-bg-dark: #111111;
+  --export-chrome-border-light: rgba(0, 0, 0, 0.22);
+  --export-chrome-border-dark: rgba(255, 255, 255, 0.24);
+  --export-chrome-bg-light: rgba(0, 0, 0, 0.06);
+  --export-chrome-bg-dark: rgba(255, 255, 255, 0.09);
+  --export-list-marker-light: #5a5a5a;
+  --export-list-marker-dark: #a8a8a8;
 }
 
 .dark {
@@ -119,7 +135,6 @@
   --radius-medium: 8px;
   --radius-small: 6px;
   --radius-tiny: 4px;
-  --color-brand-blue: #2A78D6;
   --brand-blue: #2A78D6;
   color-scheme: dark;
 }
@@ -248,7 +263,7 @@ html[data-interface-size="big"] {
   --radius-xl: 16px;
   --radius-2xl: 16px;
   --radius-3xl: 16px;
-  --color-brand-blue: var(--brand-blue);
+
 }
 
 @utility widget {
@@ -1043,7 +1058,7 @@ html {
   border: 1px solid transparent;
   border-radius: 34px;
   cursor: pointer;
-  transition: none;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toggle-switch .toggle-label::before {
@@ -1055,13 +1070,12 @@ html {
   top: 2px;
   left: 2px;
   background-color: #ffffff;
-  transition: none;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toggle-switch .toggle-input:checked+.toggle-label {
-  background-color: #3b82f6;
-  /* Vibrant Blue like screenshot */
-  border-color: #3b82f6;
+  background-color: var(--brand-blue);
+  border-color: var(--brand-blue);
 }
 
 .toggle-switch .toggle-input:checked+.toggle-label::before {
@@ -1086,9 +1100,6 @@ html {
   transform: translateX(12px);
 }
 
-.toggle-switch:hover .toggle-label {
-  border-color: var(--bone-70);
-}
 
 .toggle-switch .toggle-input:disabled+.toggle-label {
   opacity: 0.3;
@@ -1619,7 +1630,7 @@ table:not(.rdp-table) tr:last-child td {
   gap: 6px;
   padding: 2px 8px;
   margin: 0 4px;
-  background-color: var(--bone-5);
+  background-color: var(--app-panel);
   border: 1px solid var(--bone-10);
   border-radius: 9999px;
   font-size: 11px;
@@ -1633,7 +1644,7 @@ table:not(.rdp-table) tr:last-child td {
 }
 
 .inline-link-btn:hover {
-  background-color: var(--bone-10);
+  background-color: var(--bone-5);
   color: var(--bone-100) !important;
 }
 

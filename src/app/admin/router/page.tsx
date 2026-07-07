@@ -64,9 +64,7 @@ export async function RouterPageContent({ platform }: { platform: 'app' | 'teleg
         {!routers.some((r: any) => r.category === 'RESEARCH') && (
           <AddCategoryButton platform={platform} category="RESEARCH" />
         )}
-        {!routers.some((r: any) => r.category === 'TOOLS') && (
-          <AddCategoryButton platform={platform} category="TOOLS" />
-        )}
+
         {!routers.some((r: any) => r.category === 'IMAGE_GEN') && (
           <AddCategoryButton platform={platform} category="IMAGE_GEN" />
         )}

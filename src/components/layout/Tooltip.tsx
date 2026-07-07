@@ -12,9 +12,10 @@ interface TooltipProps {
   className?: string;
   disabled?: boolean;
   position?: 'top' | 'bottom' | 'left' | 'right';
+  ignoreSuppression?: boolean;
 }
 
-export function Tooltip({ children, content, delay = 500, className, disabled, position = 'top' }: TooltipProps) {
+export function Tooltip({ children, content, delay = 500, className, disabled, position = 'top', ignoreSuppression }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [renderedPos, setRenderedPos] = useState({ x: 0, y: 0 });
   const [hasCalculated, setHasCalculated] = useState(false);
@@ -27,15 +28,15 @@ export function Tooltip({ children, content, delay = 500, className, disabled, p
 
   // Hide immediately when any overlay becomes active
   useEffect(() => {
-    if (isSuppressed && isVisible) {
+    if (isSuppressed && !ignoreSuppression && isVisible) {
       setIsVisible(false);
       setHasCalculated(false);
       if (timerRef.current) clearTimeout(timerRef.current);
     }
-  }, [isSuppressed, isVisible]);
+  }, [isSuppressed, ignoreSuppression, isVisible]);
 
   const handleMouseEnter = () => {
-    if (disabled || !content || isSuppressed) return;
+    if (disabled || !content || (isSuppressed && !ignoreSuppression)) return;
     if (timerRef.current) clearTimeout(timerRef.current);
 
     if (delay > 0) {

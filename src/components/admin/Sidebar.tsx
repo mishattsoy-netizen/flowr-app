@@ -7,7 +7,7 @@ import {
   Activity, Cpu, Users, Zap, Shield,
   BarChart3, ScrollText, ArrowLeft,
   Database, Brain,
-  RotateCcw, MessageCircle, LayoutDashboard, Globe,
+  RotateCcw, MessageCircle, Home, Globe,
   Telescope, DollarSign, SlidersHorizontal, Monitor,
   UserCog, Link2
 } from 'lucide-react'
@@ -60,7 +60,7 @@ export default function Sidebar() {
           </div>
           <NavLink href="/admin/bot/brain" icon={Brain}>Brain</NavLink>
           <NavLink href="/admin/bot/keywords" icon={Zap}>Keywords</NavLink>
-          <NavLink href="/admin/bot/dashboard" icon={LayoutDashboard}>Dashboard</NavLink>
+          <NavLink href="/admin/bot/dashboard" icon={Home}>Dashboard</NavLink>
           <NavLink href="/admin/bot/routine" icon={RotateCcw}>Routine</NavLink>
           <NavLink href="/admin/bot/feedback" icon={MessageCircle}>Feedback</NavLink>
         </PlatformSection>

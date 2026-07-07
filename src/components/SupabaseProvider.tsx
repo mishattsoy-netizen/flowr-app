@@ -1,22 +1,22 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useStore, Entity, AppTask, Workspace } from '@/data/store';
-import { loadFromSupabase, subscribeRealtime, upsertWorkspace } from '@/lib/sync';
+import { useStore, Entity, AppTask, Space } from '@/data/store';
+import { loadFromSupabase, subscribeRealtime, upsertSpace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
 
 const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 /**
  * Merge cloud data into the store, dropping synced items that no longer exist in the cloud.
- * Entities/workspaces with syncMode !== 'local-only' that are absent from
+ * Entities/spaces with syncMode !== 'local-only' that are absent from
  * the cloud were deleted on another device — remove them. Only keep items explicitly
  * marked syncMode = 'local-only'.
  */
 function mergeCloudData(data: {
   entities: Entity[];
   tasks: AppTask[];
-  workspaces: Workspace[];
+  spaces: Space[];
 }) {
   const store = useStore.getState;
 
@@ -61,16 +61,16 @@ function mergeCloudData(data: {
   }
 
   // ── Workspaces ──
-  if (data.workspaces.length > 0) {
-    const localWorkspaces = store().workspaces;
-    const merged = [...data.workspaces];
+  if (data.spaces.length > 0) {
+    const localWorkspaces = store().spaces;
+    const merged = [...data.spaces];
     for (const lw of localWorkspaces) {
       if (!merged.find((mw: any) => mw.id === lw.id)) {
         if ((lw as any).syncMode !== 'local-only') continue; // deleted on another device — drop
         merged.push(lw);
       }
     }
-    store().setWorkspaces(merged);
+    store().setSpaces(merged);
   }
 }
 
@@ -140,12 +140,12 @@ async function scanForStaleLocalFiles() {
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const setEntities = useStore(s => s.setEntities);
   const setTasks = useStore(s => s.setTasks);
-  const setWorkspaces = useStore(s => s.setWorkspaces);
+  const setSpaces = useStore(s => s.setSpaces);
   const setShortcutsState = useStore(s => s.setShortcutsState);
 
   const getEntities = () => useStore.getState().entities;
   const getTasks = () => useStore.getState().tasks;
-  const getWorkspaces = () => useStore.getState().workspaces;
+  const getWorkspaces = () => useStore.getState().spaces;
 
   const loaded = useRef(false);
   const reconcilerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -165,20 +165,20 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
 
       // Ensure the personal workspace exists in the DB if it's missing.
-      const hasPersonalWs = data.workspaces.some(w => w.id === 'ws-personal');
+      const hasPersonalWs = data.spaces.some(w => w.id === 'ws-personal');
       if (!hasPersonalWs && supabase) {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
           const s = useStore.getState();
-          const personalWs = s.workspaces.find(w => w.id === 'ws-personal');
+          const personalWs = s.spaces.find(w => w.id === 'ws-personal');
           if (personalWs) {
             try {
               const updatedWs = { ...personalWs, ownerId: user.id };
-              setWorkspaces([...data.workspaces, updatedWs]);
-              await upsertWorkspace(updatedWs);
+              setSpaces([...data.spaces, updatedWs]);
+              await upsertSpace(updatedWs);
             } catch (err: any) {
               console.warn('[Flowr sync] Could not sync personal workspace (likely RLS collision):', err.message);
-              setWorkspaces([...data.workspaces, personalWs]);
+              setSpaces([...data.spaces, personalWs]);
             }
           }
         }
@@ -215,7 +215,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     const unsubscribeCore = subscribeRealtime({
       setEntities, getEntities,
       setTasks, getTasks,
-      setWorkspaces, getWorkspaces,
+      setSpaces, getWorkspaces,
       setShortcutsState,
     });
 

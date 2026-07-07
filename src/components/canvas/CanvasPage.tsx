@@ -28,7 +28,7 @@ import { resolvePoints } from '@/lib/geometry/resolvePoints';
 import { calculateSplineBounds } from '@/lib/geometry/splines';
 import { getCornerRadius } from '@/lib/geometry/outline';
 import { copyShareLinkToClipboard } from '@/lib/canvasShare';
-import { loadCanvasBlocks, subscribeCanvasBlocks } from '@/lib/canvasSync';
+import { loadCanvasBlocks, subscribeCanvasBlocks, flushPendingCanvasUpserts } from '@/lib/canvasSync';
 import { useDragState, activeDragOffsets } from '@/lib/canvasDragState';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -61,6 +61,15 @@ export function CanvasPage({ entity }: { entity: Entity }) {
   const [copySuccess, setCopySuccess] = useState(false);
   const [hoverBindTargetId, setHoverBindTargetId] = useState<string | null>(null);
   const [hoverBindDotSide, setHoverBindDotSide] = useState<'top' | 'right' | 'bottom' | 'left' | null>(null);
+  // True while an endpoint/waypoint drag currently claims a bind target. The canvas-bg
+  // pointermove handler clears the hover highlight whenever the tool isn't arrow/line — which
+  // is exactly the select tool mid endpoint-drag — so without this guard it would wipe the
+  // highlight the drag handlers just set, on every single mouse move.
+  const activeBindDragRef = useRef(false);
+  const setHoverBindTargetIdFromDrag = useCallback((id: string | null) => {
+    activeBindDragRef.current = id !== null;
+    setHoverBindTargetId(id);
+  }, []);
   const pendingStartBindingRef = useRef<ArrowBinding | null>(null);
   const pendingEndBindingRef = useRef<ArrowBinding | null>(null);
 
@@ -375,7 +384,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     canvasContainerRef,
     viewportRef,
     history,
-    setHoverBindTargetId,
+    setHoverBindTargetId: setHoverBindTargetIdFromDrag,
   });
 
   const handleDoubleClickBlock = useCallback((blockId: string, altKey?: boolean) => {
@@ -980,9 +989,23 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       }
     );
 
+    // A debounced block edit (e.g. a waypoint drag committed just before the tab closes/reloads)
+    // can still be waiting out its 300ms delay when the page tears down — the pending write is
+    // simply dropped, and the edit appears to "revert" on the next load. Flush on both signals:
+    // `visibilitychange` fires for tab switches/backgrounding (mobile-safe), `pagehide` covers
+    // navigation/refresh/close that doesn't go through a visibility change first.
+    const handleFlush = () => flushPendingCanvasUpserts();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') handleFlush();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handleFlush);
+
     return () => {
       isMounted = false;
       unsub();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handleFlush);
     };
   }, [entity.id, cloudSyncEnabled]);
 
@@ -1164,9 +1187,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     // CLICK AND FLOW SYSTEM: Sequential Multi-segment Spline Drawing
     if ((activeTool === 'arrow' || activeTool === 'line') && e.button === 0) {
+      // Starting a new connection drops any existing selection — leftover selection boxes
+      // on other blocks are pure noise while drawing (Excalidraw does the same).
+      setSelectedIds(prev => (prev.size > 0 ? new Set() : prev));
       const { x, y } = screenToCanvas(e.clientX, e.clientY);
       const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
-      
+
       if (!isDrawing) {
         // Fresh stroke started from empty canvas — clear any stale pending binding left
         // over from a previous stroke that was abandoned (Escape / double-click-to-edit)
@@ -1204,6 +1230,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
     const SHAPE_TOOLS = ['rect', 'ellipse', 'diamond', 'freedraw', 'frame'];
     if (SHAPE_TOOLS.includes(activeTool) && e.button === 0) {
+      // Starting a new shape drops any existing selection, same as starting an arrow.
+      setSelectedIds(prev => (prev.size > 0 ? new Set() : prev));
       const { x, y } = screenToCanvas(e.clientX, e.clientY);
       const kind = activeTool;
       let currentShape = { kind, startX: x, startY: y, x, y, w: 0, h: 0, points: [[x, y]] as [number, number][] };
@@ -1434,7 +1462,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
       onContextMenu={handleBlockContextMenu}
       hoveredFrameId={hoveredFrameId}
       onDragMove={handleDragMove}
-      bindHighlight={hoverBindTargetId === b.id && (activeTool === 'arrow' || activeTool === 'line')}
+      bindHighlight={hoverBindTargetId === b.id}
       bindHoverDotSide={hoverBindTargetId === b.id ? hoverBindDotSide : null}
       erasing={eraserMarkedIds.has(b.id)}
       forceEditing={editingTextId === b.id}
@@ -1444,15 +1472,21 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         if (activeTool !== 'arrow' && activeTool !== 'line') return;
 
         const binding = sideCenterBinding(b, side);
-        const { isDrawing, addPoint, setDrawing } = useFlowState.getState();
-        // Immediate initialization directly tied into the clicked coordinate
+        const { isDrawing, addPoint, setDrawing, updateMouse } = useFlowState.getState();
+        // Immediate initialization directly tied into the clicked coordinate.
+        // updateMouse matters: mousePosition defaults to (0,0) and the in-progress preview
+        // draws a segment from the last point to it — without seeding it to the dot's own
+        // coordinate, a stroke started from a dot renders a phantom line stretched to the
+        // canvas's top-left corner until the first pointermove.
         if (!isDrawing) {
           pendingStartBindingRef.current = binding;
           setDrawing(true);
           addPoint([x, y]);
+          updateMouse({ x, y });
         } else {
           pendingEndBindingRef.current = binding;
           addPoint([x, y]);
+          updateMouse({ x, y });
           commitFlowConnection();
         }
       }}
@@ -1515,7 +1549,9 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                 setHoverBindTargetId(prev => (target?.id ?? null) === prev ? prev : (target?.id ?? null));
                 const dotSide = target ? nearestBindDotSide([x, y], target) : null;
                 setHoverBindDotSide(prev => dotSide === prev ? prev : dotSide);
-              } else {
+              } else if (!activeBindDragRef.current) {
+                // Don't clear mid endpoint-drag: useBindingDrag/VectorPath own the highlight
+                // then, and this handler would wipe it on every pointermove.
                 if (hoverBindTargetId !== null) setHoverBindTargetId(null);
                 if (hoverBindDotSide !== null) setHoverBindDotSide(null);
               }
@@ -1544,7 +1580,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               }}
             >
               <div id="canvas-viewport-content" style={{ pointerEvents: 'auto' }}>
-                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} onDragStart={handleArrowDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} markedIds={eraserMarkedIds} />
+                <CanvasConnections canvasId={entity.id} selectedIds={selectedIds} onSelect={selectBlock} editingBlockId={editingBlockId} selectedPointIndex={selectedPointIndex} onDoubleClick={handleDoubleClickBlock} onPointSelect={setSelectedPointIndex} onBindingDragStart={handleBindingDrag} onDragStart={handleArrowDrag} activeTool={activeTool} viewportScale={viewport.scale} viewport={viewport} markedIds={eraserMarkedIds} setHoverBindTargetId={setHoverBindTargetIdFromDrag} />
 
                 <CanvasShapeLayer
                   blocks={pageBlocks}

@@ -19,9 +19,13 @@ interface CanvasConnectionsProps {
   viewport?: { x: number; y: number; scale: number };
   /** Eraser tool: ids currently marked for deletion mid-gesture — rendered dimmed. */
   markedIds?: Set<string>;
+  /** Drives the shape-outline glow highlight while a free (unbound) endpoint is being dragged
+   * toward a bindable shape — same state useBindingDrag uses for rebinding an already-bound
+   * endpoint, so both drag paths share one highlight. */
+  setHoverBindTargetId?: (id: string | null) => void;
 }
 
-export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, onDragStart, activeTool, viewportScale, viewport, markedIds }: CanvasConnectionsProps) {
+export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBlockId, selectedPointIndex, onDoubleClick, onPointSelect, onBindingDragStart, onDragStart, activeTool, viewportScale, viewport, markedIds, setHoverBindTargetId }: CanvasConnectionsProps) {
   const allBlocks = useStore(s => s.blocks);
   const blocks = useMemo(() => allBlocks.filter(b => b.canvasId === canvasId), [allBlocks, canvasId]);
 
@@ -52,6 +56,7 @@ export function CanvasConnections({ canvasId, selectedIds, onSelect, editingBloc
           onPointSelect={onPointSelect}
           onDragStart={onDragStart}
           onBindingDragStart={(end, e) => onBindingDragStart?.(block.id, end, e)}
+          setHoverBindTargetId={setHoverBindTargetId}
           erasing={markedIds?.has(block.id)} />
       ))}
     </svg>

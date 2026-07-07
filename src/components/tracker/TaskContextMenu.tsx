@@ -12,10 +12,10 @@ import { CheckSquare, Check, ArrowRight, ChevronUp, ChevronDown, Trash2 } from '
 // modal: a coloured dot, coloured text, and a coloured fill on hover. Full class
 // strings (not interpolated) so Tailwind doesn't purge them.
 const MOVE_TARGETS: { id: string; label: string; dot: string; text: string; hover: string }[] = [
-  { id: 'todo', label: 'To do', dot: 'bg-blue-400', text: 'text-blue-400/70', hover: 'hover:bg-blue-500/10 hover:text-blue-400' },
-  { id: 'inProgress', label: 'In progress', dot: 'bg-amber-400', text: 'text-amber-400/70', hover: 'hover:bg-amber-500/10 hover:text-amber-400' },
-  { id: 'today', label: 'Today', dot: 'bg-violet-400', text: 'text-violet-400/70', hover: 'hover:bg-violet-500/10 hover:text-violet-400' },
-  { id: 'overdue', label: 'Overdue', dot: 'bg-red-400', text: 'text-red-400/70', hover: 'hover:bg-red-500/10 hover:text-red-400' },
+  { id: 'todo', label: 'To do', dot: 'bg-blue-400', text: 'text-blue-400/70', hover: 'hover:bg-blue-500/15 hover:text-blue-400' },
+  { id: 'inProgress', label: 'In progress', dot: 'bg-amber-400', text: 'text-amber-400/70', hover: 'hover:bg-amber-500/15 hover:text-amber-400' },
+  { id: 'today', label: 'Today', dot: 'bg-violet-400', text: 'text-violet-400/70', hover: 'hover:bg-violet-500/15 hover:text-violet-400' },
+  { id: 'overdue', label: 'Overdue', dot: 'bg-red-400', text: 'text-red-400/70', hover: 'hover:bg-red-500/15 hover:text-red-400' },
 ];
 
 export function TaskContextMenu({
@@ -46,6 +46,10 @@ export function TaskContextMenu({
     ? (selectedTaskIds.includes(menu.taskId) ? selectedTaskIds : [menu.taskId])
     : [];
   const isGroup = targetIds.length > 1;
+
+  const tasks = useStore(s => s.tasks);
+  const targetTask = tasks.find(t => t.id === menu?.taskId);
+  const isCompleted = targetTask?.completed;
 
   // Measure + clamp on-screen BEFORE paint (layout effect) so the menu never
   // paints at the wrong spot first — that initial jump was the stutter. Then
@@ -97,14 +101,16 @@ export function TaskContextMenu({
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
-      {/* Mark as done — top action, green status-style (matches the modal). */}
-      <button
-        className="w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer transition-none text-emerald-400/70 hover:bg-emerald-500/10 hover:text-emerald-400"
-        onClick={() => act(() => { targetIds.forEach(id => toggleTask(id)); })}
-      >
-        <Check className="w-3.5 h-3.5 shrink-0" />
-        <span>Mark as done</span>
-      </button>
+      {/* Mark as done — top action, green status-style (matches the modal). Hidden if already completed. */}
+      {!isCompleted && (
+        <button
+          className="w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer transition-none bg-emerald-500/8 text-emerald-400/80 hover:bg-emerald-500/15 hover:text-emerald-400"
+          onClick={() => act(() => { targetIds.forEach(id => toggleTask(id)); })}
+        >
+          <Check className="w-3.5 h-3.5 shrink-0" />
+          <span>Mark as done</span>
+        </button>
+      )}
 
       <button className="popup-item gap-2.5" onClick={() => act(() => {
         // Select: ensure the target(s) are in the selection.
@@ -128,21 +134,23 @@ export function TaskContextMenu({
           <ArrowRight className="w-3 h-3 shrink-0 opacity-50" />
         </button>
         {submenuOpen && (
-          <div className="absolute left-full top-0 -mt-1.5 ml-1 popup-glass-small z-[9999] min-w-[150px] p-1.5 flex flex-col gap-[2px] shadow-2xl">
-            {MOVE_TARGETS.filter(c => c.id !== menu.column).map(c => (
-              <button
-                key={c.id}
-                className={cn(
-                  "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer transition-none",
-                  c.text,
-                  c.hover
-                )}
-                onClick={() => act(() => onMoveToColumn(targetIds, c.id))}
-              >
-                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", c.dot)} />
-                <span>{c.label}</span>
-              </button>
-            ))}
+          <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] min-w-[150px] shadow-2xl">
+            <div className="popup-glass-small p-1.5 flex flex-col gap-[2px]">
+              {MOVE_TARGETS.filter(c => c.id !== menu.column).map(c => (
+                <button
+                  key={c.id}
+                  className={cn(
+                    "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer transition-none",
+                    c.text,
+                    c.hover
+                  )}
+                  onClick={() => act(() => onMoveToColumn(targetIds, c.id))}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", c.dot)} />
+                  <span>{c.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

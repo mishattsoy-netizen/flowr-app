@@ -14,7 +14,7 @@
  */
 
 import { supabase } from './supabase';
-import type { Entity, AppTask, Workspace, TaskAttachment } from '@/data/store';
+import type { Entity, AppTask, Space, TaskAttachment } from '@/data/store';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ function parseTimestamp(val: any): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-function rowToWorkspace(row: Record<string, any>): Workspace {
+function rowToWorkspace(row: Record<string, any>): Space {
   return {
     id:           row.id,
     name:         row.name,
@@ -76,11 +76,11 @@ function rowToWorkspace(row: Record<string, any>): Workspace {
     icon:         row.icon ?? undefined,
     color:        row.color ?? undefined,
     settings:     row.settings ?? undefined,
-    syncMode:     row.sync_mode ?? 'cloud-only',
+    syncMode:     row.sync_mode ?? 'full-sync',
   };
 }
 
-function workspaceToRow(w: Workspace): Record<string, any> {
+function workspaceToRow(w: Space): Record<string, any> {
   const row: Record<string, any> = {
     id:            w.id,
     name:          w.name,
@@ -109,6 +109,14 @@ function settingToRow(key: string, value: any): Record<string, any> {
   };
 }
 
+function tryParseJson(val: string, fallback: any): any {
+  try {
+    return JSON.parse(val);
+  } catch {
+    return fallback;
+  }
+}
+
 function rowToEntity(row: Record<string, any>): Entity {
   return {
     id:           row.id,
@@ -117,12 +125,12 @@ function rowToEntity(row: Record<string, any>): Entity {
     parentId:     row.parent_id ?? null,
     lastModified: row.last_modified ?? 0,
     icon:         row.icon ?? undefined,
-    tags:         row.tags ?? [],
-    content:      row.content ?? [],
-    widgetLayout: row.widget_layout ?? undefined,
-    workspaceId:  row.workspace_id ?? null,
+    tags:         (typeof row.tags === 'string' ? tryParseJson(row.tags, []) : row.tags) ?? [],
+    content:      (typeof row.content === 'string' ? tryParseJson(row.content, []) : row.content) ?? [],
+    widgetLayout: (typeof row.widget_layout === 'string' ? tryParseJson(row.widget_layout, undefined) : row.widget_layout) ?? undefined,
+    spaceId:  row.space_id ?? null,
     sortOrder:    row.sort_order ?? undefined,
-    syncMode:     row.sync_mode ?? 'cloud-only',
+    syncMode:     row.sync_mode ?? 'full-sync',
     pairedEntityId: row.paired_entity_id ?? null,
   };
 }
@@ -140,7 +148,7 @@ function entityToRow(e: Entity): Record<string, any> {
     sort_order:    e.sortOrder ?? null,
   };
   if (e.widgetLayout)  row.widget_layout  = e.widgetLayout;
-  if (e.workspaceId)   row.workspace_id   = e.workspaceId;
+  if (e.spaceId)   row.space_id   = e.spaceId;
   row.sync_mode = e.syncMode;
   return row;
 }
@@ -151,18 +159,21 @@ function rowToTask(row: Record<string, any>): AppTask {
     title:       row.title,
     completed:   row.completed ?? false,
     dueDate:     row.due_date ?? undefined,
+    endDate:     row.end_date ?? undefined,
+    includeTime: row.include_time ?? undefined,
+    reminder:    row.reminder ?? undefined,
     entityId:    row.entity_id ?? null,
-    workspaceId: row.workspace_id ?? null,
+    spaceId: row.space_id ?? null,
     note:        row.note ?? undefined,
     color:       row.color ?? undefined,
     priority:    row.priority ?? undefined,
-    subtasks:    row.subtasks ?? undefined,
+    subtasks:    (typeof row.subtasks === 'string' ? tryParseJson(row.subtasks, undefined) : row.subtasks) ?? undefined,
     status:      row.status ?? undefined,
     position:    row.position ?? null,
     createdAt:   parseTimestamp(row.created_at),
     completedAt: parseTimestamp(row.completed_at),
-    syncMode:    row.sync_mode ?? 'cloud-only',
-    attachments: row.attachments ?? undefined,
+    syncMode:    row.sync_mode ?? 'full-sync',
+    attachments: (typeof row.attachments === 'string' ? tryParseJson(row.attachments, undefined) : row.attachments) ?? undefined,
     tag:         row.tag ?? undefined,
   };
 }
@@ -179,8 +190,11 @@ function taskToRow(t: AppTask): Record<string, any> {
   // color or moving a task out of a column) so Supabase writes NULL instead of
   // leaving the old value in place.
   row.due_date     = t.dueDate     ?? null;
+  row.end_date     = t.endDate     ?? null;
+  row.include_time = t.includeTime ?? null;
+  row.reminder     = t.reminder    ?? null;
   row.entity_id    = t.entityId    ?? null;
-  row.workspace_id = t.workspaceId ?? null;
+  row.space_id = t.spaceId ?? null;
   row.note         = t.note        ?? null;
   row.color        = t.color       ?? null;
   row.status       = t.status      ?? null;
@@ -194,8 +208,8 @@ function taskToRow(t: AppTask): Record<string, any> {
   }
   if (t.completedAt) {
     row.completed_at = typeof t.completedAt === 'number'
-      ? new Date(t.completedAt).toISOString()
-      : t.completedAt;
+      ? t.completedAt
+      : new Date(t.completedAt).getTime();
   }
   row.attachments = t.attachments ?? null;
   row.sync_mode = t.syncMode;
@@ -211,18 +225,28 @@ function taskToRow(t: AppTask): Record<string, any> {
 export async function loadFromSupabase(): Promise<{
   entities:   Entity[];
   tasks:      AppTask[];
-  workspaces: Workspace[];
+  spaces: Space[];
   settings:   Record<string, any>;
 } | null> {
   if (!supabase) return null;
 
-  const [{ data: entityRows }, { data: taskRows }, { data: workspaceRows }, { data: settingRows }] =
+  const [entRes, taskRes, spaceRes, setRes] =
     await Promise.all([
       supabase!.from('entities').select('*'),
       supabase!.from('tasks').select('*'),
-      supabase!.from('workspaces').select('*'),
+      supabase!.from('spaces').select('*'),
       supabase!.from('settings').select('*'),
     ]);
+
+  if (entRes.error) console.error('[Flowr sync] Entities error:', entRes.error);
+  if (taskRes.error) console.error('[Flowr sync] Tasks error:', taskRes.error);
+  if (spaceRes.error) console.error('[Flowr sync] Spaces error:', spaceRes.error);
+  if (setRes.error) console.error('[Flowr sync] Settings error:', setRes.error);
+
+  const { data: entityRows } = entRes;
+  const { data: taskRows } = taskRes;
+  const { data: workspaceRows } = spaceRes;
+  const { data: settingRows } = setRes;
 
   const settings: Record<string, any> = {};
   (settingRows ?? []).forEach((row: any) => {
@@ -232,7 +256,7 @@ export async function loadFromSupabase(): Promise<{
   return {
     entities:   (entityRows   ?? []).map(rowToEntity),
     tasks:      (taskRows     ?? []).map(rowToTask),
-    workspaces: (workspaceRows ?? []).map(rowToWorkspace),
+    spaces: (workspaceRows ?? []).map(rowToWorkspace),
     settings,
   };
 }
@@ -251,23 +275,23 @@ export async function upsertSetting(key: string, value: any) {
   if (error) console.error('[Flowr sync] upsertSetting:', error.message);
 }
 
-export async function upsertWorkspace(workspace: Workspace): Promise<{ error: any }> {
+export async function upsertSpace(workspace: Space): Promise<{ error: any }> {
   if (!supabase) return { error: null };
   const userId = await getCurrentUserId();
   if (!userId) return { error: null };
   const row = { ...workspaceToRow(workspace), owner_id: userId };
   const { error } = await supabase
-    .from('workspaces')
+    .from('spaces')
     .upsert(row, { onConflict: 'id' });
-  if (error) console.error('[Flowr sync] upsertWorkspace:', error.message);
+  if (error) console.error('[Flowr sync] upsertSpace:', error.message);
   return { error };
 }
 
-export async function deleteWorkspaceFromDB(id: string) {
+export async function deleteSpaceFromDB(id: string) {
   if (!supabase) return;
   markSelfDeleted(id);
-  const { error } = await supabase!.from('workspaces').delete().eq('id', id);
-  if (error) console.error('[Flowr sync] deleteWorkspace:', error.message);
+  const { error } = await supabase!.from('spaces').delete().eq('id', id);
+  if (error) console.error('[Flowr sync] deleteSpace:', error.message);
 }
 
 export async function upsertEntity(entity: Entity): Promise<{ error: any }> {
@@ -357,8 +381,8 @@ type StoreSetters = {
   getEntities:   () => Entity[];
   setTasks:      (tasks: AppTask[]) => void;
   getTasks:      () => AppTask[];
-  setWorkspaces: (workspaces: Workspace[]) => void;
-  getWorkspaces: () => Workspace[];
+  setSpaces: (spaces: Space[]) => void;
+  getWorkspaces: () => Space[];
   setShortcutsState: (shortcuts: Record<string, any>) => void;
 };
 
@@ -438,24 +462,24 @@ export function subscribeRealtime(store: StoreSetters) {
       }
     )
 
-    // ── workspaces ──
+    // ── spaces ──
     .on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'workspaces' },
+      { event: 'INSERT', schema: 'public', table: 'spaces' },
       ({ new: row }: any) => {
         const ws = rowToWorkspace(row as Record<string, any>);
         const current = store.getWorkspaces();
         if (!current.find(w => w.id === ws.id)) {
-          store.setWorkspaces([...current, ws]);
+          store.setSpaces([...current, ws]);
         }
       }
     )
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'workspaces' },
+      { event: 'UPDATE', schema: 'public', table: 'spaces' },
       ({ new: row }: any) => {
         const incoming = rowToWorkspace(row as Record<string, any>);
-        store.setWorkspaces(
+        store.setSpaces(
           store.getWorkspaces().map(w => {
             if (w.id !== incoming.id) return w;
             return incoming;
@@ -465,11 +489,11 @@ export function subscribeRealtime(store: StoreSetters) {
     )
     .on(
       'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'workspaces' },
+      { event: 'DELETE', schema: 'public', table: 'spaces' },
       ({ old: row }: any) => {
         const id = (row as any).id;
         if (consumeSelfDeleteEcho(id)) return;
-        store.setWorkspaces(store.getWorkspaces().filter(w => w.id !== id));
+        store.setSpaces(store.getWorkspaces().filter(w => w.id !== id));
       }
     )
 
@@ -525,7 +549,7 @@ export async function clearAllDataFromCloud() {
   await Promise.all([
     supabase.from('entities').delete().neq('id', '0'), // delete all
     supabase.from('tasks').delete().neq('id', '0'),
-    supabase.from('workspaces').delete().neq('id', '0'),
+    supabase.from('spaces').delete().neq('id', '0'),
     supabase.from('settings').delete().neq('id', '0'),
   ]);
 }

@@ -21,7 +21,7 @@ export function FoldersWidget({ entity: propEntity, contextId }: WidgetPropsWith
   const entity = propEntity ?? entities.find(e => e.id === contextId);
   const folders = useMemo(() => {
     if (!entity) return [];
-    return entities.filter(e => e.parentId === entity.id && (e.type === 'folder' || e.type === 'collection'));
+    return entities.filter(e => e.parentId === entity.id && e.type === 'folder');
   }, [entities, entity?.id]);
 
   return (

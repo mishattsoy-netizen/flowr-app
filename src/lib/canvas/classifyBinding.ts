@@ -11,7 +11,7 @@ export function isBindable(block: EditorBlock): boolean {
   return block.type === 'text' || block.type === 'image' || block.type === 'video' || block.type === 'frame';
 }
 
-function rectOf(b: EditorBlock) {
+export function rectOf(b: EditorBlock) {
   return { x: b.x ?? 0, y: b.y ?? 0, width: b.width ?? 280, height: b.height ?? 100 };
 }
 

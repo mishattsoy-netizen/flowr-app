@@ -11,7 +11,7 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
 
   const { useStore } = await import('@/data/store');
   const state = useStore.getState();
-  const relPath = getEntityPath(entity, state.entities, state.workspaces);
+  const relPath = getEntityPath(entity, state.entities, state.spaces);
   const filePath = `${vault}/${relPath}`;
 
   const { findLocalFileForEntity, deleteVaultFile } = await import('./syncFileScan');

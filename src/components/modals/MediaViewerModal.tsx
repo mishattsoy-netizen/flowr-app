@@ -4,29 +4,104 @@ import { useStore } from '@/data/store';
 import { X, Copy, Check, Download, FileText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/layout/Tooltip';
 
 export function MediaViewerModal() {
   const { modal, closeModal } = useStore();
   const messageId = (modal as any)?.messageId;
-  const storeMessage = useStore(state => state.aiMessages.find(m => m.id === messageId));
-  const [isZoomed, setIsZoomed] = useState(false);
+  const storeMessage = useStore(state => messageId ? state.aiMessages.find(m => m.id === messageId) : undefined);
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
   const [showDrawer, setShowDrawer] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Derive values safely
   const modalData = (modal && modal.kind === 'mediaViewer') ? (modal as any) : null;
   const description = storeMessage?.image_description || modalData?.description;
+  const url = modalData?.url;
+  const mediaType = modalData?.mediaType;
+
+  // Reset zoom & pan when modal or url changes
+  useEffect(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+    setIsDragging(false);
+    setDownloaded(false);
+  }, [modal, url]);
 
   useEffect(() => {
-    if (description) {
-      setShowDrawer(true);
+    if (modal && modal.kind === 'mediaViewer') {
+      setShowDrawer(!!description);
     }
-  }, [description]);
+  }, [modal, description]);
+
+  useEffect(() => {
+    if (!modal || modal.kind !== 'mediaViewer') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modal, closeModal]);
+
+  // Window listeners for dragging (pan)
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+      setOffset({ x: newX, y: newY });
+    };
+
+    const handleWindowMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [isDragging, dragStart]);
+
+  // Wheel listener for scroll zoom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !modalData || modalData.mediaType !== 'image') return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      
+      const zoomFactor = 0.08;
+      let newScale = scale;
+      if (e.deltaY < 0) {
+        newScale = Math.min(scale + zoomFactor, 3.5);
+      } else {
+        newScale = Math.max(scale - zoomFactor, 1);
+      }
+      
+      if (newScale === 1) {
+        setOffset({ x: 0, y: 0 });
+      }
+      setScale(newScale);
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [scale, modalData]);
 
   if (!modal || modal.kind !== 'mediaViewer') return null;
-
-  const { url, mediaType } = modalData;
 
   const handleDownload = async () => {
     try {
@@ -41,6 +116,8 @@ export function MediaViewerModal() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objUrl);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 1500);
     } catch {
       const link = document.createElement('a');
       link.href = url;
@@ -48,6 +125,8 @@ export function MediaViewerModal() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 1500);
     }
   };
 
@@ -87,81 +166,132 @@ export function MediaViewerModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in duration-300" 
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay backdrop-blur-sm animate-in fade-in duration-300" 
       onClick={closeModal}
     >
       {/* Top Left Branding */}
       <div className="absolute top-6 left-6 flex items-center gap-3 z-[1010]">
         <div className="flex flex-col">
-            <h2 className="text-white text-[13px] font-bold tracking-tight">Attachment Preview</h2>
+            <h2 className="text-white text-[13px] font-bold tracking-tight truncate max-w-xs sm:max-w-md" title={modalData?.title || 'Attachment Preview'}>
+              {modalData?.title || "Attachment Preview"}
+            </h2>
             <p className="text-white/40 text-[10px] font-medium uppercase tracking-widest">{mediaType}</p>
         </div>
       </div>
 
       {/* Top Right Controls */}
-      <div className="absolute top-6 right-6 flex items-center gap-3 z-[1010]">
+      <div className="absolute top-6 right-6 flex items-center gap-2.5 z-[1010]">
         {description && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); setShowDrawer(!showDrawer); }}
-            className={cn(
-              "w-10 h-10 rounded-full border flex items-center justify-center transition-all",
-              showDrawer 
-                ? "bg-bone-100 border-bone-100 text-black" 
-                : "bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10"
-            )}
-            title="Toggle Details"
-          >
-            <FileText className="w-4.5 h-4.5" />
-          </button>
+          <Tooltip content="Toggle Details" position="bottom" ignoreSuppression>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowDrawer(!showDrawer); }}
+              className={cn(
+                "group w-11 h-11 rounded-full border flex items-center justify-center transition-all duration-200 shadow-none",
+                showDrawer 
+                  ? "bg-[var(--bone-100)] border-[var(--bone-100)] text-[var(--app-background)]" 
+                  : "border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)]"
+              )}
+            >
+              <FileText className={cn("w-5 h-5", !showDrawer && "opacity-60 group-hover:opacity-100 transition-opacity")} />
+            </button>
+          </Tooltip>
         )}
         {mediaType === 'image' && (
-          <button
-            onClick={(e) => { e.stopPropagation(); handleCopyImage(); }}
-            className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-            title={copied ? 'Copied' : 'Copy image'}
-          >
-            {copied ? <Check className="w-4.5 h-4.5 text-white" /> : <Copy className="w-4.5 h-4.5" />}
-          </button>
+          <Tooltip content={copied ? 'Copied!' : 'Copy Image'} position="bottom" ignoreSuppression>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleCopyImage(); }}
+              className={cn(
+                "group w-11 h-11 rounded-full border flex items-center justify-center transition-all duration-200 shadow-none",
+                copied
+                  ? "bg-[#22c55e1a] border-[#22c55e33] text-[#22c55e]"
+                  : "border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)]"
+              )}
+            >
+              {copied ? (
+                <Check className="w-5 h-5 text-[#22c55e] animate-in fade-in zoom-in duration-200" />
+              ) : (
+                <Copy className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
+              )}
+            </button>
+          </Tooltip>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-          className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-          title="Download"
-        >
-          <Download className="w-4.5 h-4.5" />
-        </button>
-        <div className="w-px h-6 bg-[var(--app-dark)] mx-1" />
-        <button 
-          onClick={closeModal} 
-          className="w-10 h-10 rounded-full bg-white/5 border border-[var(--bone-12)] text-white/60 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <Tooltip content={downloaded ? 'Downloaded!' : 'Download File'} position="bottom" ignoreSuppression>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            className={cn(
+              "group w-11 h-11 rounded-full border flex items-center justify-center transition-all duration-200 shadow-none",
+              downloaded
+                ? "bg-[#22c55e1a] border-[#22c55e33] text-[#22c55e]"
+                : "border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)]"
+            )}
+          >
+            {downloaded ? (
+              <Check className="w-5 h-5 text-[#22c55e] animate-in fade-in zoom-in duration-200" />
+            ) : (
+              <Download className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip content="Close Preview" position="bottom" ignoreSuppression>
+          <button 
+            onClick={closeModal} 
+            className="group w-11 h-11 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] flex items-center justify-center transition-all duration-200 shadow-none"
+          >
+            <X className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Main Content Area */}
       <div 
+        ref={containerRef}
         className={cn(
           "relative transition-all duration-500 ease-out flex items-center justify-center",
           showDrawer ? "pr-[400px] w-full h-full" : "w-full h-full"
         )}
-        onClick={e => e.stopPropagation()}
+        onClick={closeModal}
       >
-        <div className="max-w-[90%] max-h-[85%] flex items-center justify-center overflow-hidden">
+        <div className="max-w-[90%] max-h-[85%] flex items-center justify-center overflow-visible">
           {mediaType === 'image' ? (
             <img
               ref={imgRef}
               src={url}
               alt="Preview"
               crossOrigin="anonymous"
-              className={cn(
-                  "rounded-xl shadow-2xl transition-all duration-300 select-none",
-                  isZoomed ? "cursor-zoom-out max-w-none scale-150" : "cursor-zoom-in object-contain max-h-[80vh] w-auto border border-[var(--bone-12)]"
-              )}
-              onClick={() => setIsZoomed(!isZoomed)}
+              className="rounded-xl shadow-2xl select-none object-contain max-h-[80vh] w-auto border border-[var(--bone-12)]"
+              style={{
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                
+                // If the user dragged, do not toggle zoom
+                const dx = Math.abs(e.clientX - mouseDownPos.x);
+                const dy = Math.abs(e.clientY - mouseDownPos.y);
+                if (dx > 5 || dy > 5) return;
+
+                if (scale > 1) {
+                  setScale(1);
+                  setOffset({ x: 0, y: 0 });
+                } else {
+                  setScale(1.3); // Zoom to 1.3 on click (gentle zoom)
+                  setOffset({ x: 0, y: 0 });
+                }
+              }}
+              onMouseDown={(e) => {
+                setMouseDownPos({ x: e.clientX, y: e.clientY });
+                if (scale <= 1) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+                setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+              }}
             />
           ) : (
-            <div className="bg-white/5 border border-[var(--bone-12)] p-12 rounded-[2.5rem] flex flex-col items-center gap-6 shadow-2xl">
+            <div className="bg-white/5 border border-[var(--bone-12)] p-12 rounded-[2.5rem] flex flex-col items-center gap-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}>
               <div className="w-24 h-24 rounded-3xl bg-accent/10 border border-accent/30 flex items-center justify-center shadow-2xl shadow-accent/10">
                 <FileText className="w-12 h-12 text-accent" />
               </div>

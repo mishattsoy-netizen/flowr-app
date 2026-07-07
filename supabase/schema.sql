@@ -54,7 +54,9 @@ create table if not exists tasks (
   subtasks    jsonb,
   completed_at bigint,
   description text,
-  user_due_date text
+  user_due_date text,
+  attachments jsonb,
+  tag text
 );
 
 create index if not exists tasks_entity_id_idx on tasks(entity_id);

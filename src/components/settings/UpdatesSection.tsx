@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PATCHES, PatchType } from '@/data/patches';
-import { Sparkles, CheckCircle, RefreshCw, PlusCircle, Calendar } from 'lucide-react';
+import { Sparkles, CheckCircle, RefreshCw, PlusCircle, Calendar, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 
@@ -82,15 +82,30 @@ export default function UpdatesSection() {
       {PATCHES.map((patch) => (
         <div 
           key={patch.version}
-          className="p-5 rounded-2xl border border-[var(--bone-6)] bg-[var(--color-panel)] hover:border-[var(--bone-15)] transition-all duration-200"
+          className={cn(
+            "p-5 rounded-2xl border transition-all duration-200",
+            patch.featured
+              ? "border-[var(--brand-blue)]/30 bg-gradient-to-br from-[var(--brand-blue)]/[0.04] to-[var(--brand-blue)]/[0.01] shadow-[0_0_0_1px_rgba(var(--brand-blue-rgb),0.08),0_4px_24px_rgba(var(--brand-blue-rgb),0.08)] hover:border-[var(--brand-blue)]/50"
+              : "border-[var(--bone-6)] bg-[var(--color-panel)] hover:border-[var(--bone-15)]"
+          )}
         >
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/20 text-xs font-bold text-accent font-mono">
-                v{patch.version}
-              </span>
-              <h4 className="text-[15px] font-bold text-[var(--bone-100)] tracking-tight">
+              {patch.featured ? (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--brand-blue)]/15 border border-[var(--brand-blue)]/30 text-xs font-bold text-[var(--brand-blue)] font-mono">
+                  <Star className="w-3 h-3 fill-current" />
+                  Major Release v{patch.version}
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/20 text-xs font-bold text-accent font-mono">
+                  v{patch.version}
+                </span>
+              )}
+              <h4 className={cn(
+                "font-bold text-[var(--bone-100)] tracking-tight",
+                patch.featured ? "text-[17px]" : "text-[15px]"
+              )}>
                 {patch.title}
               </h4>
             </div>

@@ -20,7 +20,7 @@ export function HeaderWidget({ entity: propEntity, contextId }: WidgetPropsWithE
         <div>
           <h2 className="text-2xl font-display font-semibold text-foreground">{stripHtml(entity.title || '')}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Workspace
+            Space
           </p>
         </div>
       </div>

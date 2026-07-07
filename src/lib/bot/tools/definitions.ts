@@ -1,267 +1,179 @@
 /**
  * Native Tool Definitions for Flowr AI (Function Calling)
- * The "Utility Pack" Expansion.
+ * Universal Toolset — 5 tools total.
  */
+
+const blockItemSchema = {
+  type: "object",
+  properties: {
+    type: { type: "string", description: "Block type (e.g. text, bulletList, numberedList, checklist, heading, subheading, quote, divider, table, image, link, mono)." },
+    content: { type: "string", description: "Text content of the block." },
+    style: { type: "string", description: "Style for text blocks (body, title, heading, subheading, mono)." },
+    checked: { type: "boolean", description: "For checklist blocks: whether the item is checked." }
+  },
+  required: ["type"]
+}
+
+const subtaskItemSchema = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    completed: { type: "boolean" }
+  }
+}
+
 export const FLOWR_TOOLS = [
+
+
+
+  // ── Universal Content Tools ───────────────────────────────────────────────────
+
   {
-    name: "set_sync_mode",
-    description: "Changes the sync mode of a note or folder.",
+    name: "create_content",
+    description: "Create any content: a note, folder, workspace, or task. The 'type' field determines what is created.",
     parameters: {
       type: "object",
       properties: {
-        id: { type: "string", description: "Entity ID" },
-        mode: { type: "string", enum: ["cloud-only", "local-only", "full-sync"] }
-      },
-      required: ["id", "mode"]
-    }
-  },
-  {
-    name: "get_crypto_price",
-    description: "Fetches the current price of a cryptocurrency in USD.",
-    parameters: {
-      type: "object",
-      properties: {
-        symbol: { type: "string", description: "The cryptocurrency symbol (e.g., BTC, ETH)." }
-      },
-      required: ["symbol"]
-    }
-  },
-  {
-    name: "fetch_web_page",
-    description: "Retrieves the text content of a specific URL/web page.",
-    parameters: {
-      type: "object",
-      properties: {
-        url: { type: "string", description: "The full URL of the web page to fetch." }
-      },
-      required: ["url"]
-    }
-  },
-  {
-    name: "tavily_search",
-    description: "Performs a broad web search for real-time information and current events.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "The search query." }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "exa_search",
-    description: "Performs a web search using Exa for real-time information with deep content extraction.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "The search query." }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "get_weather",
-    description: "Provides current weather and 1-day forecast for a given location.",
-    parameters: {
-      type: "object",
-      properties: {
-        location: { type: "string", description: "City name or coordinates." }
-      },
-      required: ["location"]
-    }
-  },
-  {
-    name: "convert_currency",
-    description: "Converts an amount from one currency to another.",
-    parameters: {
-      type: "object",
-      properties: {
-        amount: { type: "number", description: "The amount to convert." },
-        from: { type: "string", description: "Source currency code (e.g., USD, EUR)." },
-        to: { type: "string", description: "Target currency code (e.g., GBP, JPY)." }
-      },
-      required: ["amount", "from", "to"]
-    }
-  },
-  {
-    name: "get_stock_price",
-    description: "Fetches current stock price and daily change for a ticker symbol.",
-    parameters: {
-      type: "object",
-      properties: {
-        symbol: { type: "string", description: "Stock ticker (e.g., TSLA, AAPL)." }
-      },
-      required: ["symbol"]
-    }
-  },
-  {
-    name: "set_reminder",
-    description: "Schedules a reminder for the user. Example: 'In 2 hours to check the oven'.",
-    parameters: {
-      type: "object",
-      properties: {
-        text: { type: "string", description: "What to remind the user about." },
-        time_duration: { type: "string", description: "When to remind (e.g., '2 hours', ' tomorrow at 10am', '15 minutes')." }
-      },
-      required: ["text", "time_duration"]
-    }
-  },
-  {
-    name: "create_note",
-    description: "Creates a new note in the workspace.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "Title of the note." },
-        parentId: { type: "string", description: "ID of the parent folder (optional)." },
+        type: {
+          type: "string",
+          enum: ["note", "folder", "workspace", "task"],
+          description: "What to create. REQUIRED. DO NOT execute dependent creations (like creating a workspace then a note inside it) in a single parallel step. You MUST wait for the parent ID before creating children."
+        },
+        title: { type: "string", description: "Title of the item. REQUIRED." },
+        // Note fields
+        content: { type: "string", description: "For notes: raw Markdown body content." },
         blocks: {
           type: "array",
-          description: "Structured block content for the note (REQUIRED - always pass blocks for any formatted content).",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
-              content: { type: "string", description: "Text content of the block." },
-              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
-              checked: { type: "boolean", description: "Whether a checklist item is checked." },
-              children: {
-                type: "array",
-                description: "Nested child blocks.",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string" },
-                    content: { type: "string" },
-                    style: { type: "string" },
-                    checked: { type: "boolean" }
-                  }
-                }
-              }
-            },
-            required: ["type"]
-          }
-        }
+          items: blockItemSchema,
+          description: "For notes: structured block array (alternative to content)."
+        },
+        parentId: { type: "string", description: "For notes/folders: parent workspace or folder ID. Omit to put in unsorted. CRITICAL: If the user provides a natural language name for the destination (e.g. 'Atlantis workspace', 'Personal folder'), you MUST use list_content first to find its ID, even if it's a note. Do NOT omit parentId if the user explicitly asked to place it somewhere." },
+        // Task fields
+        assignedWorkspaceId: { type: "string", description: "For tasks: ID of the workspace to assign this task to." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
+        priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
+        tag: { type: "string", description: "For tasks: custom tag." },
+        dueDate: { type: "string", description: "For tasks: due date/time." },
+        endDate: { type: "string", description: "For tasks: end date/time." },
+        includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
+        reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
+        description: { type: "string", description: "For tasks: longer description or notes." },
+        subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: list of subtasks." }
       },
-      required: ["title"]
+      required: ["type", "title"]
     }
   },
+
   {
-    name: "update_note",
-    description: "Updates the content or title of an existing note.",
+    name: "update_content",
+    description: "Update an existing note or task by ID. For notes, 'content' FULLY REPLACES the body. For tasks, only the fields you pass are updated.",
     parameters: {
       type: "object",
       properties: {
-        id: { type: "string", description: "The ID of the note to update." },
-        title: { type: "string", description: "New title for the note (optional)." },
+        id: { type: "string", description: "ID of the note or task to update. REQUIRED." },
+        // Shared
+        title: { type: "string", description: "New title." },
+        // Note fields
+        content: { type: "string", description: "For notes: Markdown body. FULLY REPLACES the existing content." },
         blocks: {
           type: "array",
-          description: "Structured block content to replace the note's content. Use this instead of content for rich formatting (lists, headings, checklists, etc.).",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
-              content: { type: "string", description: "Text content of the block." },
-              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
-              checked: { type: "boolean", description: "Whether a checklist item is checked." },
-              children: {
-                type: "array",
-                description: "Nested child blocks.",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string" },
-                    content: { type: "string" },
-                    style: { type: "string" },
-                    checked: { type: "boolean" }
-                  }
-                }
-              }
-            },
-            required: ["type"]
-          }
+          items: blockItemSchema,
+          description: "For notes: structured block array (alternative to content, also fully replaces)."
+        },
+        // Task fields
+        assignedWorkspaceId: { type: "string", description: "For tasks: reassign task to a different workspace." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'." },
+        priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
+        tag: { type: "string", description: "For tasks: custom tag." },
+        dueDate: { type: "string", description: "For tasks: due date/time." },
+        endDate: { type: "string", description: "For tasks: end date/time." },
+        includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
+        reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
+        description: { type: "string", description: "For tasks: longer description." },
+        subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: updated subtasks list." }
+      },
+      required: ["id"]
+    }
+  },
+
+  {
+    name: "append_to_note",
+    description: "ADD content to the END of an existing note. Does NOT overwrite existing content. Use this instead of update_content when the user wants to add something to a note.",
+    parameters: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "ID of the note to append to. REQUIRED." },
+        content: { type: "string", description: "Raw Markdown to append to the note. REQUIRED." },
+        blocks: {
+          type: "array",
+          items: blockItemSchema,
+          description: "Structured blocks to append (alternative to content)."
         }
       },
       required: ["id"]
     }
   },
+
   {
-    name: "append_note_blocks",
-    description: "Appends structured block content to the end of an existing note.",
+    name: "move_content",
+    description: "Move a note, canvas, or folder to a new location. Folders can be moved between workspaces/folders; their children move with them. Omit parentId to move to unsorted.",
     parameters: {
       type: "object",
       properties: {
-        id: { type: "string", description: "The ID of the note to append to." },
-        blocks: {
-          type: "array",
-          description: "Array of block objects to append to the end of the note.",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string", description: "Block type (e.g. bulletList, numberedList, checklist, text, heading)." },
-              content: { type: "string", description: "Text content of the block." },
-              style: { type: "string", description: "Text style for text blocks (e.g. body, heading, subheading)." },
-              checked: { type: "boolean", description: "Whether a checklist item is checked." },
-              children: {
-                type: "array",
-                description: "Nested child blocks.",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string" },
-                    content: { type: "string" },
-                    style: { type: "string" },
-                    checked: { type: "boolean" }
-                  }
-                }
-              }
-            },
-            required: ["type"]
-          }
-        }
-      },
-      required: ["id", "blocks"]
-    }
-  },
-  {
-    name: "delete_note",
-    description: "Deletes a note from the workspace by its ID.",
-    parameters: {
-      type: "object",
-      properties: {
-        id: { type: "string", description: "The ID of the note to delete." }
+        id: { type: "string", description: "ID of the entity to move. REQUIRED." },
+        parentId: { type: "string", description: "ID of the destination workspace or folder. Omit to move to unsorted (notes only). If user provides a natural language name, use list_content first to find its ID." }
       },
       required: ["id"]
     }
   },
+
   {
-    name: "create_folder",
-    description: "Creates a new folder in the workspace.",
+    name: "list_content",
+    description: "Universal tool to fetch, search, and list any app content (entities and tasks). The ONLY reading tool.",
     parameters: {
       type: "object",
       properties: {
-        title: { type: "string", description: "Title of the folder." },
-        parentId: { type: "string", description: "ID of the parent collection or folder (optional)." }
-      },
-      required: ["title"]
-    }
-  },
-  {
-    name: "list_notes",
-    description: "Lists all notes and folders in the workspace to find IDs and titles.",
-    parameters: {
-      type: "object",
-      properties: {}
-    }
-  },
-  {
-    name: "search_notes",
-    description: "Finds a note or folder by searching its title. Returns matching IDs, titles, and types.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "The title or name to search for (e.g. 'Shopping List', 'Project notes')." }
-      },
-      required: ["query"]
+        types: {
+          type: "array",
+          items: { type: "string", enum: ["workspace", "folder", "note", "canvas", "task"] },
+          description: "Types of content to fetch. Omit to fetch everything."
+        },
+        parentId: {
+          type: "string",
+          description: "ID of a specific workspace or folder. For entities, fetches items inside it."
+        },
+        assignedWorkspaceId: {
+          type: "string",
+          description: "For tasks ONLY: fetch tasks assigned to this workspace ID."
+        },
+        readContent: {
+          type: "boolean",
+          description: "If true, fetches full body content (note blocks, task description & subtasks). Capped at 40,000 chars. Default: false."
+        },
+        searchQuery: {
+          type: "string",
+          description: "Keyword to filter content by title."
+        },
+        limit: {
+          type: "number",
+          description: "Max items to return. Auto-capped at 10 when readContent=true, or 100 when false."
+        },
+        sortBy: {
+          type: "string",
+          enum: ["recent", "alphabetical", "dueDate"],
+          description: "Sort order. Default: 'recent'."
+        },
+        taskFilters: {
+          type: "object",
+          description: "Filters applied only to tasks.",
+          properties: {
+            status: { type: "string", description: "'todo' | 'in-progress' | 'done' | 'overdue'" },
+            priority: { type: "string", enum: ["low", "medium", "high"] },
+            dueDate: { type: "string", description: "Date string or 'today' / 'overdue'." },
+            tag: { type: "string", description: "Custom tag to filter by." }
+          }
+        }
+      }
     }
   }
 ]

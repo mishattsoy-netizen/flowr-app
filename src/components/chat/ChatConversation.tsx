@@ -13,8 +13,7 @@ const QUICK_ACCESS_PILLS = [
   { id: 'image', label: 'Generate Image', prefix: '/image ', icon: ImageIcon },
   { id: 'search', label: 'Web Search', prefix: '/search ', icon: Globe },
   { id: 'research', label: 'Deep Research', prefix: '/research ', icon: Telescope },
-  { id: 'code', label: 'Code', prefix: '/code ', icon: Terminal },
-  { id: 'task', label: 'Add Task', prefix: '/task ', icon: CheckSquare },
+  { id: 'task', label: 'New Task', prefix: '/task ', icon: CheckSquare },
 ];
 
 export function ChatConversation() {
@@ -29,7 +28,6 @@ export function ChatConversation() {
   const openModal = useStore(s => s.openModal);
   const aiSessionContext = useStore(s => s.aiSessionContext);
   const isCompacting = useStore(s => s.isCompacting);
-  const setActiveIntentTag = useStore(s => s.setActiveIntentTag);
   const { user } = useAuth();
 
   const messages = aiMessages;
@@ -53,15 +51,7 @@ export function ChatConversation() {
   };
 
   const handlePillClick = (pill: typeof QUICK_ACCESS_PILLS[0]) => {
-    // Chain commands are represented by the intent pill, so don't leave the
-    // "/image " prefix in the textarea — the tag is sent via intentTag.
-    // Mirrors handleCommandSelect / CHAIN_TAGS in AIAssistant.
-    if (['image', 'search', 'research', 'code'].includes(pill.id)) {
-      setActiveIntentTag(`/${pill.id}`);
-      setAssistantInput('');
-    } else {
-      setAssistantInput(pill.prefix);
-    }
+    setAssistantInput(pill.prefix);
     setTimeout(() => {
       document.querySelector('textarea')?.focus();
     }, 50);
@@ -77,14 +67,14 @@ export function ChatConversation() {
 
   const handleAddImageToWorkspace = () => { };
 
-  const displayMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  const displayMessages = messages.filter(m => (m.role === 'user' || m.role === 'assistant') && !m.isHidden);
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Message list */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden px-6 pt-10 pb-36 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-6 pt-16 pb-60 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30"
         style={{ overflowAnchor: 'auto' }}
       >
         <div className="max-w-3xl mx-auto space-y-4">
@@ -110,22 +100,24 @@ export function ChatConversation() {
           )}
 
           {displayMessages.length === 0 && !isAILoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-36 max-w-4xl mx-auto w-full px-6">
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center gap-0 pt-20 max-w-4xl mx-auto w-full px-6">
               {isTempChat ? (
-                <div className="flex flex-col items-center mb-7 select-none animate-fade-in">
+                <div className="flex flex-col items-center mb-8 select-none animate-fade-in relative">
                   <MessageCircleDashed className="w-10 h-10 text-[var(--bone-40)] mb-4" strokeWidth={1.5} />
-                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-2">
+                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-0">
                     {getGreeting()}
                   </h1>
-                  <p className="text-[13px] leading-relaxed text-[var(--bone-60)] max-w-md">
-                    This chat is temporary. It will disappear if you don't save it.
-                  </p>
+                  <div className="absolute top-[100%] mt-1 left-1/2 -translate-x-1/2 w-full whitespace-nowrap">
+                    <p className="text-[13px] leading-relaxed text-[var(--bone-60)] max-w-md mx-auto">
+                      This chat is temporary. It will disappear if you don't save it.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 /* Welcome Title */
-                <div className="flex items-center gap-3 justify-center mb-5">
-                  <AIAvatar className="w-8 h-8 opacity-100" />
-                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
+                <div className="flex flex-col items-center mb-8 select-none animate-fade-in">
+                  <AIAvatar className="w-10 h-10 opacity-100 mb-4" />
+                  <h1 className="text-[32px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-0">
                     {getGreeting()}
                   </h1>
                 </div>
@@ -144,13 +136,12 @@ export function ChatConversation() {
                       <button
                         key={pill.id}
                         onClick={() => handlePillClick(pill)}
-                        style={{ transition: 'background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out' }}
-                        className="mono-pill group flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-medium)] bg-transparent border border-[var(--bone-10)] text-[12px] font-medium tracking-tight hover:bg-[var(--app-dark)] hover:border-transparent active:scale-[0.98] shrink-0"
+                        className="mono-pill group flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] text-[12px] font-medium tracking-tight active:scale-[0.98] shrink-0 transition-colors"
                       >
-                        <span className="shrink-0 text-[var(--bone-100)] opacity-30 group-hover:opacity-60" style={{ transition: 'opacity 200ms ease-out', willChange: 'opacity' }}>
+                        <span className="shrink-0 text-[var(--bone-100)] opacity-60 group-hover:opacity-100 transition-opacity">
                           <Icon strokeWidth={1.5} className="w-4 h-4 shrink-0" />
                         </span>
-                        <span className="text-[var(--bone-90)] group-hover:text-[var(--bone-100)]" style={{ transition: 'color 200ms ease-out' }}>{pill.label}</span>
+                        <span className="text-[var(--bone-100)]">{pill.label}</span>
                       </button>
                     );
                   })}

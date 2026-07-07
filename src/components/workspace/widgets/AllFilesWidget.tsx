@@ -1,8 +1,8 @@
 "use client";
 
-import { useStore } from '@/data/store';
+import { useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { Search, List, GitBranch, FileText, Frame, Layers, Folder } from 'lucide-react';
+import { Search, List, GitBranch, FileText, Frame, Folder } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { stripHtml } from '@/lib/utils';
@@ -20,7 +20,7 @@ interface AllFilesWidgetProps extends WidgetProps {
 export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidgetProps) {
   const entities = useStore(s => s.entities);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
-  const openModal = useStore(s => s.openModal);
+  const addEntity = useStore(s => s.addEntity);
   const [search, setSearch] = useState('');
   const sort: SortBy = data?.sort ?? 'modified';
   const view: ViewMode = data?.view ?? 'flat';
@@ -29,7 +29,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
   const showSkeleton = useDeferredLoading(isInitialSync, 300); // slightly longer delay for files
 
   const filtered = useMemo(() => {
-    const notes = entities.filter(e => ['note', 'canvas', 'collection', 'folder'].includes(e.type));
+    const notes = entities.filter(e => ['note', 'canvas', 'folder'].includes(e.type));
     const q = search.toLowerCase();
     const searched = q ? notes.filter(e => e.title.toLowerCase().includes(q)) : notes;
     return [...searched].sort((a, b) => sort === 'name' ? a.title.localeCompare(b.title) : b.lastModified - a.lastModified);
@@ -41,7 +41,6 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
     const Icon = entity.icon ? getEntityIcon(entity.icon) : (() => {
       if (entity.type === 'note') return FileText;
       if (entity.type === 'canvas') return Frame;
-      if (entity.type === 'mixed') return Layers;
       return Folder;
     })();
     const children = view === 'tree' ? filtered.filter(e => e.parentId === entity.id) : [];
@@ -102,7 +101,17 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
               <p className="text-xs text-bone-70 opacity-40 mt-1 leading-snug text-balance">Files you add or sync will appear here.</p>
             </div>
             <button
-              onClick={() => openModal({ kind: 'newItem' })}
+              onClick={() => {
+                const newId = generateId();
+                addEntity({
+                  id: newId,
+                  title: 'Untitled Note',
+                  type: 'note',
+                  parentId: null,
+                  lastModified: Date.now(),
+                });
+                setActiveEntityId(newId);
+              }}
               className="mt-2 flex items-center gap-1 px-3.5 py-2 rounded-[8px] bg-[var(--bone-5)] text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] text-xs font-medium transition-all duration-300"
             >
               + New Item

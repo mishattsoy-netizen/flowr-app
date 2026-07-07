@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, X, ExternalLink, File, FileText, Layout, Edit2, Trash2, Link2, Check, ChevronDown, Folder, Frame, Layers, ChevronRight } from 'lucide-react';
+import { Plus, X, ExternalLink, File, FileText, Layout, Edit2, Trash2, Link2, Check, ChevronDown, Folder, Frame, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getEntityIcon } from '@/data/icons';
@@ -232,7 +232,6 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
                             const Icon = e.icon ? getEntityIcon(e.icon) : (() => {
                               if (e.type === 'note') return FileText;
                               if (e.type === 'canvas') return Frame;
-                              if (e.type === 'mixed') return Layers;
                               return Folder;
                             })();
                             return (
@@ -376,8 +375,6 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
         Icon = File;
       } else if (ent.type === 'canvas') {
         Icon = Frame;
-      } else if (ent.type === 'mixed') {
-        Icon = Layers;
       } else {
         Icon = File;
       }
@@ -424,27 +421,28 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
       {...dragProps}
       onDragStart={handleDragStartWithImage}
     >
-      <button
-        key={dropNonce > 0 ? `drop-${dropNonce}` : shortcut.id}
-        onClick={() => {
-          if (isInternal) {
-            onSelectEntity(shortcut.value);
-          } else {
-            window.open(shortcut.value, '_blank');
-          }
-        }}
-        onContextMenu={handleContextMenu}
-        className={cn(
-          "w-full h-full flex flex-col items-start p-3 rounded-[10px] border text-left cursor-[inherit] group/item transition-colors duration-200 ease-in-out relative",
-          isDragging
-            ? "bg-[var(--app-dark)] border-transparent"
-            : isDragOver
+      {isDragging ? (
+        <div className="w-full h-full rounded-[10px] border border-dashed border-[var(--bone-10)] bg-transparent opacity-[0.08]" />
+      ) : (
+        <button
+          key={dropNonce > 0 ? `drop-${dropNonce}` : shortcut.id}
+          onClick={() => {
+            if (isInternal) {
+              onSelectEntity(shortcut.value);
+            } else {
+              window.open(shortcut.value, '_blank');
+            }
+          }}
+          onContextMenu={handleContextMenu}
+          className={cn(
+            "w-full h-full flex flex-col items-start p-3 rounded-[10px] border text-left cursor-[inherit] group/item transition-colors duration-200 ease-in-out relative",
+            isDragOver
               ? "bg-[var(--app-dark)] border-[var(--bone-30)]"
               : "bg-[var(--card-bg)] border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
-          dropNonce > 0 && "shortcut-drop-settle"
-        )}
-      >
-        <div className="absolute top-3 right-3 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out">
+            dropNonce > 0 && "shortcut-drop-settle"
+          )}
+        >
+          <div className="absolute top-3 right-3 text-[var(--bone-30)] opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 ease-in-out">
           {isInternal ? (
             <ChevronRight strokeWidth={2} className="w-3.5 h-3.5" />
           ) : (
@@ -474,6 +472,7 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
           </div>
         </div>
       </button>
+    )}
 
       {showMenu && createPortal(
         <div

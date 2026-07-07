@@ -9,13 +9,14 @@ import type { BotMode } from '@/data/store.types';
 import { X, ArrowUp, Trash2, Key, PanelRight, PanelLeft, Plus, ChevronUp, Image as ImageIcon, Paperclip, Square, Mic, Settings2, Slash, Globe, FileText, CheckSquare, Cloud, Coins, TrendingUp, Eraser, Command, ArrowRight, Frame, Zap, AtSign, SquareSlash, Telescope, Terminal, Brain, Sparkles, ExternalLink, History, Clock, MessageCircleDashed, Bookmark, Pen } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
-import { useState, useRef, useEffect, memo, useCallback } from 'react';
+import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
 import { AIAvatar } from './components/AIAvatar';
 import { ChatAudioPlayer } from './components/ChatAudioPlayer';
-import { ChatMessage } from './components/ChatMessage';
+import { ChatMessage, getEntityIconReact } from './components/ChatMessage';
+import { ChatInputEditable } from './components/ChatInputEditable';
 import { ChatSkeleton } from './components/ChatSkeleton';
 import { StatusTyping } from './components/StatusTyping';
 import { useAuth } from '@/components/AuthProvider';
@@ -90,11 +91,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const setAISessionContext = useStore(state => state.setAISessionContext);
   const sessionContextsMap = useStore(state => state.sessionContextsMap);
   const compactAIChat = useStore(state => state.compactAIChat);
+  const entities = useStore(state => state.entities);
+  const spaces = useStore(state => state.spaces);
 
   const activeMode = useStore(state => state.activeMode)
   const setActiveMode = useStore(state => state.setActiveMode)
-  const activeIntentTag = useStore(state => state.activeIntentTag)
-  const setActiveIntentTag = useStore(state => state.setActiveIntentTag)
   const activeReplyMessage = useStore(state => state.activeReplyMessage)
   const setReplyMessage = useStore(state => state.setReplyMessage)
   const thinkingEnabled = useStore(state => state.thinkingEnabled)
@@ -124,7 +125,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLDivElement>(null);
 
   const {
     isRecording,
@@ -140,11 +141,73 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const [micSettingsPos, setMicSettingsPos] = useState({ x: 0, y: 0 });
   const [, setIsTranscribing] = useState(false);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [cursorText, setCursorText] = useState('');
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const isCompacting = useStore(state => state.isCompacting);
+  const recentEntityIds = useStore(state => state.recentEntityIds);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyConfirmDeleteId, setHistoryConfirmDeleteId] = useState<string | null>(null);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+
+  const isMentionTriggered = /@[^@\s]*$/.test(cursorText) || cursorText.endsWith('@');
+
+  const mentionSearchTerm = useMemo(() => {
+    const match = cursorText.match(/@([^@\s]*)$/);
+    return match ? match[1].toLowerCase() : '';
+  }, [cursorText]);
+
+  const filteredEntities = useMemo(() => {
+    if (!isMentionTriggered) return [];
+    let list: any[] = entities.filter(e => ['folder', 'note', 'canvas'].includes(e.type));
+    
+    const wsMapped = spaces.map(w => ({
+      id: w.id,
+      title: w.name,
+      type: 'workspace' as const,
+      icon: w.icon || (w.type === 'personal' ? 'User' : 'Box'),
+      lastModified: w.createdAt || 0
+    }));
+    list = [...list, ...wsMapped];
+
+    if (mentionSearchTerm) {
+      list = list.filter(e => e.title.toLowerCase().includes(mentionSearchTerm));
+    }
+    
+    // Sort by recentEntityIds first, then by lastModified descending
+    list = [...list].sort((a, b) => {
+      const idxA = recentEntityIds.indexOf(a.id);
+      const idxB = recentEntityIds.indexOf(b.id);
+      
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      
+      return (b.lastModified || 0) - (a.lastModified || 0);
+    });
+    
+    return list.map(ent => ({
+      id: ent.id,
+      title: ent.title,
+      type: ent.type,
+      icon: getEntityIconReact(ent.type, ent.icon),
+    }));
+  }, [isMentionTriggered, entities, spaces, mentionSearchTerm, recentEntityIds]);
+
+  useEffect(() => {
+    if (assistantInput.startsWith('/')) {
+      setShowCommandMenu(true);
+      setShowMentionMenu(false);
+      setActiveCommandIndex(0);
+    } else if (isMentionTriggered) {
+      setShowMentionMenu(true);
+      setShowCommandMenu(false);
+      setActiveCommandIndex(0);
+    } else {
+      setShowCommandMenu(false);
+      setShowMentionMenu(false);
+    }
+  }, [assistantInput, isMentionTriggered]);
   const getGreeting = () => {
     if (isTempChat) {
       return tempChatGreeting || "Write like nobody's listening.";
@@ -201,7 +264,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       pageContent = blocksToMarkdown(canvasBlocks);
     } else if (entity.content && entity.content.length > 0) {
       pageContent = blocksToMarkdown(entity.content);
-    } else if (entity.type === 'folder' || entity.type === 'collection' || entity.type === 'workspace') {
+    } else if (entity.type === 'folder' || entity.type === 'workspace') {
       const children = state.entities.filter(e => e.parentId === entity.id);
       if (children.length > 0) {
         pageContent = children.map(c => `- ${c.title} (${c.type})`).join('\n');
@@ -370,8 +433,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
       await sendAIMessage(finalContent, finalAttachments, pageContext);
-      // Clear intent tag after message is dispatched
-      setActiveIntentTag(null);
       // Re-fetch context after message to get updated token usage
       setTimeout(() => fetchAISessionContext(sessionId), 1000);
     } finally {
@@ -512,29 +573,16 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     }
   };
 
-  const CHAIN_TAGS = ['/search', '/research', '/code', '/image'];
-
   const commands = [
     { id: 'image', label: 'Generate Image', icon: <ImageIcon strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create an image from text', prefix: '/image ' },
     { id: 'search', label: 'Web Search', icon: <Globe strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Search the internet for info', prefix: '/search ' },
     { id: 'research', label: 'Deep Research', icon: <Telescope strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Research using Perplexity and Tavily', prefix: '/research ' },
-    { id: 'code', label: 'Code', icon: <Terminal strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Use the coding chain for programming tasks', prefix: '/code ' },
-    { id: 'note', label: 'Create Note', icon: <FileText strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
-    { id: 'canvas', label: 'Create Canvas', icon: <Frame strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
-    { id: 'task', label: 'Add Task', icon: <CheckSquare strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
+    { id: 'note', label: 'New Note', icon: <FileText strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new note in workspace', prefix: '/note ' },
+    { id: 'canvas', label: 'New Canvas', icon: <Frame strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Create a new drawing canvas', prefix: '/canvas ' },
+    { id: 'task', label: 'New Task', icon: <CheckSquare strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Add a task to your inbox', prefix: '/task ' },
     { id: 'mention', label: 'Mention', icon: <AtSign strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Mention page or workspace', prefix: '@' },
-    { id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } },
+    ...(isTempChat ? [{ id: 'clear', label: 'Clear Chat', icon: <Eraser strokeWidth={1.5} className="w-3.5 h-3.5" />, description: 'Wipe conversation history', action: () => { clearAIChat(); setAssistantInput(''); } }] : []),
   ];
-
-  // Maps an active chain intent tag (e.g. "/image") to the icon + short label
-  // shown in the selected-tool pill next to the AI Actions button.
-  const INTENT_PILL: Record<string, { icon: React.ReactNode; label: string }> = {
-    '/image': { icon: <ImageIcon strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Image gen' },
-    '/search': { icon: <Globe strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Web Search' },
-    '/research': { icon: <Telescope strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Research' },
-    '/code': { icon: <Terminal strokeWidth={1.5} className="w-3.5 h-3.5" />, label: 'Code' },
-  };
-  const activeIntentPill = activeIntentTag ? INTENT_PILL[activeIntentTag] : undefined;
 
   const isNewChatEmpty = chatPageMode && aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0;
 
@@ -542,26 +590,13 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     ? commands.filter(c => c.label.toLowerCase().includes(assistantInput.slice(1).toLowerCase()) || c.id.includes(assistantInput.slice(1).toLowerCase()))
     : [];
 
-  useEffect(() => {
-    if (assistantInput.startsWith('/')) {
-      setShowCommandMenu(true);
-      setActiveCommandIndex(0);
-    } else {
-      setShowCommandMenu(false);
-    }
-  }, [assistantInput]);
-
   const handleCommandSelect = (cmd: typeof commands[0]) => {
-    if (cmd.prefix) {
-      const tag = `/${cmd.id}`;
-      if (CHAIN_TAGS.includes(tag)) {
-        // Chain commands are represented by the pill, so don't leave the
-        // "/code " prefix in the textarea — the tag is sent via intentTag.
-        setActiveIntentTag(tag);
-        setAssistantInput('');
-      } else {
-        setAssistantInput(cmd.prefix);
-      }
+    if (cmd.id === 'mention') {
+      setAssistantInput('@');
+      setShowMentionMenu(true);
+      textareaRef.current?.focus();
+    } else if (cmd.prefix) {
+      setAssistantInput(cmd.prefix);
       textareaRef.current?.focus();
     } else if (cmd.action) {
       cmd.action();
@@ -793,9 +828,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     </p>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center gap-3 relative z-0">
-                    <AIAvatar className="w-8 h-8 opacity-100" />
-                    <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display">
+                  <div className="flex flex-col items-center gap-0 relative z-0 animate-fade-in">
+                    <AIAvatar className="w-10 h-10 opacity-100 mb-3" />
+                    <p className="text-[22px] font-normal text-[var(--bone-100)] leading-tight tracking-tight font-display mb-1">
                       {getGreeting()}
                     </p>
                   </div>
@@ -806,6 +841,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
               <div key={msg.id || `msg-${idx}`} id={`msg-row-${msg.id}`} className="w-full">
                 <ChatMessage
                   msg={msg}
+                  chatPageMode={chatPageMode}
                   isAILoading={idx === filtered.length - 1 ? isAILoading : false}
                   isLast={idx === filtered.length - 1}
                   scrollToBottom={scrollToBottom}
@@ -845,7 +881,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
               </div>
             )}
 
-            <div ref={messagesEndRef} className={cn("shrink-0", (aiMessages.length > 0 || showSkeleton) ? "h-6" : "h-0")} />
+            <div ref={messagesEndRef} className={cn("shrink-0", (aiMessages.length > 0 || showSkeleton) ? "h-24" : "h-0")} />
           </div>
         )}
 
@@ -1042,10 +1078,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                 </button>
               </div>
             )}
-            <textarea
+            <ChatInputEditable
               ref={textareaRef}
               value={assistantInput}
-              onChange={(e) => setAssistantInput(e.target.value)}
+              isNewPage={isNewChatEmpty}
+              onChange={(val) => { setAssistantInput(val); setCursorText(val); }}
+              onCursorTextChange={(textUpToCursor) => setCursorText(textUpToCursor)}
               onKeyDown={(e) => {
                 if (showCommandMenu && filteredCommands.length > 0) {
                   if (e.key === 'ArrowDown') {
@@ -1068,21 +1106,41 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     return;
                   }
                 }
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-              }}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = 'auto';
-                el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                if (showMentionMenu && filteredEntities.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setActiveCommandIndex(i => Math.min(i + 1, filteredEntities.length - 1));
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActiveCommandIndex(i => Math.max(i - 1, 0));
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    const ent = filteredEntities[activeCommandIndex];
+                    const newValue = assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
+                    setAssistantInput(newValue);
+                    setCursorText(newValue);
+                    setShowMentionMenu(false);
+                    return;
+                  }
+                  if (e.key === 'Escape') {
+                    setShowMentionMenu(false);
+                    return;
+                  }
+                }
+                if (e.key === 'Enter' && !e.shiftKey) { 
+                  e.preventDefault(); 
+                  handleSend(); 
+                }
               }}
               placeholder={pendingAdvisorState ? "Answer the advisor's questions..." : "Ask Flowr AI"}
-              rows={1}
-              className="w-full bg-transparent text-foreground text-[14px] placeholder:text-bone-70 focus:outline-none resize-none leading-relaxed px-1 custom-scrollbar tracking-wide"
-              style={{ height: 'auto', maxHeight: '120px', overflowY: 'auto', fontSize: chatPageMode ? '15px' : undefined }}
             />
 
             {/* Action Bar */}
-            <div className={cn("flex items-center justify-between", chatPageMode ? "mt-3" : "mt-1")}>
+            <div className={cn("flex items-center justify-between", chatPageMode ? (isNewChatEmpty ? "mt-4" : "mt-3") : "mt-1")}>
               {/* Left Actions */}
               <div className="flex items-center gap-0.5 relative">
                 {chatPageMode && showPlusMenu && plusMenuPos && (
@@ -1135,19 +1193,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     <SquareSlash strokeWidth={2} className="w-4 h-4" />
                   </button>
                 </Tooltip>
-
-                {activeIntentPill && (
-                  <div className="flex items-center gap-1.5 h-7 pl-2 pr-1 ml-1.5 rounded-[8px] bg-white/10 text-bone-100">
-                    {activeIntentPill.icon}
-                    <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
-                    <button
-                      onClick={() => useStore.getState().setActiveIntentTag(null)}
-                      className="p-0.5 hover:bg-white/20 rounded-[4px]"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Right Actions */}
@@ -1324,16 +1369,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                           />
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
-                          {activeIntentPill && (
-                            <div className="flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-[8px] bg-white/10 w-fit text-bone-100">
-                              {activeIntentPill.icon}
-                              <span className="text-[12px] font-medium leading-none tracking-tight">{activeIntentPill.label}</span>
-                              <button
-                                onClick={() => useStore.getState().setActiveIntentTag(null)}
-                                className="p-0.5 hover:bg-white/20 rounded-[4px]"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                          {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0 && (
+                            <div className="text-[11px] text-bone-50 leading-tight">
+                              Press <span className="font-mono text-[9px] bg-white/10 px-1 py-0.5 rounded text-bone-80">/</span> for tools
                             </div>
                           )}
                           <p className="text-[10px] text-bone-70 font-medium">
@@ -1491,6 +1529,46 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                           </span>
                         </div>
                       )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mention Menu Portal (Local to container) */}
+            {showMentionMenu && filteredEntities.length > 0 && (
+              <div className={cn(
+                "absolute left-0 right-0 bg-[var(--color-panel)] backdrop-blur-3xl rounded-[var(--radius-regular)] border border-[var(--bone-12)] overflow-hidden shadow-2xl z-[140] p-1 flex flex-col gap-[2px]",
+                isNewChatEmpty ? "top-full mt-4" : "bottom-full mb-4"
+              )}>
+                <div className="max-h-[192px] overflow-y-auto scrollbar-none flex flex-col gap-[2px]">
+                  {filteredEntities.map((ent, i) => (
+                    <button
+                      key={ent.id}
+                      onClick={() => {
+                        const newValue = assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
+                        setAssistantInput(newValue);
+                        setCursorText(newValue);
+                        setShowMentionMenu(false);
+                      }}
+                      onMouseEnter={() => setActiveCommandIndex(i)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-[4px] rounded-[var(--radius-medium)] text-left group transition-none",
+                        i === activeCommandIndex
+                          ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
+                          : "text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-[var(--bone-100)]"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 flex items-center justify-center shrink-0 text-bone-100 opacity-60 group-hover:opacity-100",
+                        i === activeCommandIndex && "opacity-100"
+                      )}>
+                        {ent.icon}
+                      </div>
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <p className="text-[13.5px] tracking-wide shrink-0">{ent.title}</p>
+                        <p className="text-[11px] tracking-wide text-bone-70 opacity-40 truncate">{ent.type.charAt(0).toUpperCase() + ent.type.slice(1)}</p>
+                      </div>
                     </button>
                   ))}
                 </div>
