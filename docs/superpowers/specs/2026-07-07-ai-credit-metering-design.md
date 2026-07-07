@@ -97,6 +97,18 @@ Current unique key is `(category, platform)`. New unique key is `(category, plat
 
 `context_window` (int, max input tokens), `max_output_tokens` (int), `cache_read_cost` (numeric, nullable), `cache_write_cost` (numeric, nullable). Populated from the Discover flow (`contextWindow`/`maxOutputTokens` are already fetched there — [actions.ts:181](../../../src/app/admin/discover/actions.ts#L181) — but currently dropped instead of persisted when a model is added to the registry) plus manual entry for cache pricing.
 
+### `search_providers` (new, admin-editable)
+
+Tavily and Exa are billed per API call (a flat cost per search/fetch), not per token — an entirely different unit from LLM cost, so they don't belong on the `models` table. `search_providers` holds one row per billable operation:
+
+| id | notes |
+|---|---|
+| `tavily_search` | flat cost per `client.search()` call |
+| `exa_search` | flat cost per `searchExa()` call |
+| `exa_extract` | flat cost per `extractExaUrls()` call (billed separately from search by Exa) |
+
+Columns: `id` (pk), `cost_per_call` (numeric), `notes` (text, optional — e.g. "advanced search tier"). Editable via the same admin settings surface as other pricing, since provider pricing plans change independently of code.
+
 ## 3. Request flow: pre-check → run → accumulate → post-charge
 
 Dollar cost is only known *after* a model responds, so the flow is necessarily pre-check-then-charge, not charge-up-front:
@@ -115,6 +127,17 @@ A multi-step pipeline can overshoot a cap slightly (checked once at start, charg
 - **Runaway loops**: two independent guardrails, since a user's remaining balance doesn't protect against a single request looping unboundedly:
   - `maxPipelineSteps` (already exists, [router-config.ts:161](../../../src/lib/router-config.ts#L161), default 20) must be enforced as a hard stop in the orchestrator, not a soft target — verify/fix this as part of implementation.
   - New **per-request cost ceiling** (e.g. $0.50, admin-configurable), independent of the user's remaining budget: if the running accumulated total for a single request exceeds this ceiling, the pipeline aborts immediately regardless of how much budget the user has left. This protects against a single pathological request draining an otherwise-healthy balance.
+
+### Web search cost (Tavily / Exa)
+
+`runWebSearchChain` and `runExaSearchChain` currently have **no cost tracking at all** — not even to `cost_log`, unlike model calls. A "web search" pipeline step actually contains two separately-billed things:
+
+1. **The search/extract API call itself** — flat `cost_per_call` from `search_providers` (§2), independent of tokens.
+2. **The synthesis model call** that reads the search results and writes the answer — already covered by the standard per-model token formula (§1), no change needed.
+
+Both add into the same per-request running total from step 3 above — the accumulator doesn't care whether an addend came from token math or a flat per-call price.
+
+Charge for **every actual API call made**, not one flat charge per "search step." `searchTavily` ([tavily.ts:61](../../../src/lib/bot/providers/tavily.ts#L61)) internally retries with a broader query on 0 results ([tavily.ts:69](../../../src/lib/bot/providers/tavily.ts#L69)) — if the fallback fires, that's 2 real Tavily API hits and 2× `tavily_search.cost_per_call` gets added to the request total, since that's what actually gets billed on your Tavily account. Similarly, a research pipeline that calls `searchExa` and then `extractExaUrls` on the results adds both `exa_search.cost_per_call` and `exa_extract.cost_per_call`.
 
 ### Caching's role in this system
 
@@ -147,4 +170,5 @@ Matches Claude.ai's pattern: `"You've hit your 5-hour limit. Resets in {time}."`
 - Unit: window-sum derivation (5h/weekly/monthly) from a seeded set of `credit_spend_events` rows, including boundary timing.
 - Integration: pre-check rejects when a window is exhausted; post-charge fires on success, on simulated client abort, and on simulated mid-pipeline provider error.
 - Integration: `getRouterChain(category, 'pro')` falls back to `default` chain when no pro-specific row exists or its `model_list` is empty.
+- Unit: web search cost accumulation — Tavily fallback (2 calls) charges 2× `cost_per_call`; Exa search+extract in one pipeline charges both.
 - Manual: Settings usage panel reflects real spend after a live chat request; verify countdown timers match window boundaries.
