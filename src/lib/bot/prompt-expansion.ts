@@ -4,18 +4,17 @@ import { getProviderKeys } from '../vault'
 import { runGoogle } from './providers/google'
 import { runGroq } from './providers/groq'
 import { runOpenRouter } from './providers/openrouter'
-import { getSubchainConfig } from '../subchain-config'
+import { getChainPrompt } from './prompts'
 
 export async function expandImagePrompt(
   prompt: string,
   history: any[],
   context: any
 ): Promise<{ expanded: string; modelId?: string; provider?: string }> {
-  const config = await getSubchainConfig('prompt_expander')
-  const chainCategory: IntentCategory = config?.chain_category ?? 'REGULAR'
-  const systemPrompt = config?.system_prompt ?? ''
+  const chainCategory: IntentCategory = 'REGULAR'
+  const systemPrompt = getChainPrompt('prompt_expander')
 
-  const { chain } = await getRouterChain(chainCategory)
+  const { chain } = await getRouterChain(chainCategory, 'default')
   if (!chain || chain.length === 0) {
     logger.warn(`No ${chainCategory} chain available for prompt expansion`)
     return { expanded: prompt }

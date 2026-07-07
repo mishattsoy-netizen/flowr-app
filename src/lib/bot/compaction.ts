@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from '../supabase'
 import { logger } from '../logger'
 import { getRouterChain } from '../router-config'
+import { getChainPrompt } from './prompts'
 import { runGoogle } from './providers/google'
 import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
@@ -74,7 +75,8 @@ export async function compactSession(
   history: any[],
   currentSummary: string | null
 ): Promise<string | null> {
-  const { chain, system_prompt } = await getRouterChain('COMPACTION').catch(() => ({ chain: [] as RouterModel[], system_prompt: undefined as string | undefined }))
+  const { chain } = await getRouterChain('COMPACTION', 'default').catch(() => ({ chain: [] as RouterModel[] }))
+  const compactionPrompt = getChainPrompt('compaction')
 
   const historyText = history
     .map(h => `${h.role}: ${h.parts?.[0]?.text || h.content}`)
@@ -90,7 +92,7 @@ export async function compactSession(
   const enabledModels = (chain || []).filter(m => m.is_enabled)
 
   for (const modelConfig of enabledModels) {
-    const result = await runCompactionModel(modelConfig, system_prompt || '', userMessage, chatId)
+    const result = await runCompactionModel(modelConfig, compactionPrompt, userMessage, chatId)
     if (result) {
       return result
     }

@@ -1,5 +1,6 @@
 import { logger } from '../logger'
 import { getRouterChain } from '../router-config'
+import { getChainPrompt } from './prompts'
 import { getProviderKeys } from '../vault'
 import type { BotMode } from '@/data/store.types'
 
@@ -226,7 +227,7 @@ export async function runAdvisor(
   history: any[] = [],
   pendingState?: AdvisorState | null,
 ): Promise<AdvisorResult> {
-  const { chain, system_prompt } = await getRouterChain('ADVISOR')
+  const { chain } = await getRouterChain('ADVISOR', mode === 'pro' ? 'pro' : 'default')
 
   if (chain.length === 0) {
     logger.warn('ADVISOR chain is empty — skipping advisor step. Add models via Admin > Router > ADVISOR.')
@@ -237,15 +238,7 @@ export async function runAdvisor(
     }
   }
 
-  const systemPrompt = system_prompt || ''
-  if (!systemPrompt) {
-    logger.warn('ADVISOR chain has no system_prompt configured — skipping advisor step.')
-    return {
-      phase: 'pass',
-      questions: null,
-      state: null,
-    }
-  }
+  const systemPrompt = getChainPrompt('advisor')
 
   const advisorPrompt = buildAdvisorPrompt(message, mode, thinkingEnabled, availableTools, pendingState)
   const currentRound = pendingState?.round ?? 0

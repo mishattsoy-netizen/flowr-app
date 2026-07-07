@@ -4,17 +4,16 @@ import { runGoogle } from './providers/google'
 import { runCloudflare } from './providers/cloudflare'
 import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
-import { getSubchainConfig } from '../subchain-config'
+import { getChainPrompt } from './prompts'
 
 export async function narrateGeneratedImage(
   imageBuffer: Buffer,
   context?: any
 ): Promise<{ description: string; modelId: string; provider: string } | null> {
-  const config = await getSubchainConfig('image_narration')
-  const chainCategory: IntentCategory = config?.chain_category ?? 'VISION'
-  const systemPrompt = config?.system_prompt ?? ''
+  const chainCategory: IntentCategory = 'VISION'
+  const systemPrompt = getChainPrompt('image_narration')
 
-  const { chain } = await getRouterChain(chainCategory)
+  const { chain } = await getRouterChain(chainCategory, 'default')
   if (!chain || chain.length === 0) {
     logger.warn(`No ${chainCategory} chain available for image narration`)
     return null

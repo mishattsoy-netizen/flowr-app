@@ -180,49 +180,19 @@ export async function classifyIntentWithModel(
     logger.warn(`Failed to read classifier.txt, using default.`)
   }
 
-  // Load keywords config
-  let keywordsEnabled = true
-  let keywordsObj: any = null
-  let retryCount = 0
-  const maxRetries = 2
-
-  while (retryCount <= maxRetries) {
-    try {
-      const [keywordsEnabledResult, keywordsResult] = await Promise.all([
-        supabaseAdmin
-          .from('bot_settings')
-          .select('is_active')
-          .eq('category', 'classifier_keywords_enabled')
-          .eq('mode', 'global')
-          .limit(1)
-          .maybeSingle(),
-        supabaseAdmin
-          .from('bot_settings')
-          .select('content')
-          .eq('category', 'classifier_keywords')
-          .eq('mode', 'global')
-          .limit(1)
-          .maybeSingle(),
-      ])
-
-      if (keywordsEnabledResult.data) keywordsEnabled = keywordsEnabledResult.data.is_active
-
-      if (!keywordsResult.error && keywordsResult.data?.content) {
-        try { keywordsObj = JSON.parse(keywordsResult.data.content) } catch { /* ignore */ }
-      }
-      break
-    } catch (err) {
-      if (retryCount === maxRetries) {
-        logger.warn(`Classifier keywords DB load failed after ${maxRetries} retries.`)
-        break
-      }
-      retryCount++
-      await new Promise(r => setTimeout(r, 500 * retryCount)) // Backoff
-    }
+  // Load keywords from static file
+  let keywordsObj: Record<string, string[]> | null = null
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const kwPath = path.join(process.cwd(), 'src/lib/bot/prompts/classifier_keywords.json')
+    keywordsObj = JSON.parse(fs.readFileSync(kwPath, 'utf8'))
+  } catch (err) {
+    logger.warn('Failed to read classifier_keywords.json, skipping keyword fast-path.')
   }
 
-  // Keyword fast-path — only runs if keywords are configured and enabled
-  if (keywordsEnabled && keywordsObj) {
+  // Keyword fast-path — only runs if keywords file loaded successfully
+  if (keywordsObj) {
     for (const cat of Object.keys(keywordsObj) as IntentCategory[]) {
       const catKeywords = keywordsObj[cat] || []
       for (const kw of catKeywords) {
@@ -260,7 +230,7 @@ export async function classifyIntentWithModel(
   const replyPrefix = replyContext?.attentionBlock ? replyContext.attentionBlock + '\n\n' : ''
 
   // Model classification
-  const { chain } = await getRouterChain('CLASSIFIER')
+  const { chain } = await getRouterChain('CLASSIFIER', 'default')
   let activeChain = chain
 
   if (modelId) {

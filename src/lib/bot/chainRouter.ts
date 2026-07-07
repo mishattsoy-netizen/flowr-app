@@ -32,12 +32,13 @@ import { buildTranscript } from './transcript'
 import { getAiUserDescription } from '@/app/settings/ai/actions'
 import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from './services/providerExecution'
 import { buildSystemPrompt } from './services/promptBuilder'
+import { getChainPrompt } from './prompts'
 import { fetchConversationHistory, manageSessionCompaction } from './services/memoryManager'
 
 // Augments search query with context from conversation history
 function augmentSearchQuery(originalQuery: string, history: any[]): string {
   if (!history || history.length === 0) return originalQuery
-  
+
   // Collect unique nouns/entities from the last N user messages
   const lastUserMsgs = history
     .filter(h => h.role === "user" || h.role === "human")
@@ -46,9 +47,9 @@ function augmentSearchQuery(originalQuery: string, history: any[]): string {
       const text = h.parts?.[0]?.text || h.content || ""
       return text.slice(0, 200) // keep it short
     })
-  
+
   if (lastUserMsgs.length === 0) return originalQuery
-  
+
   // If the current query is very short or ambiguous, append context
   const queryWords = originalQuery.split(/s+/).length
   if (queryWords <= 5) {
@@ -66,7 +67,7 @@ function augmentSearchQuery(originalQuery: string, history: any[]): string {
       }
     }
   }
-  
+
   return originalQuery
 }
 
@@ -86,8 +87,8 @@ const modelFailureCache: Record<string, FailureEntry> = {}
 function classifyError(errMsg: string): FailureKind {
   const m = errMsg.toLowerCase()
   if (m.includes('401') || m.includes('403') || m.includes('429') || m.includes('quota') ||
-      m.includes('unauthorized') || m.includes('forbidden') || m.includes('invalid api key') ||
-      m.includes('permission')) return 'hard'
+    m.includes('unauthorized') || m.includes('forbidden') || m.includes('invalid api key') ||
+    m.includes('permission')) return 'hard'
   if (/\b4\d\d\b/.test(m) && !m.includes('408')) return 'hard' // 4xx except request-timeout
   return 'soft'
 }
@@ -180,13 +181,15 @@ export async function runChain(
     _visionImageDescription?: string | null;
     isTempChat?: boolean;
     clientHistory?: any[];
-    pageContext?: string | null;
+    pageContext?: { url: string, content: string, title?: string } | null;
+    clientTime?: string;
+    onEvent?: (event: any) => void;
   }
 ): Promise<ChainResponse> {
   const tracer = new TraceCollector()
 
   // Inject current date context to help bot understand knowledge cutoff and current time
-  const now = new Date()
+  const now = context?.clientTime ? new Date(context.clientTime) : new Date()
   let dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
 
   // 0. Prefetch independent config in parallel
@@ -319,7 +322,7 @@ export async function runChain(
     })
 
     // Look up VISION chain from DB — configure models via Router admin
-    const { chain: visionChain, system_prompt: visionSystemPrompt } = await getRouterChain('VISION')
+    const { chain: visionChain } = await getRouterChain('VISION', (context?.mode === 'pro' ? 'pro' : 'default'))
     const visionTrace: any[] = []
 
     // System Instructions = Persona + Date + Global Rules (respect pipeline settings)
@@ -327,7 +330,7 @@ export async function runChain(
       ? pipelineSettings.globalPromptEnabledCategories.includes('VISION')
       : true
     const systemPromptCombined = [
-      visionSystemPrompt,
+      getChainPrompt('vision'),
       dateContext,
       visionGlobalEnabled ? globalPrompt : null
     ].filter(Boolean).join("\n\n")
@@ -374,7 +377,7 @@ export async function runChain(
           const visionReasoning = typeof visionRes === 'object' ? (visionRes as any).reasoning : undefined
           const outputContent = typeof visionRes === 'object' ? visionRes.content : visionRes
           const visionCost = (visionUsage?.prompt_tokens ?? 0) * (modelConfig.prompt_cost ?? 0)
-                           + (visionUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
+            + (visionUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
           tracer.recordSuccess({
             ...visionTraceMeta,
             output: outputContent,
@@ -385,7 +388,7 @@ export async function runChain(
             cost: visionCost > 0 ? visionCost : undefined,
             reasoning: visionReasoning,
           }, Date.now() - visionT0)
-          await trackModelUsage(modelConfig.id, modelConfig.provider).catch(() => {})
+          await trackModelUsage(modelConfig.id, modelConfig.provider).catch(() => { })
           logCost({
             model_id: modelConfig.id,
             provider: modelConfig.provider,
@@ -633,7 +636,7 @@ export async function runChain(
     category = 'COMPLEX'
   }
 
-  let { chain, system_prompt: routerOverridePrompt, temperature, thinking_budget } = await getRouterChain(category)
+  let { chain, temperature, thinking_budget } = await getRouterChain(category, (context?.mode === 'pro' ? 'pro' : 'default'))
 
   // Fetch internal pipeline prompt if available (from Admin > Bot > Global)
   const isGlobalPromptEnabled = pipelineSettings.globalPromptEnabledCategories
@@ -641,11 +644,12 @@ export async function runChain(
     : true
 
   const skipSummary = category === 'WEB_SEARCH' || category === 'RESEARCH' || context?._skipSessionSummary || context?.isTempChat
-  let { staticPrompt: system_prompt, dynamicContext } = await buildSystemPrompt(category, routerOverridePrompt, {
+  let { staticPrompt: system_prompt, dynamicContext } = await buildSystemPrompt(category, {
     userId: context?.userId,
-    pageContext: context?.pageContext,
+    pageContext: typeof context?.pageContext === 'object' ? JSON.stringify(context?.pageContext) : context?.pageContext,
     vision_notes: context?.vision_notes,
     replyContext: context?.replyContext,
+    clientTime: context?.clientTime,
     isGlobalPromptEnabled: isGlobalPromptEnabled ?? true,
     skipSummary: !!skipSummary,
     currentSummary
@@ -707,9 +711,9 @@ export async function runChain(
   // ── Iterative search for RESEARCH ──
   if (category === 'RESEARCH') {
     onStatus({ chain: 'RESEARCH', goal: 'Running iterative web research', status: 'running', label: getStatusLabel('RESEARCH') })
-    const researchResult = await runDeepResearchChain(prompt, context)
-    if (!researchResult.researchText.includes('Search failed')) {
-      activePromptForGen = researchResult.researchText
+    const researchResult = await runDeepResearchChain(prompt, uniqueChain, context)
+    if (!researchResult.researchText.includes('Search failed') && (researchResult as any).findings) {
+      system_prompt = `${system_prompt}\n\n[SEARCH DATA]\n${(researchResult as any).findings}\n\n`
     }
     if (researchResult.gapTrace.length > 0) {
       routingTrace.push(...researchResult.gapTrace)
@@ -930,8 +934,8 @@ export async function runChain(
           const isTokenLimitEnabled = enabledCats.length > 0
             ? enabledCats.includes(category)
             : !SEARCH_CHAINS.includes(category)
-          const finalUserPrompt = dynamicContext 
-            ? `${dynamicContext}\n\n[CURRENT REQUEST]\n${activePromptForGen}` 
+          const finalUserPrompt = dynamicContext
+            ? `${dynamicContext}\n\n[CURRENT REQUEST]\n${activePromptForGen}`
             : activePromptForGen;
 
           if (isTokenLimitEnabled) {
@@ -939,12 +943,12 @@ export async function runChain(
             if (pipelineSettings.outputTokenLimit > 0) {
               routeContext.max_tokens = pipelineSettings.outputTokenLimit
             }
-            
+
             // Apply Input Limit (Hard trimming)
             if (pipelineSettings.inputTokenLimit > 0) {
               const currentPromptTokens = estimateTokens(system_prompt + finalUserPrompt)
               const budgetForHistory = pipelineSettings.inputTokenLimit - currentPromptTokens
-              
+
               if (budgetForHistory <= 0) {
                 // If system+user already exceeds limit, we can't send any history
                 logger.warn(`[TokenGuard] System+User prompt (${currentPromptTokens} tokens) exceeds Input Limit (${pipelineSettings.inputTokenLimit}). Sending empty history.`)
@@ -955,7 +959,7 @@ export async function runChain(
                 while (currentHistory.length > 0) {
                   const historyTokens = estimateTokens(JSON.stringify(currentHistory))
                   if (historyTokens <= budgetForHistory) break
-                  currentHistory.shift() 
+                  currentHistory.shift()
                 }
                 if (currentHistory.length !== historyForChain.length) {
                   logger.info(`[TokenGuard] Trimmed history from ${historyForChain.length} to ${currentHistory.length} messages to fit ${pipelineSettings.inputTokenLimit} token limit.`)
@@ -965,24 +969,24 @@ export async function runChain(
             }
           }
 
-            const traceMeta = {
-              chain: category,
-              model: modelConfig.id,
-              provider: modelConfig.provider,
-              key: `${key} ${k + 1}`,
-              input_system: system_prompt,
-              input_user: finalUserPrompt,
-              input_history_count: historyForChain.length,
-            }
-            const t0 = Date.now()
+          const traceMeta = {
+            chain: category,
+            model: modelConfig.id,
+            provider: modelConfig.provider,
+            key: `${key} ${k + 1}`,
+            input_system: system_prompt,
+            input_user: finalUserPrompt,
+            input_history_count: historyForChain.length,
+          }
+          const t0 = Date.now()
 
-            try {
-              const result = await executeProvider(
-                modelConfig,
-                category,
-                finalUserPrompt,
-                system_prompt,
-                historyForChain,
+          try {
+            const result = await executeProvider(
+              modelConfig,
+              category,
+              finalUserPrompt,
+              system_prompt,
+              historyForChain,
               activeKey,
               providerKeys,
               context,
@@ -991,7 +995,7 @@ export async function runChain(
               prompt,
               augmentSearchQuery
             )
-            
+
             if (result.searchFailed) {
               const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
               routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false, status: 'empty' })
@@ -1001,7 +1005,7 @@ export async function runChain(
             if (result.searchResult) {
               system_prompt = `${system_prompt}\n\n[SEARCH DATA: ${modelConfig.id}]\n${result.searchResult}\n\n`
             }
-            
+
             if (result.response === null) {
               continue modelLoop
             }
@@ -1064,7 +1068,7 @@ export async function runChain(
                 ...traceMeta,
                 output: (response as any).content || '[search results]',
               }, Date.now() - t0)
-              
+
               // Move to the next model in the chain (synthesis)
               break keyLoop
             }
@@ -1090,7 +1094,7 @@ export async function runChain(
             const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
             routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: true, actualProvider: (response as any).provider })
             const actualCost = (providerUsage?.prompt_tokens ?? 0) * (modelConfig.prompt_cost ?? 0)
-                              + (providerUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
+              + (providerUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
             tracer.recordSuccess({
               ...traceMeta,
               output: typeof finalContent === 'string' ? finalContent : '[binary]',
@@ -1104,7 +1108,7 @@ export async function runChain(
             if (usedSynthesisModel) {
               routingTrace.push({ model: usedSynthesisModel, category, key: 'GEMINI 1', success: true })
             }
-            await trackModelUsage(modelConfig.id, modelConfig.provider).catch(() => {})
+            await trackModelUsage(modelConfig.id, modelConfig.provider).catch(() => { })
             logCost({
               model_id: modelConfig.id,
               provider: modelConfig.provider,
@@ -1189,24 +1193,24 @@ export async function runChain(
             // Update token usage
             if (typeof finalContent === 'string') {
               const sid = sessionId
-              
+
               const historyWithResponse = [
                 ...history,
                 { role: 'model', parts: [{ text: finalContent || '' }] }
               ];
-              
+
               let activeHistoryText = prompt || '';
               let activeImageCount = 0;
-              
+
               if (inputBuffer) {
                 activeImageCount += Array.isArray(inputBuffer) ? inputBuffer.length : 1;
               }
-              
+
               const limitHistory = currentSummary ? historyWithResponse.slice(-5) : historyWithResponse;
               for (const h of limitHistory) {
                 const partText = h.parts?.[0]?.text || h.content || '';
                 activeHistoryText += partText;
-                
+
                 if (partText) {
                   const matches1 = partText.match(/\[Image:/g)?.length || 0;
                   const matches2 = partText.match(/\[Image attached\]/g)?.length || 0;
@@ -1214,10 +1218,10 @@ export async function runChain(
                   activeImageCount += (matches1 + matches2 + matches3);
                 }
               }
-              
+
               const summaryTokens = currentSummary ? estimateTokens(currentSummary) : 0;
               const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
-              
+
               const limit = sessionState?.context_limit ?? 32000
               const threshold = sessionState?.compaction_threshold ?? 0.8
               if (totalUsage > limit * threshold) {
@@ -1253,7 +1257,7 @@ export async function runChain(
               classificationTrace,
               routingTrace,
               systemPrompt: system_prompt,
-              routerPrompt: (routerOverridePrompt as string) || undefined,
+              routerPrompt: undefined,
               dateContext,
               currentSummary,
               visionNotes: (context as any)?.vision_notes,

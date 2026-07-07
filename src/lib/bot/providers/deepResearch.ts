@@ -2,6 +2,7 @@ import { tavily } from '@tavily/core'
 import { getVaultKey, getProviderKeys } from '../../vault'
 import { logger } from '../../logger'
 import { extractContent, formatExtractedPages } from './content-extract'
+import { getChainPrompt } from '../prompts'
 
 async function searchTavily(query: string, context?: any): Promise<string | null> {
   let keys = context?.aiApiKey ? [context.aiApiKey] : []
@@ -11,7 +12,7 @@ async function searchTavily(query: string, context?: any): Promise<string | null
 
   try {
     const client = tavily({ apiKey })
-    const results = await client.search(query, { searchDepth: 'advanced', maxResults: 5 })
+    const results = await client.search(query, { searchDepth: 'advanced', maxResults: 5, days: 60 })
     if (!results.results?.length) return null
     return results.results.map(r =>
       `SOURCE: ${r.title}\nURL: ${r.url}\nCONTENT: ${r.content}\n\n[ ${r.title}](${r.url})`
@@ -27,17 +28,39 @@ async function searchExa(query: string, context?: any): Promise<string | null> {
   return exaSearch(query, context)
 }
 
-async function bestSearch(query: string, context?: any): Promise<{ text: string; urls: string[] } | null> {
-  // Try Exa first, then Tavily
-  const exaResult = await searchExa(query, context)
-  if (exaResult) {
-    const urls = extractUrls(exaResult)
-    return { text: exaResult, urls }
+async function bestSearch(query: string, chainModels: import('../../router-config').RouterModel[], context?: any): Promise<{ text: string; urls: string[] } | null> {
+  const searchNodes = chainModels.filter(m => 
+    m.id.includes('search') || m.provider === 'exa' || m.provider === 'tavily' || m.provider === 'core'
+  );
+  
+  if (searchNodes.length === 0) {
+    logger.warn(`No search provider configured in RESEARCH matrix, falling back to Tavily/Exa.`)
+    const tavilyResult = await searchTavily(query, context)
+    if (tavilyResult) return { text: tavilyResult, urls: extractUrls(tavilyResult) }
+    const exaResult = await searchExa(query, context)
+    if (exaResult) return { text: exaResult, urls: extractUrls(exaResult) }
+    return null
   }
-  const tavilyResult = await searchTavily(query, context)
-  if (tavilyResult) {
-    const urls = extractUrls(tavilyResult)
-    return { text: tavilyResult, urls }
+
+  for (const node of searchNodes) {
+    let result: string | null = null;
+    if (node.provider === 'exa' || node.id === 'exa-search') {
+      result = await searchExa(query, context);
+    } else if (node.provider === 'tavily' || node.id === 'tavily-search') {
+      result = await searchTavily(query, context);
+    } else if (node.provider === 'core' || node.id === 'duckduckgo-search') {
+      const { runDuckDuckGoSearchChain } = await import('./duckduckgo')
+      try {
+        result = await runDuckDuckGoSearchChain(query, context);
+      } catch (e: any) {
+        logger.warn(`DuckDuckGo search failed: ${e.message}`);
+        result = null;
+      }
+    }
+    
+    if (result) {
+      return { text: result, urls: extractUrls(result) };
+    }
   }
   return null
 }
@@ -96,21 +119,19 @@ function extractSearchQuery(visionNotes: string, fallbackPrompt: string): string
   return fallbackPrompt
 }
 
-export async function runDeepResearchChain(prompt: string, context?: any): Promise<{
+export async function runDeepResearchChain(prompt: string, chainModels: import('../../router-config').RouterModel[], context?: any): Promise<{
   researchText: string
+  findings?: string
   gapTrace: { model: string; key: string; success: boolean; category?: string }[]
 }> {
   logger.info(`Starting iterative deep research for: ${prompt}`)
 
   const { getRouterChain } = await import('../../router-config')
-  const { getSubchainConfig } = await import('../../subchain-config')
-  const { getInternalPrompt } = await import('../compilePrompt')
 
-  const gapConfig = await getSubchainConfig('deep_research_gap_detector')
-  const gapChainCategory = gapConfig?.chain_category ?? 'REGULAR'
-  const gapSystemPrompt = gapConfig?.system_prompt ?? 'Identify up to 2 follow-up search queries to fill gaps. Return ONLY a JSON array. If no gaps, return [].'
+  const gapChainCategory = 'REGULAR'
+  const gapSystemPrompt = getChainPrompt('deep_research_gap_detector')
 
-  const { chain: gapChain } = await getRouterChain(gapChainCategory)
+  const { chain: gapChain } = await getRouterChain(gapChainCategory, 'default')
   const gapModel = gapChain.find(m => m.is_enabled)
 
   // Build a research query from vision notes when available.
@@ -122,7 +143,7 @@ export async function runDeepResearchChain(prompt: string, context?: any): Promi
   logger.info(`Deep research using query: ${researchQuery}`)
 
   // Round 1 — initial broad search (using the real topic, not the conversational prompt)
-  const round1 = await bestSearch(researchQuery, context)
+  const round1 = await bestSearch(researchQuery, chainModels, context)
   if (!round1) return { researchText: 'Search failed to retrieve results.', gapTrace: [] }
 
   let allFindings = `[ROUND 1 — Query: ${researchQuery}]\n${round1.text}`
@@ -141,7 +162,7 @@ export async function runDeepResearchChain(prompt: string, context?: any): Promi
     logger.info(`Deep research gaps detected: ${JSON.stringify(gaps)}`)
 
     if (gaps.length > 0) {
-      const round2Results = await Promise.all(gaps.map(q => bestSearch(q, context)))
+      const round2Results = await Promise.all(gaps.map(q => bestSearch(q, chainModels, context)))
       gaps.forEach((query, i) => {
         if (round2Results[i]) {
           allFindings += `\n\n[ROUND 2 — Query: ${query}]\n${round2Results[i].text}`
@@ -163,9 +184,10 @@ export async function runDeepResearchChain(prompt: string, context?: any): Promi
     })
   }
 
-  const systemPrompt = await getInternalPrompt('RESEARCH')
+  const systemPrompt = getChainPrompt('research_pipeline')
   return {
     researchText: `${systemPrompt}\n\nRESEARCH FINDINGS:\n${allFindings}\n\nUSER QUESTION:\n${prompt}`,
+    findings: allFindings,
     gapTrace,
   }
 }
