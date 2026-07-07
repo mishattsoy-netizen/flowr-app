@@ -63,6 +63,9 @@ Flowr-1.0/
 /dist-desktop-v3/
 /test-server/
 
+# runtime user uploads (must not ship in the app bundle)
+/public/user_uploads/
+
 # design-sync (staged scripts + generated output)
 /.ds-sync/
 /ds-bundle/

@@ -150,11 +150,6 @@ async function startNextServer(port) {
   const isPackaged = app.isPackaged;
   const appPath = app.getAppPath();
   
-  if (isPackaged) {
-    process.chdir(appPath);
-    debugLog('Changed CWD to appPath:', process.cwd());
-  }
-
   debugLog('isPackaged:', isPackaged);
   debugLog('appPath:', appPath);
 
