@@ -5,13 +5,23 @@ import { createRouterChain } from '@/app/admin/router/actions'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
-export default function AddCategoryButton({ platform, category }: { platform: 'app' | 'telegram', category: string }) {
+export default function AddCategoryButton({
+  platform,
+  category,
+  mode = 'default',
+  label,
+}: {
+  platform: 'app' | 'telegram'
+  category: string
+  mode?: 'default' | 'pro'
+  label?: string
+}) {
   const [isPending, setIsPending] = useState(false)
 
   const handleCreate = async () => {
     setIsPending(true)
     try {
-      await createRouterChain(platform, category)
+      await createRouterChain(platform, category, mode)
     } catch (e) {
       console.error(e)
     } finally {
@@ -20,7 +30,7 @@ export default function AddCategoryButton({ platform, category }: { platform: 'a
   }
 
   return (
-    <button 
+    <button
       onClick={handleCreate}
       disabled={isPending}
       className="group flex flex-col items-center justify-center gap-3 p-8 bg-white/[0.02] border border-[var(--bone-6)] rounded-big hover:bg-accent/5 transition-all w-full"
@@ -30,10 +40,10 @@ export default function AddCategoryButton({ platform, category }: { platform: 'a
       </div>
       <div className="text-center">
         <div className="text-[11px] font-ui-label font-bold text-muted-foreground uppercase tracking-widest opacity-40 group-hover:opacity-100">
-          Initialize {category}
+          {label ?? `Initialize ${category}`}
         </div>
         <p className="text-[10px] font-medium text-muted-foreground opacity-30 mt-1 max-w-[200px]">
-          Create orchestration chain for {category.toLowerCase()}
+          Create orchestration chain for {category.toLowerCase()}{mode === 'pro' ? ' (Pro)' : ''}
         </p>
       </div>
     </button>

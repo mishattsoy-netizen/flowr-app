@@ -1,7 +1,7 @@
 'use server'
 
 import { supabaseAdmin as supabase } from '@/lib/supabase'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { logAdminAction } from '@/lib/admin/logAction'
 
 export async function getRouterChains(platform: 'app' | 'telegram') {
@@ -58,6 +58,8 @@ export async function saveRouterOrder(platform: 'app' | 'telegram', order: strin
   if (error) throw error
   revalidatePath('/admin/app/router')
   revalidatePath('/admin/telegram/router')
+  // @ts-ignore
+  revalidateTag('router-config')
   return { success: true }
 }
 
@@ -77,6 +79,8 @@ export async function updateRouterChain(id: string, modelList: any[]) {
   logAdminAction('router_changed', `Updated router chain ${id}`, { id })
   revalidatePath('/admin/app/router')
   revalidatePath('/admin/telegram/router')
+  // @ts-ignore
+  revalidateTag('router-config')
   return { success: true }
 }
 
@@ -93,14 +97,17 @@ export async function updateRouterSystemPrompt(id: string, systemPrompt: string)
   logAdminAction('router_changed', `Updated system prompt for chain ${id}`, { id })
   revalidatePath('/admin/app/router')
   revalidatePath('/admin/telegram/router')
+  // @ts-ignore
+  revalidateTag('router-config')
   return { success: true }
 }
-export async function createRouterChain(platform: 'app' | 'telegram', category: string) {
+export async function createRouterChain(platform: 'app' | 'telegram', category: string, mode: 'default' | 'pro' = 'default') {
   const { error } = await supabase
     .from('router_chains')
     .insert({
       platform,
       category,
+      mode,
       model_list: [],
       system_prompt: ''
     })
@@ -108,6 +115,8 @@ export async function createRouterChain(platform: 'app' | 'telegram', category: 
   if (error) throw error
   revalidatePath('/admin/app/router')
   revalidatePath('/admin/telegram/router')
+  // @ts-ignore
+  revalidateTag('router-config')
   return { success: true }
 }
 
