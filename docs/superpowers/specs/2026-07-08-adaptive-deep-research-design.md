@@ -72,7 +72,6 @@ request and outputs:
 ```json
 {
   "queries": ["...", "..."],
-  "synthesisChain": "REGULAR" | "COMPLEX",
   "mustInclude": ["..."],
   "constraints": ["..."]
 }
@@ -81,8 +80,6 @@ request and outputs:
 - `queries`: 1-3 targeted sub-queries, one per independent facet of the request.
   A single-facet request just returns `[originalQuery]` — degrades to
   today's single-search behavior.
-- `synthesisChain`: which chain (REGULAR or COMPLEX) should write the final answer,
-  chosen by the planner since it already has to read the request closely.
 - `mustInclude`: named entities/items the answer must contain (presence-checkable).
 - `constraints`: format/filter rules the answer must follow (price range, table
   format, etc.) — not presence-checkable, but stated explicitly for synthesis.
@@ -92,9 +89,15 @@ request and outputs:
 tuning in section 4). No sequential rounds, no gap re-check — synthesis waits for
 all N results.
 
-**Synthesis step**: routed to the `synthesisChain` the planner picked, receiving
-all findings plus an explicit checklist built from `mustInclude` and `constraints`
-so it can self-verify before answering.
+**Synthesis step**: unchanged from today — `chainRouter.ts` runs RESEARCH's
+existing configured answer model (the first working text model in RESEARCH's
+admin-configured chain) against the merged `[SEARCH DATA]` block, exactly as it
+does now (`chainRouter.ts:715-725` builds `[SEARCH DATA]` from
+`runDeepResearchChain`'s `findings`, then `modelLoop` at `chainRouter.ts:814`
+runs the first non-search model in the same chain). The only change is that
+`findings` now contains N targeted result sets plus an explicit checklist
+(built from `mustInclude`/`constraints`) instead of one blended search's output —
+no new LLM call, no `chainRouter.ts` control-flow changes.
 
 This removes `detectGaps`, the round-2 loop, and the `research_pipeline` generic
 fallback prompt (replaced by the checklist-driven prompt). Net LLM call count is
@@ -104,8 +107,8 @@ only the search step becomes parallel-and-upfront instead of sequential-and-reac
 ### 3. Prompt changes
 
 - `classifier.txt`: rewrite RESEARCH definition + rule 5 as above.
-- New `chains/research_planner.txt`: instructs the planner LLM to extract queries/
-  mustInclude/constraints/synthesisChain as JSON, mirroring the existing
+- New `chains/research_planner.txt`: instructs the planner LLM to extract
+  queries/mustInclude/constraints as JSON, mirroring the existing
   `deep_research_gap_detector.txt` style (JSON-only output, few-shot examples).
 - Synthesis prompt: extend to inject the constraint checklist when present.
 
