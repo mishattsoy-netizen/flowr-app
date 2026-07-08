@@ -75,6 +75,58 @@ function extractUrls(searchText: string): string[] {
   return urls
 }
 
+export interface ResearchPlan {
+  queries: string[]
+  mustInclude: string[]
+  constraints: string[]
+}
+
+export function buildPlannerPrompt(originalQuestion: string, plannerSystemPrompt: string): string {
+  return `${plannerSystemPrompt}\n\nUSER REQUEST: ${originalQuestion}`
+}
+
+export function parsePlannerOutput(raw: string | null, fallbackQuery: string): ResearchPlan {
+  const fallback: ResearchPlan = { queries: [fallbackQuery], mustInclude: [], constraints: [] }
+  if (!raw) return fallback
+
+  try {
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) return fallback
+    const parsed = JSON.parse(match[0])
+
+    const queries = Array.isArray(parsed.queries)
+      ? parsed.queries.filter((q: any) => typeof q === 'string' && q.trim()).slice(0, 3)
+      : []
+    const mustInclude = Array.isArray(parsed.mustInclude)
+      ? parsed.mustInclude.filter((m: any) => typeof m === 'string' && m.trim())
+      : []
+    const constraints = Array.isArray(parsed.constraints)
+      ? parsed.constraints.filter((c: any) => typeof c === 'string' && c.trim())
+      : []
+
+    return {
+      queries: queries.length > 0 ? queries : [fallbackQuery],
+      mustInclude,
+      constraints,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+export function buildChecklist(plan: ResearchPlan): string {
+  if (plan.mustInclude.length === 0 && plan.constraints.length === 0) return ''
+
+  const lines: string[] = []
+  if (plan.mustInclude.length > 0) {
+    lines.push(`Must include: ${plan.mustInclude.join(', ')}`)
+  }
+  if (plan.constraints.length > 0) {
+    lines.push(`Must satisfy: ${plan.constraints.join('; ')}`)
+  }
+  return `[ANSWER REQUIREMENTS — verify all before responding]\n${lines.join('\n')}`
+}
+
 async function detectGaps(allFindings: string, originalQuestion: string, gapSystemPrompt: string, gapModel: any, context?: any): Promise<string[]> {
   const gapPrompt = `${gapSystemPrompt}\n\nORIGINAL QUESTION: ${originalQuestion}\n\nFINDINGS SO FAR:\n${allFindings}`
 
