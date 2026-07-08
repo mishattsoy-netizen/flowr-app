@@ -151,6 +151,7 @@ export interface ChainResponse {
   step_traces?: import('./tracing').StepTrace[]
   transcript_md?: string
   captured_tool_calls?: any[]
+  total_cost_usd: number
 }
 
 export async function runChain(
@@ -187,6 +188,7 @@ export async function runChain(
   }
 ): Promise<ChainResponse> {
   const tracer = new TraceCollector()
+  let totalCostUsd = 0
 
   // Inject current date context to help bot understand knowledge cutoff and current time
   const now = context?.clientTime ? new Date(context.clientTime) : new Date()
@@ -252,6 +254,7 @@ export async function runChain(
         status: 'success',
         advisor_questions: advisorResult.questions || '',
         advisor_state: advisorStateJson,
+        total_cost_usd: totalCostUsd,
       }
     }
 
@@ -380,6 +383,7 @@ export async function runChain(
             cache_read_cost: modelConfig.cache_read_cost,
             cache_write_cost: modelConfig.cache_write_cost,
           })
+          totalCostUsd += visionCost
           tracer.recordSuccess({
             ...visionTraceMeta,
             output: outputContent,
@@ -460,6 +464,7 @@ export async function runChain(
                 model_chain: `vision → ${modelConfig.id}`,
                 status: 'success',
                 image_description: fastSimpleTwin ?? String(sanitizedInstructions).slice(0, 600),
+                total_cost_usd: totalCostUsd,
                 trace: visionTrace,
                 step_traces: tracer.all.length > 0 ? tracer.all : undefined,
                 transcript_md: buildTranscript({
@@ -512,6 +517,7 @@ export async function runChain(
             model_chain: `vision → ${modelConfig.id}`,
             status: 'success',
             image_description: visionContextTwin ?? undefined,
+            total_cost_usd: totalCostUsd,
             trace: visionTrace,
             step_traces: tracer.all.length > 0 ? tracer.all : undefined,
             transcript_md: buildTranscript({
@@ -560,6 +566,7 @@ export async function runChain(
         usage_type: 'vision',
         model_chain: 'vision → (none)',
         status: 'error',
+        total_cost_usd: totalCostUsd,
         trace: visionTrace,
         transcript_md: buildTranscript({
           prompt: activePrompt,
@@ -615,6 +622,7 @@ export async function runChain(
         status: 'error',
         step_traces: tracer.all.length > 0 ? tracer.all : undefined,
         classification_trace: classificationTrace,
+        total_cost_usd: totalCostUsd,
       } as any
     }
     onStatus({ chain: 'CLASSIFIER', status: 'done', goal: 'Classifying intent' })
@@ -1138,6 +1146,7 @@ IMAGE GENERATION:
               cache_read_cost: modelConfig.cache_read_cost,
               cache_write_cost: modelConfig.cache_write_cost,
             })
+            totalCostUsd += actualCost
             tracer.recordSuccess({
               ...traceMeta,
               output: typeof finalContent === 'string' ? finalContent : '[binary]',
@@ -1339,6 +1348,7 @@ IMAGE GENERATION:
               step_traces: tracer.all.length > 0 ? tracer.all : undefined,
               captured_tool_calls: capturedToolCalls,
               transcript_md,
+              total_cost_usd: totalCostUsd,
             }
           } else {
             const lastTried = triedKeysCount[exhaustionKey] ?? 0
@@ -1404,6 +1414,7 @@ IMAGE GENERATION:
     classification_trace: classificationTrace,
     routing_trace: routingTrace,
     step_traces: tracer.all.length > 0 ? tracer.all : undefined,
+    total_cost_usd: totalCostUsd,
   }
 }
 
