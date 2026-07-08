@@ -12,31 +12,36 @@ const FILE_BASE_URL = `https://api.telegram.org/file/bot${TOKEN}`
  */
 export const telegram = {
   /**
-   * Sends a text message to a user.
+   * Sends a text message to a user, optionally with inline keyboard buttons.
+   * Returns the sent message_id on success.
    */
-  async sendMessage(chatId: number, text: string) {
-    if (!TOKEN) return
+  async sendMessage(chatId: number, text: string, replyMarkup?: { inline_keyboard: { text: string; callback_data: string }[][] }): Promise<number | null> {
+    if (!TOKEN) return null
     try {
+      const body: Record<string, any> = {
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'Markdown',
+      }
+      if (replyMarkup) body.reply_markup = replyMarkup
       const response = await fetch(`${BASE_URL}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: text,
-          parse_mode: 'Markdown'
-        })
+        body: JSON.stringify(body),
       })
-      return await response.json()
+      const data = await response.json()
+      return data?.ok ? (data.result.message_id as number) : null
     } catch (error) {
       logger.error('Error in telegram.sendMessage:', error)
+      return null
     }
   },
 
   /**
-   * Sends a photo to a user.
+   * Sends a photo to a user. Returns the sent message_id on success.
    */
-  async sendPhoto(chatId: number, photo: string | Blob | Buffer, caption?: string) {
-    if (!TOKEN) return
+  async sendPhoto(chatId: number, photo: string | Blob | Buffer, caption?: string): Promise<number | null> {
+    if (!TOKEN) return null
     try {
       const formData = new FormData()
       formData.append('chat_id', chatId.toString())
@@ -54,9 +59,30 @@ export const telegram = {
         method: 'POST',
         body: formData
       })
-      return await response.json()
+      const data = await response.json()
+      return data?.ok ? (data.result.message_id as number) : null
     } catch (error) {
       logger.error('Error in telegram.sendPhoto:', error)
+      return null
+    }
+  },
+
+  /**
+   * Deletes a message by chat_id and message_id.
+   */
+  async deleteMessage(chatId: number, messageId: number): Promise<boolean> {
+    if (!TOKEN) return false
+    try {
+      const response = await fetch(`${BASE_URL}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_id: messageId })
+      })
+      const data = await response.json()
+      return data?.ok === true
+    } catch (error) {
+      logger.error('Error in telegram.deleteMessage:', error)
+      return false
     }
   },
 
@@ -105,5 +131,27 @@ export const telegram = {
     } catch (error) {
       logger.error('Error in telegram.sendAction:', error)
     }
-  }
+  },
+
+  /**
+   * Answers a callback query (dismisses the loading spinner on an inline button).
+   */
+  async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<boolean> {
+    if (!TOKEN) return false
+    try {
+      const response = await fetch(`${BASE_URL}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callback_query_id: callbackQueryId,
+          text: text || '',
+        }),
+      })
+      const data = await response.json()
+      return data?.ok === true
+    } catch (error) {
+      logger.error('Error in telegram.answerCallbackQuery:', error)
+      return false
+    }
+  },
 }

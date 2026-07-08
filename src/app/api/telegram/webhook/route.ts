@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { telegram } from '@/lib/bot/telegram'
 import { supabaseAdmin } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
-import { checkUserAndLimits } from '@/lib/bot/usageGuard'
+import { checkUserAndLimits, incrementUsage } from '@/lib/bot/usageGuard'
 import { logInteraction, logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import { parseCommand } from '@/lib/bot/telegram-commands'
 
@@ -10,9 +10,133 @@ const AUTH_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://www.flowr.website'
   : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
+/**
+ * Sync Telegram messages to the web app's conversations/messages tables.
+ */
+async function syncTelegramMessages(
+  authUserId: string,
+  chatId: string,
+  userMessage: string,
+  aiResponse: string,
+  modelChain?: string,
+): Promise<void> {
+  try {
+    const { data: existing } = await supabaseAdmin!
+      .from('conversations')
+      .select('id')
+      .eq('id', chatId)
+      .maybeSingle()
+
+    if (!existing) {
+      const title = userMessage.length > 60
+        ? userMessage.slice(0, 57) + '…'
+        : userMessage || 'Telegram Chat'
+      await supabaseAdmin!.from('conversations').insert({
+        id: chatId, user_id: authUserId, title, updated_at: new Date().toISOString(),
+      })
+    } else {
+      await supabaseAdmin!.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', chatId)
+    }
+    await supabaseAdmin!.from('messages').insert({ conversation_id: chatId, role: 'user', content: userMessage })
+    await supabaseAdmin!.from('messages').insert({
+      conversation_id: chatId, role: 'assistant',
+      content: typeof aiResponse === 'string' ? aiResponse : '[Image generated]',
+      model: modelChain || undefined,
+    })
+    logger.info(`[Telegram sync] Synced conversation ${chatId} for user ${authUserId}`)
+  } catch (err) {
+    logger.warn(`[Telegram sync] Failed to sync conversation: ${err}`)
+  }
+}
+
+/**
+ * Delete all tracked bot messages for a given session from Telegram.
+ */
+async function clearSessionMessages(chatId: number, sessionChatId: string): Promise<number> {
+  try {
+    const { data: logs } = await supabaseAdmin!
+      .from('message_logs')
+      .select('context_messages')
+      .eq('topic_tag', `chat:${sessionChatId}`)
+      .not('context_messages', 'is', null)
+
+    let deleted = 0
+    for (const row of logs || []) {
+      const cm = row.context_messages as Record<string, any> | null
+      const msgId = cm?.telegram_message_id
+      if (typeof msgId === 'number') {
+        if (await telegram.deleteMessage(chatId, msgId)) deleted++
+      }
+    }
+    return deleted
+  } catch (err) {
+    logger.warn(`[Telegram clear] Error clearing messages: ${err}`)
+    return 0
+  }
+}
+
+/**
+ * Create a new session for the user.
+ */
+async function startNewSession(
+  telegramId: number,
+  authUserId: string,
+  type: 'saved' | 'temp',
+  mode: string,
+): Promise<{ activeChatId: string; systemMessage: string }> {
+  const activeChatId = crypto.randomUUID()
+  const modeLabel = mode === 'pro' ? 'Pro' : 'Default'
+  const systemMessage = type === 'saved'
+    ? `🆕 *New saved session started.*\n*Mode:* ${modeLabel}`
+    : `🆕 *New temporary session started.*`
+
+  await supabaseAdmin!.from('telegram_users').update({ active_chat_id: activeChatId }).eq('telegram_id', telegramId)
+
+  if (type === 'saved') {
+    try {
+      await supabaseAdmin!.from('conversations').insert({
+        id: activeChatId, user_id: authUserId,
+        title: systemMessage.replace(/\*+/g, '').trim(),
+        updated_at: new Date().toISOString(),
+      })
+    } catch { /* non-critical */ }
+  }
+  return { activeChatId, systemMessage }
+}
+
+/**
+ * Handle an inline keyboard callback (from /clear buttons).
+ */
+async function handleClearCallback(
+  callbackQueryId: string,
+  data: string,
+  chatId: number,
+  linkedAuthUserId: string | null,
+  activeChatId: string | null,
+  botMode: string,
+): Promise<void> {
+  // Acknowledge the button press immediately
+  await telegram.answerCallbackQuery(callbackQueryId, '')
+
+  if (!linkedAuthUserId || !activeChatId) {
+    await telegram.sendMessage(chatId, '🔒 Please /login first.')
+    return
+  }
+
+  if (data === 'clear_current') {
+    await telegram.sendMessage(chatId, '🧹 *Cleared.* Continue chatting in the same session.')
+    return
+  }
+
+  const type = data === 'clear_new' ? 'saved' : 'temp'
+  await clearSessionMessages(chatId, activeChatId)
+  const { activeChatId: newId, systemMessage } = await startNewSession(chatId, linkedAuthUserId, type, botMode)
+  // Update the outer scope's reference isn't needed since this sends a new message
+  await telegram.sendMessage(chatId, systemMessage)
+}
+
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('X-Telegram-Bot-Api-Secret-Token')
-
   if (process.env.TELEGRAM_WEBHOOK_SECRET && secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
     logger.warn('Unauthorized webhook request blocked.')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -20,8 +144,39 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const message = body.message
 
+    // ── Handle callback queries (inline button taps) ──
+    if (body.callback_query) {
+      const cq = body.callback_query
+      const chatId = cq.message.chat.id
+      const data: string = cq.data || ''
+      const callbackQueryId: string = cq.id
+
+      try {
+        let linkedAuthUserId: string | null = null
+        let activeChatId: string | null = null
+        let botMode = 'default'
+        const { data: tgUser } = await supabaseAdmin!
+          .from('telegram_users')
+          .select('auth_user_id, active_chat_id, bot_mode')
+          .eq('telegram_id', chatId)
+          .single()
+        if (tgUser?.auth_user_id) linkedAuthUserId = tgUser.auth_user_id
+        if (tgUser?.active_chat_id) activeChatId = tgUser.active_chat_id
+        if (tgUser?.bot_mode) botMode = tgUser.bot_mode
+
+        if (data.startsWith('clear_')) {
+          await handleClearCallback(callbackQueryId, data, chatId, linkedAuthUserId, activeChatId, botMode)
+        }
+      } catch (err) {
+        logger.error('Callback query error:', err)
+        await telegram.answerCallbackQuery(callbackQueryId, 'Error')
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Handle regular messages ──
+    const message = body.message
     if (!message) return NextResponse.json({ ok: true })
 
     const chatId = message.chat.id
@@ -32,19 +187,20 @@ export async function POST(req: NextRequest) {
     try {
       const user = await checkUserAndLimits(chatId)
 
-      // Fetch linked auth info
+      // Fetch linked auth info + bot mode
       let linkedAuthUserId: string | null = null
       let activeChatId: string | null = null
+      let botMode: string = 'default'
       try {
         const { data: tgUser } = await supabaseAdmin!
           .from('telegram_users')
-          .select('auth_user_id, active_chat_id')
+          .select('auth_user_id, active_chat_id, bot_mode')
           .eq('telegram_id', chatId)
           .single()
         if (tgUser?.auth_user_id) linkedAuthUserId = tgUser.auth_user_id
         if (tgUser?.active_chat_id) activeChatId = tgUser.active_chat_id
+        if (tgUser?.bot_mode) botMode = tgUser.bot_mode
       } catch (e) {
-        // telegram_users row might not exist yet (just created by checkUserAndLimits)
         logger.info(`No telegram_users row yet for ${chatId}`)
       }
 
@@ -60,57 +216,129 @@ export async function POST(req: NextRequest) {
 
       if (cmd.type === 'login') {
         if (linkedAuthUserId) {
-          await telegram.sendMessage(chatId, '✅ You\'re already linked! Send /status to see your account.')
+          await telegram.sendMessage(chatId, '✅ *Already linked!* Send /account for details.')
         } else {
           const link = `${AUTH_BASE_URL}/auth/telegram-link?tg=${chatId}`
           await telegram.sendMessage(chatId,
-            `🔗 *Link Your Account*\n\nTap the link below to sign in with Google:\n\n${link}\n\nAfter linking, send /status to confirm.`)
+            `🔗 *Link Your Account*\n\nTap the link below to sign in with Google:\n\n${link}\n\nAfter linking, send /account to confirm.`)
         }
         return NextResponse.json({ ok: true })
       }
 
       if (cmd.type === 'logout') {
         if (!linkedAuthUserId) {
-          await telegram.sendMessage(chatId, 'Not linked to any account.')
+          await telegram.sendMessage(chatId, '❌ Not linked to any account.')
         } else {
-          await supabaseAdmin!
-            .from('telegram_users')
-            .update({ auth_user_id: null, active_chat_id: null })
-            .eq('telegram_id', chatId)
+          await supabaseAdmin!.from('telegram_users').update({ auth_user_id: null, active_chat_id: null }).eq('telegram_id', chatId)
           await telegram.sendMessage(chatId, '✅ Account unlinked successfully.')
         }
         return NextResponse.json({ ok: true })
       }
 
-      if (cmd.type === 'status') {
+      if (cmd.type === 'account') {
         if (linkedAuthUserId) {
           const { data: userData } = await supabaseAdmin!.auth.admin.getUserById(linkedAuthUserId)
           const email = userData?.user?.email || linkedAuthUserId.slice(0, 12)
           await telegram.sendMessage(chatId,
-            `📋 *Account Status*\n\n` +
-            `*Linked:* ✅\n` +
-            `*Email:* \`${email}\`\n` +
-            `*Messages:* ${user.messages_used_today}/${user.daily_msg_limit}\n` +
-            `*Images:* ${user.images_used_today}/${user.daily_image_limit}\n` +
-            `*Plan:* ${user.preset_name}`)
+            `📋 *Account Info*\n\n*Linked:* ✅\n*Email:* \`${email}\`\n*Plan:* ${user.preset_name}`)
         } else {
-          await telegram.sendMessage(chatId,
-            `📋 *Account Status*\n\n` +
-            `*Linked:* ❌\n` +
-            `Use /login to link your account.\n\n` +
-            `*Messages:* ${user.messages_used_today}/${user.daily_msg_limit}\n` +
-            `*Images:* ${user.images_used_today}/${user.daily_image_limit}`)
+          await telegram.sendMessage(chatId, `📋 *Account Info*\n\n*Linked:* ❌\nUse /login to link your account.`)
         }
         return NextResponse.json({ ok: true })
       }
 
+      if (cmd.type === 'status') {
+        const isTemp = !!activeChatId?.startsWith('temp-')
+        let health = '✅ All good'
+        try {
+          if (linkedAuthUserId && activeChatId) {
+            const { count: convCount } = await supabaseAdmin!.from('conversations').select('id', { count: 'exact', head: true }).eq('id', activeChatId)
+            const { count: logCount } = await supabaseAdmin!.from('message_logs').select('id', { count: 'exact', head: true }).eq('topic_tag', `chat:${activeChatId}`)
+            if (convCount === 0 && logCount > 0) health = '⚠️ Web sync lagging'
+          }
+        } catch { health = '⚠️ Sync check failed' }
+
+        const modeLabel = botMode === 'pro' ? 'Pro' : 'Default'
+        await telegram.sendMessage(chatId,
+          `📊 *Session Status*\n\n*Mode:* ${modeLabel}\n*Type:* ${isTemp ? 'Temporary' : 'Saved'}\n*Session ID:* \`${(activeChatId || '—').slice(0, 8)}…\`\n*Health:* ${health}`)
+        return NextResponse.json({ ok: true })
+      }
+
       if (cmd.type === 'newchat') {
-        const newChatId = crypto.randomUUID()
-        await supabaseAdmin!
-          .from('telegram_users')
-          .update({ active_chat_id: newChatId })
-          .eq('telegram_id', chatId)
-        await telegram.sendMessage(chatId, '🆕 *New chat created.* Previous messages won\'t be used for context.')
+        const { activeChatId: newId, systemMessage } = await startNewSession(chatId, linkedAuthUserId || '', 'saved', botMode)
+        activeChatId = newId
+        await telegram.sendMessage(chatId, systemMessage)
+        return NextResponse.json({ ok: true })
+      }
+
+      if (cmd.type === 'id') {
+        await telegram.sendMessage(chatId,
+          `🆔 *IDs*\n\n*Chat:* \`${chatId}\`\n*Session:* \`${activeChatId || '—'}\``)
+        return NextResponse.json({ ok: true })
+      }
+
+      if (cmd.type === 'clear') {
+        if (!linkedAuthUserId || !activeChatId) {
+          await telegram.sendMessage(chatId, '🔒 Please /login first.')
+          return NextResponse.json({ ok: true })
+        }
+        const deleted = await clearSessionMessages(chatId, activeChatId)
+        const header = deleted > 0
+          ? `🧹 *Cleaned up ${deleted} message(s).* What now?`
+          : `🧹 *Session cleared.* What now?`
+
+        await telegram.sendMessage(chatId, header, {
+          inline_keyboard: [
+            [
+              { text: '💬 New Chat', callback_data: 'clear_new' },
+              { text: '⏳ Temporary', callback_data: 'clear_temp' },
+            ],
+            [
+              { text: '🧹 Stay Here', callback_data: 'clear_current' },
+            ],
+          ],
+        })
+        return NextResponse.json({ ok: true })
+      }
+
+      if (cmd.type === 'mode') {
+        if (!linkedAuthUserId) {
+          await telegram.sendMessage(chatId, '🔒 Please /login first.')
+          return NextResponse.json({ ok: true })
+        }
+        const value = cmd.value.toLowerCase()
+        if (value !== 'default' && value !== 'pro') {
+          await telegram.sendMessage(chatId,
+            `⚙️ *Mode*\n\nCurrent: *${botMode === 'pro' ? 'Pro' : 'Default'}*\n\n/mode default — Standard AI\n/mode pro — Advanced AI with thinking`)
+          return NextResponse.json({ ok: true })
+        }
+        await supabaseAdmin!.from('telegram_users').update({ bot_mode: value }).eq('telegram_id', chatId)
+        botMode = value
+        await telegram.sendMessage(chatId, `✅ Switched to *${value === 'pro' ? 'Pro' : 'Default'}* mode.`)
+        return NextResponse.json({ ok: true })
+      }
+
+      if (cmd.type === 'help') {
+        await telegram.sendMessage(chatId,
+          `🤖 *Flowr Bot Commands*
+
+*Account*
+/login — Link your Google account
+/logout — Unlink your account
+/account — View linked info & plan
+
+*Chat*
+/newchat — New saved session
+/newtempchat <msg> — One-off query (no history)
+/clear — Clear messages, then pick next action
+
+*Info*
+/status — Session stats & health
+/id — Your Telegram & session IDs
+
+*Settings*
+/mode default|pro — Switch AI mode
+/help — Show this message`)
         return NextResponse.json({ ok: true })
       }
 
@@ -120,19 +348,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      // ── Daily limit check ──
-      if (user.messages_used_today >= user.daily_msg_limit) {
-        await telegram.sendMessage(chatId, '⚡ *Daily Limit Reached*')
-        return NextResponse.json({ ok: true })
-      }
-
       // ── Generate active_chat_id if needed ──
       if (!activeChatId) {
-        activeChatId = crypto.randomUUID()
-        await supabaseAdmin!
-          .from('telegram_users')
-          .update({ active_chat_id: activeChatId })
-          .eq('telegram_id', chatId)
+        const result = await startNewSession(chatId, linkedAuthUserId, 'saved', botMode)
+        activeChatId = result.activeChatId
+        await telegram.sendMessage(chatId, result.systemMessage)
       }
 
       // ── Handle photo / send action ──
@@ -140,17 +360,12 @@ export async function POST(req: NextRequest) {
       const isTempChat = cmd.type === 'newtempchat'
       let activePrompt = userText
 
-      if (isTempChat) {
-        // Strip the /newtempchat prefix to get the actual message
-        activePrompt = userText.replace(/^\/newtempchat\s*/i, '').trim()
-      }
+      if (isTempChat) activePrompt = userText.replace(/^\/newtempchat\s*/i, '').trim()
 
       if (photo && photo.length > 0) {
         await telegram.sendAction(chatId, 'typing')
         const fileInfo = await telegram.getFile(photo[photo.length - 1].file_id)
-        if (fileInfo?.file_path) {
-          photoBuffer = (await telegram.downloadFile(fileInfo.file_path)) || undefined
-        }
+        if (fileInfo?.file_path) photoBuffer = (await telegram.downloadFile(fileInfo.file_path)) || undefined
       } else {
         const isImg = (activePrompt || '').toLowerCase().includes('draw') || (activePrompt || '').toLowerCase().includes('generate')
         await telegram.sendAction(chatId, isImg ? 'upload_photo' : 'typing')
@@ -159,7 +374,6 @@ export async function POST(req: NextRequest) {
       // ── Log incoming user message ──
       const requestId = crypto.randomUUID()
       const usageType = photo ? 'vision' : 'chat'
-
       logWebInteraction(linkedAuthUserId, activePrompt, 'user', usageType, 'success', undefined, requestId, undefined, undefined, activeChatId)
         .catch(e => logger.error('User web log failed', e))
 
@@ -169,25 +383,24 @@ export async function POST(req: NextRequest) {
         userId: linkedAuthUserId,
         activeChatId,
         isTempChat,
+        mode: botMode as 'default' | 'pro',
         _triggerType: 'telegram',
       })
 
-      // ── Send Response ──
+      // ── Send Response & track message_id ──
       if (result.type === 'photo') {
         const caption = result.text_content || `Generated by Flowr AI ✨`
-        await telegram.sendPhoto(chatId, result.content as Buffer, caption)
-        logModelWebMessage(linkedAuthUserId, '[IMAGE GENERATED]', result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId, undefined, undefined, activeChatId)
-          .catch(e => logger.error('Model web log failed', e))
-
-        const { incrementUsage } = await import('@/lib/bot/usageGuard')
+        const msgId = await telegram.sendPhoto(chatId, result.content as Buffer, caption)
+        logModelWebMessage(linkedAuthUserId, '[IMAGE GENERATED]', result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
+          msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
         incrementUsage(user.telegram_id, 'image').catch(e => logger.error('Increment image usage failed', e))
+        if (!isTempChat) syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, '📸 [Image generated]', result.model_chain)
       } else {
-        await telegram.sendMessage(chatId, result.content as string)
-        logModelWebMessage(linkedAuthUserId, result.content as string, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId, undefined, undefined, activeChatId)
-          .catch(e => logger.error('Model web log failed', e))
-
-        const { incrementUsage } = await import('@/lib/bot/usageGuard')
+        const msgId = await telegram.sendMessage(chatId, result.content as string)
+        logModelWebMessage(linkedAuthUserId, result.content as string, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
+          msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
         incrementUsage(user.telegram_id, 'message').catch(e => logger.error('Increment message usage failed', e))
+        if (!isTempChat && activeChatId) syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, result.content as string, result.model_chain)
       }
 
     } catch (err: any) {

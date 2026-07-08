@@ -50,6 +50,13 @@ export function findWorkspaceRoot(entities: Entity[], startParentId: string | nu
   return null;
 }
 
+export function getAllDescendants(entities: Entity[], parentId: string): Entity[] {
+  const children = entities.filter(e => e.parentId === parentId);
+  return children.reduce((acc, child) => {
+    return [...acc, child, ...getAllDescendants(entities, child.id)];
+  }, [] as Entity[]);
+}
+
 import { inlineMarkdownToHtml } from '@/lib/utils/markdownToBlocks';
 
 export function markdownToBlocks(markdown: string): EditorBlock[] {

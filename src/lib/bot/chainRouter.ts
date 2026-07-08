@@ -658,6 +658,30 @@ export async function runChain(
     currentSummary
   })
 
+  // ── Telegram awareness — inject formatting & brevity rules ──
+  if (context?._triggerType === 'telegram') {
+    system_prompt += `
+
+[TELEGRAM CHAT — FORMATTING & CONDUCT]
+You are responding through Telegram messenger — the user sees your messages on their phone.
+
+FORMATTING (response-only — do NOT use this formatting when writing notes/tasks/content in the app):
+- Use Telegram markdown: *bold*, \`code\`, _italic_, [links](url)
+- Use bullet points (•) for lists
+- Use emojis SPARINGLY — a ✅ for completion, ⚠️ for warnings, 🤔 for questions, 🎯 for goals, 💡 for tips. ONE per message max, never more than two. Only when it fits the mood naturally. Never force emojis.
+- No HTML, no tables, no pills, no cards — Telegram only supports plain text + simple markdown
+
+TONE & LENGTH:
+- Be shorter and more conversational than in the web app — like texting a friend
+- Use bullet points for multi-item answers (tasks, comparisons, options)
+- Responses should be brief — aim for 3–5 lines unless the user asks for detail
+
+CAPABILITIES:
+- You can still execute ALL tools (create tasks, notes, search the web, etc.) exactly as in the web app
+- The difference is only in how you present your answer — the actions you take are the same
+- You are a bridge: you act inside the app, but communicate through Telegram` + system_prompt
+  }
+
   // Removed legacy attention block handling as it's now inside dynamicContext
   let activePromptForGen = prompt
 

@@ -44,7 +44,7 @@ import type {
 
 
 import {
-  generateId, getDescendantIds, findWorkspaceRoot, validateNoteContent,
+  generateId, getDescendantIds, getAllDescendants, findWorkspaceRoot, validateNoteContent,
   robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
@@ -2157,7 +2157,15 @@ export const useStore = create<AppState>()(
           })
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated && updated.syncMode !== 'local-only') upsertEntity(updated);
+        if (updated && updated.syncMode !== 'local-only') {
+          upsertEntity(updated);
+          if (updated.type === 'folder' || updated.type === 'workspace') {
+            const descendants = getAllDescendants(get().entities, id);
+            descendants.forEach(d => {
+              if (d.syncMode !== 'local-only') upsertEntity(d);
+            });
+          }
+        }
       },
 
       reorderEntities: (orderedIds) => {
@@ -2184,7 +2192,15 @@ export const useStore = create<AppState>()(
           editingEntity: null
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated) upsertEntity(updated);
+        if (updated) {
+          upsertEntity(updated);
+          if (updated.type === 'folder' || updated.type === 'workspace') {
+            const descendants = getAllDescendants(get().entities, id);
+            descendants.forEach(d => {
+              if (d.syncMode !== 'local-only') upsertEntity(d);
+            });
+          }
+        }
         const updatedWs = get().spaces.find(w => w.id === id);
         if (updatedWs) upsertSpace(updatedWs);
       },
