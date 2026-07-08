@@ -178,7 +178,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         const toDelete = canvases.slice(1);
         let cleaned = 0;
         toDelete.forEach(c => {
-          const isEmpty = !c.content || (Array.isArray(c.content) && c.content.length === 0) || c.content === '';
+          const isEmpty = !c.content || (Array.isArray(c.content) && c.content.length === 0) || (typeof c.content === 'string' && c.content === '');
           if (isEmpty) {
             s.deleteEntity(c.id);
             cleaned++;
