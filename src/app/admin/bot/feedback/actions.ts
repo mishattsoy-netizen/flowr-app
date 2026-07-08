@@ -17,7 +17,6 @@ export interface FeedbackLog {
   status: string | null
   telegram_id: number | null
   user_email: string | null
-  platform: 'app' | 'telegram'
   is_locked?: boolean
   context_messages: {
     classify?: { key: string; success: boolean }[]
@@ -184,7 +183,6 @@ export async function getFeedbackLogs(filter: 'all' | 'like' | 'dislike' = 'all'
       status: l?.status ?? null,
       telegram_id: l?.telegram_id ?? null,
       user_email: null,
-      platform: l?.telegram_id ? 'telegram' : 'app',
       is_locked: !!f.context_messages?.is_locked,
       context_messages: {
         ...(f.context_messages ?? {}),

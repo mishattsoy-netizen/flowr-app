@@ -387,7 +387,6 @@ function ChainPills({ traces, modelChain }: { traces: StepTrace[] | null; modelC
 // ── Main Component ────────────────────────────────────────────────────────────
 
 interface Filters {
-  platform: 'all' | 'app' | 'telegram'
   usage_type: string
 }
 
@@ -395,7 +394,7 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
   const [exchanges, setExchanges] = useState<Exchange[]>(initialExchanges)
   const [total, setTotal] = useState(initialTotal)
   const [page, setPage] = useState(0)
-  const [filters, setFilters] = useState<Filters>({ platform: 'all', usage_type: 'all' })
+  const [filters, setFilters] = useState<Filters>({ usage_type: 'all' })
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [isPending, startTransition] = useTransition()
@@ -406,7 +405,6 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
   async function load(newFilters: Filters, newPage: number) {
     startTransition(async () => {
       const { exchanges: data, total: count } = await getMessageExchanges({
-        platform: newFilters.platform,
         usage_type: newFilters.usage_type,
         limit: PAGE_SIZE,
         offset: newPage * PAGE_SIZE,
@@ -449,15 +447,6 @@ export default function LogsTable({ initialExchanges, initialTotal }: { initialE
     <div className="space-y-4 animate-in fade-in duration-500">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        {(['all', 'app', 'telegram'] as const).map(p => (
-          <button key={p} onClick={() => setFilter('platform', p)}
-            className={cn("px-3 py-1 rounded-full text-xs font-medium capitalize transition-all",
-              filters.platform === p ? "bg-[var(--bone-15)] text-foreground" : "bg-[var(--bone-6)] text-bone-70 hover:text-foreground"
-            )}>
-            {p}
-          </button>
-        ))}
-        <div className="w-px h-4 bg-white/10 mx-1" />
         {(['all', 'chat', 'tool', 'search', 'vision', 'image'] as const).map(t => (
           <button key={t} onClick={() => setFilter('usage_type', t)}
             className={cn("px-3 py-1 rounded-full text-xs font-medium capitalize transition-all",

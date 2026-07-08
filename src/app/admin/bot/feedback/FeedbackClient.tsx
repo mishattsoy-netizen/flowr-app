@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { ThumbsUp, ThumbsDown, Send, Trash2, ChevronRight, ChevronDown, CheckCircle2, ArrowRight, Globe, Bot, XCircle, MessageSquare, Search, Wrench, Eye } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, Send, Trash2, ChevronRight, ChevronDown, CheckCircle2, ArrowRight, XCircle, MessageSquare, Search, Wrench, Eye } from 'lucide-react'
 import type { FeedbackLog } from './actions'
 import { deleteSelectedFeedback, toggleFeedbackLock } from './actions'
 import { cn } from '@/lib/utils'
@@ -323,10 +323,6 @@ export default function FeedbackClient({ initialLogs }: Props) {
 
                     {/* User */}
                     <div className="flex items-center gap-1.5 self-center min-w-0">
-                      {log.platform === 'app'
-                        ? <Globe className="w-3 h-3 text-blue-400 opacity-50 shrink-0" />
-                        : <Bot className="w-3 h-3 text-orange-400 opacity-50 shrink-0" />
-                      }
                       <span className="text-[9px] font-mono text-bone-70 opacity-50 truncate" title={log.user_email || log.auth_user_id || String(log.telegram_id) || '—'}>
                         {log.user_email
                           ? log.user_email

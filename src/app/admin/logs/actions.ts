@@ -21,7 +21,6 @@ export interface LogEntry {
 export interface Exchange {
   id: number
   created_at: string
-  platform: 'app' | 'telegram'
   user_prompt: string | null
   model_response: string | null
   model_chain: string | null
@@ -59,12 +58,11 @@ function userKey(row: any): string {
 }
 
 export async function getMessageExchanges(options: {
-  platform?: 'all' | 'app' | 'telegram'
   usage_type?: string
   limit?: number
   offset?: number
 } = {}): Promise<{ exchanges: Exchange[]; total: number }> {
-  const { platform = 'all', usage_type, limit = 20, offset = 0 } = options
+  const { usage_type, limit = 20, offset = 0 } = options
 
   if (!supabaseAdmin) return { exchanges: [], total: 0 }
 
@@ -78,12 +76,6 @@ export async function getMessageExchanges(options: {
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (authColExists) {
-    if (platform === 'app') modelQ = modelQ.is('telegram_id', null)
-    if (platform === 'telegram') modelQ = modelQ.not('telegram_id', 'is', null)
-  } else if (platform === 'telegram') {
-    modelQ = modelQ.not('telegram_id', 'is', null)
-  }
   if (usage_type && usage_type !== 'all') modelQ = modelQ.eq('usage_type', usage_type)
 
   const { data: modelRows, error: modelErr, count } = await modelQ
@@ -144,12 +136,9 @@ export async function getMessageExchanges(options: {
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
     }
 
-    const platform: 'app' | 'telegram' = (m.auth_user_id || m.topic_tag?.startsWith('app:')) ? 'app' : (m.telegram_id ? 'telegram' : 'app')
-
     return {
       id: m.id,
       created_at: m.created_at,
-      platform,
       user_prompt: matched?.content ?? null,
       model_response: m.content,
       model_chain: m.model_chain ?? null,
@@ -202,13 +191,12 @@ export async function deleteLogs(mode: 'all' | '1day' | '1week' | 'ids', ids?: n
 
 // Keep for backwards compat (used by existing page.tsx initial load)
 export async function getMessageLogs(options: {
-  platform?: 'all' | 'app' | 'telegram'
   role?: 'all' | 'user' | 'model'
   usage_type?: string
   limit?: number
   offset?: number
 } = {}): Promise<{ logs: LogEntry[]; total: number }> {
-  const { platform = 'all', role = 'all', usage_type, limit = 50, offset = 0 } = options
+  const { role = 'all', usage_type, limit = 50, offset = 0 } = options
 
   if (!supabaseAdmin) return { logs: [], total: 0 }
 
@@ -219,13 +207,6 @@ export async function getMessageLogs(options: {
     .select('*', { count: 'planned' })
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1)
-
-  if (authColExists) {
-    if (platform === 'app') query = query.is('telegram_id', null)
-    if (platform === 'telegram') query = query.not('telegram_id', 'is', null)
-  } else if (platform === 'telegram') {
-    query = query.not('telegram_id', 'is', null)
-  }
 
   if (role !== 'all') query = query.eq('role', role)
   if (usage_type && usage_type !== 'all') query = query.eq('usage_type', usage_type)
