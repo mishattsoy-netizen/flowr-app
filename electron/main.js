@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -421,6 +421,8 @@ app.whenReady().then(() => {
     return fsp.writeFile(filePath, content, 'utf-8');
   });
   ipcMain.handle('fs:deleteFile', async (_, filePath) => fsp.unlink(filePath));
+  ipcMain.handle('fs:showItemInFolder', async (_, filePath) => shell.showItemInFolder(filePath));
+  ipcMain.handle('fs:openPath', async (_, filePath) => shell.openPath(filePath));
   ipcMain.handle('fs:readdir', async (_, dirPath) => fsp.readdir(dirPath));
   ipcMain.handle('fs:listAllFiles', async (_, vaultPath) => {
     const results = [];

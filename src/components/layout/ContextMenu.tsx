@@ -2,7 +2,8 @@
 
 import { useStore } from '@/data/store';
 import type { SidebarSectionId } from '@/data/store';
-import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin } from 'lucide-react';
+import { isDesktop } from '@/lib/env';
+import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin, FolderOpen, File } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { IconPicker } from './IconPicker';
@@ -431,6 +432,41 @@ export function ContextMenu() {
         onClick: () => { addTab(entity!.id); closeContextMenu(); },
       }
     );
+
+    if (isDesktop() && entity && entity.syncMode !== 'cloud-only') {
+      items.push({ isDivider: true });
+      items.push(
+        {
+          icon: <FolderOpen strokeWidth={2} className="w-4 h-4" />,
+          label: 'Show in Explorer',
+          onClick: async () => {
+            const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
+            const vault = await getVaultPath();
+            if (!vault) return;
+            const filePath = await findLocalFileForEntity(vault, entity);
+            if (filePath && (window as any).flowrFS) {
+              (window as any).flowrFS.showItemInFolder(filePath);
+            }
+            closeContextMenu();
+          },
+        },
+        {
+          icon: <File strokeWidth={2} className="w-4 h-4" />,
+          label: 'Open local file',
+          onClick: async () => {
+            const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
+            const vault = await getVaultPath();
+            if (!vault) return;
+            const filePath = await findLocalFileForEntity(vault, entity);
+            if (filePath && (window as any).flowrFS) {
+              (window as any).flowrFS.openPath(filePath);
+            }
+            closeContextMenu();
+          },
+        }
+      );
+    }
+
 
     items.push({ isDivider: true });
     items.push({

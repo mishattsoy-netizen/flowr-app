@@ -3,8 +3,8 @@ export type BotCommand =
   | { type: 'logout' }
   | { type: 'account' }
   | { type: 'status' }
-  | { type: 'newchat' }
-  | { type: 'newtempchat' }
+  | { type: 'new' }
+  | { type: 'temp' }
   | { type: 'help' }
   | { type: 'clear' }
   | { type: 'id' }
@@ -12,11 +12,9 @@ export type BotCommand =
   | { type: 'mode'; value: string }
   | { type: 'message'; text: string }
 
-export type ClearAction = 'new' | 'temp' | 'current'
-
 const COMMANDS = [
   '/login', '/logout', '/account', '/status',
-  '/newchat', '/newtempchat', '/clear', '/id',
+  '/new', '/temp', '/clear', '/id',
   '/mode', '/help', '/start'
 ] as const
 
@@ -41,10 +39,10 @@ export function parseCommand(text: string): BotCommand {
       return { type: 'account' }
     case '/status':
       return { type: 'status' }
-    case '/newchat':
-      return { type: 'newchat' }
-    case '/newtempchat':
-      return { type: 'newtempchat' }
+    case '/new':
+      return { type: 'new' }
+    case '/temp':
+      return { type: 'temp' }
     case '/start':
       return { type: 'start' }
     case '/help':

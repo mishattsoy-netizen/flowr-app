@@ -17,7 +17,9 @@ contextBridge.exposeInMainWorld('flowrFS', {
     const listener = (_, data) => callback(data);
     ipcRenderer.on('fs:file-changed', listener);
     return () => ipcRenderer.removeListener('fs:file-changed', listener);
-  }
+  },
+  showItemInFolder: (path) => ipcRenderer.invoke('fs:showItemInFolder', path),
+  openPath: (path) => ipcRenderer.invoke('fs:openPath', path),
 });
 
 contextBridge.exposeInMainWorld('flowrPdf', {

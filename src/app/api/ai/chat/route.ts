@@ -145,16 +145,40 @@ export async function POST(req: NextRequest) {
           try {
             const ext = mime.split('/')[1] || 'png';
             const filename = `ai-${Date.now()}-${crypto.randomUUID()}.${ext}`;
-            const publicDir = path.join(process.cwd(), 'public', 'generated_images');
-            if (!fs.existsSync(publicDir)) {
-              fs.mkdirSync(publicDir, { recursive: true });
+
+            // Upload to Supabase Storage for persistence across sessions
+            if (supabaseAdmin) {
+              // Ensure bucket exists (first call creates it, subsequent calls are no-ops)
+              const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+              const hasBucket = buckets?.some(b => b.name === 'generated_images');
+              if (!hasBucket) {
+                await supabaseAdmin.storage.createBucket('generated_images', {
+                  public: true,
+                  fileSizeLimit: 10485760, // 10 MB
+                }).catch(() => {}); // ignore if race-condition double-create
+              }
+
+              const { error: uploadError } = await supabaseAdmin.storage
+                .from('generated_images')
+                .upload(filename, imageBuffer, {
+                  contentType: mime,
+                  cacheControl: '31536000',
+                  upsert: false,
+                });
+
+              if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+              const { data: { publicUrl } } = supabaseAdmin.storage
+                .from('generated_images')
+                .getPublicUrl(filename);
+
+              content = `![Generated Image](${publicUrl})`;
+            } else {
+              throw new Error('supabaseAdmin not available');
             }
-            const filePath = path.join(publicDir, filename);
-            fs.writeFileSync(filePath, imageBuffer);
-            content = `![Generated Image](/generated_images/${filename})`;
           } catch (e) {
-            console.error('[AI Chat] Failed to save generated image to public folder:', e);
-            // Fallback to base64 if save fails
+            console.error('[AI Chat] Failed to save generated image to storage:', e);
+            // Fallback to base64 if storage save fails
             const b64 = imageBuffer!.toString('base64');
             content = `![Generated Image](data:${mime};base64,${b64})`;
           }

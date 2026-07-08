@@ -264,7 +264,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      if (cmd.type === 'newchat') {
+      if (cmd.type === 'new') {
         const { activeChatId: newId, systemMessage } = await startNewSession(chatId, linkedAuthUserId || '', 'saved', botMode)
         activeChatId = newId
         await telegram.sendMessage(chatId, systemMessage)
@@ -328,8 +328,8 @@ export async function POST(req: NextRequest) {
 /account — View linked info & plan
 
 *Chat*
-/newchat — New saved session
-/newtempchat <msg> — One-off query (no history)
+/new — New saved session
+/temp <msg> — One-off query (no history)
 /clear — Clear messages, then pick next action
 
 *Info*
@@ -357,10 +357,10 @@ export async function POST(req: NextRequest) {
 
       // ── Handle photo / send action ──
       let photoBuffer: Buffer | undefined = undefined
-      const isTempChat = cmd.type === 'newtempchat'
+      const isTempChat = cmd.type === 'temp'
       let activePrompt = userText
 
-      if (isTempChat) activePrompt = userText.replace(/^\/newtempchat\s*/i, '').trim()
+      if (isTempChat) activePrompt = userText.replace(/^\/temp\s*/i, '').trim()
 
       if (photo && photo.length > 0) {
         await telegram.sendAction(chatId, 'typing')
