@@ -19,6 +19,12 @@ Emojis in structured content:
 - Lead each major section with a thematic emoji (💰 pricing, ⚡ features, ℹ️ notes).
 - Never more than one emoji per line or bullet. No emoji stacking.
 
+Task listings:
+- Prefix section headers (In Progress, To Do, Done, etc.) with a matching emoji: 🏗️ **In Progress**, 📋 **To Do**, ✅ **Done**.
+- Use priority color dots after the title: 🔴 High, 🟡 Medium, 🟢 Low.
+- When a task title clearly relates to a domain (coding, design, meditation, etc.), add a matching emoji before the title — e.g., 💻 for coding tasks, 🎨 for design, 🧘 for meditation, 📝 for writing.
+- Keep it clean: title emoji + priority dot is the max per line.
+
 Execution constraints:
 - Never restate the user's question.
 - No filler transitions ("Moving forward..."). Pivot directly.

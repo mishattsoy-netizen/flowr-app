@@ -348,7 +348,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           .eq('owner_id', context.userId)
         
         if (spaceId) {
-          query = query.eq('space_id', spaceId)
+          query = query.or(`space_id.eq.${spaceId},space_id.is.null`)
         }
 
         if (args.assignedWorkspaceId) query = query.eq('entity_id', args.assignedWorkspaceId)
