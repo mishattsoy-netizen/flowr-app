@@ -167,7 +167,7 @@ export const FLOWR_TOOLS = [
           type: "object",
           description: "Filters applied only to tasks.",
           properties: {
-            status: { type: "string", description: "'todo' | 'in-progress' | 'done' | 'overdue'" },
+            status: { type: "string", description: "'todo' | 'in-progress' | 'done'" },
             priority: { type: "string", enum: ["low", "medium", "high"] },
             dueDate: { type: "string", description: "Date string or 'today' / 'overdue'." },
             tag: { type: "string", description: "Custom tag to filter by." }

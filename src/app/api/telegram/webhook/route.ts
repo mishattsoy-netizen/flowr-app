@@ -30,6 +30,7 @@ async function syncTelegramMessages(
   userMessage: string,
   aiResponse: string,
   modelChain?: string,
+  toolResults?: any[],
 ): Promise<void> {
   try {
     const { data: existing } = await supabaseAdmin!
@@ -52,9 +53,13 @@ async function syncTelegramMessages(
       return
     }
     await supabaseAdmin!.from('messages').insert({ conversation_id: chatId, role: 'user', content: userMessage })
+    let assistantContent = typeof aiResponse === 'string' ? aiResponse : '[Image generated]'
+    if (toolResults && toolResults.length > 0) {
+      assistantContent = `${assistantContent}\n\n<!-- TOOL_RESULTS_JSON:${JSON.stringify(toolResults)} -->`
+    }
     await supabaseAdmin!.from('messages').insert({
       conversation_id: chatId, role: 'assistant',
-      content: typeof aiResponse === 'string' ? aiResponse : '[Image generated]',
+      content: assistantContent,
       model: modelChain || undefined,
     })
     logger.info(`[Telegram sync] Synced conversation ${chatId} for user ${authUserId}`)
@@ -432,13 +437,13 @@ Here's what I can do for you:
         logModelWebMessage(linkedAuthUserId, '[IMAGE GENERATED]', result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
           msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
         incrementUsage(user.telegram_id, 'image').catch(e => logger.error('Increment image usage failed', e))
-        if (!isTempChat) syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, '📸 [Image generated]', result.model_chain)
+        if (!isTempChat) await syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, '📸 [Image generated]', result.model_chain)
       } else {
         const msgId = await telegram.sendMessage(chatId, result.content as string)
         logModelWebMessage(linkedAuthUserId, result.content as string, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
           msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
         incrementUsage(user.telegram_id, 'message').catch(e => logger.error('Increment message usage failed', e))
-        if (!isTempChat && activeChatId) syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, result.content as string, result.model_chain)
+        if (!isTempChat && activeChatId) await syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, result.content as string, result.model_chain, result.captured_tool_calls)
       }
 
     } catch (err: any) {
