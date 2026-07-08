@@ -5,10 +5,21 @@ import { logger } from '@/lib/logger'
 import { checkUserAndLimits, incrementUsage } from '@/lib/bot/usageGuard'
 import { logInteraction, logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import { parseCommand } from '@/lib/bot/telegram-commands'
+import { createTelegramLinkToken } from '@/lib/bot/telegramLinkToken'
 
 const AUTH_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://www.flowr.website'
   : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
+/** Escapes legacy Telegram Markdown special characters in untrusted text interpolated outside a code span. */
+function escapeMarkdown(text: string): string {
+  return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1')
+}
+
+/** Escapes a backtick/backslash inside an inline `code` span so untrusted text can't break out of it. */
+function escapeInlineCode(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/`/g, '\\`')
+}
 
 /**
  * Sync Telegram messages to the web app's conversations/messages tables.
@@ -23,7 +34,7 @@ async function syncTelegramMessages(
   try {
     const { data: existing } = await supabaseAdmin!
       .from('conversations')
-      .select('id')
+      .select('id, user_id')
       .eq('id', chatId)
       .maybeSingle()
 
@@ -34,8 +45,11 @@ async function syncTelegramMessages(
       await supabaseAdmin!.from('conversations').insert({
         id: chatId, user_id: authUserId, title, updated_at: new Date().toISOString(),
       })
-    } else {
+    } else if (existing.user_id === authUserId) {
       await supabaseAdmin!.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', chatId)
+    } else {
+      logger.warn(`[Telegram sync] Refusing to sync conversation ${chatId}: owned by ${existing.user_id}, not ${authUserId}`)
+      return
     }
     await supabaseAdmin!.from('messages').insert({ conversation_id: chatId, role: 'user', content: userMessage })
     await supabaseAdmin!.from('messages').insert({
@@ -52,12 +66,13 @@ async function syncTelegramMessages(
 /**
  * Delete all tracked bot messages for a given session from Telegram.
  */
-async function clearSessionMessages(chatId: number, sessionChatId: string): Promise<number> {
+async function clearSessionMessages(chatId: number, sessionChatId: string, authUserId: string): Promise<number> {
   try {
     const { data: logs } = await supabaseAdmin!
       .from('message_logs')
       .select('context_messages')
       .eq('topic_tag', `chat:${sessionChatId}`)
+      .eq('auth_user_id', authUserId)
       .not('context_messages', 'is', null)
 
     let deleted = 0
@@ -129,7 +144,7 @@ async function handleClearCallback(
   }
 
   const type = data === 'clear_new' ? 'saved' : 'temp'
-  await clearSessionMessages(chatId, activeChatId)
+  await clearSessionMessages(chatId, activeChatId, linkedAuthUserId)
   const { activeChatId: newId, systemMessage } = await startNewSession(chatId, linkedAuthUserId, type, botMode)
   // Update the outer scope's reference isn't needed since this sends a new message
   await telegram.sendMessage(chatId, systemMessage)
@@ -207,10 +222,32 @@ export async function POST(req: NextRequest) {
       // ── Handle commands ──
 
       if (cmd.type === 'start') {
-        const welcome = linkedAuthUserId
-          ? '👋 Welcome back! Your account is linked — send a message to start chatting.'
-          : '👋 Welcome! Use /login to link your Flowr account and start using the bot.'
-        await telegram.sendMessage(chatId, welcome)
+        if (linkedAuthUserId) {
+          await telegram.sendMessage(chatId,
+            `👋 *Welcome back!* Ready to pick up where you left off.
+
+Just send me a message — I can browse the web, create notes, manage tasks, and more.
+
+📌 Send /help to see all commands.`)
+        } else {
+          await telegram.sendMessage(chatId,
+            `🌟 *Flowr AI — Your Productivity Bot*
+
+Hey there! I'm the Telegram bot for *Flowr* — a productivity platform that combines notes, tasks, whiteboards, and AI into one workspace.
+
+Here's what I can do for you:
+
+🧠 *Chat with AI* — Ask questions, brainstorm, get advice
+🌐 *Browse the web* — Real-time search and research
+📝 *Create notes & tasks* — Right inside your Flowr account
+🎨 *Generate images* — Describe what you want
+🔄 *Full sync* — Chats appear in the Flowr web app too
+
+*To get started:*
+🔐 Send /login to link your Google account
+📖 Send /help to see all commands
+💬 Or just say hello — I'll figure out the rest :)`)
+        }
         return NextResponse.json({ ok: true })
       }
 
@@ -218,9 +255,10 @@ export async function POST(req: NextRequest) {
         if (linkedAuthUserId) {
           await telegram.sendMessage(chatId, '✅ *Already linked!* Send /account for details.')
         } else {
-          const link = `${AUTH_BASE_URL}/auth/telegram-link?tg=${chatId}`
+          const token = createTelegramLinkToken(chatId)
+          const link = `${AUTH_BASE_URL}/auth/telegram-link?tg=${chatId}&token=${encodeURIComponent(token)}`
           await telegram.sendMessage(chatId,
-            `🔗 *Link Your Account*\n\nTap the link below to sign in with Google:\n\n${link}\n\nAfter linking, send /account to confirm.`)
+            `🔗 *Link Your Account*\n\nTap the link below to sign in with Google:\n\n${link}\n\nThis link expires in 10 minutes. After linking, send /account to confirm.`)
         }
         return NextResponse.json({ ok: true })
       }
@@ -240,7 +278,7 @@ export async function POST(req: NextRequest) {
           const { data: userData } = await supabaseAdmin!.auth.admin.getUserById(linkedAuthUserId)
           const email = userData?.user?.email || linkedAuthUserId.slice(0, 12)
           await telegram.sendMessage(chatId,
-            `📋 *Account Info*\n\n*Linked:* ✅\n*Email:* \`${email}\`\n*Plan:* ${user.preset_name}`)
+            `📋 *Account Info*\n\n*Linked:* ✅\n*Email:* \`${escapeInlineCode(email)}\`\n*Plan:* ${escapeMarkdown(user.preset_name)}`)
         } else {
           await telegram.sendMessage(chatId, `📋 *Account Info*\n\n*Linked:* ❌\nUse /login to link your account.`)
         }
@@ -282,7 +320,7 @@ export async function POST(req: NextRequest) {
           await telegram.sendMessage(chatId, '🔒 Please /login first.')
           return NextResponse.json({ ok: true })
         }
-        const deleted = await clearSessionMessages(chatId, activeChatId)
+        const deleted = await clearSessionMessages(chatId, activeChatId, linkedAuthUserId)
         const header = deleted > 0
           ? `🧹 *Cleaned up ${deleted} message(s).* What now?`
           : `🧹 *Session cleared.* What now?`
