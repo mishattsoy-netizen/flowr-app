@@ -35,40 +35,10 @@ export async function syncFinalPrompts(): Promise<{ synced: string[]; errors: st
   const synced: string[] = []
   const errors: string[] = []
 
-  // 1. Chain system prompts → router_chains
-  const CHAINS: { dir: string; category: string }[] = [
-    { dir: 'REGULAR', category: 'REGULAR' },
-    { dir: 'COMPLEX', category: 'COMPLEX' },
-    { dir: 'VISION', category: 'VISION' },
-    { dir: 'WEB_SEARCH', category: 'WEB_SEARCH' },
-    { dir: 'RESEARCH', category: 'RESEARCH' },
-    { dir: 'IMAGE_GEN', category: 'IMAGE_GEN' },
-    { dir: 'TOOLS', category: 'TOOLS' },
-    { dir: 'CODING', category: 'CODING' },
-    { dir: 'ADVISOR', category: 'ADVISOR' },
-    { dir: 'THINKING', category: 'THINKING' },
-    { dir: 'AUDIO', category: 'AUDIO' },
-  ]
-  for (const { dir, category } of CHAINS) {
-    try {
-      const prompt = readFile('chains', dir, 'system_prompt.txt')
-      if (!prompt) { errors.push(`${category}: system_prompt.txt empty or missing`); continue }
-      await supabase.from('router_chains').upsert({
-        category,
-        platform: 'app',
-        system_prompt: prompt,
-      }, { onConflict: 'category,platform' })
-      // Also sync for telegram platform
-      await supabase.from('router_chains').upsert({
-        category,
-        platform: 'telegram',
-        system_prompt: prompt,
-      }, { onConflict: 'category,platform' })
-      synced.push(`${category} system prompt`)
-    } catch (e: any) {
-      errors.push(`${category}: ${e.message}`)
-    }
-  }
+  // Chain system prompts are now served from static files in src/lib/bot/prompts/chains/
+  // No DB sync needed for chain prompts.
+
+
 
   // 2. Mode prompt parts → bot_settings (for compilation)
   // Note: content is stored WITHOUT [HEADER] prefix — recompilePrompt adds it automatically.
@@ -133,26 +103,6 @@ export async function syncFinalPrompts(): Promise<{ synced: string[]; errors: st
     }
   } catch (e: any) {
     errors.push(`subchains: ${e.message}`)
-  }
-
-  // 5. Compaction prompt → router_chains
-  try {
-    const content = readFile('compaction', 'system_prompt.txt')
-    if (content) {
-      await supabase.from('router_chains').upsert({
-        category: 'COMPACTION',
-        platform: 'app',
-        system_prompt: content,
-      }, { onConflict: 'category,platform' })
-      await supabase.from('router_chains').upsert({
-        category: 'COMPACTION',
-        platform: 'telegram',
-        system_prompt: content,
-      }, { onConflict: 'category,platform' })
-      synced.push('compaction system prompt')
-    }
-  } catch (e: any) {
-    errors.push(`compaction: ${e.message}`)
   }
 
   // 6. Pipeline internal prompts → settings
