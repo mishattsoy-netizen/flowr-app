@@ -10,6 +10,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { useTheme } from '@/components/ThemeProvider';
 import UpdatesSection from '@/components/settings/UpdatesSection';
 import AISettingsSection from '@/components/settings/AISettingsSection';
+import UsagePanel from '@/components/settings/UsagePanel';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { isDesktop } from '@/lib/env';
 import { FolderOpen } from 'lucide-react';
@@ -282,7 +283,13 @@ export function SettingsPage() {
                 </section>
               </div>
             )}
-            {activeTab === 'ai' && <AISettingsSection />}
+            {activeTab === 'ai' && (
+              <div className="space-y-10">
+                <UsagePanel />
+                <div className="h-px bg-[var(--bone-6)] w-full" />
+                <AISettingsSection />
+              </div>
+            )}
             {activeTab === 'updates' && <UpdatesSection />}
           </div>
         </div>
