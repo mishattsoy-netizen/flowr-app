@@ -301,6 +301,9 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const currentRightPanelWidth = currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
 
+  const leftWidth = currentSidebarCollapsed ? (isTabsHeaderVisible ? 0 : 64) : sidebarWidth;
+  const rightWidth = (isTaskPanelVisible || isAiPanelOpen) ? currentRightPanelWidth : 0;
+
   // Keep panel content visible for the full duration of the slide-out animation.
   // Without this, visibility:hidden fires instantly on close while max-width is still animating.
   const [isTaskPanelContentVisible, setIsTaskPanelContentVisible] = useState(false);
@@ -348,10 +351,15 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer" onClick={toggleSidebar} />
         )}
 
+        {/* Global Desktop Header */}
+        {isDesktop() && (
+          <HeaderBar leftWidth={leftWidth} rightWidth={rightWidth} />
+        )}
+
         {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
         <div className={cn(
           "flex-1 flex flex-row overflow-hidden relative w-full min-h-0",
-          isDesktop() && "p-2 gap-2 bg-[var(--app-dark)]"
+          isDesktop() && "px-2 pb-2 gap-2 bg-[var(--app-dark)]"
         )}>
           {/* 1. Left Sidebar Section */}
           <div
@@ -404,13 +412,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
             {/* Main Content Area */}
             <div className={cn(
               "flex-1 flex flex-col h-full overflow-hidden relative min-w-0",
-              isDesktop() && "bg-background border border-[var(--bone-10)] rounded-2xl shadow-sm"
+              isDesktop() && !splitViewActive && "bg-[var(--app-background)] border border-[var(--bone-10)] rounded-2xl shadow-sm"
             )}>
               {splitViewActive ? (
                 <SplitViewLayout />
               ) : (
                 <>
-                  <HeaderBar />
+                  {!isDesktop() && <HeaderBar />}
                   <main className="flex-1 flex flex-col overflow-hidden relative">
                     {children}
                   </main>

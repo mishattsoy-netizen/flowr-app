@@ -255,7 +255,10 @@ export async function runGoogle(
                 }
               }
             }
-            rslt = await withSignal(chat.sendMessage(toolResults), (context as any)?.signal)
+            if ((context as any)?.onEvent) {
+              (context as any).onEvent({ toolResults: capturedToolCalls })
+            }
+            rslt = await withSignal(withTimeout(chat.sendMessage(toolResults), activeTimeout), (context as any)?.signal)
             currentResponse = rslt.response
           }
           

@@ -27,8 +27,8 @@ const getSupabaseUrl = () => {
   }
   return rawUrl;
 };
-
-const url = getSupabaseUrl();
+export const supabaseUrl = getSupabaseUrl();
+export const supabaseAnonKey = key;
 
 const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
   ? class extends WebSocket {
@@ -42,8 +42,8 @@ const ProxyWebSocket = (typeof window !== 'undefined' && window.WebSocket
     }
   : undefined) as any;
 
-export const supabase = url && key 
-  ? createBrowserClient(url, key, {
+export const supabase = supabaseUrl && supabaseAnonKey 
+  ? createBrowserClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         transport: ProxyWebSocket,
       },
@@ -53,8 +53,8 @@ export const supabase = url && key
     })
   : (null as any);
 
-export const isSupabaseEnabled = !!(url && key);
+export const isSupabaseEnabled = !!(supabaseUrl && supabaseAnonKey);
 
-export const supabaseAdmin = url && process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY)
+export const supabaseAdmin = supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : (null as any);

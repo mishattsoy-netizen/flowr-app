@@ -24,9 +24,6 @@ describe('addEntity syncMode inheritance from workspace root', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({
-      workspaces: [
-        { id: 'ws-personal', name: 'Personal', type: 'personal', ownerId: null, createdAt: 0, syncMode: 'cloud-only' },
-      ],
       entities: [
         { id: 'w1', title: 'Full Sync Workspace', type: 'workspace', parentId: null, lastModified: 0, workspaceId: 'ws-personal', syncMode: 'full-sync' },
         { id: 'w2', title: 'Local Workspace', type: 'collection', parentId: null, lastModified: 0, workspaceId: 'ws-personal', syncMode: 'local-only' },

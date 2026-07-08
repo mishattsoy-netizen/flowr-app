@@ -69,7 +69,9 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
   const swapColumns = useStore(s => s.swapColumns);
 
   const isDesktopEnv = isDesktop();
-  const BAR_H = isDesktopEnv ? 38 : 42;
+  if (isDesktopEnv) return null;
+
+  const BAR_H = 42;
   const M = 6;
   const R_ACTIVE = 12;
   const R_INACTIVE = 8;

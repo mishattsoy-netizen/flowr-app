@@ -89,23 +89,6 @@ async function scanForStaleLocalFiles() {
   const vault = await getVaultPath();
   if (!vault) return;
 
-  const flowrFS = (window as any).flowrFS;
-  if (flowrFS && flowrFS.listAllFiles) {
-    try {
-      const allFiles = await flowrFS.listAllFiles(vault);
-      const { handleLocalFileChanged } = await import('@/lib/vaultSyncBridge');
-      for (const file of allFiles) {
-        await handleLocalFileChanged({
-          eventType: 'change',
-          filename: file.relativePath,
-          absolutePath: file.path
-        });
-      }
-    } catch (e) {
-      console.warn('Failed to sweep local files for import:', e);
-    }
-  }
-
   const files = await listVaultFiles(vault);
   if (files.length === 0) return;
 
@@ -186,6 +169,26 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
       // 3. Merge cloud + local data
       mergeCloudData(data);
+
+      // --- Auto-cleanup for duplicate "Untitled Canvas" entities ---
+      const s = useStore.getState();
+      const canvases = s.entities.filter(e => e.title === 'Untitled Canvas');
+      if (canvases.length > 1) {
+        canvases.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+        const toDelete = canvases.slice(1);
+        let cleaned = 0;
+        toDelete.forEach(c => {
+          const isEmpty = !c.content || (Array.isArray(c.content) && c.content.length === 0) || c.content === '';
+          if (isEmpty) {
+            s.deleteEntity(c.id);
+            cleaned++;
+          }
+        });
+        if (cleaned > 0) {
+          console.log(`[Flowr] Auto-cleaned ${cleaned} empty 'Untitled Canvas' duplicates.`);
+        }
+      }
+      // -------------------------------------------------------------
 
       // 4. Restore cross-device recent items (prefer cloud if it has more entries)
       if (Array.isArray(data.settings?.recentEntityIds)) {

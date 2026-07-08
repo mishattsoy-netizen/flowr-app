@@ -7,6 +7,7 @@ import { EntityPageRenderer } from '@/components/EntityPageRenderer';
 import { ColumnHeader } from './ColumnHeader';
 import { ColumnPlaceholder } from './ColumnPlaceholder';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { isDesktop } from '@/lib/env';
 
 const COLLAPSE_THRESHOLD_PX = 180;
 const MIN_COLUMN_PCT = 30;
@@ -19,6 +20,8 @@ export function SplitViewLayout() {
   const setSplitViewPosition = useStore(s => s.setSplitViewPosition);
   const setColumnEntity = useStore(s => s.setColumnEntity);
   const toggleSplitView = useStore(s => s.toggleSplitView);
+
+  const isDesktopEnv = isDesktop();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const leftColRef = useRef<HTMLDivElement>(null);
@@ -149,11 +152,12 @@ export function SplitViewLayout() {
       <div
         ref={leftColRef}
         className={cn(
-          "flex flex-col h-full min-h-0 bg-[var(--app-background)] transition-colors duration-150",
+          "flex flex-col h-full min-h-0 transition-colors duration-150 overflow-hidden relative",
+          isDesktopEnv ? "bg-[var(--app-background)] border border-[var(--bone-10)] rounded-2xl shadow-sm" : "bg-[var(--app-background)]",
           dragOverLeft && "bg-[var(--bone-4)]"
         )}
         style={{
-          width: `${clampedPosition}%`,
+          width: `calc(${clampedPosition}% - ${isDesktopEnv ? '4px' : '0px'})`,
           transition: isResizing ? 'none' : undefined,
         }}
       >
@@ -174,8 +178,9 @@ export function SplitViewLayout() {
       <div
         onMouseDown={handleMouseDown}
         className={cn(
-          "w-[6px] h-full cursor-col-resize shrink-0 z-50 flex items-center justify-center transition-colors duration-200 group",
-          isResizing ? "bg-[var(--bone-15)]" : "bg-transparent hover:bg-[var(--bone-6)]"
+          "h-full cursor-col-resize shrink-0 z-50 flex items-center justify-center transition-colors duration-200 group",
+          isDesktopEnv ? "w-2 bg-transparent" : "w-[6px] bg-transparent hover:bg-[var(--bone-6)]",
+          isResizing && !isDesktopEnv && "bg-[var(--bone-15)]"
         )}
       >
         <div
@@ -183,7 +188,8 @@ export function SplitViewLayout() {
             "h-full w-[2px] rounded-full transition-all duration-200",
             isResizing
               ? "bg-[var(--bone-70)]"
-              : "bg-[var(--bone-30)] group-hover:bg-[var(--bone-50)] group-hover:w-[3px]"
+              : "bg-[var(--bone-30)] group-hover:bg-[var(--bone-50)] group-hover:w-[3px]",
+            isDesktopEnv && "opacity-0" // Hide visual line on desktop, gap handles it
           )}
         />
       </div>
@@ -192,8 +198,9 @@ export function SplitViewLayout() {
       <div
         ref={rightColRef}
         className={cn(
-          "flex flex-col h-full min-h-0 flex-1 transition-colors duration-150",
-          dragOverRight ? "bg-[var(--bone-4)]" : "bg-[var(--app-background)]"
+          "flex flex-col h-full min-h-0 flex-1 transition-colors duration-150 overflow-hidden relative",
+          isDesktopEnv ? "bg-[var(--app-background)] border border-[var(--bone-10)] rounded-2xl shadow-sm" : "bg-[var(--app-background)]",
+          dragOverRight && "bg-[var(--bone-4)]"
         )}
       >
         <ColumnHeader column="right" entityId={splitViewRightId} />

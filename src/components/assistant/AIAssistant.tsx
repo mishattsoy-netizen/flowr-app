@@ -262,7 +262,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     if (entity.type === 'canvas') {
       const canvasBlocks = state.blocks.filter(b => b.canvasId === entity.id);
       pageContent = blocksToMarkdown(canvasBlocks);
-    } else if (entity.content && entity.content.length > 0) {
+    } else if (Array.isArray(entity.content) && entity.content.length > 0) {
       pageContent = blocksToMarkdown(entity.content);
     } else if (entity.type === 'folder' || entity.type === 'workspace') {
       const children = state.entities.filter(e => e.parentId === entity.id);

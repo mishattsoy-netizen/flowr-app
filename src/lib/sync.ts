@@ -118,6 +118,9 @@ function tryParseJson(val: string, fallback: any): any {
 }
 
 function rowToEntity(row: Record<string, any>): Entity {
+  const rawContent = (typeof row.content === 'string' ? tryParseJson(row.content, []) : row.content);
+  const contentArray = Array.isArray(rawContent) ? rawContent : [];
+
   return {
     id:           row.id,
     title:        row.title,
@@ -126,7 +129,7 @@ function rowToEntity(row: Record<string, any>): Entity {
     lastModified: row.last_modified ?? 0,
     icon:         row.icon ?? undefined,
     tags:         (typeof row.tags === 'string' ? tryParseJson(row.tags, []) : row.tags) ?? [],
-    content:      (typeof row.content === 'string' ? tryParseJson(row.content, []) : row.content) ?? [],
+    content:      contentArray,
     widgetLayout: (typeof row.widget_layout === 'string' ? tryParseJson(row.widget_layout, undefined) : row.widget_layout) ?? undefined,
     spaceId:  row.space_id ?? null,
     sortOrder:    row.sort_order ?? undefined,

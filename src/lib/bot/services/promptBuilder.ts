@@ -7,24 +7,78 @@ export interface PromptBuilderContext {
   pageContext?: string | null
   vision_notes?: string
   replyContext?: any
+  clientTime?: string
   isGlobalPromptEnabled: boolean
   skipSummary: boolean
   currentSummary: string | null
 }
 
 function getChainInstructions(category: IntentCategory): string {
-  if (category === 'REGULAR') return getChainPrompt('regular')
-  if (category === 'COMPLEX' || category === 'ADVISOR') return getChainPrompt('complex')
-  return ''
+  const map: Partial<Record<IntentCategory, string>> = {
+    REGULAR: 'regular',
+    COMPLEX: 'complex',
+    ADVISOR: 'complex',
+    WEB_SEARCH: 'web_search',
+    RESEARCH: 'research',
+    CODING: 'coding',
+    THINKING: 'thinking',
+    COMPACTION: 'compaction',
+    CLASSIFIER: 'classifier',
+  }
+  const file = map[category]
+  return file ? getChainPrompt(file) : ''
 }
 
 export async function buildSystemPrompt(
   category: IntentCategory,
-  routerOverridePrompt: string | undefined,
   context: PromptBuilderContext
 ): Promise<{ staticPrompt: string, dynamicContext: string }> {
-  const now = new Date()
-  let dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
+  let now = new Date()
+  let localTimeString = now.toLocaleTimeString()
+  let localDateString = now.toDateString()
+  let tzOffset = now.getTimezoneOffset()
+
+  if (context.clientTime) {
+    const clientDate = new Date(context.clientTime)
+    if (!isNaN(clientDate.getTime())) {
+      now = clientDate
+      localTimeString = context.clientTime.match(/\d{2}:\d{2}:\d{2}/)?.[0] || now.toLocaleTimeString()
+      localDateString = now.toDateString()
+      
+      const tzMatch = context.clientTime.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+      if (tzMatch) {
+        const sign = tzMatch[1] === '+' ? -1 : 1;
+        const hours = parseInt(tzMatch[2], 10);
+        const minutes = tzMatch[3] ? parseInt(tzMatch[3], 10) : 0;
+        tzOffset = sign * ((hours * 60) + minutes);
+      }
+    }
+  }
+  // Compute a human-readable UTC offset label for the AI (e.g. "UTC+3", "UTC-5")
+  // tzOffset follows JavaScript convention: negative = east of UTC, positive = west of UTC
+  const utcOffsetHours = -tzOffset / 60;
+  const utcLabel = utcOffsetHours >= 0 ? `UTC+${utcOffsetHours}` : `UTC${utcOffsetHours}`;
+
+  let dateContext = `[CURRENT CONTEXT]
+Date: ${localDateString}
+Local Time: ${localTimeString}
+User Timezone: ${utcLabel}
+ISO Time (UTC): ${now.toISOString()}
+Timezone Offset (mins): ${tzOffset}
+
+CRITICAL — DATE/TIME CONVERSION RULES FOR TOOL CALLS:
+All dueDate and endDate values in tool calls MUST be UTC ISO strings (ending in Z).
+The user speaks in LOCAL time (${utcLabel}). You must convert:
+  Formula: UTC hour = Local hour - (${utcOffsetHours})
+  Example: User says "6 PM" → 18:00 local → 18 - (${utcOffsetHours}) = ${18 - utcOffsetHours}:00 UTC → use "${new Date().toISOString().split('T')[0]}T${String(18 - utcOffsetHours).padStart(2, '0')}:00:00.000Z"
+
+CRITICAL — START DATE vs END DATE:
+When the user provides TWO dates (e.g. "start now, end tomorrow at 6pm"):
+  - dueDate = the START date/time (converted to UTC ISO)
+  - endDate = the END date/time (converted to UTC ISO)
+  - includeTime = true (when any time is mentioned)
+You MUST set BOTH dueDate AND endDate. Never omit endDate when the user explicitly mentions an end date or a date range.
+`
 
   const userDescription = context.userId ? await getAiUserDescription(context.userId) : null
   const chainInstructions = getChainInstructions(category)
@@ -52,9 +106,7 @@ What Flowr does:
 
 Desktop mode: files local, offline-capable. Web mode: cloud sync across devices. Both include AI + tasks.\n`
 
-
-  const PIPELINE_PROMPT_CHAINS = ['WEB_SEARCH', 'RESEARCH']
-  if (chainInstructions && !PIPELINE_PROMPT_CHAINS.includes(category)) {
+  if (chainInstructions) {
     finalSysPrompt += "\n\n" + chainInstructions
   }
 
@@ -62,14 +114,14 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     finalSysPrompt += "\n\n" + getToolInstructions()
   }
 
-  // REGULAR and COMPLEX get their chain instructions from .txt files above.
-  // Skip any DB-stored override for those to avoid a stale duplicate block.
-  const FILE_CHAIN_CATEGORIES = ['REGULAR', 'COMPLEX']
-  if (routerOverridePrompt && !FILE_CHAIN_CATEGORIES.includes(category)) {
-    finalSysPrompt += "\n\n" + routerOverridePrompt
+  if (context.pageContext) {
+    const limit = 15000
+    let contextStr = context.pageContext
+    if (contextStr.length > limit) {
+      contextStr = contextStr.slice(0, limit) + '\n... [TRUNCATED DUE TO LENGTH LIMIT]'
+    }
+    finalSysPrompt += `\n\n[PAGE CONTEXT]\n${contextStr}\n`
   }
-
-  if (context.pageContext) finalSysPrompt += `\n\n[PAGE CONTEXT]\n${context.pageContext}\n`
 
   let system_prompt = finalSysPrompt
   let dynamicContext = ''
@@ -88,3 +140,4 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
 
   return { staticPrompt: system_prompt, dynamicContext }
 }
+

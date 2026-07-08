@@ -2,7 +2,7 @@
 
 import React, { memo, useState, useRef, useEffect, useMemo, createContext, useContext } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
-import { Layout, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, File, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink, Folder, Frame, Box, Hash } from 'lucide-react';
+import { Layout, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, File, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink, Folder, Frame, Box, Hash, Globe, Telescope, Image as ImageIcon } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
 import { useStore, generateId } from '@/data/store';
 import type { AIMessage, AIAttachment, EditorBlock } from '@/data/store';
@@ -716,11 +716,20 @@ const UserMessageBubble = ({
   const renderedTargetContent = useMemo(() => parseMentions([targetContent], entities, spaces), [targetContent, entities, spaces]);
 
   return (
-    <div className="flex items-end gap-2 max-w-full">
-      <div
-        className={cn("leading-[133%] px-5 py-3 w-fit max-w-full overflow-hidden text-[var(--bone-100)]", compact ? "text-[17px]" : "text-[20px]")}
-        style={{ backgroundColor: 'var(--app-dark)', borderRadius: '12px', fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}
-      >
+    <div className="flex flex-col items-end gap-1.5 max-w-full">
+      {msg.intentTag && (
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-[var(--app-dark)] border border-white/5 text-[var(--bone-60)] text-[11px] font-medium tracking-wide">
+          {msg.intentTag === '/search' && <Globe className="w-3 h-3" />}
+          {msg.intentTag === '/research' && <Telescope className="w-3 h-3" />}
+          {msg.intentTag === '/image' && <ImageIcon className="w-3 h-3" />}
+          <span>{msg.intentTag === '/search' ? 'Web Search' : msg.intentTag === '/research' ? 'Deep Research' : msg.intentTag === '/image' ? 'Image Generation' : msg.intentTag}</span>
+        </div>
+      )}
+      <div className="flex items-end gap-2 max-w-full">
+        <div
+          className={cn("leading-[133%] px-5 py-3 w-fit max-w-full overflow-hidden text-[var(--bone-100)]", compact ? "text-[17px]" : "text-[20px]")}
+          style={{ backgroundColor: 'var(--app-dark)', borderRadius: '12px', fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}
+        >
         <div className="flex flex-col gap-3">
           <div className="break-words whitespace-pre-wrap" style={{ fontFamily: 'DM Sans', fontWeight: msgFontWeight, fontSize: compact ? '15px' : '17px' }}>
             {renderedTargetContent.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)}
@@ -755,6 +764,7 @@ const UserMessageBubble = ({
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 };
@@ -1813,7 +1823,9 @@ export const ChatMessage = memo(({
                             actionText = 'Action'
                           }
 
-                          const entityTitle = tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled')
+                          const matchedEntity = !isTask ? useStore.getState().entities.find(e => e.id === tr.id) : null
+                          const matchedTask = isTask ? useStore.getState().tasks.find(t => t.id === tr.id) : null
+                          const entityTitle = matchedEntity?.title || matchedTask?.title || tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled')
 
                           return (
                             <div

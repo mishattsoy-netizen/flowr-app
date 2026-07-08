@@ -5,6 +5,22 @@ export function generateId(): string {
   return `e${Date.now()}_${_idCounter++}`;
 }
 
+export function getClientTime(manualTimezone: string | null): string {
+  if (manualTimezone) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: manualTimezone,
+        timeZoneName: 'shortOffset',
+        weekday: 'short', year: 'numeric', month: 'short', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).format(new Date());
+    } catch (e) {
+      // Fallback if invalid timezone
+    }
+  }
+  return new Date().toString();
+}
+
 export function getDescendantIds(entities: Entity[], parentId: string): string[] {
   const children = entities.filter(e => e.parentId === parentId);
   let ids: string[] = [];

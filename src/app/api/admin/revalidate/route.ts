@@ -4,12 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: Request) {
   try {
-    // Basic security check (in a real app, verify the admin session here)
     const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.ADMIN_SECRET || 'dev-secret'}`) {
-      // In dev mode, we might just let it pass, but let's be safe
-      // Actually, since this is called from the admin dashboard which is protected by RLS
-      // we could just trust it if it's coming from our own app, or use a secret token.
+    const expectedSecret = process.env.ADMIN_SECRET
+    if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
 
     // @ts-ignore - Next.js revalidateTag sometimes throws TS errors locally depending on the typescript version

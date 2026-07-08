@@ -8,16 +8,16 @@ SECURITY DEFINER -- runs with admin privileges
 AS $$
 DECLARE
   v_user_id UUID;
-  v_today TEXT;
+  v_today DATE;
   v_current_count INTEGER;
-  v_last_reset TEXT;
+  v_last_reset DATE;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RETURN FALSE;
   END IF;
   
-  v_today := TO_CHAR(NOW(), 'YYYY-MM-DD');
+  v_today := CURRENT_DATE;
   
   -- Get current count or insert
   SELECT messages_used_today, last_reset_date INTO v_current_count, v_last_reset

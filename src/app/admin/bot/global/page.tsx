@@ -21,7 +21,7 @@ export default async function GlobalSettingsPage() {
     getInternalPromptsFull(),
     getStatusMessages(),
     getPipelineSettings(),
-    getRouterChains('app'),
+    getRouterChains(),
     getRouterTemperatures(),
   ])
 

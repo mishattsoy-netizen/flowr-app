@@ -231,7 +231,7 @@ export async function classifyIntentWithModel(
 
   // Model classification
   const { chain } = await getRouterChain('CLASSIFIER', 'default')
-  let activeChain = chain
+  let activeChain = chain && chain.length > 0 ? chain : [{ id: 'openai/gpt-4o-mini', provider: 'openrouter', openrouter_provider: 'openai', is_enabled: true } as any]
 
   if (modelId) {
     const selected = chain.find(m => m.id === modelId)

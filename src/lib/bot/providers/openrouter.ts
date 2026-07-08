@@ -215,6 +215,9 @@ export async function runOpenRouter(
                 content: JSON.stringify(output)
               })
             }
+            if (normContext?.onEvent) {
+              normContext.onEvent({ toolResults: capturedToolCalls })
+            }
           } else {
             // No more tool calls — return final response
             const usage = data?.usage ? {

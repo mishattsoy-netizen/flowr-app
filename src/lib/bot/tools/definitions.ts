@@ -17,7 +17,7 @@ const blockItemSchema = {
 const subtaskItemSchema = {
   type: "object",
   properties: {
-    title: { type: "string" },
+    text: { type: "string" },
     completed: { type: "boolean" }
   }
 }
@@ -53,8 +53,8 @@ export const FLOWR_TOOLS = [
         status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
         tag: { type: "string", description: "For tasks: custom tag." },
-        dueDate: { type: "string", description: "For tasks: due date/time." },
-        endDate: { type: "string", description: "For tasks: end date/time." },
+        dueDate: { type: "string", description: "For tasks: due date/time. If a user asks for a 'start date', put it here." },
+        endDate: { type: "string", description: "For tasks: end date/time. If a user asks for a 'start date' and an 'end date', put the end date here." },
         includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
         reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
         description: { type: "string", description: "For tasks: longer description or notes." },

@@ -63,8 +63,9 @@ export default function RootLayout({
       className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <head suppressHydrationWarning>
-        <script
+        <Script
           id="flowr-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function() {
               try {

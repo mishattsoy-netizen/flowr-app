@@ -145,6 +145,9 @@ export async function runNvidia(
                 output = { error: e.message }
               }
             }
+            if ((context as any)?.onEvent) {
+              (context as any).onEvent({ toolResults: capturedToolCalls })
+            }
 
             messages.push({
               role: 'tool',

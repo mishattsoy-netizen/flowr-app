@@ -10,7 +10,9 @@ const cache = new Map<string, string>()
  * Results are cached in memory for the lifetime of the process.
  */
 function loadPrompt(relativePath: string): string {
-  if (cache.has(relativePath)) return cache.get(relativePath)!
+  if (process.env.NODE_ENV !== 'development' && cache.has(relativePath)) {
+    return cache.get(relativePath)!
+  }
   const fullPath = join(PROMPTS_DIR, relativePath)
   const content = readFileSync(fullPath, 'utf-8').trim()
   cache.set(relativePath, content)
@@ -47,12 +49,26 @@ export function getToolInstructions(): string {
   return loadPrompt('tools.txt')
 }
 
+const CHAIN_DEFAULTS: Record<string, string> = {
+  regular: "You produce the final user-facing answer. Synthesize all pipeline inputs into a clear, well-structured response.",
+  complex: "You produce the final user-facing answer for complex, multi-step problems. Decompose, reason, and deliver a thorough, well-structured response.",
+  coding: "You are a code generation agent. Write complete, runnable code with clear explanations. Never output pseudocode — always real, production-quality code.",
+  web_search: "Your job: search the web, find current information, and write a clear, sourced answer. You are an active search agent.",
+  research: "You are a research agent. Your job: conduct exhaustive multi-round research across multiple sources and produce a comprehensive, well-structured report.",
+  classifier: "Classify user intent into exactly ONE category. Respond ONLY with the category name.",
+  thinking: "You are the reasoning layer in a multi-step AI pipeline. Your job is to review all chain outputs, catch errors or gaps, consider multiple approaches, and commit to the clearest direction for the final answer.",
+  compaction: "You are a conversation compactor. Given a raw chat history, produce a concise summary that preserves all important context.",
+  vision: "You are a vision analysis agent. When the user uploads an image, analyze it carefully and provide a detailed, accurate description or answer based on what you see.",
+  advisor: "You are an Advisor agent. Your role is to conduct a structured planning conversation with the user before the request is processed by the main chain."
+}
+
 /** Chain-specific prompt (e.g. 'regular', 'complex') */
 export function getChainPrompt(chain: string): string {
+  const normalizedKey = chain.toLowerCase()
   try {
-    return loadPrompt(join('chains', `${chain.toLowerCase()}.txt`))
+    return loadPrompt(join('chains', `${normalizedKey}.txt`))
   } catch {
-    return ''
+    return CHAIN_DEFAULTS[normalizedKey] || ''
   }
 }
 

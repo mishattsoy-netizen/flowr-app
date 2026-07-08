@@ -264,6 +264,7 @@ export interface AIMessage {
   id?: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   content?: string;
+  intentTag?: string;
   isHidden?: boolean;
   thought?: string;
   timestamp?: number;
@@ -478,9 +479,12 @@ export interface AppState {
   isInitialSync: boolean;
   pendingCompaction: boolean;
   isCompacting: boolean;
+  manualTimezone: string | null;
   chatInputs: Record<string, string>;
   loadingStatesMap: Record<string, boolean>;
   abortControllersMap: Record<string, AbortController | null>;
+
+  setManualTimezone: (tz: string | null) => void;
   chatMessagesMap: Record<string, AIMessage[]>;
   sessionContextsMap: Record<string, any>;
   shortcuts: Record<string, Shortcut[]>;
@@ -615,6 +619,7 @@ export interface AppState {
   openTaskContextMenu: (taskId: string, column: string, x: number, y: number) => void;
   closeTaskContextMenu: () => void;
   updateTask: (id: string, updates: Partial<AppTask>) => Promise<{ error: any }>;
+  syncToolResults: (toolResults: any[]) => void;
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
   sortEntities: (criteria: 'title' | 'lastModified') => void;
   sortTasks: (criteria: 'title' | 'dueDate') => void;

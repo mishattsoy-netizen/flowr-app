@@ -5,15 +5,41 @@ import { logger } from '../../logger'
 
 // Clean conversational queries for better search results.
 // Strips common conversational framing like "compare", "tell me about", etc.
-function cleanSearchQuery(prompt: string): string {
+export function cleanSearchQuery(prompt: string): string {
   let query = prompt.trim()
-  // Strip leading conversational framing
-  query = query.replace(/^(imagine you are|can you|tell me about|what is|what are|how to|how do I|I want to|write about|explain)\s+/i, '')
-  // Strip trailing instructions
+  
+  // 1. Normalize common typos in commands
+  query = query.replace(/\bcrate\b/gi, 'create')
+  query = query.replace(/\batble\b/gi, 'table')
+  query = query.replace(/\bragne\b/gi, 'range')
+  query = query.replace(/\bcca\b/gi, 'approx')
+
+  // 2. Strip leading / command framing patterns
+  const commandPatterns = [
+    /^(?:imagine you are|can you|could you|please|tell me about|what is|what are|how to|how do i|i want to|write about|explain|create|make|generate|build|show|list|add|append)\s+/i,
+    /^(?:a\s+)?(?:new\s+)?(?:note|table|canvas|workspace|folder|task|list|comparison)\s+(?:of|with|about|inside|containing)\s+/i,
+    /^(?:create|make|write|add|append)\s+(?:a\s+)?(?:new\s+)?(?:note|table|canvas|workspace|folder|task|list|comparison)\s+/i,
+    /\b(?:inside|in|within)\s+(?:the\s+)?(?:note|table|canvas|workspace|folder|task)\b/gi,
+    /\b(?:make sure to add|make sure to|please add|add|include|insert)\b/gi,
+    /\b(?:with comparison of|comparison of|compare vs|compare with|compare)\b/gi,
+    /\b(?:there|here)\b$/i
+  ]
+
+  for (const pattern of commandPatterns) {
+    query = query.replace(pattern, ' ')
+  }
+
+  // 3. Strip trailing instructions
   query = query.replace(/\s+(in russian|in czech|in english|in spanish|answer|summarize)$/i, '')
-  // Remove quoted phrases that are meta-instructions
+
+  // 4. Remove quoted phrases that are meta-instructions
   query = query.replace(/"[^"]{30,}"/g, '')
-  return query.trim() || prompt.trim()
+
+  // 5. Clean up spaces and punctuation
+  query = query.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, ' ')
+  query = query.replace(/\s+/g, ' ').trim()
+
+  return query || prompt.trim()
 }
 
 export async function searchTavily(query: string, context?: any): Promise<string | null> {
@@ -32,7 +58,7 @@ export async function searchTavily(query: string, context?: any): Promise<string
 
   try {
     const client = tavily({ apiKey })
-    const results = await client.search(cleanQuery, { searchDepth: 'advanced', maxResults: 5 })
+    const results = await client.search(cleanQuery, { searchDepth: 'advanced', maxResults: 5, days: 60 })
     if (!results.results?.length) {
       logger.info(`Tavily returned 0 results for: "${cleanQuery}"`)
       // Try fallback: strip version numbers and retry with broader query
@@ -40,7 +66,7 @@ export async function searchTavily(query: string, context?: any): Promise<string
         const broader = cleanQuery.replace(/[\d.]+/g, '').replace(/\s+/g, ' ').trim()
         if (broader && broader !== cleanQuery) {
           logger.info(`Tavily fallback: trying broader query "${broader}"`)
-          const fallback = await client.search(broader, { searchDepth: 'basic', maxResults: 5 })
+          const fallback = await client.search(broader, { searchDepth: 'basic', maxResults: 5, days: 180 })
           if (fallback.results?.length) {
             return fallback.results.map(r =>
               `SOURCE: ${r.title}\nURL: ${r.url}\nCONTENT: ${r.content}\n\n[📄 ${r.title}](${r.url})`

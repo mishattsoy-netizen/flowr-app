@@ -365,11 +365,11 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   }, [entities]);
 
   const [blocks, setBlocks] = useState<EditorBlock[]>(() => {
-    if (entity.content && entity.content.length > 0) return entity.content;
+    if (Array.isArray(entity.content) && entity.content.length > 0) return entity.content;
     return [createBlock('text', { style: 'body' })];
   });
 
-  const lastSyncedVersion = useRef<string>(JSON.stringify(entity.content || []));
+  const lastSyncedVersion = useRef<string>(JSON.stringify(Array.isArray(entity.content) ? entity.content : []));
   const lastEntityId = useRef<string>(entity.id);
   const isFirstMount = useRef<boolean>(true);
   const isUserModified = useRef<boolean>(false);
@@ -403,25 +403,25 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
          updateEntityContent(lastEntityId.current, blocksRef.current);
        }
 
-       const newContent = entity.content && entity.content.length > 0
+       const newContent = Array.isArray(entity.content) && entity.content.length > 0
         ? entity.content
         : [createBlock('text', { style: 'body' })];
        setBlocks(newContent);
-       lastSyncedVersion.current = JSON.stringify(entity.content || []);
+       lastSyncedVersion.current = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
        lastEntityId.current = entity.id;
        isFirstMount.current = true;
        isUserModified.current = false;
        return;
-    }
+     }
 
     const isAiWritingThis = aiCursor?.id === entity.id;
-    const storeJson = JSON.stringify(entity.content || []);
+    const storeJson = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
     
     // CASE A: External update (AI or another tab/component)
     if (storeJson !== lastSyncedVersion.current) {
       const localJson = JSON.stringify(blocks);
       if (storeJson !== localJson) {
-        setBlocks(entity.content || []);
+        setBlocks(Array.isArray(entity.content) ? entity.content : []);
       }
       lastSyncedVersion.current = storeJson;
       isFirstMount.current = false;

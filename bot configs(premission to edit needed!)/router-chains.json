@@ -160,7 +160,7 @@
         "id": "deepseek/deepseek-v4-flash",
         "_key": "5kest5kfo",
         "provider": "openrouter",
-        "is_enabled": true,
+        "is_enabled": false,
         "openrouter_provider": "deepseek",
         "is_paid": true,
         "prompt_cost": 1.4e-7,
@@ -171,6 +171,16 @@
         "_key": "3nu3sf1ei",
         "provider": "core",
         "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai/gpt-4o-mini",
+        "_key": "fqncihkds_web",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "openai",
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null
@@ -386,6 +396,16 @@
         "_key": "ebw8unbhi",
         "provider": "core",
         "is_enabled": true,
+        "is_paid": false,
+        "prompt_cost": null,
+        "completion_cost": null
+      },
+      {
+        "id": "openai/gpt-4o-mini",
+        "_key": "fqncihkds_res",
+        "provider": "openrouter",
+        "is_enabled": true,
+        "openrouter_provider": "openai",
         "is_paid": false,
         "prompt_cost": null,
         "completion_cost": null

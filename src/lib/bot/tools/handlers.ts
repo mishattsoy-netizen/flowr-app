@@ -16,12 +16,21 @@ async function resolveSpaceId(context: any): Promise<string | null> {
   }
   return spaceId
 }
-
 // Helper: check if user is anonymous or has invalid UUID
 function isUserAnonymous(context: any): boolean {
   if (!context?.userId || context.userId === 'anonymous') return true
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(context.userId)
   return !isUuid
+}
+
+// Helper: process subtasks to ensure they have an id and correct schema
+function processSubtasks(subtasks: any[] | undefined): any[] | null {
+  if (!subtasks || !Array.isArray(subtasks)) return null;
+  return subtasks.map(st => ({
+    id: st.id || 'st-' + Math.random().toString(36).substring(2, 10),
+    text: st.text || st.title || '',
+    completed: !!st.completed
+  }));
 }
 
 // Helper: parse content to blocks JSON string
@@ -84,7 +93,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           end_date: args.endDate || null,
           include_time: args.includeTime ?? null,
           reminder: args.reminder || null,
-          subtasks: subtasks || null,
+          subtasks: processSubtasks(subtasks),
           space_id: spaceId || null,
           entity_id: assignedWorkspaceId || null,
           owner_id: context.userId,
@@ -92,7 +101,22 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           created_at: new Date().toISOString()
         })
         if (error) throw error
-        return { success: true, id, type: 'task', title }
+        return { 
+          success: true, 
+          id, 
+          type: 'task', 
+          title,
+          status: status || 'todo',
+          priority: priority || null,
+          tag: tag || null,
+          dueDate: dueDate || null,
+          endDate: args.endDate || null,
+          includeTime: args.includeTime ?? false,
+          reminder: args.reminder || null,
+          description: description || null,
+          assignedWorkspaceId: assignedWorkspaceId || null,
+          spaceId: spaceId || null
+        }
       }
 
       // --- WORKSPACE ---
@@ -110,41 +134,24 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         return { success: true, id, type: 'workspace', title }
       }
 
-      // --- FOLDER ---
-      if (type === 'folder') {
-        if (!parentId) return { error: 'Folders must have a parentId (workspace or folder). Folders cannot be unsorted.' }
-        const id = 'folder-' + Date.now().toString()
+      // --- NOTE / FOLDER ---
+      if (type === 'note' || type === 'folder') {
+        const id = (type === 'note' ? 'doc-' : 'folder-') + Date.now().toString()
         const { error } = await supabaseAdmin.from('entities').insert({
           id,
           title,
-          type: 'folder',
-          space_id: spaceId || null,
-          owner_id: context.userId,
-          parent_id: parentId
-        })
-        if (error) throw error
-        return { success: true, id, type: 'folder', title, parentId }
-      }
-
-      // --- NOTE ---
-      if (type === 'note') {
-        const id = 'doc-' + Date.now().toString()
-        const { error } = await supabaseAdmin.from('entities').insert({
-          id,
-          title,
-          type: 'note',
-          content: contentToBlocks(content, blocks),
+          type,
+          content: type === 'note' ? parseMarkdownToBlocks(content || '') : [],
           space_id: spaceId || null,
           owner_id: context.userId,
           parent_id: parentId || null
         })
         if (error) throw error
-        return { success: true, id, type: 'note', title }
+        return { success: true, id, type, title, content }
       }
-
       return { error: `Unknown type '${type}'. Must be: note | folder | workspace | task` }
     } catch (e: any) {
-      logger.error('create_content failed:', e.message)
+      logger.error(`create_content tool failed: ${e.message}`)
       return { error: e.message }
     }
   },
@@ -182,11 +189,14 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (endDate !== undefined) updates.end_date = endDate || null;
         if (includeTime !== undefined) updates.include_time = includeTime;
         if (reminder !== undefined) updates.reminder = reminder || null;
-        if (subtasks !== undefined) updates.subtasks = subtasks;
+        if (subtasks !== undefined) updates.subtasks = processSubtasks(subtasks);
 
-        const { error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId)
+        const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId).select('id')
         if (error) throw error
-        return { success: true, id, ...updates }
+        if (!data || data.length === 0) {
+          throw new Error(`Task with ID '${id}' not found or you do not have permission to edit it.`)
+        }
+        return { success: true, id, ...args }
       } else {
         // --- UPDATE NOTE / CANVAS ---
         const updates: any = {}
@@ -194,8 +204,11 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (content !== undefined) updates.content = parseMarkdownToBlocks(content)
         else if (blocks !== undefined) updates.content = blocks
 
-        const { error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId)
+        const { data, error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId).select('id')
         if (error) throw error
+        if (!data || data.length === 0) {
+          throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
+        }
         return { success: true, id, ...updates }
       }
     } catch (e: any) {
@@ -401,7 +414,6 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (item.type === 'task') delete item.last_modified
         return item
       })
-
       return { success: true, count: processedResults.length, items: processedResults }
     } catch (e: any) {
       logger.error('list_content failed:', e.message)

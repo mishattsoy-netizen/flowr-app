@@ -85,6 +85,7 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
     let toolResults: any[] | undefined = m.tool_results;
     let pipelineSteps: any[] | undefined = m.pipeline_steps;
     let citations: string[] | undefined = m.citations;
+    let intentTag: string | undefined = undefined;
     
     if (m.content) {
       const toolMatch = m.content.match(/[\s\S]*?\n\n<!-- TOOL_RESULTS_JSON:([\s\S]*?) -->/);
@@ -117,6 +118,12 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
         }
       }
 
+      const intentMatch = cleanContent.match(/[\s\S]*?\n\n<!-- INTENT_TAG:([\s\S]*?) -->/);
+      if (intentMatch) {
+        intentTag = intentMatch[1].trim();
+        cleanContent = cleanContent.replace(/\n\n<!-- INTENT_TAG:[\s\S]*? -->/, '');
+      }
+
       const match = cleanContent.match(/[\s\S]*?\n\n<!-- ATTACHMENTS_JSON:([\s\S]*?) -->/);
       if (match) {
         try {
@@ -135,6 +142,7 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
       toolResults,
       pipelineSteps,
       citations,
+      intentTag,
     };
   });
 }
@@ -149,6 +157,7 @@ export async function insertMessage(
   imagePrompt?: string,
   attachments?: any[],
   citations?: string[],
+  intentTag?: string,
   toolResults?: any[]
 ): Promise<ChatMessage> {
   let finalContent = content;
@@ -166,6 +175,10 @@ export async function insertMessage(
 
   if (pipelineSteps && pipelineSteps.length > 0) {
     finalContent = `${finalContent}\n\n<!-- PIPELINE_STEPS_JSON:${JSON.stringify(pipelineSteps)} -->`;
+  }
+
+  if (intentTag) {
+    finalContent = `${finalContent}\n\n<!-- INTENT_TAG: -->`;
   }
 
   if (citations && citations.length > 0) {
@@ -247,3 +260,4 @@ export async function insertMessage(
     attachments: parsedAttachments,
   };
 }
+

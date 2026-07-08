@@ -1,5 +1,6 @@
 import { getVaultKey, getProviderKeys } from '../../vault'
 import { logger } from '../../logger'
+import { cleanSearchQuery } from './tavily'
 
 export async function searchExa(query: string, context?: any): Promise<string | null> {
   let keys = context?.aiApiKey ? [context.aiApiKey] : []
@@ -11,7 +12,8 @@ export async function searchExa(query: string, context?: any): Promise<string | 
     return null
   }
 
-  logger.info(`Exa search: "${query}"`)
+  const cleanQuery = cleanSearchQuery(query)
+  logger.info(`Exa search: "${cleanQuery}" (original: "${query.slice(0, 60)}")`)
 
   try {
     const res = await fetch('https://api.exa.ai/search', {
@@ -21,9 +23,10 @@ export async function searchExa(query: string, context?: any): Promise<string | 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query,
+        query: cleanQuery,
         numResults: 5,
         type: 'auto',
+        startPublishedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
       }),
       signal: context?.signal,
     })

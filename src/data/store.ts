@@ -45,7 +45,7 @@ import type {
 
 import {
   generateId, getDescendantIds, findWorkspaceRoot, validateNoteContent,
-  robustParseJSON, markdownToBlocks, blocksToMarkdown
+  robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
 import { saveEntityToFile } from '@/lib/persistence';
@@ -321,6 +321,7 @@ export const useStore = create<AppState>()(
       advisorEnabled: false,
       pendingAdvisorState: null,
       showPaidModels: false,
+      manualTimezone: null,
       pendingCompaction: false,
       isCompacting: false,
       chatInputs: {},
@@ -489,6 +490,7 @@ export const useStore = create<AppState>()(
       toggleFullWidth: () => set((state) => ({ isFullWidth: !state.isFullWidth })),
       toggleTabsHeader: () => set((state) => ({ isTabsHeaderVisible: !state.isTabsHeaderVisible })),
       setAppStyle: (appStyle) => set({ appStyle }),
+      setManualTimezone: (manualTimezone) => set({ manualTimezone }),
 
       setSpaces: (spaces) => set({ spaces }),
 
@@ -776,6 +778,7 @@ export const useStore = create<AppState>()(
             image_description: m.image_description,
             image_prompt: m.image_prompt,
             attachments: m.attachments,
+            intentTag: (m as any).intentTag,
             toolResults: (m as any).toolResults,
             citations: (m as any).citations,
           }));
@@ -1046,6 +1049,7 @@ export const useStore = create<AppState>()(
           id: generateId(),
           role: 'user',
           content: cleanContent,
+          intentTag: extractedIntent || undefined,
           isHidden,
           timestamp: Date.now(),
           attachments,
@@ -1078,7 +1082,7 @@ export const useStore = create<AppState>()(
 
         // Persist user message if in a named conversation (and not hidden tool result)
         if (activeChatId && !isTemp && !isHidden) {
-          insertMessage(activeChatId, 'user', content, undefined, undefined, undefined, undefined, attachments).catch(e => console.warn('[Store] Failed to persist user message:', e));
+          insertMessage(activeChatId, 'user', content, undefined, undefined, undefined, undefined, attachments, undefined, extractedIntent || undefined).catch(e => console.warn('[Store] Failed to persist user message:', e));
         }
 
         try {
@@ -1187,6 +1191,7 @@ export const useStore = create<AppState>()(
               isTempChat: isTemp,
               clientHistory: historyMessages,
               pageContext: pageContext ?? null,
+              clientTime: getClientTime(get().manualTimezone),
             }),
           });
 
@@ -1321,7 +1326,10 @@ export const useStore = create<AppState>()(
                         if (parsed.log_id) lastLogId = parsed.log_id;
                         if (parsed.citations) lastCitations = parsed.citations;
                         if ((parsed as any).transcript_md) lastTranscriptMd = (parsed as any).transcript_md;
-                        if ((parsed as any).toolResults) lastToolResults = (parsed as any).toolResults;
+                        if ((parsed as any).toolResults) {
+                          lastToolResults = (parsed as any).toolResults;
+                          get().syncToolResults(lastToolResults);
+                        }
                         if ((parsed as any).advisor_questions) lastAdvisorQuestions = (parsed as any).advisor_questions;
                         if ((parsed as any).advisor_state) lastAdvisorState = (parsed as any).advisor_state;
                       } else if (parsed.status) {
@@ -1500,92 +1508,7 @@ export const useStore = create<AppState>()(
 
             // Process toolResults: sync Zustand store with server-side tool changes
             if (lastToolResults && Array.isArray(lastToolResults) && lastToolResults.length > 0) {
-              const currentEntities = get().entities;
-              const currentBlocks = get().blocks;
-              let entitiesUpdated = false;
-              let blocksUpdated = false;
-
-              for (const tr of lastToolResults) {
-                if (tr.tool === 'create_content' && tr.type === 'workspace' && tr.success && tr.id) {
-                  const exists = currentEntities.find(e => e.id === tr.id);
-                  if (!exists) {
-                    const newEntity = {
-                      id: tr.id,
-                      title: tr.title || 'New Space',
-                      type: 'workspace' as const,
-                      content: tr.content || [],
-                      parentId: null,
-                      lastModified: Date.now(),
-                      tags: [] as string[],
-                      syncMode: 'full-sync' as const,
-                    };
-                    get().addEntity(newEntity);
-                    entitiesUpdated = true;
-                  }
-                }
-
-                // create_task: add new task to store
-                if (tr.tool === 'create_content' && tr.type === 'task' && tr.success && tr.id) {
-                  const currentTasks = get().tasks;
-                  if (!currentTasks.find(t => t.id === tr.id)) {
-                    get().addTask({
-                      id: tr.id,
-                      title: tr.title || 'New Task',
-                      status: (tr.status as any) || 'todo',
-                      completed: tr.status === 'done',
-                      spaceId: tr.spaceId || null,
-                      entityId: tr.assignedWorkspaceId || null,
-                      dueDate: tr.dueDate || null,
-                      priority: tr.priority || null,
-                      tag: tr.tag || null,
-                      syncMode: 'full-sync'
-                    });
-                  }
-                }
-
-                // create_note / create_folder: add the new entity to the store
-                if (tr.tool === 'create_content' && (tr.type === 'note' || tr.type === 'folder') && tr.success && tr.id) {
-                  const exists = currentEntities.find(e => e.id === tr.id);
-                  if (!exists) {
-                    const newEntity = {
-                      id: tr.id,
-                      title: tr.title || 'Untitled',
-                      type: tr.type as 'note' | 'folder',
-                      content: (typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content) || [],
-                      parentId: (tr as any).parentId || null,
-                      lastModified: Date.now(),
-                      tags: [] as string[],
-                      syncMode: 'full-sync' as const,
-                    };
-                    get().addEntity(newEntity);
-                    entitiesUpdated = true;
-                  }
-                }
-
-                // update_content: update the entity in the store
-                if (tr.tool === 'update_content' && tr.success && tr.id && tr.content) {
-                  set(s => ({
-                    entities: s.entities.map(e =>
-                      e.id === tr.id
-                        ? { ...e, content: typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content, title: tr.title || e.title, lastModified: Date.now() }
-                        : e
-                    ),
-                  }));
-                  entitiesUpdated = true;
-                }
-
-                // append_to_note: append blocks to the entity's content
-                if (tr.tool === 'append_to_note' && tr.success && tr.id && tr.content) {
-                  set(s => ({
-                    entities: s.entities.map(e =>
-                      e.id === tr.id
-                        ? { ...e, content: tr.content, lastModified: Date.now() }
-                        : e
-                    ),
-                  }));
-                  entitiesUpdated = true;
-                }
-              }
+              get().syncToolResults(lastToolResults);
             }
 
             return;
@@ -1790,6 +1713,7 @@ export const useStore = create<AppState>()(
               advisorEnabled: get().advisorEnabled,
               isTempChat: get().isTempChat,
               clientHistory: historyMessages,
+              clientTime: getClientTime(get().manualTimezone),
             }),
           });
 
@@ -2120,7 +2044,7 @@ export const useStore = create<AppState>()(
 
       addEntity: (entity) => {
         // Content quality gate for AI-generated notes
-        if (entity.type === 'note' && entity.content && entity.content.length > 0) {
+        if (entity.type === 'note' && Array.isArray(entity.content) && entity.content.length > 0) {
           const allBlockTexts = entity.content.map((b: any) => (b.content || '').trim().toLowerCase());
           const blockTexts = allBlockTexts.filter((t: string) => t.length > 0);
           const totalBlocks = entity.content.length;
@@ -2690,6 +2614,118 @@ export const useStore = create<AppState>()(
             [columnId]: !(s.trackerColumnSortLocks?.[columnId] ?? true)
           }
         }));
+      },
+
+      syncToolResults: (toolResults) => {
+        if (!toolResults || !Array.isArray(toolResults) || toolResults.length === 0) return;
+        const currentEntities = get().entities;
+        const currentBlocks = get().blocks;
+        let entitiesUpdated = false;
+        let blocksUpdated = false;
+
+        for (const tr of toolResults) {
+          if (tr.tool === 'create_content' && tr.type === 'workspace' && tr.success && tr.id) {
+            const exists = currentEntities.find(e => e.id === tr.id);
+            if (!exists) {
+              const newEntity = {
+                id: tr.id,
+                title: tr.title || 'New Space',
+                type: 'workspace' as const,
+                content: tr.content || [],
+                parentId: null,
+                lastModified: Date.now(),
+                tags: [] as string[],
+                syncMode: 'full-sync' as const,
+              };
+              get().addEntity(newEntity);
+              entitiesUpdated = true;
+            }
+          }
+
+          // create_task: add new task to store
+          if (tr.tool === 'create_content' && tr.type === 'task' && tr.success && tr.id) {
+            const currentTasks = get().tasks;
+            if (!currentTasks.find(t => t.id === tr.id)) {
+              get().addTask({
+                id: tr.id,
+                title: tr.title || 'New Task',
+                status: (tr.status as any) || 'todo',
+                completed: tr.status === 'done',
+                spaceId: tr.spaceId || null,
+                entityId: tr.assignedWorkspaceId || null,
+                dueDate: tr.dueDate || null,
+                endDate: tr.endDate || null,
+                includeTime: tr.includeTime ?? false,
+                reminder: tr.reminder || null,
+                note: tr.description || null,
+                priority: (tr.priority as any) || 'none',
+                tag: (tr.tag as any) || 'none',
+                syncMode: 'full-sync' as const
+              });
+            }
+          }
+
+          // update_task: update task in store
+          if (tr.tool === 'update_content' && tr.success && tr.id && tr.id.startsWith('task-')) {
+            const updates: any = {};
+            if (tr.title) updates.title = tr.title;
+            if (tr.status) {
+              updates.status = tr.status;
+              updates.completed = tr.status === 'done';
+            }
+            if (tr.dueDate) updates.dueDate = tr.dueDate;
+            if (tr.endDate) updates.endDate = tr.endDate;
+            if (tr.includeTime !== undefined) updates.includeTime = tr.includeTime;
+            if (tr.description) updates.note = tr.description;
+            if (tr.priority) updates.priority = tr.priority;
+            if (tr.tag) updates.tag = tr.tag;
+            get().updateTask(tr.id, updates);
+          }
+
+          // create_content: create entity and block if parentId is provided
+          if (tr.tool === 'create_content' && tr.type !== 'workspace' && tr.type !== 'task' && tr.success && tr.id) {
+            const exists = currentEntities.find(e => e.id === tr.id);
+            if (!exists) {
+              const newEntity = {
+                id: tr.id,
+                title: tr.title || 'New Note',
+                type: (tr.type as any) || 'note',
+                content: (typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content) || [],
+                parentId: tr.parentId || null,
+                lastModified: Date.now(),
+                tags: [] as string[],
+                syncMode: 'full-sync' as const,
+              };
+              get().addEntity(newEntity);
+              entitiesUpdated = true;
+            }
+          }
+
+          // update_content: update the entity in the store
+          if (tr.tool === 'update_content' && tr.success && tr.id && !tr.id.startsWith('task-') && tr.content) {
+            set(s => ({
+              entities: s.entities.map(e =>
+                e.id === tr.id
+                  ? { ...e, content: typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content, title: tr.title || e.title, lastModified: Date.now() }
+                  : e
+              ),
+            }));
+            entitiesUpdated = true;
+          }
+
+          // append_to_note: append blocks to the entity's content
+          if (tr.tool === 'append_to_note' && tr.success && tr.id && tr.content) {
+            const newBlocks = typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content;
+            set(s => ({
+              entities: s.entities.map(e =>
+                e.id === tr.id
+                  ? { ...e, content: [...(Array.isArray(e.content) ? e.content : []), ...newBlocks], lastModified: Date.now() }
+                  : e
+              ),
+            }));
+            entitiesUpdated = true;
+          }
+        }
       },
 
       updateTask: (id, updates) => {

@@ -1,5 +1,6 @@
 import { logger } from '../logger'
 import { getRouterChain, IntentCategory } from '../router-config'
+import { getChainPrompt } from './prompts'
 import type { PipelineStep, StatusCallback } from './pipeline'
 import { TraceCollector } from './tracing'
 
@@ -17,16 +18,7 @@ export interface ThinkChainOutput {
   steps: PipelineStep[]
 }
 
-const DEFAULT_THINK_SYSTEM_PROMPT = `You are the reasoning layer in a multi-step AI pipeline. Your job is to review all chain outputs, catch errors or gaps, consider multiple approaches, and commit to the clearest direction for the final answer.
 
-Output your thinking in this exact format:
-[THINKING SUMMARY]
-Reviewed: [list chain types reviewed, or "none" if no chains ran]
-Gap found: [describe gap or "none"]
-Correction needed: [chain type needed to fix gap, or "none"]
-Approach selected: [chosen approach for final answer]
-Direction for final output: [specific instruction for the answer chain]
-Confidence: [high / medium / low] — [one sentence reason]`
 
 function parseThinkOutput(raw: string): ThinkResult {
   const direction = raw.match(/Direction for final output:\s*(.+)/i)?.[1]?.trim() || ''
@@ -110,11 +102,10 @@ export async function runThinkChain(
   const customStatus = statusMessages['THINKING']
   const label = customStatus ? `${customStatus.emoji} ${customStatus.label}`.trim() : 'Working...'
 
-  const { system_prompt } = await getRouterChain('THINKING')
-  const systemPrompt = system_prompt || DEFAULT_THINK_SYSTEM_PROMPT
+  const systemPrompt = getChainPrompt('thinking')
 
   const buildThinkPrompt = (ctx: string): string => {
-    const now = new Date()
+    const now = context?.clientTime ? new Date(context.clientTime) : new Date()
     const dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
     
     const parts: string[] = []

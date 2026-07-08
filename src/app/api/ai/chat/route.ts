@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { runChain } from '@/lib/bot/chainRouter'
-import { supabaseAdmin, isSupabaseEnabled } from '@/lib/supabase'
+import { supabaseAdmin, isSupabaseEnabled, supabaseUrl, supabaseAnonKey } from '@/lib/supabase'
 import { logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import fs from 'fs'
 import path from 'path'
@@ -25,16 +25,19 @@ export async function POST(req: NextRequest) {
 
   if (isSupabaseEnabled) {
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabaseUrl!,
+      supabaseAnonKey!,
       { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
     )
-    const { data } = await supabase.auth.getUser()
+    const { data, error: authError } = await supabase.auth.getUser()
+    if (authError) {
+      console.error('[AI Chat Auth] auth.getUser() error:', authError)
+    }
     user = data.user
     supabaseClient = supabase;
   }
 
-  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext, clientTime } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -103,6 +106,7 @@ export async function POST(req: NextRequest) {
             isTempChat: isTempChat === true,
             clientHistory: clientHistory ?? [],
             pageContext: pageContext ?? null,
+            clientTime,
             onStatus: (step: any) => {
               if (step.status === 'running') {
                 send({ status: step.label || step.goal })
@@ -110,6 +114,9 @@ export async function POST(req: NextRequest) {
             },
             onChunk: (chunk: string) => {
               send({ content: chunk })
+            },
+            onEvent: (event: any) => {
+              send(event)
             }
           } as any
         )

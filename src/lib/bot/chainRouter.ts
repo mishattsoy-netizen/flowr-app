@@ -610,7 +610,7 @@ export async function runChain(
       logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
       return {
         type: 'text',
-        content: "*System Overload*",
+        content: classifyError ? `*System Overload* (${classifyError})` : "*System Overload*",
         usage_type: 'chat',
         model_chain: 'classifier → (failed)',
         status: 'error',
@@ -637,6 +637,9 @@ export async function runChain(
   }
 
   let { chain, temperature, thinking_budget } = await getRouterChain(category, (context?.mode === 'pro' ? 'pro' : 'default'))
+  if (!chain || chain.length === 0) {
+    chain = [{ id: 'openai/gpt-4o-mini', provider: 'openrouter', openrouter_provider: 'openai', is_enabled: true } as any]
+  }
 
   // Fetch internal pipeline prompt if available (from Admin > Bot > Global)
   const isGlobalPromptEnabled = pipelineSettings.globalPromptEnabledCategories

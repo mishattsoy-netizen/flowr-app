@@ -261,7 +261,7 @@ async function createWindow() {
     titleBarOverlay: {
       color: 'rgba(0,0,0,0)',
       symbolColor: '#636363', // A nice subtle color for the window controls
-      height: 38 // Matches the 38px of the HeaderBar
+      height: 50 // Matches the 50px of the HeaderBar
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

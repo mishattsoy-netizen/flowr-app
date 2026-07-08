@@ -5,7 +5,7 @@ import { getEntityIcon } from '@/data/icons';
 import {
   ArrowLeft, ArrowRight, RotateCw, Home, MessageCircle,
   ListTodo, Menu, X, ChevronRight, ChevronLeft, Plus, PanelLeft, Columns2,
-  FileText, Frame, Folder, Search
+  FileText, Frame, Folder, Search, Pin, ArrowLeftRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -14,7 +14,7 @@ import { stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import React, { memo, useState, useRef, useLayoutEffect } from 'react';
 
-// ─── Concave corner SVG ──────────────────────────────────────────────────────
+// â”€â”€â”€ Concave corner SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ConcaveCorner({ side, r = 8 }: { side: 'left' | 'right'; r?: number }) {
   const w = r + 1, h = r + 1;
   const fill   = side === 'left'
@@ -40,7 +40,7 @@ function ConcaveCorner({ side, r = 8 }: { side: 'left' | 'right'; r?: number }) 
 
 
 
-export const HeaderBar = memo(function HeaderBar() {
+export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { leftWidth?: number, rightWidth?: number }) {
   const activeEntityId       = useStore(s => s.activeEntityId);
   const entities             = useStore(s => s.entities);
   const goBack               = useStore(s => s.goBack);
@@ -62,23 +62,30 @@ export const HeaderBar = memo(function HeaderBar() {
   const isSidebarCollapsed   = useStore(s => s.isSidebarCollapsed);
   const toggleSplitView      = useStore(s => s.toggleSplitView);
   const selectedSidebarIds   = useStore(s => s.selectedSidebarIds);
+  const splitViewActive      = useStore(s => s.splitViewActive);
+  const splitViewLeftId      = useStore(s => s.splitViewLeftId);
+  const splitViewRightId     = useStore(s => s.splitViewRightId);
+  const splitViewPosition    = useStore(s => s.splitViewPosition);
+  const splitViewPinned      = useStore(s => s.splitViewPinned);
+  const togglePin            = useStore(s => s.togglePin);
+  const swapColumns          = useStore(s => s.swapColumns);
 
   const isDesktopEnv = isDesktop();
 
-  // ─── Sizing ─────────────────────────────────────────────────────────────
-  const BAR_H     = isDesktopEnv ? 38 : 42; // fixed header height
+  // â”€â”€â”€ Sizing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const BAR_H     = isDesktopEnv ? 50 : 42; // fixed header height
   const M         = 6;                    // uniform tab spacing: hover container top/bottom margins + strip gap (px)
   const R_ACTIVE   = 12;                  // concave bridge under selected tab
   const R_INACTIVE = 8;                    // selected top corners + unselected hover container
 
   const [newItemPopup, setNewItemPopup] = useState<{ x: number; y: number } | null>(null);
 
-  // ─── Drag-to-reorder (push-aside model) ───────────────────────────────────
+  // â”€â”€â”€ Drag-to-reorder (push-aside model) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // The array order is FIXED during drag. The dragged tab is translated to follow
   // the pointer (instant). Static tabs between the dragged slot and the *target*
   // slot are translated aside by exactly the dragged tab's footprint (width + gap)
-  // and that translate runs through a CSS transition → they slide, never teleport.
-  // Nothing reorders mid-drag, so there is no commit-time reflow → no bounce.
+  // and that translate runs through a CSS transition â†’ they slide, never teleport.
+  // Nothing reorders mid-drag, so there is no commit-time reflow â†’ no bounce.
   // On release we commit the reorder once and settle the released tab from its
   // pointer position into its new slot via a one-shot FLIP (measured in a layout
   // effect, so it never snaps).
@@ -100,9 +107,14 @@ export const HeaderBar = memo(function HeaderBar() {
   const releaseRafRef = useRef<{ outer: number | null; inner: number | null; cancelled: boolean }>({ outer: null, inner: null, cancelled: false });
 
   type DragInfo = {
-    id: string; origIndex: number; targetIndex: number;
-    width: number; grabOffset: number; containerLeft: number;
-    naturalLefts: number[]; screenCenters: number[];
+    id: string;  origIndex: number;
+    targetIndex: number;
+    width: number;
+    grabOffset: number;
+    containerLeft: number;
+    containerWidth: number;
+    naturalLefts: number[];
+    screenCenters: number[];
   };
   const dragInfoRef = useRef<DragInfo | null>(null);
 
@@ -117,6 +129,7 @@ export const HeaderBar = memo(function HeaderBar() {
 
   const onTabMouseDown = (e: React.MouseEvent, tabId: string) => {
     if (e.button !== 0) return;
+    if (splitViewActive) return; // Disable drag in split view
     if ((e.target as HTMLElement).closest('[data-close]')) return;
 
     const container = tabsRef.current;
@@ -142,6 +155,7 @@ export const HeaderBar = memo(function HeaderBar() {
     dragInfoRef.current = {
       id: tabId, origIndex, targetIndex: origIndex,
       width: draggedEl.offsetWidth, grabOffset, containerLeft,
+      containerWidth: container.offsetWidth,
       naturalLefts, screenCenters,
     };
     dragStartX.current = e.clientX;
@@ -161,7 +175,10 @@ export const HeaderBar = memo(function HeaderBar() {
 
       // dragged tab follows the pointer instantly (its natural slot never moves,
       // because the array is fixed during drag → no glue recalculation needed)
-      const offset = pointerX - di.containerLeft - di.naturalLefts[origIndex] - di.grabOffset;
+      const rawOffset = pointerX - di.containerLeft - di.naturalLefts[origIndex] - di.grabOffset;
+      const minOffset = 28 - di.naturalLefts[origIndex];
+      const maxOffset = di.containerWidth - 8 - di.width - di.naturalLefts[origIndex];
+      const offset = Math.max(minOffset, Math.min(rawOffset, maxOffset));
       latestOffsetRef.current = offset;
       setDragOffsetX(offset);
 
@@ -211,7 +228,7 @@ export const HeaderBar = memo(function HeaderBar() {
         next.splice(targetIndex, 0, tabId);
         setOpenTabs(next); // openTabIds change triggers the release-FLIP layout effect
       } else {
-        setReleaseTick(x => x + 1); // no reorder — just settle the dragged tab back
+        setReleaseTick(x => x + 1); // no reorder â€” just settle the dragged tab back
       }
       setDrag(null);
       setDragOffsetX(0);
@@ -223,7 +240,7 @@ export const HeaderBar = memo(function HeaderBar() {
 
   // Release-FLIP: settle the released tab from its pointer position into its slot.
   // Runs synchronously before paint, so the first painted frame already shows it
-  // at the pointer and it animates to 0 — never snaps forward, never snaps back.
+  // at the pointer and it animates to 0 â€” never snaps forward, never snaps back.
   useLayoutEffect(() => {
     const pending = releasePendingRef.current;
     if (!pending) return;
@@ -249,7 +266,7 @@ export const HeaderBar = memo(function HeaderBar() {
     handle.outer = requestAnimationFrame(() => {
       handle.inner = requestAnimationFrame(() => {
         if (handle.cancelled) return;
-        // PLAY: turn the transition on and animate dx → 0 into the slot.
+        // PLAY: turn the transition on and animate dx â†’ 0 into the slot.
         setRelease({ id: pending.id, dx: 0 });
         setReleasePlay(true);
       });
@@ -265,7 +282,7 @@ export const HeaderBar = memo(function HeaderBar() {
     };
   }, [openTabIds, releaseTick]);
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isDashboard = activeEntityId === 'dashboard' || !activeEntityId;
 
   const getPath = (id: string | null): any[] => {
@@ -297,18 +314,18 @@ export const HeaderBar = memo(function HeaderBar() {
   const btnCls = (ok: boolean) =>
     `flex items-center justify-center rounded-[var(--radius-small)] [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-7 h-7' : 'w-6 h-6'} ${ok ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer' : 'text-border opacity-30 cursor-default'}`;
 
-  if (!isTabsHeaderVisible) return null;
+  if (!isTabsHeaderVisible && !isDesktopEnv) return null;
 
   return (
     <div
       className={cn(
-        "w-full flex items-center pl-3 shrink-0 relative z-30 [-webkit-app-region:drag] bg-sidebar",
-        isDesktopEnv ? "pr-32" : "pr-3" // web: no window-control reserve; desktop: keep it
+        "w-full flex items-center shrink-0 relative z-30 [-webkit-app-region:drag]",
+        isDesktopEnv ? "px-2 gap-2 bg-[var(--app-dark)]" : "pl-3 pr-3 bg-sidebar"
       )}
       style={{ height: BAR_H }}
     >
-      {/* ── Visual bottom border line ── */}
-      <div className="absolute inset-x-0 bottom-0 h-[1px] bg-[var(--bone-10)] z-0" />
+      {/* â”€â”€ Visual bottom border line â”€â”€ */}
+      {!isDesktopEnv && <div className="absolute inset-x-0 bottom-0 h-[1px] bg-[var(--bone-10)] z-0" />}
 
       {/* Web: collapsed sidebar buttons */}
       {!isDesktopEnv && isSidebarCollapsed && (
@@ -321,10 +338,7 @@ export const HeaderBar = memo(function HeaderBar() {
 
       {/* Desktop nav */}
       {isDesktopEnv && (
-        <div className="flex items-center gap-1 shrink-0 z-10">
-          <button onClick={toggleSidebar} className="md:hidden p-1 rounded-[var(--radius-small)] hover:bg-hover text-[var(--bone-100)] opacity-70 hover:opacity-100 [-webkit-app-region:no-drag]">
-            {isDashboard ? <Menu strokeWidth={2} className="w-4 h-4"/> : <ChevronLeft strokeWidth={2} className="w-4 h-4"/>}
-          </button>
+        <div className="flex items-center gap-1 shrink-0 z-10 pl-[8px]" style={{ width: isSidebarCollapsed ? undefined : leftWidth }}>
           <Tooltip content="Go Back">   <button onClick={goBack}               className={btnCls(true)}><ArrowLeft  strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
           <Tooltip content="Go Forward"><button onClick={goForward}             className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
           <Tooltip content="Reload">    <button onClick={() => {}}              className={btnCls(true)}><RotateCw   strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
@@ -334,7 +348,6 @@ export const HeaderBar = memo(function HeaderBar() {
             </button>
           </Tooltip>
           <Tooltip content="Search"><button onClick={toggleCommandPalette} className={btnCls(true)}><Search strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
-          <div className="w-px h-4 bg-[var(--bone-6)] mx-2"/>
         </div>
       )}
 
@@ -344,15 +357,15 @@ export const HeaderBar = memo(function HeaderBar() {
           stripHtml(entities.find(e => e.id === activeEntityId)?.title || '')}
       </div>
 
-      {/* ─── Tab strip ───────────────────────────────────────────────────────
+      {/* â”€â”€â”€ Tab strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           items-end: tab layout boxes sit at the bottom edge
-      ─────────────────────────────────────────────────────────────────────── */}
+      â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
         ref={tabsRef}
-        className="hidden md:flex flex-1 items-end min-w-0 z-10"
-        style={{ height: BAR_H, gap: M, paddingLeft: 4, paddingRight: 4 }}
+        className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
+        style={{ height: BAR_H, gap: M, paddingLeft: 28, paddingRight: 8 }}
       >
-        {openTabIds.map((tabId, idx) => {
+        {(splitViewActive && splitViewLeftId && splitViewRightId ? [splitViewLeftId, splitViewRightId] : openTabIds).map((tabId, idx) => {
           const isActive = activeTabId === tabId;
           const isDragged = drag?.id === tabId;
           const isReleased = release?.id === tabId;
@@ -360,7 +373,7 @@ export const HeaderBar = memo(function HeaderBar() {
           const path = getPath(tabId);
           if (!title && tabId !== 'dashboard' && tabId !== 'chat' && tabId !== 'tracker') return null;
 
-          // Per-tab motion — all transform-based (no flex reflow during drag), so all of it
+          // Per-tab motion â€” all transform-based (no flex reflow during drag), so all of it
           // can be transitioned. Static tabs slide aside via pushShift; the dragged tab
           // tracks the pointer with no transition (instant glue); the released tab settles
           // into its slot through a one-shot FLIP.
@@ -392,14 +405,19 @@ export const HeaderBar = memo(function HeaderBar() {
                   zIndex,
                   transform,
                   transition,
+                  ...(splitViewActive && splitViewLeftId && splitViewRightId ? {
+                    position: 'absolute',
+                    left: idx === 0 ? (isDesktopEnv ? 28 : 28) : `calc(${splitViewPosition}% + ${isDesktopEnv ? 32 : 24}px)`,
+                    width: idx === 0 ? `calc(${splitViewPosition}% - ${isDesktopEnv ? 60 : 28}px)` : `calc(${100 - splitViewPosition}% - ${isDesktopEnv ? 60 : 32}px)`
+                  } : {})
                 }}
               >
-              {/* ─── Visual tab background (swaps per state; content layer never moves) ─── */}
+              {/* â”€â”€â”€ Visual tab background (swaps per state; content layer never moves) â”€â”€â”€ */}
               <div
                 className={cn(
                   "absolute inset-x-0",
                   isActive
-                    ? "top-[6px] bottom-0 bg-[var(--app-background)] border-t border-l border-r border-[var(--bone-10)]"
+                    ? `top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'} bg-[var(--app-background)] border-t border-l border-r border-[var(--bone-10)]`
                     : cn(
                         "top-[6px] bottom-[6px]",
                         "group-hover:bg-[var(--bone-6)] group-hover:backdrop-blur-sm",
@@ -414,7 +432,7 @@ export const HeaderBar = memo(function HeaderBar() {
                 {isActive && <ConcaveCorner side="right" r={R_ACTIVE} />}
               </div>
 
-              {/* ─── Content container (Vertically centered inside BAR_H across all tabs) ─── */}
+              {/* â”€â”€â”€ Content container (Vertically centered inside BAR_H across all tabs) â”€â”€â”€ */}
               <div
                 className="relative z-10 w-full h-full flex items-center gap-[5px]"
                 style={{
@@ -490,24 +508,58 @@ export const HeaderBar = memo(function HeaderBar() {
         </div>
       </div>
 
-      {/* Split View Toggle — fixed at the right edge of the header */}
+      {/* Split View Toggle and Controls */}
       {(selectedSidebarIds.length === 2 || (openTabIds.length > 0 && (() => {
         const entity = entities.find(e => e.id === activeEntityId);
         return entity && (entity.type === 'note' || entity.type === 'canvas');
       })())) && (
         <div
-          className="flex items-center justify-center shrink-0"
+          className="flex items-center justify-center gap-1 shrink-0 pr-2 z-10"
           style={{ height: BAR_H }}
         >
+          {splitViewActive && (
+            <>
+              <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
+                <button
+                  onClick={e => { e.stopPropagation(); togglePin(); }}
+                  className={cn(
+                    "flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag]",
+                    splitViewPinned ? "bg-[var(--bone-10)]" : "hover:bg-[var(--bone-6)]"
+                  )}
+                  style={{ width: 32, height: 32 }}
+                >
+                  <Pin strokeWidth={2} className="w-[18px] h-[18px]" fill={splitViewPinned ? "currentColor" : "none"} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Swap columns">
+                <button
+                  onClick={e => { e.stopPropagation(); swapColumns(); }}
+                  className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag] hover:bg-[var(--bone-6)]"
+                  style={{ width: 32, height: 32 }}
+                >
+                  <ArrowLeftRight strokeWidth={2} className="w-[18px] h-[18px]" />
+                </button>
+              </Tooltip>
+            </>
+          )}
           <Tooltip content="Split view">
             <button
               onClick={e => { e.stopPropagation(); toggleSplitView(); }}
-              className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag] hover:bg-[var(--bone-6)]"
-              style={{ width: 28, height: 28 }}
+              className={cn(
+                "flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag]",
+                selectedSidebarIds.length === 2 ? "bg-[var(--bone-10)]" : "hover:bg-[var(--bone-6)]"
+              )}
+              style={{ width: 32, height: 32 }}
             >
-              <Columns2 strokeWidth={2} className="w-4 h-4"/>
+              <Columns2 strokeWidth={2} className="w-[18px] h-[18px]"/>
             </button>
           </Tooltip>
+        </div>
+      )}
+
+      {/* Right Window Controls Reserve */}
+      {isDesktopEnv && (
+        <div className="flex shrink-0 items-center justify-end" style={{ width: Math.max(rightWidth || 0, 140) }}>
         </div>
       )}
 

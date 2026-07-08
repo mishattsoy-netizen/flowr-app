@@ -35,14 +35,17 @@ export async function extractDuckDuckGoUrls(urls: string[]): Promise<Array<{ url
   return results
 }
 
+import { cleanSearchQuery } from './tavily'
+
 export async function runDuckDuckGoSearchChain(prompt: string, _context?: any, systemPrompt?: string): Promise<string> {
-  logger.info(`Starting DuckDuckGo search for: ${prompt}`)
+  const cleanQuery = cleanSearchQuery(prompt)
+  logger.info(`Starting DuckDuckGo search for: ${cleanQuery} (original: ${prompt.slice(0, 60)})`)
   if (systemPrompt) {
     logger.info(`DuckDuckGo search received system prompt instructions (length: ${systemPrompt.length})`)
   }
 
   try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(prompt)}&format=json&no_redirect=1&no_html=1&skip_disambig=1`
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_redirect=1&no_html=1&skip_disambig=1`
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
     if (!res.ok) throw new Error(`DuckDuckGo API responded with ${res.status}`)
     const data = await res.json()
