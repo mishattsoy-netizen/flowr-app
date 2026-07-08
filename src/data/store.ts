@@ -492,7 +492,21 @@ export const useStore = create<AppState>()(
       setAppStyle: (appStyle) => set({ appStyle }),
       setManualTimezone: (manualTimezone) => set({ manualTimezone }),
 
-      setSpaces: (spaces) => set({ spaces }),
+      setSpaces: (spaces) => {
+        set({ spaces });
+        // If there's a default space and activeSpaceId isn't set to it, navigate to it
+        const defaultSpace = spaces.find(s => s.isDefault);
+        if (defaultSpace) {
+          const currentActiveId = get().activeSpaceId;
+          if (currentActiveId !== defaultSpace.id) {
+            set({ activeSpaceId: defaultSpace.id });
+            // Also update recent entity IDs
+            const nextRecent = [defaultSpace.id, ...get().recentEntityIds.filter(rid => rid !== defaultSpace.id)].slice(0, 10);
+            set({ recentEntityIds: nextRecent });
+            import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
+          }
+        }
+      },
 
       setActiveSpaceId: (id) => {
         set({ activeSpaceId: id });
