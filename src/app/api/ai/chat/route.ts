@@ -7,19 +7,6 @@ import { logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import fs from 'fs'
 import path from 'path'
 
-const DEFAULT_DAILY_LIMIT = 1000
-
-async function checkAndIncrementQuota(supabaseClient: any): Promise<{ allowed: boolean }> {
-  if (!supabaseClient) return { allowed: true } // Skip quota if client is not configured
-  
-  const { data: allowed, error } = await supabaseClient.rpc('increment_my_quota')
-  if (error) {
-    console.error('[checkAndIncrementQuota] error:', error)
-    return { allowed: true } // Graceful fallback on database error
-  }
-  return { allowed: !!allowed }
-}
-
 export async function POST(req: NextRequest) {
   let user = null;
   let supabaseClient = null;
@@ -49,12 +36,34 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = user?.id || 'anonymous'
-  
+
+  // Pro/Max are gated entirely behind login — not a metering decision.
+  if (userId === 'anonymous' && activeMode === 'pro') {
+    return NextResponse.json(
+      { error: 'Sign in to use Pro features.', model: 'system' },
+      { status: 401 }
+    )
+  }
+
+  const requestId = crypto.randomUUID()
+
   if (user && supabaseClient) {
-    const { allowed } = await checkAndIncrementQuota(supabaseClient)
-    if (!allowed) {
+    const { data: reserveResult, error: reserveError } = await supabaseClient
+      .rpc('reserve_credit', { p_request_id: requestId, p_mode: activeMode })
+      .single()
+
+    if (reserveError) {
+      console.error('[reserve_credit] error:', reserveError)
+      // Fail open on infra errors — don't block chat because of a metering hiccup
+    } else if (reserveResult && !(reserveResult as any).allowed) {
+      const { blocked_window, resets_at } = reserveResult as any
       return NextResponse.json(
-        { error: 'Daily message limit reached. Try again tomorrow.', model: 'system' },
+        {
+          error: `You've hit your ${blocked_window} limit. Resets ${resets_at ? new Date(resets_at).toLocaleString() : 'soon'}.`,
+          model: 'system',
+          blocked_window,
+          resets_at,
+        },
         { status: 429 }
       )
     }
@@ -71,6 +80,7 @@ export async function POST(req: NextRequest) {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch {}
       }
 
+      let result: any
       try {
         const getStatusLabel = (cat: string, fallback: string) => {
           return DEFAULT_STATUS_MESSAGES[cat] || fallback
@@ -84,7 +94,7 @@ export async function POST(req: NextRequest) {
           ? images.map(img => Buffer.from(img, 'base64'))
           : (buffer ? [Buffer.from(buffer, 'base64')] : undefined)
 
-        const result = await runChain(
+        result = await runChain(
           prompt,
           inputBuffers,
           {
@@ -187,7 +197,6 @@ export async function POST(req: NextRequest) {
 
         // 5. Log and Finalize
         const logUserId = user?.id || 'anonymous'
-        const requestId = crypto.randomUUID()
         const loggedContent = typeof content === 'string' ? content : '[image]'
         const modelChain = result.model_chain
         const usageType = result.usage_type || 'chat'
@@ -245,6 +254,14 @@ export async function POST(req: NextRequest) {
         console.error('[AI API Error]', e)
         send({ error: e.message || 'AI request failed.', model: 'system' })
       } finally {
+        if (user && supabaseClient) {
+          const finalCost = (result && typeof result.total_cost_usd === 'number') ? result.total_cost_usd : 0
+          try {
+            await supabaseClient.rpc('reconcile_credit', { p_request_id: requestId, p_real_amount_usd: finalCost })
+          } catch (e: any) {
+            console.error('[reconcile_credit] error:', e)
+          }
+        }
         controller.close()
       }
     }
