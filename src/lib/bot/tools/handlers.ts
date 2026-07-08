@@ -5,16 +5,51 @@ import type { BlockInput } from '../../editor/markdownBlocks'
 
 // Helper: resolve active space ID for a user
 async function resolveSpaceId(context: any): Promise<string | null> {
-  let spaceId = context?.activeSpaceId || null
+  // 1. Context value takes priority
+  if (context?.activeSpaceId) return context.activeSpaceId;
+
   if (context?.userId && context.userId !== 'anonymous') {
+    // 2. Check profile
     const { data: user } = await supabaseAdmin!
       .from('profiles')
       .select('active_space_id')
       .eq('id', context.userId)
-      .single()
-    if (user?.active_space_id) spaceId = user.active_space_id
+      .single();
+    if (user?.active_space_id) return user.active_space_id;
+
+    // 3. Check default space
+    const { data: defaultSpace } = await supabaseAdmin!
+      .from('spaces')
+      .select('id')
+      .eq('owner_id', context.userId)
+      .eq('is_default', true)
+      .maybeSingle();
+    if (defaultSpace?.id) return defaultSpace.id;
+
+    // 4. Any space at all
+    const { data: anySpace } = await supabaseAdmin!
+      .from('spaces')
+      .select('id')
+      .eq('owner_id', context.userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (anySpace?.id) return anySpace.id;
+
+    // 5. No spaces exist — create one
+    const mainId = 'space-' + Date.now().toString();
+    await supabaseAdmin!.from('spaces').insert({
+      id: mainId,
+      name: 'Main',
+      type: 'personal',
+      owner_id: context.userId,
+      is_default: true,
+      created_at: new Date().toISOString(),
+    });
+    return mainId;
   }
-  return spaceId
+
+  return null;
 }
 // Helper: check if user is anonymous or has invalid UUID
 function isUserAnonymous(context: any): boolean {
@@ -348,7 +383,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           .eq('owner_id', context.userId)
         
         if (spaceId) {
-          query = query.or(`space_id.eq.${spaceId},space_id.is.null`)
+          query = query.eq('space_id', spaceId)
         }
 
         if (args.assignedWorkspaceId) query = query.eq('entity_id', args.assignedWorkspaceId)
