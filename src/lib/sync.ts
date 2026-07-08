@@ -91,7 +91,6 @@ function workspaceToRow(w: Space): Record<string, any> {
   if (w.icon)     row.icon     = w.icon;
   if (w.color)    row.color    = w.color;
   if (w.settings) row.settings = w.settings;
-  if (w.syncMode) row.sync_mode = w.syncMode;
   if (w.isDefault) row.is_default = true;
   return row;
 }
@@ -285,9 +284,28 @@ export async function upsertSpace(workspace: Space): Promise<{ error: any }> {
   const userId = await getCurrentUserId();
   if (!userId) return { error: null };
   const row = { ...workspaceToRow(workspace), owner_id: userId };
-  const { error } = await supabase
-    .from('spaces')
-    .upsert(row, { onConflict: 'id' });
+
+  async function performUpsert(currentRow: Record<string, any>): Promise<{ error: any }> {
+    const result = await supabase!.from('spaces').upsert(currentRow, { onConflict: 'id' });
+
+    // Only retry on missing-column errors (helps during incremental schema rollouts).
+    const isColumnError = result.error && result.error.message.includes('column') && result.error.message.includes('not find');
+
+    if (result.error && isColumnError) {
+      const match = result.error.message.match(/'([^']+)'/);
+      const missingColumn = match ? match[1] : null;
+
+      if (missingColumn && currentRow[missingColumn] !== undefined) {
+        console.warn(`[Flowr sync] Column '${missingColumn}' missing in 'spaces' table. Retrying without it.`);
+        const nextRow = { ...currentRow };
+        delete nextRow[missingColumn];
+        return performUpsert(nextRow);
+      }
+    }
+    return result;
+  }
+
+  const { error } = await performUpsert(row);
   if (error) console.error('[Flowr sync] upsertSpace:', error.message);
   return { error };
 }
