@@ -34,13 +34,15 @@ export const PATCHES: Patch[] = [
           'Fixed a critical bug where the desktop app failed to start with a "Flowr Startup Error" for everyone on the previous version.',
           'Fixed generated images sometimes failing to load or appearing broken.',
           'Fixed duplicate notes and folders appearing after syncing files edited outside the app.',
-          'Fixed "Unsorted" notes incorrectly being filed inside a Space folder when synced to disk.'
+          'Fixed "Unsorted" notes incorrectly being filed inside a Space folder when synced to disk.',
+          'Fixed AI-created folders and notes that were invisible in the app due to a missing ownership record.',
+          'Folders without a parent now show up in the Unsorted section instead of disappearing.'
         ]
       },
       {
         type: 'added',
         items: [
-          'The app now automatically detects and cleans up orphaned folders and notes that lost their place in your workspace.',
+          'The app now automatically self-heals your workspace on startup: stranded notes and canvases are rescued to Unsorted, and broken empty folders are cleaned up.',
           'Telegram bot: added account linking, new session commands, and an improved /clear flow with quick-action buttons.'
         ]
       },

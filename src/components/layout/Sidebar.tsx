@@ -230,6 +230,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   );
 
   const isEntityVisible = useMemo(() => (e: Entity) => {
+    if (e.type === 'workspace') return !hiddenEntityIds.includes(e.id);
     const effectiveSpaceId = activeSpaceId || 'ws-personal';
     return (e.spaceId || 'ws-personal') === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
   }, [activeSpaceId, hiddenEntityIds]);
@@ -252,7 +253,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const unsortedEntitiesBase = useMemo(
     () => sortEntities(
       entities.filter(e =>
-        (e.type === 'note' || e.type === 'canvas') &&
+        (e.type === 'note' || e.type === 'canvas' || e.type === 'folder') &&
         (!e.parentId || !entities.some(p => p.id === e.parentId)) &&
         isEntityVisible(e)
       ),

@@ -171,8 +171,8 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       mergeCloudData(data);
       const s = useStore.getState();
 
-      // --- Auto-cleanup for dead entities (e.g. orphaned folders) ---
-      s.cleanupDeadEntities();
+      // --- Auto-cleanup for dead entities and corrupted spaceIds ---
+      s.fixDatabaseIntegrity();
       
       // --- Auto-cleanup for duplicate "Untitled Canvas" entities ---
       const canvases = s.entities.filter(e => e.title === 'Untitled Canvas');
