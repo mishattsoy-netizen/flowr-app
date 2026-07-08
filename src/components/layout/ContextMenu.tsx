@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import type { SidebarSectionId } from '@/data/store';
 import { isDesktop } from '@/lib/env';
-import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin, FolderOpen, File } from 'lucide-react';
+import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin, FolderOpen, File, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { IconPicker } from './IconPicker';
@@ -170,6 +170,8 @@ export function ContextMenu() {
 
   const [adjustedPos, setAdjustedPos] = useState({ x: 0, y: 0 });
   const [pickerEntityId, setPickerEntityId] = useState<string | null>(null);
+  const [spaceOptionsId, setSpaceOptionsId] = useState<string | null>(null);
+  const [spaceOptionsPos, setSpaceOptionsPos] = useState({ x: 0, y: 0 });
   
   const showIconPicker = pickerEntityId !== null && pickerEntityId === contextMenu?.entityId;
 
@@ -220,6 +222,7 @@ export function ContextMenu() {
   useEffect(() => {
     if (!contextMenu) {
       setPickerEntityId(null);
+      setSpaceOptionsId(null);
     }
   }, [contextMenu]);
 
@@ -308,29 +311,20 @@ export function ContextMenu() {
           label: ws.name,
           selected: ws.id === (activeSpaceId || 'ws-personal'),
           hideCheckmark: true,
-          children: [
-            {
-              label: 'Open',
-              onClick: () => { setActiveSpaceId(ws.id); closeContextMenu(); },
-            },
-            {
-              label: 'Rename',
-              icon: <Edit2 strokeWidth={2} className="w-4 h-4 text-[var(--bone-70)]" />,
-              onClick: () => { openModal({ kind: 'rename', entityId: ws.id }); closeContextMenu(); },
-            },
-            {
-              label: ws.isDefault ? '✓ Default' : 'Set as default',
-              icon: <Star strokeWidth={2} className="w-4 h-4" />,
-              onClick: ws.isDefault ? undefined : () => { updateSpace(ws.id, { isDefault: true }); closeContextMenu(); },
-            },
-            { isDivider: true },
-            {
-              label: 'Delete',
-              icon: <Trash2 strokeWidth={2} className="w-4 h-4" />,
-              onClick: () => { openModal({ kind: 'deleteSpaceConfirm', spaceId: ws.id }); closeContextMenu(); },
-              danger: true,
-            },
-          ],
+          rightElement: (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setSpaceOptionsPos({ x: rect.right, y: rect.top });
+                setSpaceOptionsId(ws.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-[2px] rounded hover:bg-white/10"
+            >
+              <MoreVertical strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-[var(--bone-100)] shrink-0" />
+            </button>
+          ),
+          onClick: () => { setActiveSpaceId(ws.id); closeContextMenu(); }
         })),
         { isDivider: true },
         {
@@ -511,10 +505,54 @@ export function ContextMenu() {
             e.currentTarget.style.setProperty('--menu-width', `${rect.width}px`);
           }}
         >
-          <MenuItemsList 
-            items={getItems()} 
-            closeMenu={closeContextMenu} 
+          <MenuItemsList
+            items={getItems()}
+            closeMenu={closeContextMenu}
           />
+
+          {/* Space options popover */}
+          {spaceOptionsId && (
+            <div
+              className="fixed z-[310] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+              style={{ left: spaceOptionsPos.x, top: spaceOptionsPos.y }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(() => {
+                const ws = spaces.find(s => s.id === spaceOptionsId);
+                if (!ws) return null;
+                return (
+                  <>
+                    <button
+                      onClick={() => { openModal({ kind: 'rename', entityId: ws.id }); setSpaceOptionsId(null); closeContextMenu(); }}
+                      className="popup-item flex items-center w-full px-3 py-1.5 text-sm gap-2"
+                    >
+                      <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)]" />
+                      <span>Rename</span>
+                    </button>
+                    <button
+                      onClick={() => { updateSpace(ws.id, { isDefault: true }); setSpaceOptionsId(null); closeContextMenu(); }}
+                      disabled={ws.isDefault}
+                      className={cn(
+                        "popup-item flex items-center w-full px-3 py-1.5 text-sm gap-2",
+                        ws.isDefault && "opacity-50 cursor-default"
+                      )}
+                    >
+                      <Star strokeWidth={2} className={cn("w-4 h-4 shrink-0", ws.isDefault ? "text-accent" : "text-[var(--bone-70)]")} />
+                      <span>{ws.isDefault ? '✓ Default' : 'Set as default'}</span>
+                    </button>
+                    <div className="popup-divider" />
+                    <button
+                      onClick={() => { openModal({ kind: 'deleteSpaceConfirm', spaceId: ws.id }); setSpaceOptionsId(null); closeContextMenu(); }}
+                      className="popup-item flex items-center w-full px-3 py-1.5 text-sm gap-2 text-red-400"
+                    >
+                      <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 
