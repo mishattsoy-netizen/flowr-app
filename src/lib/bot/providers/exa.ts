@@ -70,7 +70,7 @@ export async function extractExaUrls(urls: string[], context?: any): Promise<Arr
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ urls }),
+      body: JSON.stringify({ urls, text: { maxCharacters: 4000 } }),
       signal: context?.signal,
     })
 
