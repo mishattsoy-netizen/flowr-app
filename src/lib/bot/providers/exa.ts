@@ -27,6 +27,7 @@ export async function searchExa(query: string, context?: any): Promise<string | 
         numResults: 5,
         type: 'auto',
         startPublishedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+        contents: { text: { maxCharacters: 2000 } },
       }),
       signal: context?.signal,
     })
