@@ -160,7 +160,8 @@ export function ContextMenu() {
     addTab,
     toggleSidebar,
     toggleSidebarPinned,
-    isSidebarPinned
+    isSidebarPinned,
+    updateSpace
   } = useStore();
   const selectedSidebarIds = useStore(state => state.selectedSidebarIds);
   const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
@@ -307,31 +308,29 @@ export function ContextMenu() {
           label: ws.name,
           selected: ws.id === (activeSpaceId || 'ws-personal'),
           hideCheckmark: true,
-          rightElement: (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal({ kind: 'rename', entityId: ws.id });
-                  closeContextMenu();
-                }}
-                className="p-[2px] rounded hover:bg-white/10"
-              >
-                <Edit2 strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-[var(--bone-100)] shrink-0" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openModal({ kind: 'deleteSpaceConfirm', spaceId: ws.id });
-                  closeContextMenu();
-                }}
-                className="p-[2px] rounded hover:bg-white/10"
-              >
-                <Trash2 strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-red-400 shrink-0" />
-              </button>
-            </div>
-          ),
-          onClick: () => { setActiveSpaceId(ws.id); closeContextMenu(); }
+          children: [
+            {
+              label: 'Open',
+              onClick: () => { setActiveSpaceId(ws.id); closeContextMenu(); },
+            },
+            {
+              label: 'Rename',
+              icon: <Edit2 strokeWidth={2} className="w-4 h-4 text-[var(--bone-70)]" />,
+              onClick: () => { openModal({ kind: 'rename', entityId: ws.id }); closeContextMenu(); },
+            },
+            {
+              label: ws.isDefault ? '✓ Default' : 'Set as default',
+              icon: <Star strokeWidth={2} className="w-4 h-4" />,
+              onClick: ws.isDefault ? undefined : () => { updateSpace(ws.id, { isDefault: true }); closeContextMenu(); },
+            },
+            { isDivider: true },
+            {
+              label: 'Delete',
+              icon: <Trash2 strokeWidth={2} className="w-4 h-4" />,
+              onClick: () => { openModal({ kind: 'deleteSpaceConfirm', spaceId: ws.id }); closeContextMenu(); },
+              danger: true,
+            },
+          ],
         })),
         { isDivider: true },
         {
