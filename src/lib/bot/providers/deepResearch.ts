@@ -97,6 +97,8 @@ export function parsePlannerOutput(raw: string | null, fallbackQuery: string): R
     const queries = Array.isArray(parsed.queries)
       ? parsed.queries.filter((q: any) => typeof q === 'string' && q.trim()).slice(0, 3)
       : []
+    if (queries.length === 0) return fallback
+
     const mustInclude = Array.isArray(parsed.mustInclude)
       ? parsed.mustInclude.filter((m: any) => typeof m === 'string' && m.trim())
       : []
@@ -104,11 +106,7 @@ export function parsePlannerOutput(raw: string | null, fallbackQuery: string): R
       ? parsed.constraints.filter((c: any) => typeof c === 'string' && c.trim())
       : []
 
-    return {
-      queries: queries.length > 0 ? queries : [fallbackQuery],
-      mustInclude,
-      constraints,
-    }
+    return { queries, mustInclude, constraints }
   } catch {
     return fallback
   }

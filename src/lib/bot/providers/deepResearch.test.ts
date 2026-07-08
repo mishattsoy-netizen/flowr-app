@@ -43,6 +43,12 @@ describe('parsePlannerOutput', () => {
     const result = parsePlannerOutput(raw, 'fallback query')
     expect(result.queries).toEqual(['fallback query'])
   })
+
+  it('falls back completely, discarding mustInclude/constraints, when queries array is empty', () => {
+    const raw = '{"queries": [], "mustInclude": ["Claude"], "constraints": ["under $20"]}'
+    const result = parsePlannerOutput(raw, 'fallback query')
+    expect(result).toEqual({ queries: ['fallback query'], mustInclude: [], constraints: [] })
+  })
 })
 
 describe('buildChecklist', () => {
