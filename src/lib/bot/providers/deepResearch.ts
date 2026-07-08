@@ -138,7 +138,11 @@ async function runResearchPlanner(originalQuestion: string, plannerSystemPrompt:
       raw = typeof res === 'object' && res !== null ? (res as any).content ?? null : res ?? null
     } else if (provider === 'openrouter') {
       const { runOpenRouter } = await import('./openrouter')
-      const res = await runOpenRouter(plannerModel.id, fullPrompt, undefined, [], undefined, { ...(context || {}), openrouterProvider: plannerModel.openrouter_provider })
+      // Strip UI-streaming hooks so the planner's internal JSON is never displayed in chat
+      const plannerContext = context ? { ...context, openrouterProvider: plannerModel.openrouter_provider } : { openrouterProvider: plannerModel.openrouter_provider }
+      delete plannerContext.onChunk
+      delete plannerContext.onStatus
+      const res = await runOpenRouter(plannerModel.id, fullPrompt, undefined, [], undefined, plannerContext)
       raw = typeof res === 'object' && res !== null ? (res as any).content ?? null : res ?? null
     } else if (provider === 'groq') {
       const { runGroq } = await import('./groq')

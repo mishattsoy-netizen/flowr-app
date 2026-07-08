@@ -72,6 +72,8 @@ export const FLOWR_TOOLS = [
       properties: {
         id: { type: "string", description: "ID of the note or task to update. REQUIRED." },
         // Shared
+        type: { type: "string", enum: ["task", "note", "canvas", "folder"],
+                description: "Entity type. Include 'task' when updating a task. Omit for auto-detection." },
         title: { type: "string", description: "New title." },
         // Note fields
         content: { type: "string", description: "For notes: Markdown body. FULLY REPLACES the existing content." },

@@ -163,13 +163,13 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
     }
 
-    const { id, title, content, blocks, assignedWorkspaceId,
+    const { id, type, title, content, blocks, assignedWorkspaceId,
             status, priority, tag, dueDate, endDate, includeTime, reminder, description, subtasks } = args
 
     if (!id) return { error: "'id' is required" }
 
     try {
-      const isTask = id.startsWith('task-')
+      const isTask = id.startsWith('task-') || type === 'task'
 
       if (isTask) {
         // --- UPDATE TASK ---
