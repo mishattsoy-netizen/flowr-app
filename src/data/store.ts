@@ -495,9 +495,12 @@ export const useStore = create<AppState>()(
       setSpaces: (spaces) => {
         const prevSpaces = get().spaces;
         set({ spaces });
-        // Only navigate to default space on first load (initial sync), not on every update
-        if (prevSpaces.length === 0 && get().activeSpaceId === null) {
-          const defaultSpace = spaces.find(s => s.isDefault);
+        // Only navigate to default space on first load (initial sync), not on every update.
+        // activeSpaceId starts as 'ws-personal' (legacy default), treat as "unset".
+        if (prevSpaces.length === 0) {
+          const currentId = get().activeSpaceId;
+          const isUnset = currentId === null || currentId === 'ws-personal';
+          const defaultSpace = isUnset ? spaces.find(s => s.isDefault) : null;
           if (defaultSpace) {
             set({ activeSpaceId: defaultSpace.id });
             const nextRecent = [defaultSpace.id, ...get().recentEntityIds.filter(rid => rid !== defaultSpace.id)].slice(0, 10);

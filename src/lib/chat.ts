@@ -43,6 +43,21 @@ export async function fetchConversations(spaceId?: string): Promise<ChatConversa
       .order('updated_at', { ascending: false });
 
     if (error) {
+      // If space_id column doesn't exist yet (migration not run), retry without filter
+      if (spaceId && (error.message?.includes('space_id') || error.code === 'PGRST204')) {
+        console.warn('[ChatLib] space_id column not found, retrying without filter');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('conversations')
+          .select('*, messages:messages(id)')
+          .eq('is_archived', false)
+          .limit(1, { foreignTable: 'messages' })
+          .order('updated_at', { ascending: false });
+        if (fallbackError) {
+          console.error('[ChatLib] fetchConversations fallback error:', fallbackError);
+          return [];
+        }
+        return (fallbackData ?? []) as ChatConversation[];
+      }
       console.error('[ChatLib] fetchConversations error:', error);
       return [];
     }
@@ -56,12 +71,27 @@ export async function fetchConversations(spaceId?: string): Promise<ChatConversa
 export async function createConversation(title = 'New Chat', spaceId?: string): Promise<ChatConversation | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  const payload: Record<string, any> = { title, user_id: user.id };
+  if (spaceId) payload.space_id = spaceId;
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ title, user_id: user.id, space_id: spaceId })
+    .insert(payload)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    // If space_id column doesn't exist yet (migration not run), retry without it
+    if (spaceId && (error.message?.includes('space_id') || error.code === 'PGRST204')) {
+      console.warn('[ChatLib] space_id column not found, retrying create without it');
+      const { data: retryData, error: retryError } = await supabase
+        .from('conversations')
+        .insert({ title, user_id: user.id })
+        .select()
+        .single();
+      if (retryError) throw retryError;
+      return retryData;
+    }
+    throw error;
+  }
   return data;
 }
 

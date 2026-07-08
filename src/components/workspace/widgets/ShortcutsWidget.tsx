@@ -19,7 +19,9 @@ interface Shortcut {
 const EMPTY_SHORTCUTS: Shortcut[] = [];
 
 export function ShortcutsWidget({ contextId }: { contextId: string }) {
-  const shortcuts = useStore(state => state.shortcuts[contextId] || EMPTY_SHORTCUTS);
+  const activeSpaceId = useStore(state => state.activeSpaceId);
+  const scopedKey = activeSpaceId ? `${activeSpaceId}:${contextId}` : contextId;
+  const shortcuts = useStore(state => state.shortcuts[scopedKey] || EMPTY_SHORTCUTS);
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setShortcuts = useStore(state => state.setShortcuts);
@@ -54,7 +56,7 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
     const reordered = [...shortcuts];
     [reordered[dragIdx], reordered[targetIdx]] = [reordered[targetIdx], reordered[dragIdx]];
     const droppedId = shortcuts[dragIdx].id;
-    setShortcuts(contextId, reordered);
+    setShortcuts(scopedKey, reordered);
     setJustDropped({ id: droppedId, nonce: Date.now() });
     handleDragEnd();
     setTimeout(() => setJustDropped(null), 800);
@@ -66,9 +68,9 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
 
     if (editingId) {
       const updated = shortcuts.map(s => s.id === editingId ? { ...s, type, label, value: newValue.trim() } : s);
-      setShortcuts(contextId, updated);
+      setShortcuts(scopedKey, updated);
     } else {
-      addShortcut(contextId, label, newValue.trim(), type);
+      addShortcut(scopedKey, label, newValue.trim(), type);
     }
 
     setNewLabel('');
@@ -79,7 +81,7 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
   };
 
   const handleRemove = (id: string) => {
-    removeShortcut(contextId, id);
+    removeShortcut(scopedKey, id);
   };
 
   return (
