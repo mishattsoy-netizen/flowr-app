@@ -125,34 +125,30 @@ export function buildChecklist(plan: ResearchPlan): string {
   return `[ANSWER REQUIREMENTS — verify all before responding]\n${lines.join('\n')}`
 }
 
-async function detectGaps(allFindings: string, originalQuestion: string, gapSystemPrompt: string, gapModel: any, context?: any): Promise<string[]> {
-  const gapPrompt = `${gapSystemPrompt}\n\nORIGINAL QUESTION: ${originalQuestion}\n\nFINDINGS SO FAR:\n${allFindings}`
+async function runResearchPlanner(originalQuestion: string, plannerSystemPrompt: string, plannerModel: any, context?: any): Promise<ResearchPlan> {
+  const fullPrompt = buildPlannerPrompt(originalQuestion, plannerSystemPrompt)
 
   try {
     let raw: string | null = null
-    const provider = gapModel.provider.toLowerCase()
+    const provider = plannerModel.provider.toLowerCase()
 
     if (provider === 'google') {
       const { runGoogle } = await import('./google')
-      const res = await runGoogle(gapModel.id, gapPrompt, undefined, undefined, undefined)
+      const res = await runGoogle(plannerModel.id, fullPrompt, undefined, undefined, undefined)
       raw = typeof res === 'object' && res !== null ? (res as any).content ?? null : res ?? null
     } else if (provider === 'openrouter') {
       const { runOpenRouter } = await import('./openrouter')
-      const res = await runOpenRouter(gapModel.id, gapPrompt, undefined, [], undefined, { ...(context || {}), openrouterProvider: gapModel.openrouter_provider })
+      const res = await runOpenRouter(plannerModel.id, fullPrompt, undefined, [], undefined, { ...(context || {}), openrouterProvider: plannerModel.openrouter_provider })
       raw = typeof res === 'object' && res !== null ? (res as any).content ?? null : res ?? null
     } else if (provider === 'groq') {
       const { runGroq } = await import('./groq')
-      const res = await runGroq(gapModel.id, gapPrompt, undefined, undefined, undefined, [])
+      const res = await runGroq(plannerModel.id, fullPrompt, undefined, undefined, undefined, [])
       raw = typeof res === 'string' ? res : null
     }
 
-    if (!raw) return []
-    const match = raw.match(/\[[\s\S]*?\]/)
-    if (!match) return []
-    const parsed = JSON.parse(match[0])
-    return Array.isArray(parsed) ? parsed.filter((q: any) => typeof q === 'string').slice(0, 2) : []
+    return parsePlannerOutput(raw, originalQuestion)
   } catch {
-    return []
+    return parsePlannerOutput(null, originalQuestion)
   }
 }
 
@@ -174,15 +170,15 @@ export async function runDeepResearchChain(prompt: string, chainModels: import('
   findings?: string
   gapTrace: { model: string; key: string; success: boolean; category?: string }[]
 }> {
-  logger.info(`Starting iterative deep research for: ${prompt}`)
+  logger.info(`Starting adaptive deep research for: ${prompt}`)
 
   const { getRouterChain } = await import('../../router-config')
 
-  const gapChainCategory = 'REGULAR'
-  const gapSystemPrompt = getChainPrompt('deep_research_gap_detector')
+  const plannerChainCategory = 'REGULAR'
+  const plannerSystemPrompt = getChainPrompt('research_planner')
 
-  const { chain: gapChain } = await getRouterChain(gapChainCategory, 'default')
-  const gapModel = gapChain.find(m => m.is_enabled)
+  const { chain: plannerChain } = await getRouterChain(plannerChainCategory, 'default')
+  const plannerModel = plannerChain.find(m => m.is_enabled)
 
   // Build a research query from vision notes when available.
   // The raw user prompt is often conversational ("imagine you are from prague..."),
@@ -192,51 +188,44 @@ export async function runDeepResearchChain(prompt: string, chainModels: import('
     : prompt
   logger.info(`Deep research using query: ${researchQuery}`)
 
-  // Round 1 — initial broad search (using the real topic, not the conversational prompt)
-  const round1 = await bestSearch(researchQuery, chainModels, context)
-  if (!round1) return { researchText: 'Search failed to retrieve results.', gapTrace: [] }
+  // Run the planner to decompose the query into 1-3 targeted sub-queries
+  const plan: ResearchPlan = plannerModel
+    ? await runResearchPlanner(researchQuery, plannerSystemPrompt, plannerModel, context)
+    : { queries: [researchQuery], mustInclude: [], constraints: [] }
+  logger.info(`Deep research plan: ${JSON.stringify(plan)}`)
 
-  let allFindings = `[ROUND 1 — Query: ${researchQuery}]\n${round1.text}`
+  // Run all sub-queries in parallel
+  const searchResults = await Promise.all(plan.queries.map(q => bestSearch(q, chainModels, context)))
 
-  // Fetch full content from discovered URLs
-  if (round1.urls.length > 0) {
-    const pages = await extractContent(round1.urls, context)
-    if (pages.length > 0) {
-      allFindings += `\n\n[EXTRACTED CONTENT]\n${formatExtractedPages(pages)}`
+  // Merge results with extracted content
+  const findingsParts: string[] = []
+  for (let i = 0; i < plan.queries.length; i++) {
+    const result = searchResults[i]
+    if (!result) continue
+    findingsParts.push(`[QUERY: ${plan.queries[i]}]\n${result.text}`)
+    if (result.urls.length > 0) {
+      const pages = await extractContent(result.urls, context)
+      if (pages.length > 0) {
+        findingsParts.push(`[EXTRACTED CONTENT for "${plan.queries[i]}"]\n${formatExtractedPages(pages)}`)
+      }
     }
   }
 
-  // Round 2 — gap detection + targeted follow-up
-  if (gapModel) {
-    const gaps = await detectGaps(allFindings, researchQuery, gapSystemPrompt, gapModel, context)
-    logger.info(`Deep research gaps detected: ${JSON.stringify(gaps)}`)
-
-    if (gaps.length > 0) {
-      const round2Results = await Promise.all(gaps.map(q => bestSearch(q, chainModels, context)))
-      gaps.forEach((query, i) => {
-        if (round2Results[i]) {
-          allFindings += `\n\n[ROUND 2 — Query: ${query}]\n${round2Results[i].text}`
-          if (round2Results[i].urls.length > 0) {
-            // Reuse already-extracted pages if same URLs, otherwise content is from R1
-          }
-        }
-      })
-    }
+  if (findingsParts.length === 0) {
+    return { researchText: 'Search failed to retrieve results.', gapTrace: [] }
   }
+
+  // Attach the constraint checklist so the synthesis LLM can verify coverage
+  const checklist = buildChecklist(plan)
+  const allFindings = findingsParts.join('\n\n---\n\n') + (checklist ? `\n\n${checklist}` : '')
 
   const gapTrace: { model: string; key: string; success: boolean; category?: string }[] = []
-  if (gapModel) {
-    gapTrace.push({
-      model: gapModel.id,
-      key: gapChainCategory,
-      success: true,
-      category: gapChainCategory,
-    })
+  if (plannerModel) {
+    gapTrace.push({ model: plannerModel.id, key: plannerChainCategory, success: true, category: plannerChainCategory })
   }
 
-  const systemPrompt = getChainPrompt('research_pipeline')
   return {
-    researchText: `${systemPrompt}\n\nRESEARCH FINDINGS:\n${allFindings}\n\nUSER QUESTION:\n${prompt}`,
+    researchText: `RESEARCH FINDINGS:\n${allFindings}\n\nUSER QUESTION:\n${prompt}`,
     findings: allFindings,
     gapTrace,
   }

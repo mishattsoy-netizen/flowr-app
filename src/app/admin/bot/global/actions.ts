@@ -83,7 +83,6 @@ export async function syncFinalPrompts(): Promise<{ synced: string[]; errors: st
     const subchains = [
       { id: 'prompt_expander', file: 'prompt_expander.txt' },
       { id: 'image_narration', file: 'image_narration.txt' },
-      { id: 'deep_research_gap_detector', file: 'deep_research_gap_detector.txt' },
     ]
     const currentConfigs: any[] = []
     for (const sc of subchains) {

@@ -47,15 +47,6 @@ Rules:
 4. Output ONLY the description. No intro like "The image shows..." or "Here is the description:".
 5. Focus on what is actually present in the image.`,
   },
-  {
-    id: 'deep_research_gap_detector',
-    label: 'Gap Detector',
-    parent_category: 'RESEARCH',
-    chain_category: 'REGULAR',
-    system_prompt: `You are a research gap detector. Given search findings and the original question, identify up to 2 specific follow-up search queries needed to fill gaps. Return ONLY a JSON array of query strings, nothing else. If no gaps exist, return [].
-
-Return format: ["query 1", "query 2"]`,
-  },
 ]
 
 let _cache: SubchainConfig[] | null = null

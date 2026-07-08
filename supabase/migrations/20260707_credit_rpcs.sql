@@ -5,12 +5,12 @@
 
 CREATE OR REPLACE FUNCTION reserve_credit(
   p_request_id UUID,
-  p_mode TEXT DEFAULT 'default',
-  p_reservation_usd NUMERIC DEFAULT 0.02
+  p_mode TEXT DEFAULT 'default'
 )
 RETURNS TABLE(allowed BOOLEAN, blocked_window TEXT, resets_at TIMESTAMPTZ)
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_user_id UUID;
@@ -25,6 +25,11 @@ DECLARE
   v_month_spend NUMERIC;
   v_5h_anchor TIMESTAMPTZ;
   v_week_anchor TIMESTAMPTZ;
+  -- Fixed server-side constant, NOT caller-controllable — a client-supplied
+  -- reservation amount would let a malicious caller pass p_reservation_usd=0
+  -- to always clear the cap checks below, then reconcile to an understated
+  -- real amount, defeating enforcement entirely.
+  v_reservation_usd CONSTANT NUMERIC := 0.02;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
@@ -72,21 +77,21 @@ BEGIN
   SELECT COALESCE(SUM(amount_usd), 0) INTO v_month_spend
   FROM credit_spend_events WHERE user_id = v_user_id AND created_at >= v_sub.period_start;
 
-  IF v_enforcement_enabled AND (v_5h_spend + p_reservation_usd) > v_window_cap THEN
+  IF v_enforcement_enabled AND (v_5h_spend + v_reservation_usd) > v_window_cap THEN
     RETURN QUERY SELECT false, '5h'::TEXT, v_5h_anchor + (v_tier.window_hours || ' hours')::INTERVAL;
     RETURN;
   END IF;
-  IF v_enforcement_enabled AND (v_week_spend + p_reservation_usd) > v_weekly_cap THEN
+  IF v_enforcement_enabled AND (v_week_spend + v_reservation_usd) > v_weekly_cap THEN
     RETURN QUERY SELECT false, 'week'::TEXT, v_week_anchor + INTERVAL '7 days';
     RETURN;
   END IF;
-  IF v_enforcement_enabled AND (v_month_spend + p_reservation_usd) > v_monthly_credit THEN
+  IF v_enforcement_enabled AND (v_month_spend + v_reservation_usd) > v_monthly_credit THEN
     RETURN QUERY SELECT false, 'month'::TEXT, v_sub.period_end;
     RETURN;
   END IF;
 
   INSERT INTO credit_spend_events (user_id, request_id, amount_usd, mode, is_reservation)
-  VALUES (v_user_id, p_request_id, p_reservation_usd, p_mode, true);
+  VALUES (v_user_id, p_request_id, v_reservation_usd, p_mode, true);
 
   RETURN QUERY SELECT true, NULL::TEXT, NULL::TIMESTAMPTZ;
 END;
@@ -99,6 +104,7 @@ CREATE OR REPLACE FUNCTION reconcile_credit(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_user_id UUID;
