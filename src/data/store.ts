@@ -493,14 +493,13 @@ export const useStore = create<AppState>()(
       setManualTimezone: (manualTimezone) => set({ manualTimezone }),
 
       setSpaces: (spaces) => {
+        const prevSpaces = get().spaces;
         set({ spaces });
-        // If there's a default space and activeSpaceId isn't set to it, navigate to it
-        const defaultSpace = spaces.find(s => s.isDefault);
-        if (defaultSpace) {
-          const currentActiveId = get().activeSpaceId;
-          if (currentActiveId !== defaultSpace.id) {
+        // Only navigate to default space on first load (initial sync), not on every update
+        if (prevSpaces.length === 0 && get().activeSpaceId === null) {
+          const defaultSpace = spaces.find(s => s.isDefault);
+          if (defaultSpace) {
             set({ activeSpaceId: defaultSpace.id });
-            // Also update recent entity IDs
             const nextRecent = [defaultSpace.id, ...get().recentEntityIds.filter(rid => rid !== defaultSpace.id)].slice(0, 10);
             set({ recentEntityIds: nextRecent });
             import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
@@ -843,7 +842,8 @@ export const useStore = create<AppState>()(
 
       loadChatConversations: async () => {
         try {
-          const convs = await fetchConversations();
+          const { activeSpaceId } = get();
+          const convs = await fetchConversations(activeSpaceId || undefined);
           const { activeChatId } = get();
           const toDelete: string[] = [];
           
@@ -872,9 +872,9 @@ export const useStore = create<AppState>()(
       },
 
       saveTempChat: async () => {
-        const { aiMessages, chatConversations, aiSessionContext } = get()
+        const { aiMessages, chatConversations, aiSessionContext, activeSpaceId } = get()
         try {
-          const conv = await createConversation('New Chat')
+          const conv = await createConversation('New Chat', activeSpaceId || undefined)
           if (!conv) {
             console.warn('Cannot save temp chat — not authenticated')
             return
@@ -999,7 +999,7 @@ export const useStore = create<AppState>()(
         if (!cleanContent && attachments.length === 0 && !extractedIntent) return;
         // Create pending new chat on first message
         if (get().pendingNewChat) {
-          const conv = await createConversation('New Chat');
+          const conv = await createConversation('New Chat', get().activeSpaceId || undefined);
           if (conv) {
             const title = cleanContent.slice(0, 60);
             await updateConversationTitle(conv.id, title);

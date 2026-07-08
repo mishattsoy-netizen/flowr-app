@@ -230,7 +230,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   );
 
   const isEntityVisible = useMemo(() => (e: Entity) => {
-    if (e.type === 'workspace') return !hiddenEntityIds.includes(e.id);
     const effectiveSpaceId = activeSpaceId || 'ws-personal';
     return (e.spaceId || 'ws-personal') === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
   }, [activeSpaceId, hiddenEntityIds]);
@@ -1023,9 +1022,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         <ListTodo strokeWidth={2} className="w-3.5 h-3.5" />
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">All tasks</span>
-                      {allTasks.filter(t => !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length > 0 && (
+                      {allTasks.filter(t => !t.completed && t.spaceId === activeSpaceId).length > 0 && (
                         <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
-                          {allTasks.filter(t => !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length}
+                          {allTasks.filter(t => !t.completed && t.spaceId === activeSpaceId).length}
                         </span>
                       )}
                     </button>
@@ -1034,10 +1033,10 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                   <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] py-2">
                     <div className="flex flex-col gap-[1px]">
                       {spacesBase.map(ws => {
-                        const count = allTasks.filter(t => t.entityId === ws.id && !t.completed && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId))).length;
+                        const count = allTasks.filter(t => t.entityId === ws.id && !t.completed && t.spaceId === activeSpaceId).length;
                         const wsTags = Array.from(new Set(
                           allTasks
-                            .filter(t => t.entityId === ws.id && t.tag && t.tag.trim() && (!t.spaceId || t.spaceId === activeSpaceId || !spaces.some(s => s.id === t.spaceId)))
+                            .filter(t => t.entityId === ws.id && t.tag && t.tag.trim() && t.spaceId === activeSpaceId)
                             .map(t => t.tag!.trim())
                         )).sort();
                         const hasTags = wsTags.length > 0;

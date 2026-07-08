@@ -43,14 +43,14 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
 
   const filteredTasks = useMemo(() => {
     if (!contextId || contextId === 'dashboard') {
-      return tasks;
+      return tasks.filter(t => t.spaceId === activeSpaceId);
     }
     const entity = entities.find(e => e.id === contextId);
     if (!entity) return [];
     const childIds = new Set(entities.filter(e => e.parentId === entity.id).map(e => e.id));
     childIds.add(entity.id);
-    return tasks.filter(t => t.spaceId === entity.id || (t.entityId && childIds.has(t.entityId)));
-  }, [tasks, entities, contextId]);
+    return tasks.filter(t => t.spaceId === activeSpaceId && (t.entityId && childIds.has(t.entityId)));
+  }, [tasks, entities, activeSpaceId, contextId]);
 
   const hiddenTabs: TabId[] = (data?.hiddenTabs ?? []) as TabId[];
   const visibleTabs = ALL_TABS.filter(t => !hiddenTabs.includes(t.id));
@@ -180,7 +180,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
       isSubmitting.current = true;
       const taskData: Partial<AppTask> = {
         title: t,
-        spaceId: (!contextId || contextId === 'dashboard') ? activeSpaceId : contextId
+        spaceId: activeSpaceId
       };
 
       // Smart defaults based on active tab to ensure visibility
@@ -340,7 +340,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
         {displayTasks.length > 0 ? (
           <div className="space-y-1">
             {displayTasks.map(t => {
-              const workspaceName = entities.find(e => e.id === t.spaceId)?.title || null;
+              const workspaceName = entities.find(e => e.id === (t.entityId || t.spaceId))?.title || null;
               const todayStr = getLocalDateStr();
               const isOverdue = !t.completed && t.dueDate && t.dueDate < todayStr;
               return (

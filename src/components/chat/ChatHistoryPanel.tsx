@@ -38,6 +38,7 @@ export function ChatHistoryPanel() {
   const renameChatConversation = useStore(s => s.renameChatConversation);
   const isTempChat = useStore(s => s.isTempChat);
   const pendingNewChat = useStore(s => s.pendingNewChat);
+  const activeSpaceId = useStore(s => s.activeSpaceId);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -49,7 +50,7 @@ export function ChatHistoryPanel() {
 
   useEffect(() => {
     loadChatConversations();
-  }, []);
+  }, [activeSpaceId, loadChatConversations]);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {

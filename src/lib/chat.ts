@@ -7,6 +7,7 @@ export interface ChatConversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  space_id?: string;
   messages?: { id: string }[];
 }
 
@@ -25,16 +26,22 @@ export interface ChatMessage {
   attachments?: any[];
 }
 
-export async function fetchConversations(): Promise<ChatConversation[]> {
+export async function fetchConversations(spaceId?: string): Promise<ChatConversation[]> {
   if (!supabase) return [];
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
       .select('*, messages:messages(id)')
-      .eq('is_archived', false)
+      .eq('is_archived', false);
+
+    if (spaceId) {
+      query = query.eq('space_id', spaceId);
+    }
+
+    const { data, error } = await query
       .limit(1, { foreignTable: 'messages' })
       .order('updated_at', { ascending: false });
-    
+
     if (error) {
       console.error('[ChatLib] fetchConversations error:', error);
       return [];
@@ -46,12 +53,12 @@ export async function fetchConversations(): Promise<ChatConversation[]> {
   }
 }
 
-export async function createConversation(title = 'New Chat'): Promise<ChatConversation | null> {
+export async function createConversation(title = 'New Chat', spaceId?: string): Promise<ChatConversation | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const { data, error } = await supabase
     .from('conversations')
-    .insert({ title, user_id: user.id })
+    .insert({ title, user_id: user.id, space_id: spaceId })
     .select()
     .single();
   if (error) throw error;
