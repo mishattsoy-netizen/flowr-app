@@ -100,9 +100,19 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  v_user_id UUID;
 BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN;
+  END IF;
+  IF p_real_amount_usd IS NULL OR p_real_amount_usd < 0 THEN
+    RETURN;
+  END IF;
+
   UPDATE credit_spend_events
   SET amount_usd = p_real_amount_usd, is_reservation = false
-  WHERE request_id = p_request_id AND is_reservation = true;
+  WHERE request_id = p_request_id AND is_reservation = true AND user_id = v_user_id;
 END;
 $$;
