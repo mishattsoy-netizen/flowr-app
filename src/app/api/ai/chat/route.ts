@@ -142,22 +142,21 @@ export async function POST(req: NextRequest) {
         }
 
         if (isImage && imageBuffer) {
+          // Upload to Supabase Storage, then serve through same-origin API proxy
           try {
             const ext = mime.split('/')[1] || 'png';
             const filename = `ai-${Date.now()}-${crypto.randomUUID()}.${ext}`;
-
-            // Upload to Supabase Storage for persistence across sessions
+            let uploaded = false;
             if (supabaseAdmin) {
-              // Ensure bucket exists (first call creates it, subsequent calls are no-ops)
+              // Ensure bucket exists
               const { data: buckets } = await supabaseAdmin.storage.listBuckets();
-              const hasBucket = buckets?.some(b => b.name === 'generated_images');
+              const hasBucket = buckets?.some((b: any) => b.name === 'generated_images');
               if (!hasBucket) {
                 await supabaseAdmin.storage.createBucket('generated_images', {
                   public: true,
-                  fileSizeLimit: 10485760, // 10 MB
-                }).catch(() => {}); // ignore if race-condition double-create
+                  fileSizeLimit: 10485760,
+                }).catch(() => {});
               }
-
               const { error: uploadError } = await supabaseAdmin.storage
                 .from('generated_images')
                 .upload(filename, imageBuffer, {
@@ -165,20 +164,18 @@ export async function POST(req: NextRequest) {
                   cacheControl: '31536000',
                   upsert: false,
                 });
+              if (!uploadError) uploaded = true;
+            }
 
-              if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
-
-              const { data: { publicUrl } } = supabaseAdmin.storage
-                .from('generated_images')
-                .getPublicUrl(filename);
-
-              content = `![Generated Image](${publicUrl})`;
+            if (uploaded) {
+              // Same-origin API proxy — no CORS, no rewrite issues
+              content = `![Generated Image](/api/images?file=${filename})`;
             } else {
-              throw new Error('supabaseAdmin not available');
+              throw new Error('upload failed or admin not available');
             }
           } catch (e) {
-            console.error('[AI Chat] Failed to save generated image to storage:', e);
-            // Fallback to base64 if storage save fails
+            // Fallback to data URL if storage upload fails
+            console.error('[AI Chat] Storage upload failed, using data URL:', e);
             const b64 = imageBuffer!.toString('base64');
             content = `![Generated Image](data:${mime};base64,${b64})`;
           }

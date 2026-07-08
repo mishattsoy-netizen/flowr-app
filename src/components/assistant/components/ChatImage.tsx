@@ -146,7 +146,6 @@ export const ChatImage = memo(({ src, alt, description, messageId, onHeightChang
           ref={imgRef}
           src={imgSrc}
           alt={alt}
-          crossOrigin="anonymous"
           style={loading ? { position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' } : undefined}
           className={cn(
             "max-w-full h-auto cursor-pointer",

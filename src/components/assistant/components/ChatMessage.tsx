@@ -145,7 +145,7 @@ const renderContentWithStyles = (content: any): any => {
 const looksLikeImageContent = (text: string) => {
   if (!text) return false;
   // Standard permissive regex for image markdown
-  return /!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)/.test(text);
+  return /!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|\/|AUO)/.test(text);
 };
 
 export const sanitizeContent = (content: string, isAILoading: boolean, isLastMessage: boolean) => {
@@ -164,7 +164,7 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   // Match markdown images: ![alt](src)
   // We use a non-greedy [\s\S]*? for the src to handle multi-line or massive base64 strings
   // We also try to match things that look like data URIs even if they don't have the prefix yet (though the backend should add it)
-  text = text.replace(/!\[.*?\]\s*\(\s*(data:image\/[\s\S]*?|https?:\/\/[\s\S]*?|AUO[\s\S]*?)(?:\s+"[\s\S]*?")?\s*\)/g, (match) => {
+  text = text.replace(/!\[.*?\]\s*\(\s*(data:image\/[\s\S]*?|https?:\/\/[\s\S]*?|\/[\s\S]*?|AUO[\s\S]*?)(?:\s+"[\s\S]*?")?\s*\)/g, (match) => {
     images.push(match.trim());
     return `__IMG_PLACEHOLDER_${images.length - 1}__`;
   });
@@ -325,6 +325,11 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
   text = text.replace(/\\int\b/g, '∫');
   // \mathbf{x}, \text{x}, \mathrm{x}, \textbf{x}, \textit{x} etc. → keep content
   text = text.replace(/\\(?:mathbf|mathit|mathrm|mathsf|mathtt|text|textbf|textit|textrm|boldsymbol|hat|bar|vec|tilde|dot|ddot|overline|underline)\{([^}]*)\}/g, '$1');
+  // 3. Restore protected images BEFORE LaTeX conversions that would mangle placeholders
+  images.forEach((img, i) => {
+    text = text.replace(`__IMG_PLACEHOLDER_${i}__`, () => img);
+  });
+
   // Convert ^{...} and _{...} to Unicode super/subscripts where possible.
   const SUP_MAP: Record<string, string> = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', 'a': 'ᵃ', 'b': 'ᵇ', 'i': 'ⁱ', 'j': 'ʲ', '+': '⁺', '-': '⁻', '(': '⁽', ')': '⁾' };
   const SUB_MAP: Record<string, string> = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', 'n': 'ₙ', 'a': 'ₐ', 'i': 'ᵢ', 'j': 'ⱼ' };
@@ -366,11 +371,6 @@ export const sanitizeContent = (content: string, isAILoading: boolean, isLastMes
 
   if (text.startsWith('!function_call:') && text.endsWith('}')) return "";
   if (text === '}' || text === '{' || text === '!function_call:') return "";
-
-  // 3. Restore protected images
-  images.forEach((img, i) => {
-    text = text.replace(`__IMG_PLACEHOLDER_${i}__`, () => img);
-  });
 
   return text;
 };
@@ -1060,7 +1060,7 @@ export const ChatMessage = memo(({
   const isPureImage = useMemo(() => {
     if (!targetContent) return false;
     const trimmed = targetContent.trim();
-    return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
+    return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
   }, [targetContent]);
   const { revealedText, isRevealing } = useWordReveal(targetContent, {
     enabled: isLast,

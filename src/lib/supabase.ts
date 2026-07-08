@@ -55,6 +55,9 @@ export const supabase = supabaseUrl && supabaseAnonKey
 
 export const isSupabaseEnabled = !!(supabaseUrl && supabaseAnonKey);
 
+// Admin client must use the REAL Supabase URL, not the proxied localhost URL,
+// so storage uploads go directly to Supabase instead of through Next.js rewrites
+const SUPABASE_PROJECT_URL = 'https://qmufalwubepttjxehvit.supabase.co';
 export const supabaseAdmin = supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(SUPABASE_PROJECT_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : (null as any);
