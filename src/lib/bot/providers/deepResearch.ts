@@ -12,7 +12,7 @@ async function searchTavily(query: string, context?: any): Promise<string | null
 
   try {
     const client = tavily({ apiKey })
-    const results = await client.search(query, { searchDepth: 'advanced', maxResults: 5, days: 60 })
+    const results = await client.search(query, { searchDepth: 'basic', maxResults: 5, days: 60 })
     if (!results.results?.length) return null
     return results.results.map(r =>
       `SOURCE: ${r.title}\nURL: ${r.url}\nCONTENT: ${r.content}\n\n[ ${r.title}](${r.url})`
