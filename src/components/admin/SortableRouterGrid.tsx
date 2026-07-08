@@ -65,15 +65,13 @@ function SortableItem({ id, children }: SortableItemProps) {
   )
 }
 
-export default function SortableRouterGrid({ 
-  initialRouters, 
-  models, 
-  platform,
+export default function SortableRouterGrid({
+  initialRouters,
+  models,
   children
-}: { 
+}: {
   initialRouters: any[]
   models: any[]
-  platform: 'app' | 'telegram'
   children?: React.ReactNode
 }) {
   const [items, setItems] = useState(initialRouters)
@@ -115,7 +113,7 @@ export default function SortableRouterGrid({
         setItems(newItems)
 
         try {
-          await saveRouterOrder(platform, newItems.map(i => i.id))
+          await saveRouterOrder(newItems.map(i => i.id))
         } catch (error) {
           console.error('Failed to save router order:', error)
         }
