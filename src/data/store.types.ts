@@ -31,6 +31,7 @@ export interface Space {
   color?: string;
   settings?: Record<string, unknown>;
   syncMode: SyncMode;
+  isDefault?: boolean;
 }
 
 export type BlockStyle = 'title' | 'heading' | 'subheading' | 'body' | 'mono';

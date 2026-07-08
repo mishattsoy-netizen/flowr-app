@@ -77,6 +77,7 @@ function rowToWorkspace(row: Record<string, any>): Space {
     color:        row.color ?? undefined,
     settings:     row.settings ?? undefined,
     syncMode:     row.sync_mode ?? 'full-sync',
+    isDefault:    row.is_default ?? undefined,
   };
 }
 
@@ -91,6 +92,7 @@ function workspaceToRow(w: Space): Record<string, any> {
   if (w.color)    row.color    = w.color;
   if (w.settings) row.settings = w.settings;
   if (w.syncMode) row.sync_mode = w.syncMode;
+  if (w.isDefault) row.is_default = true;
   return row;
 }
 
