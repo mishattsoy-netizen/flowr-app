@@ -12,20 +12,21 @@ export function NewSpaceModal() {
 
   const handleCreate = () => {
     if (!name.trim()) return;
-    
+
     // 1. Create the Space record in the spaces store
     const id = createSpace({ name: name.trim(), type: 'personal' });
-    
-    // 2. Create the corresponding Space Entity in the entities store
+
+    // 2. Create the corresponding workspace entity in the new space
     addEntity({
-      id, // Use the same ID so they are linked
+      id,
       title: name.trim(),
       type: 'workspace',
       parentId: null,
       lastModified: Date.now(),
+      spaceId: id, // explicitly assign to the new space
     });
 
-    // 3. Set the active workspace to the new one
+    // 3. Set the active space to the new one
     setActiveSpaceId(id);
     setName('');
     closeModal();
