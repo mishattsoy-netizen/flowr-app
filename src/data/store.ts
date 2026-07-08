@@ -511,12 +511,15 @@ export const useStore = create<AppState>()(
       },
 
       setActiveSpaceId: (id) => {
-        set({ activeSpaceId: id });
+        set({ activeSpaceId: id, activeChatId: null, aiMessages: [], pendingNewChat: true, isTempChat: false });
         if (id && id !== 'dashboard') {
           const nextRecent = [id, ...get().recentEntityIds.filter(rid => rid !== id)].slice(0, 10);
           set({ recentEntityIds: nextRecent });
           import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
         }
+        // Reload chat conversations for the new space
+        const { loadChatConversations } = get();
+        loadChatConversations();
       },
 
       setTrackerFilterTag: (tag) => {
@@ -2155,16 +2158,21 @@ export const useStore = create<AppState>()(
         for (const entity of state.entities) {
           if (entity.type === 'workspace') {
             reachableIds.add(entity.id);
-            correctSpaceMap.set(entity.id, entity.id);
+            // Legacy: entities stored their own ID as space_id. Migrate to the actual space.
+            const effectiveSpaceId = entity.spaceId !== entity.id ? (entity.spaceId || state.activeSpaceId || 'ws-personal') : state.activeSpaceId || 'ws-personal';
+            correctSpaceMap.set(entity.id, effectiveSpaceId);
           } else if ((entity.type === 'note' || entity.type === 'canvas') && (!entity.parentId || !entityMap.has(entity.parentId))) {
             reachableIds.add(entity.id);
-            correctSpaceMap.set(entity.id, entity.spaceId || state.activeSpaceId || 'ws-personal');
+            // Migrate legacy 'ws-personal' spaceId to the actual space UUID
+            const effectiveSpaceId = entity.spaceId && entity.spaceId !== 'ws-personal' ? entity.spaceId : state.activeSpaceId || 'ws-personal';
+            correctSpaceMap.set(entity.id, effectiveSpaceId);
           } else if (entity.type === 'folder' && !entity.parentId) {
             // Root folders (deliberately unsorted) are kept; folders whose parent
             // is gone are NOT roots — they fall through to deletion below, with
             // their notes/canvases rescued to Unsorted.
             reachableIds.add(entity.id);
-            correctSpaceMap.set(entity.id, entity.spaceId || state.activeSpaceId || 'ws-personal');
+            const effectiveSpaceId = entity.spaceId && entity.spaceId !== 'ws-personal' ? entity.spaceId : state.activeSpaceId || 'ws-personal';
+            correctSpaceMap.set(entity.id, effectiveSpaceId);
           }
         }
 
@@ -2236,6 +2244,55 @@ export const useStore = create<AppState>()(
           activeEntityId: idsToRemove.has(s.activeEntityId ?? '') ? 'dashboard' : s.activeEntityId,
           activeSpaceId: newActiveSpaceId,
         }));
+
+        // 6. Migrate legacy shortcuts (unscoped keys → scoped by active space)
+        const currentShortcuts = get().shortcuts;
+        const shortcutSpaceId = state.activeSpaceId || 'ws-personal';
+        let shortcutsMigrated = false;
+        for (const key of Object.keys(currentShortcuts)) {
+          if (!key.includes(':')) {
+            const scopedKey = `${shortcutSpaceId}:${key}`;
+            if (!currentShortcuts[scopedKey]) {
+              currentShortcuts[scopedKey] = currentShortcuts[key];
+              shortcutsMigrated = true;
+            }
+          }
+        }
+        if (shortcutsMigrated) {
+          set({ shortcuts: { ...currentShortcuts } });
+          console.log(`[Store] Migrated legacy shortcuts to scoped keys (${shortcutSpaceId}).`);
+        }
+
+        // 7. Migrate legacy task spaceIds (null or 'ws-personal' → active space)
+        const tasks = get().tasks;
+        const hasLegacyTasks = tasks.some(t => !t.spaceId || t.spaceId === 'ws-personal');
+        if (hasLegacyTasks) {
+          const migratedTasks = tasks.map(t => ({
+            ...t,
+            spaceId: (!t.spaceId || t.spaceId === 'ws-personal') ? (state.activeSpaceId || 'ws-personal') : t.spaceId,
+          }));
+          set({ tasks: migratedTasks });
+          import('@/lib/sync').then(({ upsertTask }) => {
+            migratedTasks.forEach(t => upsertTask(t));
+          });
+          console.log(`[Store] Migrated legacy task spaceIds to ${state.activeSpaceId || 'ws-personal'}.`);
+        }
+
+        // 7.5. Migrate tasks whose spaceId references a space that no longer exists
+        const knownSpaceIds = new Set(state.spaces.map(s => s.id));
+        const tasks2 = hasLegacyTasks ? get().tasks : tasks;
+        const orphanedTasks = tasks2.filter(t => t.spaceId && !knownSpaceIds.has(t.spaceId) && t.spaceId !== state.activeSpaceId);
+        if (orphanedTasks.length > 0) {
+          const targetSpaceId = state.activeSpaceId || 'ws-personal';
+          const fixedTasks = tasks2.map(t =>
+            t.spaceId && !knownSpaceIds.has(t.spaceId) ? { ...t, spaceId: targetSpaceId } : t
+          );
+          set({ tasks: fixedTasks });
+          import('@/lib/sync').then(({ upsertTask }) => {
+            fixedTasks.forEach(t => upsertTask(t));
+          });
+          console.log(`[Store] Migrated ${orphanedTasks.length} orphaned task spaceIds to ${targetSpaceId}.`);
+        }
       },
 
       moveEntity: (id, newParentId, newSpaceId) => {

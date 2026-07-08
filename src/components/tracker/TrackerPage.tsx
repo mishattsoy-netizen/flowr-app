@@ -112,10 +112,7 @@ export function TrackerPage() {
     // If a task doesn't have a spaceId, or its spaceId no longer exists, show it in the current space.
     let rawTasks = allTasks.filter(t => {
       if (!t.spaceId) return true;
-      if (t.spaceId === activeSpaceId) return true;
-      const spaceExists = spaces.some(s => s.id === t.spaceId);
-      if (!spaceExists) return true;
-      return false;
+      return t.spaceId === activeSpaceId;
     });
 
     // 2. Filter by Workspace Entity (trackerFilterEntityId)

@@ -154,4 +154,66 @@ export const telegram = {
       return false
     }
   },
+
+  /**
+   * Sets the bot's command list shown in the chat menu (bot menu button).
+   * Pass a chatId to force-update commands for a specific user (busts client cache).
+   */
+  async setMyCommands(commands: { command: string; description: string }[], chatId?: number): Promise<boolean> {
+    if (!TOKEN) return false
+    try {
+      const body: any = { commands }
+      if (chatId) {
+        body.scope = { type: 'chat', chat_id: chatId }
+      }
+      const response = await fetch(`${BASE_URL}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json()
+      if (!data?.ok) logger.warn(`setMyCommands failed: ${JSON.stringify(data)}`)
+      return data?.ok === true
+    } catch (error) {
+      logger.error('Error in telegram.setMyCommands:', error)
+      return false
+    }
+  },
+
+  /**
+   * Deletes the bot's command list. Pass a scope or chat_id to scope the deletion.
+   */
+  async deleteMyCommands(scope?: { type: string; chat_id?: number }): Promise<boolean> {
+    if (!TOKEN) return false
+    try {
+      const body: any = {}
+      if (scope) body.scope = scope
+      const response = await fetch(`${BASE_URL}/deleteMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json()
+      if (!data?.ok) logger.warn(`deleteMyCommands failed: ${JSON.stringify(data)}`)
+      return data?.ok === true
+    } catch (error) {
+      logger.error('Error in telegram.deleteMyCommands:', error)
+      return false
+    }
+  },
+
+  /**
+   * Returns basic info about the bot (username, id, name).
+   */
+  async getMe(): Promise<{ id: number; username: string; first_name: string } | null> {
+    if (!TOKEN) return null
+    try {
+      const response = await fetch(`${BASE_URL}/getMe`)
+      const data = await response.json()
+      return data?.ok ? data.result : null
+    } catch (error) {
+      logger.error('Error in telegram.getMe:', error)
+      return null
+    }
+  },
 }
