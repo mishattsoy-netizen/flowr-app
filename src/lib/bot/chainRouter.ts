@@ -1,7 +1,7 @@
 import { classifyIntentWithModel } from './classifier'
 import { sanitizeOutput } from './outputGuard'
 import { runAdvisor } from './advisor'
-import { getRouterChain, getFallbackModes, IntentCategory } from '../router-config'
+import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
 import type { BotMode } from '@/data/store.types'
 import { getProviderKeys } from '../vault'
 import { logger } from '../logger'
@@ -21,7 +21,6 @@ import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
 import { runNvidia } from './providers/nvidia'
 import { getConversationMemory, getWebConversationMemory } from './memory'
 import { supabaseAdmin } from '../supabase'
-import { getCompiledPrompt, getInternalPrompt } from './compilePrompt'
 import { getSessionState, updateSessionState, estimateTokens, summarizeSession } from './context'
 import type { StatusCallback, PipelineStep } from './pipeline'
 import { runThinkChain } from './thinkChain'
@@ -34,6 +33,7 @@ import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from
 import { buildSystemPrompt } from './services/promptBuilder'
 import { getChainPrompt } from './prompts'
 import { fetchConversationHistory, manageSessionCompaction } from './services/memoryManager'
+import { computeModelCost } from './services/costFormula'
 
 // Augments search query with context from conversation history
 function augmentSearchQuery(originalQuery: string, history: any[]): string {
@@ -198,9 +198,8 @@ export async function runChain(
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
-  const [sessionState, globalPrompt, fallbackModes, pipelineSettings, userDescription] = await Promise.all([
+  const [sessionState, fallbackModes, pipelineSettings, userDescription] = await Promise.all([
     getSessionState(sessionId),
-    getCompiledPrompt(context?.mode ?? 'default'),
     getFallbackModes(),
     getPipelineSettings(),
     context?.userId ? getAiUserDescription(context.userId) : null,
@@ -309,8 +308,7 @@ export async function runChain(
   const onStatus: StatusCallback = context?.onStatus ?? (() => { })
 
   const getStatusLabel = (chain: string, fallback?: string) => {
-    const custom = pipelineSettings.statusMessages?.[chain]
-    return custom ? `${custom.emoji} ${custom.label}`.trim() : (fallback || 'Working...')
+    return DEFAULT_STATUS_MESSAGES[chain] || fallback || 'Working...'
   }
 
   if (activeBuffer) {
@@ -325,14 +323,10 @@ export async function runChain(
     const { chain: visionChain } = await getRouterChain('VISION', (context?.mode === 'pro' ? 'pro' : 'default'))
     const visionTrace: any[] = []
 
-    // System Instructions = Persona + Date + Global Rules (respect pipeline settings)
-    const visionGlobalEnabled = pipelineSettings.globalPromptEnabledCategories
-      ? pipelineSettings.globalPromptEnabledCategories.includes('VISION')
-      : true
+    // System Instructions = Persona + Date
     const systemPromptCombined = [
       getChainPrompt('vision'),
       dateContext,
-      visionGlobalEnabled ? globalPrompt : null
     ].filter(Boolean).join("\n\n")
 
     // User Prompt = User Message or Default Trigger
@@ -376,8 +370,16 @@ export async function runChain(
           const visionUsage = typeof visionRes === 'object' ? (visionRes as any).usage : undefined
           const visionReasoning = typeof visionRes === 'object' ? (visionRes as any).reasoning : undefined
           const outputContent = typeof visionRes === 'object' ? visionRes.content : visionRes
-          const visionCost = (visionUsage?.prompt_tokens ?? 0) * (modelConfig.prompt_cost ?? 0)
-            + (visionUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
+          const visionCost = computeModelCost({
+            prompt_tokens: visionUsage?.prompt_tokens ?? 0,
+            completion_tokens: visionUsage?.completion_tokens ?? 0,
+            cache_read_tokens: visionUsage?.cache_read_input_tokens,
+            cache_creation_tokens: visionUsage?.cache_creation_input_tokens,
+            prompt_cost: modelConfig.prompt_cost,
+            completion_cost: modelConfig.completion_cost,
+            cache_read_cost: (modelConfig as any).cache_read_cost,
+            cache_write_cost: (modelConfig as any).cache_write_cost,
+          })
           tracer.recordSuccess({
             ...visionTraceMeta,
             output: outputContent,
@@ -466,7 +468,6 @@ export async function runChain(
                   context,
                   category: 'VISION',
                   systemPrompt: systemPromptCombined,
-                  globalPrompt,
                   dateContext,
                   currentSummary,
                   replyContext: (context as any)?.replyContext,
@@ -519,7 +520,6 @@ export async function runChain(
               context,
               category: 'VISION',
               systemPrompt: systemPromptCombined,
-              globalPrompt: pipelineSettings.globalPromptEnabledCategories?.includes('VISION') ? globalPrompt : undefined,
               dateContext,
               currentSummary,
               replyContext: (context as any)?.replyContext,
@@ -567,7 +567,6 @@ export async function runChain(
           context,
           category: 'VISION',
           systemPrompt: systemPromptCombined,
-          globalPrompt: pipelineSettings.globalPromptEnabledCategories?.includes('VISION') ? globalPrompt : undefined,
           dateContext,
           currentSummary,
           replyContext: (context as any)?.replyContext,
@@ -1129,8 +1128,16 @@ IMAGE GENERATION:
 
             const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
             routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: true, actualProvider: (response as any).provider })
-            const actualCost = (providerUsage?.prompt_tokens ?? 0) * (modelConfig.prompt_cost ?? 0)
-              + (providerUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0)
+            const actualCost = computeModelCost({
+              prompt_tokens: providerUsage?.prompt_tokens ?? 0,
+              completion_tokens: providerUsage?.completion_tokens ?? 0,
+              cache_read_tokens: providerUsage?.cache_read_input_tokens,
+              cache_creation_tokens: providerUsage?.cache_creation_input_tokens,
+              prompt_cost: modelConfig.prompt_cost,
+              completion_cost: modelConfig.completion_cost,
+              cache_read_cost: (modelConfig as any).cache_read_cost,
+              cache_write_cost: (modelConfig as any).cache_write_cost,
+            })
             tracer.recordSuccess({
               ...traceMeta,
               output: typeof finalContent === 'string' ? finalContent : '[binary]',
