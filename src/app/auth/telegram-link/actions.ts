@@ -3,9 +3,14 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { verifyTelegramLinkToken } from '@/lib/bot/telegramLinkToken'
 
-export async function linkTelegramAccount(telegramId: number): Promise<{ success: boolean; error?: string }> {
+export async function linkTelegramAccount(telegramId: number, token: string): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!token || !verifyTelegramLinkToken(telegramId, token)) {
+      return { success: false, error: 'This link is invalid or has expired. Send /login to the bot again.' }
+    }
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.id) return { success: false, error: 'Not authenticated' }

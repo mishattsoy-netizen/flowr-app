@@ -14,14 +14,15 @@ function TelegramLinkInner() {
   const processed = useRef(false)
 
   const telegramId = searchParams.get('tg')
+  const token = searchParams.get('token')
 
   const handleSignIn = useCallback(() => {
-    if (!telegramId) return
+    if (!telegramId || !token) return
     try {
-      sessionStorage.setItem('login-redirect', `/auth/telegram-link?tg=${telegramId}`)
+      sessionStorage.setItem('login-redirect', `/auth/telegram-link?tg=${telegramId}&token=${encodeURIComponent(token)}`)
     } catch {}
     signInWithGoogle()
-  }, [telegramId, signInWithGoogle])
+  }, [telegramId, token, signInWithGoogle])
 
   useEffect(() => {
     if (loading || processed.current) return
@@ -31,16 +32,16 @@ function TelegramLinkInner() {
       return
     }
 
-    if (!telegramId) {
+    if (!telegramId || !token) {
       setStatus('error')
-      setError('Missing Telegram ID. Please use the link from the bot.')
+      setError('Missing or incomplete link. Please use the link from the bot.')
       return
     }
 
     processed.current = true
     setStatus('linking')
 
-    linkTelegramAccount(Number(telegramId)).then((result) => {
+    linkTelegramAccount(Number(telegramId), token).then((result) => {
       if (result.success) {
         setStatus('success')
       } else {
@@ -131,7 +132,7 @@ function TelegramLinkInner() {
 
         <button
           onClick={handleSignIn}
-          disabled={!telegramId}
+          disabled={!telegramId || !token}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-[var(--bone-12)] bg-sidebar hover:bg-[var(--bone-6)] text-foreground text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
