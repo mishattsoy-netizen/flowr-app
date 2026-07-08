@@ -2128,6 +2128,73 @@ export const useStore = create<AppState>()(
         idsToRemove.forEach(eid => deleteEntityFromDB(eid));
       },
 
+      cleanupDeadEntities: async () => {
+        const state = get();
+        const entityMap = new Map(state.entities.map(e => [e.id, e]));
+        const reachableIds = new Set<string>();
+
+        // 1. Identify root entities
+        for (const entity of state.entities) {
+          if (entity.type === 'workspace') {
+            reachableIds.add(entity.id);
+          } else if ((entity.type === 'note' || entity.type === 'canvas') && (!entity.parentId || !entityMap.has(entity.parentId))) {
+            reachableIds.add(entity.id);
+          }
+        }
+
+        // 2. Iteratively traverse downwards
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const entity of state.entities) {
+            if (!reachableIds.has(entity.id) && entity.parentId && reachableIds.has(entity.parentId)) {
+              reachableIds.add(entity.id);
+              changed = true;
+            }
+          }
+        }
+
+        const deadEntities = state.entities.filter(e => !reachableIds.has(e.id));
+        if (deadEntities.length === 0) return;
+
+        console.log(`[Store] Found ${deadEntities.length} dead entities. Starting cleanup...`);
+
+        const rescuedIds = new Set<string>();
+        // 3. Rescue notes and canvases to Unsorted
+        const updatedEntities = state.entities.map(e => {
+          if (!reachableIds.has(e.id) && (e.type === 'note' || e.type === 'canvas')) {
+            console.log(`[Store] Rescuing dead ${e.type}: ${e.title}`);
+            rescuedIds.add(e.id);
+            const rescued = { ...e, parentId: null };
+            upsertEntity(rescued); // Sync rescued status to DB
+            return rescued;
+          }
+          return e;
+        });
+
+        // 4. Delete the rest (e.g. dead folders)
+        const toDelete = deadEntities.filter(e => !rescuedIds.has(e.id));
+        const idsToRemove = new Set(toDelete.map(e => e.id));
+
+        if (idsToRemove.size > 0) {
+          console.log(`[Store] Deleting ${idsToRemove.size} unrecoverable dead folders/entities.`);
+          toDelete.forEach(e => deleteEntityFromDB(e.id));
+        }
+
+        let newActiveSpaceId = state.activeSpaceId;
+        if (newActiveSpaceId && idsToRemove.has(newActiveSpaceId)) {
+          const remainingSpaces = updatedEntities.filter(e => e.type === 'workspace' && !idsToRemove.has(e.id));
+          newActiveSpaceId = remainingSpaces.length > 0 ? remainingSpaces[0].id : 'ws-personal';
+        }
+
+        set((s) => ({
+          entities: updatedEntities.filter(e => !idsToRemove.has(e.id)),
+          favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
+          activeEntityId: idsToRemove.has(s.activeEntityId ?? '') ? 'dashboard' : s.activeEntityId,
+          activeSpaceId: newActiveSpaceId,
+        }));
+      },
+
       moveEntity: (id, newParentId, newSpaceId) => {
         const state = get();
         const prevEntity = state.entities.find(e => e.id === id);

@@ -6,6 +6,11 @@ import { blocksToMarkdown } from './editor/markdownBlocks';
 
 export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<void> {
   if (!isDesktop() || !(window as any).flowrFS) return;
+  
+  // Folders and workspaces are represented by directories in the file system.
+  // Do not create empty .md files for them.
+  if (entity.type === 'folder' || entity.type === 'workspace') return;
+
   const vault = await getVaultPath();
   if (!vault) return;
 
@@ -34,6 +39,8 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
       title: entity.title,
       syncMode: entity.syncMode,
       lastModified: entity.lastModified,
+      spaceId: entity.spaceId || null,
+      parentId: entity.parentId || null,
       version: 1,
       blocks: needsBlockBackup(blocks) ? blocks : undefined
     };

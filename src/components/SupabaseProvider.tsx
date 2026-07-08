@@ -169,9 +169,12 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
       // 3. Merge cloud + local data
       mergeCloudData(data);
-
-      // --- Auto-cleanup for duplicate "Untitled Canvas" entities ---
       const s = useStore.getState();
+
+      // --- Auto-cleanup for dead entities (e.g. orphaned folders) ---
+      s.cleanupDeadEntities();
+      
+      // --- Auto-cleanup for duplicate "Untitled Canvas" entities ---
       const canvases = s.entities.filter(e => e.title === 'Untitled Canvas');
       if (canvases.length > 1) {
         canvases.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));

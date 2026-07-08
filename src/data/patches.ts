@@ -22,6 +22,38 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.2.1',
+    build: '1201',
+    date: '2026-07-08',
+    title: 'Critical Desktop Startup Fix & Sync Reliability',
+    featured: true,
+    sections: [
+      {
+        type: 'fixed',
+        items: [
+          'Fixed a critical bug where the desktop app failed to start with a "Flowr Startup Error" for everyone on the previous version.',
+          'Fixed generated images sometimes failing to load or appearing broken.',
+          'Fixed duplicate notes and folders appearing after syncing files edited outside the app.',
+          'Fixed "Unsorted" notes incorrectly being filed inside a Space folder when synced to disk.'
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          'The app now automatically detects and cleans up orphaned folders and notes that lost their place in your workspace.',
+          'Telegram bot: added account linking, new session commands, and an improved /clear flow with quick-action buttons.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Reduced the desktop app\'s install size by no longer bundling leftover test files.',
+          'Telegram bot command descriptions are clearer about which chats save history and which don\'t.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.2.0',
     build: '1200',
     date: '2026-07-07',

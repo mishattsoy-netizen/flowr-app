@@ -577,6 +577,7 @@ export interface AppState {
   goForward: () => void;
   addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => string;
   deleteEntity: (id: string) => void;
+  fixDatabaseIntegrity: () => Promise<void>;
   moveEntity: (id: string, newParentId: string | null, newSpaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
   renameEntity: (id: string, newTitle: string) => void;

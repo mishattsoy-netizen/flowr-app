@@ -28,7 +28,7 @@ export async function pickVaultFolder(): Promise<string | null> {
 
 export function getEntityPath(
   entity: { title: string; type: string; parentId: string | null; spaceId?: string | null },
-  entities: Array<{ id: string; title: string; parentId: string | null }>,
+  entities: Array<{ id: string; title: string; type?: string; parentId: string | null }>,
   spaces: Array<{ id: string; name: string }>
 ): string {
   const segments: string[] = [];
@@ -38,14 +38,31 @@ export function getEntityPath(
   segments.push(fileName);
 
   let currentParentId = entity.parentId;
+  let isUnsorted = true;
+
   while (currentParentId) {
     const parent = entities.find(e => e.id === currentParentId);
     if (!parent) break;
-    segments.unshift(sanitizeFileName(parent.title));
+    
+    isUnsorted = false;
+
+    // Do NOT include 'workspace' type entities in the path. 
+    // The Space object already provides the workspace folder name.
+    if (parent.type !== 'workspace') {
+      segments.unshift(sanitizeFileName(parent.title));
+    }
+    
     currentParentId = parent.parentId;
   }
 
-  if (entity.spaceId) {
+  // If the entity itself is a 'workspace', it is not unsorted.
+  if (entity.type === 'workspace') {
+    isUnsorted = false;
+  }
+
+  // Only prefix with the Space folder if it's NOT unsorted.
+  // Unsorted items should be placed directly at the vault root.
+  if (entity.spaceId && !isUnsorted) {
     const ws = spaces.find(w => w.id === entity.spaceId);
     if (ws) {
       segments.unshift(sanitizeFileName(ws.name));

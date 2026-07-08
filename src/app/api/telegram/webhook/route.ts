@@ -328,8 +328,8 @@ export async function POST(req: NextRequest) {
 /account — View linked info & plan
 
 *Chat*
-/new — New saved session
-/temp <msg> — One-off query (no history)
+/new — New saved session (history visible in app)
+/temp <msg> — New temporary session (ephemeral, no history saved)
 /clear — Clear messages, then pick next action
 
 *Info*

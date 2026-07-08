@@ -122,6 +122,46 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
     // Recognized file
     const existing = state.entities.find(e => e.id === meta.id);
     if (existing) {
+      // Check for duplications by verifying if the expected original file still exists
+      const expectedRelPath = getEntityPath(existing, state.entities, state.spaces);
+      if (expectedRelPath.toLowerCase() !== normalizedFilename.toLowerCase()) {
+        try {
+          const originalContent = await flowrFS.readFile(`${vault}/${expectedRelPath}`);
+          if (originalContent !== null) {
+            console.log(`[Sync Bridge] File duplication detected: ${titleFromFilename}`);
+            
+            let parentWorkspaceId: string | null = null;
+            const parts = normalizedFilename.split('/');
+            if (parts.length > 1) {
+              const firstFolder = parts[0];
+              const matchWs = state.spaces.find(w => sanitizeFileName(w.name).toLowerCase() === firstFolder.toLowerCase());
+              if (matchWs) parentWorkspaceId = matchWs.id;
+            }
+
+            const newEntityId = state.addEntity({
+              title: titleFromFilename,
+              type: 'note',
+              parentId: null,
+              spaceId: parentWorkspaceId,
+              syncMode: 'full-sync',
+              content: blocks
+            });
+
+            setTimeout(async () => {
+              const freshEntity = useStore.getState().entities.find(e => e.id === newEntityId);
+              if (freshEntity) {
+                const { saveEntityToFile } = await import('./persistence');
+                recordLocalWrite(absolutePath);
+                await saveEntityToFile(freshEntity, blocks);
+              }
+            }, 100);
+            return;
+          }
+        } catch(e) {
+          // Original file missing; this is a move/rename
+        }
+      }
+
       const title = meta.title || titleFromFilename;
       const contentChanged = !isContentEqual(existing.content, blocks);
       const titleChanged = existing.title !== title;
@@ -136,13 +176,14 @@ export async function handleLocalFileChanged(data: { eventType: string; filename
         }
       }
     } else {
-      // Recognized ID but missing from store (e.g. synced from other device local sync)
+      // Recognized ID but missing from store (e.g. synced from other device local sync, or moved causing delete/add)
       console.log(`[Sync Bridge] Importing recognized note: ${meta.title || titleFromFilename}`);
       state.addEntity({
         id: meta.id,
         title: meta.title || titleFromFilename,
         type: 'note',
-        parentId: meta.spaceId || null,
+        parentId: meta.parentId !== undefined ? meta.parentId : (meta.spaceId || null),
+        spaceId: meta.spaceId || null,
         syncMode: (meta.syncMode as any) || 'full-sync',
         content: blocks,
         lastModified: meta.lastModified || Date.now()
