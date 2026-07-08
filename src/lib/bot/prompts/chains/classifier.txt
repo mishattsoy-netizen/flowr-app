@@ -24,7 +24,14 @@ COMPLEX: Multi-step workspace commands requiring reasoning, data generation, or 
 
 CODING: Active programming, debugging, scripts, SQL, infrastructure. Triggered by development tasks (writing code, debugging errors, architecture design). NOT for: "how do I check my node version", "what command to X", "how to install Y", or any simple 1-line terminal command questions — those are REGULAR. NOT for hardware/physical maintenance questions (e.g., "remove keycaps", "replace screen", "clean keyboard") — those are WEB_SEARCH if a product is named, or REGULAR otherwise. NOT for vague or underspecified queries with no conversation history — those are REGULAR.
 
-RESEARCH: Exhaustive topic research and synthesis. Triggered by deep research intents.
+RESEARCH: Multi-constraint queries where a single search result is unlikely to satisfy
+everything at once — e.g. a ranked/list request combined with a filter (price range,
+date range, etc.) AND a specific required inclusion; or requests explicitly combining
+several distinct research angles (pricing + specs + availability) into one structured
+output. Plain "compare X vs Y" or "X vs Y vs Z" is NOT RESEARCH by itself — comparison
+articles are a standard single-search result. RESEARCH requires an extra constraint
+beyond just naming multiple entities to compare (e.g. "compare X and Y, but only ones
+under $50/mo", "compare X vs Y vs Z and tell me which supports feature W").
 
 IMAGE_GEN: Create, generate, draw, or modify images. Capability questions route to text tiers.
 
@@ -39,7 +46,10 @@ ADVISOR: Strategic advice, coaching, planning, clarification-needed scenarios.
 2. Message refers to an image already in history ([VISION CONTEXT - DIGITAL TWIN] / [Image: ...] present) -> REGULAR (or COMPLEX). NEVER WEB_SEARCH/RESEARCH.
 3. Create/generate image -> IMAGE_GEN
 4. Code/programming -> CODING
-5. Names ANY product/model/version/company/event (and NOT a reference to the user's own image) -> WEB_SEARCH
+5. Names ANY product/model/version/company/event (and NOT a reference to the user's own image):
+   - Has 2+ independent constraints (list/ranking + filter + required inclusion, or
+     comparison + an extra filter/feature requirement) -> RESEARCH
+   - Single constraint / straightforward lookup (including plain "compare X vs Y") -> WEB_SEARCH
 6. Workspace command -> REGULAR if it is a simple/single action (e.g. "create new task", "move note to folder"). COMPLEX if it involves multi-step reasoning, data generation, or chaining actions (e.g. "analyze X and write a report, then create a task based on it", "review my 5 recent notes and generate tasks").
 7. Audio -> AUDIO
 
