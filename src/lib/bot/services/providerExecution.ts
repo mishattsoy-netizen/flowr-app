@@ -53,6 +53,23 @@ export async function trackModelUsage(p_model_id: string, p_provider: string) {
   }
 }
 
+// Looks up a search provider's flat per-call cost from the search_providers table.
+// Defaults to 0 if supabaseAdmin is unavailable or the row is missing.
+async function getSearchProviderCost(providerId: 'tavily_search' | 'exa_search' | 'exa_extract'): Promise<number> {
+  if (!supabaseAdmin) return 0
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('search_providers')
+      .select('cost_per_call')
+      .eq('id', providerId)
+      .maybeSingle()
+    if (error || !data) return 0
+    return Number(data.cost_per_call) || 0
+  } catch {
+    return 0
+  }
+}
+
 // Generates alternative search queries when initial search fails
 function generateOptimizedQuery(originalPrompt: string): string[] {
   const queries: string[] = [originalPrompt]
@@ -109,8 +126,9 @@ export async function executeProvider(
   temperature: number | undefined,
   originalPrompt: string,
   augmentSearchQuery: (query: string, history: any[]) => string
-): Promise<{ response: any; searchResult?: string; searchFailed?: boolean }> {
+): Promise<{ response: any; searchResult?: string; searchFailed?: boolean; searchCostUsd: number }> {
   let response: any = null
+  let searchCostUsd = 0
 
   switch (modelConfig.provider.toLowerCase()) {
     case 'google':
@@ -142,19 +160,28 @@ export async function executeProvider(
 
       if (hasSearchData) {
         logger.info(`Skipping redundant search for ${modelConfig.id} - data already present from prior pass.`)
-        return { response: null } // Indicates to skip/continue
+        return { response: null, searchCostUsd: 0 } // Indicates to skip/continue
       }
+
+      const isTavily = modelConfig.id.includes('tavily') || modelConfig.provider === 'tavily'
+      const isExa = modelConfig.id.includes('exa') || modelConfig.provider === 'exa'
+      const [tavilyCostPerCall, exaCostPerCall] = await Promise.all([
+        isTavily ? getSearchProviderCost('tavily_search') : Promise.resolve(0),
+        isExa ? getSearchProviderCost('exa_search') : Promise.resolve(0),
+      ])
 
       const SEARCH_FAILURE_STRINGS = ['search failed', 'unavailable', 'could not retrieve', 'failed to retrieve', 'unable to find', 'no results']
       let searchResult: string | null = null
       const searchQuery = augmentSearchQuery(originalPrompt, historyForChain)
 
-      if (modelConfig.id.includes('tavily') || modelConfig.provider === 'tavily') {
+      if (isTavily) {
         searchResult = await runWebSearchChain(searchQuery, routeContext, system_prompt)
+        searchCostUsd += tavilyCostPerCall
       } else if (modelConfig.id.includes('duckduckgo')) {
         searchResult = await runDuckDuckGoSearchChain(searchQuery, routeContext, system_prompt)
-      } else if (modelConfig.id.includes('exa') || modelConfig.provider === 'exa') {
+      } else if (isExa) {
         searchResult = await runExaSearchChain(searchQuery, routeContext, system_prompt)
+        searchCostUsd += exaCostPerCall
       }
 
       let isSearchFailure = !searchResult || SEARCH_FAILURE_STRINGS.some(f => searchResult!.toLowerCase().includes(f))
@@ -165,10 +192,16 @@ export async function executeProvider(
           if (altQuery === searchQuery) continue
           logger.info(`Retrying ${modelConfig.id} with optimized query: "${altQuery}"`)
           let retryResult: string | null = null
-          if (modelConfig.id.includes('tavily')) retryResult = await runWebSearchChain(altQuery, routeContext, system_prompt)
-          else if (modelConfig.id.includes('duckduckgo')) retryResult = await runDuckDuckGoSearchChain(altQuery, routeContext, system_prompt)
-          else if (modelConfig.id.includes('exa')) retryResult = await runExaSearchChain(altQuery, routeContext, system_prompt)
-          
+          if (modelConfig.id.includes('tavily')) {
+            retryResult = await runWebSearchChain(altQuery, routeContext, system_prompt)
+            searchCostUsd += tavilyCostPerCall
+          } else if (modelConfig.id.includes('duckduckgo')) {
+            retryResult = await runDuckDuckGoSearchChain(altQuery, routeContext, system_prompt)
+          } else if (modelConfig.id.includes('exa')) {
+            retryResult = await runExaSearchChain(altQuery, routeContext, system_prompt)
+            searchCostUsd += exaCostPerCall
+          }
+
           const retryFailed = !retryResult || SEARCH_FAILURE_STRINGS.some(f => retryResult!.toLowerCase().includes(f))
           if (!retryFailed) {
             searchResult = retryResult
@@ -180,9 +213,9 @@ export async function executeProvider(
       }
 
       if (isSearchFailure) {
-        return { response: null, searchFailed: true }
+        return { response: null, searchFailed: true, searchCostUsd }
       }
-      return { response: { content: searchResult }, searchResult: searchResult! }
+      return { response: { content: searchResult }, searchResult: searchResult!, searchCostUsd }
     }
     case 'pollinations':
       if (category === 'IMAGE_GEN') {
@@ -212,5 +245,5 @@ export async function executeProvider(
       break
   }
 
-  return { response }
+  return { response, searchCostUsd }
 }

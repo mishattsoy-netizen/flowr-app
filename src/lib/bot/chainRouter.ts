@@ -220,6 +220,7 @@ export async function runChain(
   let currentSummary = sessionState?.distilled_summary || null
   const compactionResult = await manageSessionCompaction(sessionId, history, sessionState)
   currentSummary = compactionResult.currentSummary
+  totalCostUsd += compactionResult.cost
   if (sessionState) {
     Object.assign(sessionState, compactionResult.updatedSessionState)
   }
@@ -1039,6 +1040,8 @@ IMAGE GENERATION:
               augmentSearchQuery
             )
 
+            totalCostUsd += result.searchCostUsd
+
             if (result.searchFailed) {
               const displayKey = routeContext.usedKeyIndex ? `${key} ${routeContext.usedKeyIndex}` : `${key} 1`
               routingTrace.push({ model: modelConfig.id, category, key: displayKey, success: false, status: 'empty' })
@@ -1278,7 +1281,19 @@ IMAGE GENERATION:
               const threshold = sessionState?.compaction_threshold ?? 0.8
               if (totalUsage > limit * threshold) {
                 logger.info(`Context limit (${Math.round(threshold * 100)}%) reached for ${sid}. Triggering summarization...`)
-                summarizeSession(sid, history, currentSummary)
+                summarizeSession(sid, history, currentSummary).then(({ cost: bgCost }) => {
+                  if (bgCost > 0 && context?.userId && context.userId !== 'anonymous') {
+                    supabaseAdmin?.from('credit_spend_events').insert({
+                      user_id: context.userId,
+                      request_id: crypto.randomUUID(),
+                      amount_usd: bgCost,
+                      mode: 'default',
+                      is_reservation: false,
+                    }).then(({ error }: any) => {
+                      if (error) logger.error(`Failed to log standalone compaction cost for session ${sid}:`, error)
+                    })
+                  }
+                }).catch((e: any) => logger.error(`Background compaction failed for ${sid}:`, e))
               } else {
                 updateSessionState(sid, { token_usage_total: totalUsage, context_limit: limit, compaction_threshold: threshold })
               }

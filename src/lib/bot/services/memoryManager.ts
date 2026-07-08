@@ -33,17 +33,19 @@ export async function manageSessionCompaction(
   sessionId: string,
   history: any[],
   sessionState: any
-): Promise<{ currentSummary: string | null; updatedSessionState: any }> {
+): Promise<{ currentSummary: string | null; updatedSessionState: any; cost: number }> {
   let currentSummary = sessionState?.distilled_summary || null
+  let cost = 0
 
   if (sessionState && !currentSummary && history.length >= 5
     && sessionState.token_usage_total > sessionState.context_limit * sessionState.compaction_threshold) {
-    
+
     logger.info(`Pre-request compaction for ${sessionId} (${sessionState.token_usage_total}/${sessionState.context_limit})`)
-    
-    await summarizeSession(sessionId, history, null)
+
+    const result = await summarizeSession(sessionId, history, null)
+    cost = result.cost
     const updated = await getSessionState(sessionId)
-    
+
     if (updated?.distilled_summary) {
       currentSummary = updated.distilled_summary
       sessionState.distilled_summary = updated.distilled_summary
@@ -51,5 +53,5 @@ export async function manageSessionCompaction(
     }
   }
 
-  return { currentSummary, updatedSessionState: sessionState }
+  return { currentSummary, updatedSessionState: sessionState, cost }
 }

@@ -9,7 +9,6 @@ export interface SessionState {
   context_limit: number
   compaction_threshold: number
   last_summarized_at: string
-  status_messages?: Record<string, { label: string; emoji: string }>
 }
 
 const CHARS_PER_TOKEN = 4
@@ -35,8 +34,7 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       token_usage_total: 0,
       context_limit: config.context_limit,
       compaction_threshold: config.compaction_threshold,
-      last_summarized_at: new Date(0).toISOString(),
-      status_messages: settings.statusMessages
+      last_summarized_at: new Date(0).toISOString()
     }
   }
 
@@ -47,8 +45,7 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       token_usage_total: 0,
       context_limit: config.context_limit,
       compaction_threshold: config.compaction_threshold,
-      last_summarized_at: new Date(0).toISOString(),
-      status_messages: settings.statusMessages
+      last_summarized_at: new Date(0).toISOString()
     }
   }
 
@@ -73,8 +70,7 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
   return {
     ...baseState,
     context_limit: config.context_limit,
-    compaction_threshold: config.compaction_threshold,
-    status_messages: settings.statusMessages
+    compaction_threshold: config.compaction_threshold
   }
 }
 
@@ -106,9 +102,9 @@ export async function summarizeSession(
   chatId: string,
   history: any[],
   currentSummary: string | null
-): Promise<string | null> {
+): Promise<{ summary: string | null; cost: number }> {
   try {
-    const newSummary = await compactSession(chatId, history, currentSummary)
+    const { summary: newSummary, cost } = await compactSession(chatId, history, currentSummary)
     if (newSummary) {
       if (!(chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp'))) {
         await updateSessionState(chatId, {
@@ -117,10 +113,11 @@ export async function summarizeSession(
           token_usage_total: estimateTokens(newSummary),
         })
       }
-      return newSummary
+      return { summary: newSummary, cost }
     }
+    return { summary: null, cost }
   } catch (error) {
     logger.error(`Summarization failed for session ${chatId}:`, error)
   }
-  return null
+  return { summary: null, cost: 0 }
 }

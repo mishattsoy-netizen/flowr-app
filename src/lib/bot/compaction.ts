@@ -5,6 +5,7 @@ import { getChainPrompt } from './prompts'
 import { runGoogle } from './providers/google'
 import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
+import { computeModelCost } from './services/costFormula'
 import type { RouterModel } from '../router-config'
 
 export interface CompactionConfig {
@@ -41,7 +42,7 @@ async function runCompactionModel(
   systemPrompt: string,
   userMessage: string,
   sessionId?: string
-): Promise<string | null> {
+): Promise<{ content: string; cost: number } | null> {
   const provider = modelConfig.provider.toLowerCase()
   try {
     let response: any = null
@@ -62,7 +63,20 @@ async function runCompactionModel(
         response = await runGoogle(modelConfig.id, userMessage, systemPrompt)
     }
     if (response) {
-      return typeof response === 'object' ? response.content : response
+      const content = typeof response === 'object' ? response.content : response
+      if (!content) return null
+      const usage = typeof response === 'object' ? response.usage : undefined
+      const cost = computeModelCost({
+        prompt_tokens: usage?.prompt_tokens ?? 0,
+        completion_tokens: usage?.completion_tokens ?? 0,
+        cache_read_tokens: usage?.cache_read_input_tokens,
+        cache_creation_tokens: usage?.cache_creation_input_tokens,
+        prompt_cost: (modelConfig as any).prompt_cost,
+        completion_cost: (modelConfig as any).completion_cost,
+        cache_read_cost: (modelConfig as any).cache_read_cost,
+        cache_write_cost: (modelConfig as any).cache_write_cost,
+      })
+      return { content, cost }
     }
   } catch (e: any) {
     logger.warn(`Compaction model ${modelConfig.id} failed: ${e.message}`)
@@ -74,7 +88,7 @@ export async function compactSession(
   chatId: string,
   history: any[],
   currentSummary: string | null
-): Promise<string | null> {
+): Promise<{ summary: string | null; cost: number }> {
   const { chain } = await getRouterChain('COMPACTION', 'default').catch(() => ({ chain: [] as RouterModel[] }))
   const compactionPrompt = getChainPrompt('compaction')
 
@@ -94,11 +108,11 @@ export async function compactSession(
   for (const modelConfig of enabledModels) {
     const result = await runCompactionModel(modelConfig, compactionPrompt, userMessage, chatId)
     if (result) {
-      return result
+      return { summary: result.content, cost: result.cost }
     }
   }
 
   logger.warn(`Compaction failed for ${chatId}: all models failed, keeping old summary`)
-  return currentSummary
+  return { summary: currentSummary, cost: 0 }
 }
 
