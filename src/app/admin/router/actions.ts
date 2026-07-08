@@ -163,35 +163,6 @@ export async function setFallbackMode(category: string, mode: 'model_first' | 'a
   return { success: true }
 }
 
-export async function getRouterTemperatures(): Promise<Record<string, number>> {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'router_temperatures')
-    .limit(1)
-    .maybeSingle()
-
-  if (error || !data?.value) return {}
-  return data.value as Record<string, number>
-}
-
-export async function setRouterTemperature(category: string, temp: number) {
-  const current = await getRouterTemperatures()
-  current[category] = temp
-
-  const { error } = await supabase
-    .from('settings')
-    .upsert({
-      key: 'router_temperatures',
-      value: current,
-      updated_at: new Date().toISOString()
-    })
-
-  if (error) throw error
-  revalidatePath('/admin/router')
-  return { success: true }
-}
-
 export async function getInternalPrompts(): Promise<Record<string, string>> {
   const { data } = await supabase
     .from('settings')

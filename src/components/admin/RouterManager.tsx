@@ -34,9 +34,6 @@ import {
   updateRouterChain,
   getFallbackModes,
   setFallbackMode,
-  getRouterTemperatures,
-  setRouterTemperature,
-  updateRouterSystemPrompt,
   getSubchainConfigsAction,
   saveSubchainConfigsAction,
 } from '@/app/admin/router/actions'
@@ -263,7 +260,6 @@ export default function RouterManager({
   const [presetsList, setPresetsList] = useState<any[]>([])
   const [isSavingPreset, setIsSavingPreset] = useState(false)
   const [fallbackMode, setFallbackModeState] = useState<'model_first' | 'api_key_first'>('model_first')
-  const [temperature, setTemperature] = useState<number>(0.7)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [isPromptOpen, setIsPromptOpen] = useState(false)
   const [systemPrompt, setSystemPrompt] = useState(chain.system_prompt || '')
@@ -298,17 +294,14 @@ export default function RouterManager({
   }
 
   useEffect(() => {
-    const loadModesAndTemps = async () => {
+    const loadFallbackMode = async () => {
       if (!category) return
-      const [modes, temps] = await Promise.all([getFallbackModes(), getRouterTemperatures()])
+      const modes = await getFallbackModes()
       if (modes[category]) {
         setFallbackModeState(modes[category])
       }
-      if (typeof temps[category] === 'number') {
-        setTemperature(temps[category])
-      }
     }
-    loadModesAndTemps()
+    loadFallbackMode()
   }, [category])
 
   const handleToggleMode = async () => {
@@ -316,12 +309,6 @@ export default function RouterManager({
     const nextMode = fallbackMode === 'model_first' ? 'api_key_first' : 'model_first'
     setFallbackModeState(nextMode)
     await setFallbackMode(category, nextMode)
-  }
-
-  const handleTempChange = async (val: number) => {
-    setTemperature(val)
-    if (!category) return
-    await setRouterTemperature(category, val)
   }
 
   const loadPresets = async () => {
@@ -599,18 +586,6 @@ export default function RouterManager({
                 <span className="w-1 h-1 rounded-full bg-current" />
                 {fallbackMode === 'api_key_first' ? 'Keys' : 'Models'}
               </button>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-white/5 text-bone-70 hover:text-foreground hover:bg-white/[0.08] text-[9px] font-bold uppercase tracking-wide">
-                <span>Temp</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="2"
-                  value={temperature}
-                  onChange={(e) => handleTempChange(parseFloat(e.target.value) || 0)}
-                  className="w-10 bg-transparent border-none p-0 focus:ring-0 text-[9px] font-mono text-center font-bold text-accent select-none outline-none"
-                />
-              </div>
             </>)}
 
             <button

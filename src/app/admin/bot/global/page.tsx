@@ -1,6 +1,6 @@
 import { getCompactionConfig } from '@/lib/bot/compaction'
 import { getGlobalEnabled, getOllamaEnabled, getBackendModel, getCompiledPromptMeta, getKeywordsEnabled } from '@/app/admin/bot/settings/actions'
-import { getInternalPromptsFull, getStatusMessages, getPipelineSettings, getRouterChains, getRouterTemperatures } from '@/app/admin/router/actions'
+import { getInternalPromptsFull, getStatusMessages, getPipelineSettings, getRouterChains } from '@/app/admin/router/actions'
 import { getModels } from '@/app/admin/models/actions'
 import { UnsavedChangesProvider } from '@/components/admin/shared/UnsavedChangesGuard'
 import GlobalSettingsClient from './GlobalSettingsClient'
@@ -9,7 +9,7 @@ export default async function GlobalSettingsPage() {
   const [globalEnabled, ollamaEnabled, backendModel, compactionConfig,
          defaultMeta, proMeta, models, keywordsEnabled,
          internalPrompts, statusMessages, pipelineSettings,
-         appChains, routerTemps] = await Promise.all([
+         appChains] = await Promise.all([
     getGlobalEnabled(),
     getOllamaEnabled(),
     getBackendModel(),
@@ -22,7 +22,6 @@ export default async function GlobalSettingsPage() {
     getStatusMessages(),
     getPipelineSettings(),
     getRouterChains(),
-    getRouterTemperatures(),
   ])
 
   const compactionChain = appChains.find((c: any) => c.category === 'COMPACTION')
@@ -41,7 +40,6 @@ export default async function GlobalSettingsPage() {
         initialStatusMessages={statusMessages}
         initialPipelineSettings={pipelineSettings}
         compactionChain={compactionChain ?? null}
-        compactionTemperature={routerTemps['COMPACTION'] ?? 0.7}
       />
     </UnsavedChangesProvider>
   )

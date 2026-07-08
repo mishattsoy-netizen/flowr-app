@@ -13,7 +13,7 @@ import {
   syncCompiledPrompt, updateCompactionConfig, setKeywordsEnabled, getCompiledPromptMeta,
   syncFinalPrompts
 } from './actions'
-import { updateRouterChain, updateRouterSystemPrompt, setRouterTemperature, savePipelineSetting } from '@/app/admin/router/actions'
+import { updateRouterChain, updateRouterSystemPrompt, savePipelineSetting } from '@/app/admin/router/actions'
 import PipelineStatusPanel from '@/components/admin/PipelineStatusPanel'
 import type { CompactionConfig } from '@/lib/bot/compaction'
 import type { BotMode } from '@/data/store.types'
@@ -38,7 +38,7 @@ interface Props {
   initialStatusMessages: Record<string, { label: string; emoji: string }>
   initialPipelineSettings: any
   compactionChain: { id: string; category: string; model_list: ModelEntry[]; system_prompt: string | null } | null
-  compactionTemperature: number
+  compactionTemperature?: number
 }
 
 const MODE_TABS: { key: BotMode; label: string }[] = [
@@ -53,7 +53,7 @@ export default function GlobalSettingsClient({
   globalEnabled, ollamaEnabled, backendModel,
   compactionConfig, compiledMeta, models, keywordsEnabled,
   initialPipelinePrompts, initialStatusMessages, initialPipelineSettings,
-  compactionChain, compactionTemperature
+  compactionChain
 }: Props) {
   const [globalOn, setGlobalOn] = useState(globalEnabled)
   const [ollamaOn, setOllamaOn] = useState(ollamaEnabled)
@@ -95,7 +95,6 @@ export default function GlobalSettingsClient({
     () => (compactionChain?.model_list ?? []).map(m => ({ ...m, _key: m._key || nextKey() }))
   )
   const [chainPrompt, setChainPrompt] = useState(compactionChain?.system_prompt ?? '')
-  const [chainTemp, setChainTemp] = useState(compactionTemperature)
   const [chainSaved, setChainSaved] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const chainId = compactionChain?.id ?? null
@@ -138,7 +137,6 @@ export default function GlobalSettingsClient({
     const modelList = chainModels.map(({ _key, ...rest }) => rest)
     await updateRouterChain(chainId, modelList)
     await updateRouterSystemPrompt(chainId, chainPrompt)
-    await setRouterTemperature('COMPACTION', chainTemp)
     setChainSaved(true)
     setTimeout(() => setChainSaved(false), 1500)
   }
@@ -290,18 +288,6 @@ export default function GlobalSettingsClient({
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-bold text-bone-70 uppercase tracking-widest px-1">Compaction Chain</p>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm bg-white/5 text-bone-70 text-[9px] font-bold uppercase tracking-wide">
-                  <span>Temp</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="2"
-                    value={chainTemp}
-                    onChange={(e) => setChainTemp(parseFloat(e.target.value) || 0)}
-                    className="w-10 bg-transparent border-none p-0 focus:ring-0 text-[9px] font-mono text-center font-bold text-accent outline-none"
-                  />
-                </div>
                 <button onClick={saveCompactionChain}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-sm bg-accent/10 text-accent hover:bg-accent/20 transition-colors">
                   {chainSaved ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" />}

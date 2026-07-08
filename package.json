@@ -114,7 +114,7 @@
     },
     "win": {
       "target": "nsis",
-      "artifactName": "Flowr-Setup.${ext}"
+      "artifactName": "flowr-setup-test.${ext}"
     },
     "mac": {
       "target": [

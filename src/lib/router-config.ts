@@ -2,6 +2,8 @@ import { unstable_cache } from 'next/cache'
 import { supabaseAdmin as supabase } from './supabase'
 import { logger } from './logger'
 
+const DEFAULT_TEMPERATURE = 0.7
+
 export interface RouterModel {
   id: string
   provider: 'google' | 'gemini' | 'huggingface' | 'cloudflare' | 'groq' | 'local' | 'core' | 'tavily' | 'exa' | 'pollinations' | 'ollama' | 'ollama(my pc)' | 'openrouter' | 'siliconflow' | 'nvidia'
@@ -42,18 +44,12 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
 
   while (retryCount <= maxRetries) {
     try {
-      const [chainResult, tempsResult, budgetsResult, modelsResult] = await Promise.all([
+      const [chainResult, budgetsResult, modelsResult] = await Promise.all([
         supabase
           .from('router_chains')
           .select('model_list')
           .eq('category', category)
           .eq('mode', mode)
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('settings')
-          .select('value')
-          .eq('key', 'router_temperatures')
           .limit(1)
           .maybeSingle(),
         supabase
@@ -86,8 +82,7 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
         return { chain: [] }
       }
 
-      const temps = (tempsResult.data?.value as Record<string, number>) ?? {}
-      const customTemp = typeof temps[category] === 'number' ? temps[category] : 0.7
+      const customTemp = DEFAULT_TEMPERATURE
 
       const budgets = (budgetsResult.data?.value as Record<string, string | number>) ?? {}
       const customBudget = budgets[category]
