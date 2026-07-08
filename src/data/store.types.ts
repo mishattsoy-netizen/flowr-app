@@ -306,7 +306,6 @@ export interface AISessionContext {
   context_limit: number;
   compaction_threshold: number;
   active_mode?: BotMode;
-  status_messages?: Record<string, { label: string; emoji: string }>;
 }
 
 export interface AdvisorSessionState {

@@ -1,5 +1,5 @@
 import { logger } from '../logger'
-import { getRouterChain, IntentCategory } from '../router-config'
+import { getRouterChain, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
 import { getChainPrompt } from './prompts'
 import type { PipelineStep, StatusCallback } from './pipeline'
 import { TraceCollector } from './tracing'
@@ -98,9 +98,7 @@ export async function runThinkChain(
   onStatus: StatusCallback,
   tracer?: TraceCollector,
 ): Promise<ThinkChainOutput> {
-  const { statusMessages } = await import('../router-config').then(m => m.getPipelineSettings())
-  const customStatus = statusMessages['THINKING']
-  const label = customStatus ? `${customStatus.emoji} ${customStatus.label}`.trim() : 'Working...'
+  const label = DEFAULT_STATUS_MESSAGES['THINKING'] || 'Working...'
 
   const systemPrompt = getChainPrompt('thinking')
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Activity, Users, Zap, ShieldCheck, Cpu, MessageSquare } from 'lucide-react'
+import { Users, Zap, ShieldCheck, MessageSquare } from 'lucide-react'
 import { UsageAreaChart } from '@/components/admin/Charts'
 import { supabaseAdmin } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -27,29 +27,14 @@ export default async function AdminOverview() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-[10px]">
-        <div className="lg:col-span-2 bg-panel border border-[var(--bone-6)] rounded-big p-6 relative overflow-hidden">
+      <div className="grid grid-cols-1 gap-[10px]">
+        <div className="bg-panel border border-[var(--bone-6)] rounded-big p-6 relative overflow-hidden">
           <h2 className="text-[10px] font-bold text-bone-70 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
             <div className="w-1 h-1 bg-accent rounded-full" />
             Traffic activity telemetry
           </h2>
           <div className="flex-1 min-h-0">
             <UsageAreaChart data={stats.historicalUsage} />
-          </div>
-        </div>
-
-        <div className="bg-panel border border-[var(--bone-6)] rounded-big p-6 flex flex-col">
-          <h2 className="text-[10px] font-bold text-bone-70 mb-4 flex items-center gap-2 tracking-[0.1em] uppercase opacity-40">
-             <div className="w-1 h-1 bg-bone-100 rounded-full" />
-             Recent events log
-          </h2>
-          <div className="space-y-1 flex-1">
-            <EventLog message="User 12345 registered" time="2m ago" />
-            <EventLog message="Fallback triggered: gemini-pro" time="15m ago" />
-            <EventLog message="Vault key updated: TAVILY" time="1h ago" />
-            <EventLog message="Preset 'VIP' updated" time="3h ago" />
-            <EventLog message="Image generation node active" time="5h ago" />
-            <EventLog message="System health check pass" time="12h ago" />
           </div>
         </div>
       </div>
@@ -65,8 +50,8 @@ function MetricCard({ title, value, change, icon: Icon, accent = false }: any) {
     )}>
       <div className="flex items-center justify-between mb-4">
         <span className="text-[11px] font-ui-label font-bold text-muted-foreground tracking-widest uppercase opacity-40">{title}</span>
-        <Icon 
-          className={cn("w-4 h-4", accent ? "text-accent fill-accent/10" : "text-muted-foreground/40")} 
+        <Icon
+          className={cn("w-4 h-4", accent ? "text-accent fill-accent/10" : "text-muted-foreground/40")}
           strokeWidth={2}
         />
       </div>
@@ -78,14 +63,6 @@ function MetricCard({ title, value, change, icon: Icon, accent = false }: any) {
   )
 }
 
-function EventLog({ message, time }: { message: string, time: string }) {
-  return (
-    <div className="flex items-center justify-between text-[13px] font-medium p-2.5 -mx-1.5 rounded-lg group cursor-pointer transition-all duration-200">
-      <span className="text-muted-foreground group-hover:text-foreground">{message}</span>
-      <span className="text-muted-foreground opacity-20 font-mono text-[10px] group-hover:opacity-40 transition-colors">{time}</span>
-    </div>
-  )
-}
 async function getStats() {
   const [
     { count: totalUsers },

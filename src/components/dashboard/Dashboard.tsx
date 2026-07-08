@@ -360,9 +360,19 @@ export function Dashboard() {
   }, []);
 
   const recentEntities = useMemo(() => {
+    const defaultSpace = spaces.find(s => s.isDefault);
     const list = recentEntityIds
       .map(id => entities.find(e => e.id === id))
-      .filter((e): e is Entity => !!e && (e.type === 'note' || e.type === 'canvas') && (e.spaceId || 'ws-personal') === activeSpaceId)
+      .filter((e): e is Entity => {
+        if (!e || (e.type !== 'note' && e.type !== 'canvas')) return false;
+        const entitySpaceId = e.spaceId || 'ws-personal';
+        // Legacy 'ws-personal' entities visible in the default space
+        if (entitySpaceId === 'ws-personal') {
+          if (defaultSpace) return activeSpaceId === defaultSpace.id;
+          return true;
+        }
+        return entitySpaceId === activeSpaceId;
+      })
       .slice(0, 10);
     if (recentSort === 'edited') {
       return [...list].sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));

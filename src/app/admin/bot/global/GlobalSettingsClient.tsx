@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useCallback } from 'react'
-import { Globe, RefreshCw, Eye, EyeOff, Check, Cpu, Copy, Plus, Trash2, Power, Save, ChevronDown, Settings2 } from 'lucide-react'
+import { Globe, RefreshCw, Check, Cpu, Plus, Trash2, Power, Save, ChevronDown, Settings2 } from 'lucide-react'
 import { Toggle } from '@/components/ui/Toggle'
 import ModelDropdown from '@/components/admin/ModelDropdown'
 import ProviderSelector from '@/components/admin/ProviderSelector'
@@ -9,14 +9,11 @@ import OpenRouterRoutingProviderSelector from '@/components/admin/OpenRouterRout
 import { RegistryModel } from '@/components/admin/model-utils'
 import { cn } from '@/lib/utils'
 import {
-  setGlobalPromptEnabled, setOllamaEnabled, setBackendModel,
-  syncCompiledPrompt, updateCompactionConfig, setKeywordsEnabled, getCompiledPromptMeta,
-  syncFinalPrompts
+  setOllamaEnabled, setBackendModel,
+  updateCompactionConfig, setKeywordsEnabled,
 } from './actions'
-import { updateRouterChain, updateRouterSystemPrompt, savePipelineSetting } from '@/app/admin/router/actions'
-import PipelineStatusPanel from '@/components/admin/PipelineStatusPanel'
+import { updateRouterChain, savePipelineSetting } from '@/app/admin/router/actions'
 import type { CompactionConfig } from '@/lib/bot/compaction'
-import type { BotMode } from '@/data/store.types'
 
 interface ModelEntry {
   id: string
@@ -27,46 +24,30 @@ interface ModelEntry {
 }
 
 interface Props {
-  globalEnabled: boolean
   ollamaEnabled: boolean
   backendModel: string
   compactionConfig: CompactionConfig
-  compiledMeta: Record<BotMode, { content: string; compiled_at: string; entry_count: number }>
   models: RegistryModel[]
   keywordsEnabled: boolean
   initialPipelinePrompts: { value: Record<string, string>; updated_at: string | null }
-  initialStatusMessages: Record<string, { label: string; emoji: string }>
   initialPipelineSettings: any
   compactionChain: { id: string; category: string; model_list: ModelEntry[]; system_prompt: string | null } | null
-  compactionTemperature?: number
 }
-
-const MODE_TABS: { key: BotMode; label: string }[] = [
-  { key: 'default', label: 'Default' },
-  { key: 'pro',     label: 'Pro' },
-]
 
 let modelKeyCounter = 0
 const nextKey = () => `model_${++modelKeyCounter}_${Date.now()}`
 
 export default function GlobalSettingsClient({
-  globalEnabled, ollamaEnabled, backendModel,
-  compactionConfig, compiledMeta, models, keywordsEnabled,
-  initialPipelinePrompts, initialStatusMessages, initialPipelineSettings,
+  ollamaEnabled, backendModel,
+  compactionConfig, models, keywordsEnabled,
+  initialPipelinePrompts, initialPipelineSettings,
   compactionChain
 }: Props) {
-  const [globalOn, setGlobalOn] = useState(globalEnabled)
   const [ollamaOn, setOllamaOn] = useState(ollamaEnabled)
   const [keywordsOn, setKeywordsOn] = useState(keywordsEnabled)
   const [backend, setBackend] = useState(backendModel)
   const [config, setConfig] = useState(compactionConfig)
-  const [activeTab, setActiveTab] = useState<BotMode>('default')
-  const [showPreview, setShowPreview] = useState(false)
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle')
-  const [finalSyncStatus, setFinalSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle')
-  const [meta, setMeta] = useState(compiledMeta)
   const [saved, setSaved] = useState(false)
-  const [copied, setCopied] = useState(false)
   const ALL_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'VISION', 'AUDIO', 'CLASSIFIER', 'ADVISOR', 'THINKING', 'COMPACTION']
 
   const [historyLimit, setHistoryLimit] = useState(initialPipelineSettings.history_limit ?? 20)
@@ -94,7 +75,6 @@ export default function GlobalSettingsClient({
   const [chainModels, setChainModels] = useState<ModelEntry[]>(
     () => (compactionChain?.model_list ?? []).map(m => ({ ...m, _key: m._key || nextKey() }))
   )
-  const [chainPrompt, setChainPrompt] = useState(compactionChain?.system_prompt ?? '')
   const [chainSaved, setChainSaved] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const chainId = compactionChain?.id ?? null
@@ -136,45 +116,11 @@ export default function GlobalSettingsClient({
     if (!chainId) return
     const modelList = chainModels.map(({ _key, ...rest }) => rest)
     await updateRouterChain(chainId, modelList)
-    await updateRouterSystemPrompt(chainId, chainPrompt)
     setChainSaved(true)
     setTimeout(() => setChainSaved(false), 1500)
   }
 
   const allProviders = Array.from(new Set(models.map(m => m.provider.toLowerCase())))
-
-  const handleSync = () => {
-    setSyncStatus('syncing')
-    startTransition(async () => {
-      await syncCompiledPrompt()
-      // Re-fetch all metas to update UI
-      const newMetas = {
-        default: await getCompiledPromptMeta('default'),
-        pro: await getCompiledPromptMeta('pro'),
-      }
-      setMeta(newMetas as any)
-      setSyncStatus('done')
-      setTimeout(() => setSyncStatus('idle'), 2000)
-    })
-  }
-
-  const handleSyncFinal = () => {
-    setFinalSyncStatus('syncing')
-    startTransition(async () => {
-      const result = await syncFinalPrompts()
-      console.log('[FinalPrompts] Synced:', result.synced, 'Errors:', result.errors)
-      setFinalSyncStatus('done')
-      setTimeout(() => setFinalSyncStatus('idle'), 3000)
-    })
-  }
-
-  const handleCopy = () => {
-    const content = meta[activeTab]?.content
-    if (!content) return
-    navigator.clipboard.writeText(content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const handleConfigChange = (key: keyof CompactionConfig, value: number | string) => {
     const next = { ...config, [key]: value }
@@ -195,14 +141,6 @@ export default function GlobalSettingsClient({
 
       {/* Global toggles */}
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
-          <div>
-            <p className="text-sm font-medium text-bone-100">Global Prompt Injection</p>
-            <p className="text-xs text-bone-70 mt-0.5">Brain + Settings are active on every chat request</p>
-          </div>
-          <Toggle checked={globalOn} onChange={v => { setGlobalOn(v); startTransition(() => setGlobalPromptEnabled(v)) }} />
-        </div>
-        
         <div className="flex items-center justify-between px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
           <div>
             <p className="text-sm font-medium text-bone-100">Local Ollama</p>
@@ -353,87 +291,13 @@ export default function GlobalSettingsClient({
                 Add Model
               </button>
             </div>
-            {/* System Prompt */}
-            <div className="flex flex-col gap-1">
-              <p className="text-[10px] font-bold text-bone-70 uppercase tracking-widest px-1">System Prompt</p>
-              <textarea
-                value={chainPrompt}
-                onChange={(e) => setChainPrompt(e.target.value)}
-                rows={4}
-                className="w-full bg-background/50 rounded-medium p-2 text-[11px] font-mono text-bone-100 border border-[var(--bone-6)] focus:outline-none focus:border-accent/30 resize-y"
-                placeholder="System prompt for the compaction chain..."
-              />
-            </div>
           </div>
         )}
 
         {saved && <p className="text-xs text-green-400">Saved</p>}
       </section>
 
-      {/* Compiled prompts */}
-      <section className="flex items-center justify-between px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
-        <div className="flex items-center gap-3">
-          <Globe className="w-4 h-4 text-bone-70" />
-          <div>
-            <p className="text-sm font-medium text-bone-100">Compiled Prompt</p>
-            <p className="text-xs text-bone-70 mt-0.5" suppressHydrationWarning>
-              Last compiled: {meta[activeTab]?.compiled_at ? new Date(meta[activeTab].compiled_at).toLocaleString() : 'Never'} · {meta[activeTab]?.entry_count ?? 0} entries · {meta[activeTab]?.content?.length ? `${(meta[activeTab].content.length / 4).toFixed(0)} tokens` : '0 tokens'}
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Mode Switcher */}
-          <div className="relative flex items-center p-0.5 bg-background rounded-[8px] min-w-[200px] mr-2">
-            {/* Sliding Background Pill */}
-            <div 
-              className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--bone-10)] shadow-sm transition-all duration-300 ease-out"
-              style={{ 
-                left: `calc(${(MODE_TABS.findIndex(t => t.key === activeTab) / MODE_TABS.length) * 100}% + 2px)`,
-                width: `calc(${100 / MODE_TABS.length}% - 4px)`
-              }}
-            />
-            {MODE_TABS.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={cn(
-                  "relative z-10 flex-1 flex items-center justify-center py-1 px-3 rounded-[6px] transition-colors duration-200",
-                  activeTab === tab.key ? "text-[var(--bone-100)]" : "text-bone-70 hover:text-foreground"
-                )}
-              >
-                <span className="text-[11px] font-semibold">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <button onClick={handleCopy} disabled={!meta[activeTab]?.content}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white/5 text-xs text-bone-100 hover:bg-white/10 transition-colors disabled:opacity-50">
-            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          <button onClick={() => setShowPreview(v => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white/5 text-xs text-bone-100 hover:bg-white/10 transition-colors">
-            {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            Preview
-          </button>
-          <button onClick={handleSync} disabled={syncStatus === 'syncing'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white/5 text-xs text-bone-100 hover:bg-white/10 transition-colors">
-            {syncStatus === 'done' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <RefreshCw className={cn('w-3.5 h-3.5', syncStatus === 'syncing' && 'animate-spin')} />}
-            {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'done' ? 'Done' : 'Sync Brain'}
-          </button>
-          <button onClick={handleSyncFinal} disabled={finalSyncStatus === 'syncing'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-accent/10 text-accent text-xs hover:bg-accent/20 transition-colors">
-            {finalSyncStatus === 'done' ? <Check className="w-3.5 h-3.5" /> : <RefreshCw className={cn('w-3.5 h-3.5', finalSyncStatus === 'syncing' && 'animate-spin')} />}
-            {finalSyncStatus === 'syncing' ? 'Syncing...' : finalSyncStatus === 'done' ? 'Done' : 'Sync Final Prompts'}
-          </button>
-        </div>
-      </section>
-
-      {showPreview && (
-        <pre className="text-xs text-bone-70 bg-white/5 border border-[var(--bone-12)] rounded-regular p-6 overflow-auto max-h-64 whitespace-pre-wrap font-mono -mt-2">
-          {meta[activeTab]?.content || 'No compiled content yet. Click Sync Brain.'}
-        </pre>
-      )}
 
       {/* Context & Settings */}
       <section className="flex flex-col gap-4 px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
@@ -524,8 +388,6 @@ export default function GlobalSettingsClient({
           <Toggle checked={autoLast} onChange={v => handleSetting('image_gen_auto_last', v, setAutoLast)} />
         </div>
       </section>
-
-      <PipelineStatusPanel initialMessages={initialStatusMessages} />
     </div>
   )
 }

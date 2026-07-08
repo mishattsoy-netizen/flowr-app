@@ -51,15 +51,9 @@ export default function Sidebar() {
           <NavLink href="/admin/models" icon={Database}>Model Registry</NavLink>
           <NavLink href="/admin/router" icon={Monitor}>Router Matrix</NavLink>
           <div className="px-3 py-[3px] mt-1">
-            <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Modes</span>
-          </div>
-          <NavLink href="/admin/bot/default" icon={Zap}>Default</NavLink>
-          <NavLink href="/admin/bot/pro" icon={Cpu}>Pro</NavLink>
-          <div className="px-3 py-[3px] mt-1">
             <span className="text-[10px] font-ui-label font-medium uppercase tracking-wide text-[var(--bone-40)]">Config</span>
           </div>
           <NavLink href="/admin/bot/brain" icon={Brain}>Brain</NavLink>
-          <NavLink href="/admin/bot/keywords" icon={Zap}>Keywords</NavLink>
           <NavLink href="/admin/bot/dashboard" icon={Home}>Dashboard</NavLink>
           <NavLink href="/admin/bot/routine" icon={RotateCcw}>Routine</NavLink>
           <NavLink href="/admin/bot/feedback" icon={MessageCircle}>Feedback</NavLink>

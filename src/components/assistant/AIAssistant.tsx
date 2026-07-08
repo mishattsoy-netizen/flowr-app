@@ -23,6 +23,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 import { Tooltip } from '@/components/layout/Tooltip';
 import { Toggle } from '@/components/ui/Toggle';
 
@@ -863,11 +864,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusTyping
-                    text={(() => {
-                      const custom = aiSessionContext?.status_messages?.COMPACTION;
-                      if (custom) return `${custom.emoji} ${custom.label}`.trim();
-                      return "🚀 Compressing...";
-                    })()}
+                    text={DEFAULT_STATUS_MESSAGES['COMPACTION'] || "Compressing..."}
                     className="font-normal text-[var(--bone-100)]"
                     style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: '13px', letterSpacing: '-0.01em' }}
                   />

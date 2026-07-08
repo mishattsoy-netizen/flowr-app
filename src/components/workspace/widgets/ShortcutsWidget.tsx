@@ -21,6 +21,7 @@ const EMPTY_SHORTCUTS: Shortcut[] = [];
 export function ShortcutsWidget({ contextId }: { contextId: string }) {
   const activeSpaceId = useStore(state => state.activeSpaceId);
   const scopedKey = activeSpaceId ? `${activeSpaceId}:${contextId}` : contextId;
+  // scopedKey = `${activeSpaceId}:${contextId}` — ensures isolation per space
   const shortcuts = useStore(state => state.shortcuts[scopedKey] || EMPTY_SHORTCUTS);
   const entities = useStore(state => state.entities);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);

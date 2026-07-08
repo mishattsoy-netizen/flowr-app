@@ -57,8 +57,6 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   const addEntity            = useStore(s => s.addEntity);
   const setOpenTabs          = useStore(s => s.setOpenTabs);
   const isTempChat           = useStore(s => s.isTempChat);
-  const chatConversations    = useStore(s => s.chatConversations);
-  const activeChatId         = useStore(s => s.activeChatId);
   const isSidebarCollapsed   = useStore(s => s.isSidebarCollapsed);
   const toggleSplitView      = useStore(s => s.toggleSplitView);
   const selectedSidebarIds   = useStore(s => s.selectedSidebarIds);
@@ -305,7 +303,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
     let title = entity?.title;
     let Icon: any = null;
     if      (tabId === 'dashboard') { title = 'Dashboard'; Icon = Home; }
-    else if (tabId === 'chat')      { const ac = chatConversations.find(c => c.id === activeChatId); title = isTempChat ? 'Temporary Chat' : (ac?.title || 'Chat'); Icon = MessageCircle; }
+    else if (tabId === 'chat')      { title = isTempChat ? 'Temporary Chat' : 'Chat'; Icon = MessageCircle; }
     else if (tabId === 'tracker')   { title = 'Tasks'; Icon = ListTodo; }
     else if (entity)                { Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : FileText; }
     return { title, Icon };

@@ -81,22 +81,6 @@ export async function updateRouterChain(id: string, modelList: any[]) {
   return { success: true }
 }
 
-export async function updateRouterSystemPrompt(id: string, systemPrompt: string) {
-  const { error } = await supabase
-    .from('router_chains')
-    .update({
-      system_prompt: systemPrompt,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-
-  if (error) throw error
-  logAdminAction('router_changed', `Updated system prompt for chain ${id}`, { id })
-  revalidatePath('/admin/router')
-  // @ts-ignore
-  revalidateTag('router-config')
-  return { success: true }
-}
 export async function createRouterChain(category: string, mode: 'default' | 'pro' = 'default') {
   // Seed a new Pro override with the Default chain's current model_list, so it
   // starts as a working copy instead of an empty chain the admin has to
@@ -195,56 +179,6 @@ export async function resetInternalPrompt(chainType: string) {
   return { success: true }
 }
 
-export async function syncInternalPromptsFromFiles(): Promise<{ synced: string[]; skipped: string[]; errors: string[] }> {
-  const fs = await import('fs')
-  const path = await import('path')
-
-  const FILE_MAP: Record<string, string> = {
-    THINKING:      'pipeline-thinking.txt',
-    VISION:        'pipeline-vision.txt',
-    WEB_SEARCH:    'pipeline-web-search.txt',
-    RESEARCH:      'pipeline-research.txt',
-    CODING:        'pipeline-coding.txt',
-    TOOLS:         'pipeline-tools.txt',
-    IMAGE_GEN:     'pipeline-image-gen.txt',
-  }
-
-  const { data } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'pipeline_internal_prompts')
-    .limit(1)
-    .maybeSingle()
-  const current: Record<string, string> = (data?.value as Record<string, string>) ?? {}
-
-  const synced: string[] = []
-  const skipped: string[] = []
-  const errors: string[] = []
-
-  for (const [chainType, fileName] of Object.entries(FILE_MAP)) {
-    try {
-      const filePath = path.join(process.cwd(), 'bot prompts(premission to edit needed!)', fileName)
-      if (!fs.existsSync(filePath)) { skipped.push(chainType); continue }
-      const content = fs.readFileSync(filePath, 'utf8').trim()
-      if (!content) { skipped.push(chainType); continue }
-      current[chainType] = content
-      synced.push(chainType)
-    } catch (e: any) {
-      errors.push(`${chainType}: ${e.message}`)
-    }
-  }
-
-  if (synced.length > 0) {
-    const { error } = await supabase
-      .from('settings')
-      .upsert({ key: 'pipeline_internal_prompts', value: current, updated_at: new Date().toISOString() })
-    if (error) throw new Error(error.message)
-    revalidatePath('/admin/router')
-  }
-
-  return { synced, skipped, errors }
-}
-
 export async function getInternalPromptsFull() {
   const { data } = await supabase
     .from('settings')
@@ -256,27 +190,6 @@ export async function getInternalPromptsFull() {
     value: (data?.value as Record<string, string>) ?? {},
     updated_at: data?.updated_at ?? null
   }
-}
-
-export async function getStatusMessages(): Promise<Record<string, { label: string; emoji: string }>> {
-  const { data } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'pipeline_status_messages')
-    .limit(1)
-    .maybeSingle()
-  return (data?.value as Record<string, { label: string; emoji: string }>) ?? {}
-}
-
-export async function saveStatusMessage(chainType: string, label: string, emoji: string) {
-  const current = await getStatusMessages()
-  current[chainType] = { label, emoji }
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ key: 'pipeline_status_messages', value: current, updated_at: new Date().toISOString() })
-  if (error) throw error
-  revalidatePath('/admin/router')
-  return { success: true }
 }
 
 export async function getPipelineSettings() {
@@ -317,10 +230,11 @@ export async function saveSubchainConfigsAction(configs: any[]) {
 }
 
 export async function getLayeredPromptPreview(category: string, mode: 'default' | 'pro') {
-  const { getCompiledPrompt, getInternalPrompt } = await import('@/lib/bot/compilePrompt')
+  const { getGlobalPrompt } = await import('@/lib/bot/prompts')
+  const { getInternalPrompt } = await import('@/lib/bot/compilePrompt')
   const [globalPrompt, systemPrompt] = await Promise.all([
-    getCompiledPrompt(mode),
-    getInternalPrompt(category, mode)
+    Promise.resolve(getGlobalPrompt()),
+    getInternalPrompt(category),
   ])
 
   return {

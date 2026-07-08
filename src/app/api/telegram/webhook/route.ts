@@ -148,6 +148,20 @@ async function handleClearCallback(
     return
   }
 
+  if (data === 'clear_all_guide') {
+    await telegram.sendMessage(chatId,
+      `🗑️ *Clear entire chat*
+
+Bot API can only delete bot messages, not yours. To clear everything:
+
+• *Mobile:* Tap bot name at top → *Clear chat*
+• *Desktop:* Right-click chat → *Clear history*
+• *Web:* Click ⋮ → *Clear history*
+
+Your session context is already reset — the bot won't see old messages. This just cleans the Telegram UI.`)
+    return
+  }
+
   const type = data === 'clear_new' ? 'saved' : 'temp'
   await clearSessionMessages(chatId, activeChatId, linkedAuthUserId)
   const { activeChatId: newId, systemMessage } = await startNewSession(chatId, linkedAuthUserId, type, botMode)
@@ -338,6 +352,7 @@ Here's what I can do for you:
             ],
             [
               { text: '🧹 Stay Here', callback_data: 'clear_current' },
+              { text: '🗑️ Clear All', callback_data: 'clear_all_guide' },
             ],
           ],
         })

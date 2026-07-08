@@ -61,13 +61,13 @@ Your output MUST be a valid JSON object with the following structure:
 
 DO NOT include markdown code fences or any conversational wrapper in the output. The response must be exactly a single JSON object.`
 
-    const { data: promptRow } = await supabase
-      .from('bot_compiled_prompt')
-      .select('backend_model')
-      .eq('mode', 'default')
+    const { data: modelSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'backend_model')
       .limit(1)
-      .single()
-    const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
+      .maybeSingle()
+    const backendModel = modelSetting?.value ?? 'gemini-2.0-flash'
 
     const { runGoogle } = await import('@/lib/bot/providers/google')
     const contextKey = process.env.GEMINI_API_KEY || undefined

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const currentSummary = sessionState?.distilled_summary || null
 
     // 4. Trigger summarization
-    const newSummary = await summarizeSession(sessionId, history, currentSummary)
+    const { summary: newSummary } = await summarizeSession(sessionId, history, currentSummary)
 
     if (!newSummary) {
       return NextResponse.json({ error: 'Compaction failed' }, { status: 500 })

@@ -65,7 +65,17 @@ export function RecentWidget({ data, onUpdateData, contextId }: WidgetProps & { 
     }).filter((e): e is Entity => !!e);
 
     // Filter by activeSpaceId (excluding workspaces themselves to still show up globally or if we want them isolated too)
-    list = list.filter(e => e.type === 'workspace' || (e.spaceId || 'ws-personal') === activeSpaceId);
+    const defaultSpace = spaces.find(s => s.isDefault);
+    list = list.filter(e => {
+      if (e.type === 'workspace') return true;
+      const entitySpaceId = e.spaceId || 'ws-personal';
+      // Legacy 'ws-personal' entities visible in the default space
+      if (entitySpaceId === 'ws-personal') {
+        if (defaultSpace) return activeSpaceId === defaultSpace.id;
+        return true;
+      }
+      return entitySpaceId === activeSpaceId;
+    });
 
     if (contextId && contextId !== 'dashboard') {
       // Exclude spaces inside a specific workspace dashboard to avoid self-listing

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { runChain } from '@/lib/bot/chainRouter'
+import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config'
 import { supabaseAdmin, isSupabaseEnabled, supabaseUrl, supabaseAnonKey } from '@/lib/supabase'
 import { logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import fs from 'fs'
@@ -71,11 +72,8 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const settings = await import('@/lib/router-config').then(m => m.getPipelineSettings())
-
         const getStatusLabel = (cat: string, fallback: string) => {
-          const custom = settings.statusMessages?.[cat]
-          return custom ? `${custom.emoji} ${custom.label}`.trim() : fallback
+          return DEFAULT_STATUS_MESSAGES[cat] || fallback
         }
 
         // 1. Initial status

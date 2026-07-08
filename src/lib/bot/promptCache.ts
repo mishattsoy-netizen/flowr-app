@@ -4,11 +4,6 @@ import { logger } from '../logger'
 /**
  * Prompt Caching Layer
  *
- * Three tiers:
- * 1. In-memory compiled prompt cache — avoids Supabase DB query per request
- * 2. System prompt hash dedup — detects when same prompt is reused across requests
- * 3. Provider-specific cache IDs (Gemini cachedContent, etc.) for explicit caching
- *
  * Provider support:
  *   DeepSeek  — automatic KV prefix caching (no code needed, ~50x cheaper cache reads)
  *   Gemini    — explicit via cachedContent API (when @google/generative-ai SDK >=0.24 includes GoogleAICacheManager,
@@ -19,38 +14,7 @@ import { logger } from '../logger'
  *   OpenRouter — pass-through to underlying provider
  */
 
-// ─── Tier 1: Compiled prompt cache ──────────────────────────────────────────
-
-interface CompiledPromptEntry {
-  content: string
-  cachedAt: number
-}
-
-const compiledPromptCache = new Map<string, CompiledPromptEntry>()
-const COMPILED_CACHE_TTL_MS = 1_800_000 // 30min — compiler rarely changes once synced
-
-export function getCachedCompiledPrompt(mode: string): string | null {
-  const entry = compiledPromptCache.get(mode)
-  if (entry && Date.now() - entry.cachedAt < COMPILED_CACHE_TTL_MS) {
-    return entry.content
-  }
-  compiledPromptCache.delete(mode)
-  return null
-}
-
-export function setCachedCompiledPrompt(mode: string, content: string): void {
-  compiledPromptCache.set(mode, { content, cachedAt: Date.now() })
-}
-
-export function invalidateCompiledPromptCache(mode?: string): void {
-  if (mode) {
-    compiledPromptCache.delete(mode)
-  } else {
-    compiledPromptCache.clear()
-  }
-}
-
-// ─── Tier 2: System prompt hash ─────────────────────────────────────────────
+// ─── Tier 1: System prompt hash ─────────────────────────────────────────────
 
 interface PromptHashEntry {
   hash: string

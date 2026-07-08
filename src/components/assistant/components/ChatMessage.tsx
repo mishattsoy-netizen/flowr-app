@@ -15,6 +15,7 @@ import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
 import { useWordReveal } from '../hooks/useWordReveal';
 import { cn } from '@/lib/utils';
+import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 import { getEntityIcon } from '@/data/icons';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1655,16 +1656,14 @@ export const ChatMessage = memo(({
                       if (activeStep) {
                         if (activeStep.label) return activeStep.label;
                         if (activeStep.chain) {
-                          const custom = aiSessionContext?.status_messages?.[activeStep.chain];
-                          if (custom) return `${custom.emoji} ${custom.label}`.trim();
+                          const custom = DEFAULT_STATUS_MESSAGES[activeStep.chain];
+                          if (custom) return custom;
                         }
                         return activeStep.goal || activeStep.chain || "Working...";
                       }
                     }
                     const category = thinkingEnabled ? "THINKING" : "CLASSIFIER";
-                    const custom = aiSessionContext?.status_messages?.[category];
-                    if (custom) return `${custom.emoji} ${custom.label}`.trim();
-                    return "Working...";
+                    return DEFAULT_STATUS_MESSAGES[category] || "Working...";
                   })()}
                   className="font-normal text-[var(--bone-100)]"
                   style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13px' : '15px', letterSpacing: '-0.01em' }}

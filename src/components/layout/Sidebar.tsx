@@ -231,8 +231,15 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
   const isEntityVisible = useMemo(() => (e: Entity) => {
     const effectiveSpaceId = activeSpaceId || 'ws-personal';
-    return (e.spaceId || 'ws-personal') === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
-  }, [activeSpaceId, hiddenEntityIds]);
+    const entitySpaceId = e.spaceId || 'ws-personal';
+    // Legacy entities with 'ws-personal' spaceId are visible in the default space
+    if (entitySpaceId === 'ws-personal') {
+      const defaultSpace = spaces.find(s => s.isDefault);
+      if (defaultSpace) return effectiveSpaceId === defaultSpace.id && !hiddenEntityIds.includes(e.id);
+      return !hiddenEntityIds.includes(e.id); // no spaces configured — show it
+    }
+    return entitySpaceId === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
+  }, [activeSpaceId, hiddenEntityIds, spaces]);
 
   const sortEntities = (entities: Entity[], sectionId: SidebarSectionId) => {
     const mode = (sidebarSectionSettings as any)[sectionId]?.sortMode || 'lastModified';

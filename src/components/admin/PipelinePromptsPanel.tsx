@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
-import { Code2, Save, RotateCcw, ChevronDown, ChevronUp, RefreshCw, Check } from 'lucide-react'
-import { saveInternalPrompt, resetInternalPrompt, syncInternalPromptsFromFiles } from '@/app/admin/router/actions'
+import { Code2, Save, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { saveInternalPrompt, resetInternalPrompt } from '@/app/admin/router/actions'
 import { cn } from '@/lib/utils'
 import { useUnsavedChanges } from '@/components/admin/shared/UnsavedChangesGuard'
 
@@ -21,26 +21,7 @@ export default function PipelinePromptsPanel({ initialPrompts }: Props) {
   const [lastSaved, setLastSaved] = useState(initialPrompts.updated_at)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<{ synced: string[]; errors: string[] } | null>(null)
   const [, startTransition] = useTransition()
-
-  const handleSyncFromFiles = async () => {
-    setSyncing(true)
-    setSyncResult(null)
-    try {
-      const result = await syncInternalPromptsFromFiles()
-      setSyncResult({ synced: result.synced, errors: result.errors })
-      if (result.synced.length > 0) {
-          window.location.reload()
-      }
-      setTimeout(() => setSyncResult(null), 4000)
-    } catch (e: any) {
-      setSyncResult({ synced: [], errors: [e.message] })
-    } finally {
-      setSyncing(false)
-    }
-  }
 
   const handleSave = (type: string) => {
     setSaving(type)
@@ -88,19 +69,6 @@ export default function PipelinePromptsPanel({ initialPrompts }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {syncResult && (
-            <span className={`text-[10px] font-bold ${syncResult.errors.length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-              {syncResult.errors.length > 0 ? `Error: ${syncResult.errors[0]}` : `Synced ${syncResult.synced.length} prompts`}
-            </span>
-          )}
-          <button
-            onClick={handleSyncFromFiles}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 h-7 bg-white/5 border border-[var(--bone-6)] text-bone-70 hover:text-foreground hover:bg-white/10 rounded-md text-[10px] font-bold uppercase tracking-wider disabled:opacity-50 transition-all"
-          >
-            {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : syncResult && syncResult.errors.length === 0 ? <Check className="w-3 h-3 text-green-400" /> : <RefreshCw className="w-3 h-3" />}
-            {syncing ? 'Syncing...' : 'Sync from Files'}
-          </button>
           {lastSaved && (
             <div className="text-right flex flex-col items-end">
               <span className="text-[9px] font-bold text-bone-40 uppercase tracking-tighter">Last Global Sync</span>

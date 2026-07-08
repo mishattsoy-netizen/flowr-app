@@ -200,14 +200,14 @@ Allowed signal values and when to use them:
 If you have nothing to report, return: []
 Each item must have exactly these fields: topic (string), title (string), reasoning (string), plan (string), signal (string).`
 
-        // Step 3: Load backend_model from DB, fall back to gemini-2.0-flash
-        const { data: promptRow } = await supabase
-          .from('bot_compiled_prompt')
-          .select('backend_model')
-          .eq('mode', 'default')
+        // Step 3: Load backend_model from settings, fall back to gemini-2.0-flash
+        const { data: modelSetting } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'backend_model')
           .limit(1)
-          .single()
-        const backendModel = promptRow?.backend_model ?? 'gemini-2.0-flash'
+          .maybeSingle()
+        const backendModel = modelSetting?.value ?? 'gemini-2.0-flash'
 
         const { runGoogle } = await import('@/lib/bot/providers/google')
         log(`⟳ Generating improvement plans… (model: ${backendModel})`)

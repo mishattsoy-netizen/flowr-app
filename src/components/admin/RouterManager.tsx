@@ -218,6 +218,7 @@ export default function RouterManager({
     'CODING', 'THINKING', 'ADVISOR',
   ]
   const [isSubchainView, setIsSubchainView] = useState(false)
+  const [isPromptOpen, setIsPromptOpen] = useState(false)
   const [subchains, setSubchains] = useState<SubchainConfig[]>([])
   const [activeSubchainId, setActiveSubchainId] = useState<string | null>(null)
   const [isSavingSubchain, setIsSavingSubchain] = useState(false)
@@ -261,10 +262,6 @@ export default function RouterManager({
   const [isSavingPreset, setIsSavingPreset] = useState(false)
   const [fallbackMode, setFallbackModeState] = useState<'model_first' | 'api_key_first'>('model_first')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [isPromptOpen, setIsPromptOpen] = useState(false)
-  const [systemPrompt, setSystemPrompt] = useState(chain.system_prompt || '')
-  const [isSavingPrompt, setIsSavingPrompt] = useState(false)
-
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
@@ -431,18 +428,6 @@ export default function RouterManager({
     }
   }
 
-  const handleSavePrompt = async () => {
-    setIsSavingPrompt(true)
-    try {
-      await updateRouterSystemPrompt(chain.id, systemPrompt)
-      setIsPromptOpen(false)
-    } catch (err: any) {
-      alert(`Failed to save system prompt: ${err.message}`)
-    } finally {
-      setIsSavingPrompt(false)
-    }
-  }
-
   return (
     <div className={cn(
       "bg-panel border border-[var(--bone-6)] rounded-big px-3 pb-2 pt-3 h-full flex flex-col relative",
@@ -513,11 +498,11 @@ export default function RouterManager({
         </div>
       )}
 
-      {isPromptOpen && (
+      {isSubchainView && isPromptOpen && (
         <div className="px-3 py-3 mb-3 bg-white/[0.02] border border-[var(--bone-6)] rounded-medium animate-in slide-in-from-top-1 duration-200">
           <div className="flex items-center justify-between mb-2">
             <label className="text-[10px] font-bold text-bone-70 uppercase tracking-widest">
-              {isSubchainView && activeSubchain ? `${activeSubchain.label} — System Prompt` : 'System Prompt Override'}
+              {activeSubchain?.label ?? ''} — System Prompt
             </label>
             <div className="flex items-center gap-2">
               <button
@@ -527,17 +512,17 @@ export default function RouterManager({
                 Dismiss
               </button>
               <button
-                onClick={isSubchainView ? handleSaveSubchains : handleSavePrompt}
-                disabled={isSubchainView ? isSavingSubchain : isSavingPrompt}
+                onClick={handleSaveSubchains}
+                disabled={isSavingSubchain}
                 className="text-[9px] font-bold text-accent hover:brightness-110 uppercase"
               >
-                {(isSubchainView ? isSavingSubchain : isSavingPrompt) ? 'Saving...' : 'Save Prompt'}
+                {isSavingSubchain ? 'Saving...' : 'Save Prompt'}
               </button>
             </div>
           </div>
           <textarea
-            value={isSubchainView ? (activeSubchain?.system_prompt ?? '') : systemPrompt}
-            onChange={(e) => isSubchainView ? handleSubchainPromptChange(e.target.value) : setSystemPrompt(e.target.value)}
+            value={activeSubchain?.system_prompt ?? ''}
+            onChange={(e) => handleSubchainPromptChange(e.target.value)}
             className="w-full h-32 bg-background/50 border border-[var(--bone-6)] rounded-sm p-2 text-[11px] text-bone-100 font-mono focus:outline-none focus:ring-1 focus:ring-accent/30 resize-none custom-scrollbar"
             placeholder="Enter instructions for this chain node..."
           />
@@ -588,16 +573,18 @@ export default function RouterManager({
               </button>
             </>)}
 
-            <button
-              onClick={() => setIsPromptOpen(!isPromptOpen)}
-              className={cn(
-                "p-1 rounded-sm transition-all duration-0",
-                isPromptOpen ? "bg-accent/20 text-accent" : "hover:bg-white/5 text-muted-foreground/40 hover:text-foreground"
-              )}
-              title={isSubchainView ? 'Subchain System Prompt' : 'System Prompt'}
-            >
+            {isSubchainView && (
+              <button
+                onClick={() => setIsPromptOpen(!isPromptOpen)}
+                className={cn(
+                  "p-1 rounded-sm transition-all duration-0",
+                  isPromptOpen ? "bg-accent/20 text-accent" : "hover:bg-white/5 text-muted-foreground/40 hover:text-foreground"
+                )}
+                title="Subchain System Prompt"
+              >
               <MessageSquareCode className="w-3.5 h-3.5" />
             </button>
+            )}
             {hasSubchains && (
               <button
                 onClick={() => setIsSubchainView(v => !v)}

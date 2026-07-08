@@ -8,6 +8,7 @@ import { Brain, ArrowRight, Image as ImageIcon, Globe, Telescope, Terminal, Chec
 import { StatusTyping } from '@/components/assistant/components/StatusTyping';
 import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { useAuth } from '@/components/AuthProvider';
+import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 
 const QUICK_ACCESS_PILLS = [
   { id: 'image', label: 'Generate Image', prefix: '/image ', icon: ImageIcon },
@@ -173,11 +174,7 @@ export function ChatConversation() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusTyping
-                      text={(() => {
-                        const custom = aiSessionContext?.status_messages?.COMPACTION;
-                        if (custom) return `${custom.emoji} ${custom.label}`.trim();
-                        return "🚀 Compressing...";
-                      })()}
+                      text={DEFAULT_STATUS_MESSAGES['COMPACTION'] || "Compressing..."}
                       className="font-normal text-[var(--bone-100)]"
                       style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: '13px', letterSpacing: '-0.01em' }}
                     />
