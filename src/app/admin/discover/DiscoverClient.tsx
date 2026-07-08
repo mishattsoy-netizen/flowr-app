@@ -347,6 +347,8 @@ export default function DiscoverClient({
           is_paid: model.isPaid ?? false,
           prompt_cost: model.promptCost ?? null,
           completion_cost: model.completionCost ?? null,
+          context_window: model.contextWindow ?? null,
+          max_output_tokens: model.maxOutputTokens ?? null,
         })
       } else {
         await addModel({
@@ -358,6 +360,8 @@ export default function DiscoverClient({
           is_paid: model.isPaid ?? false,
           prompt_cost: model.promptCost ?? null,
           completion_cost: model.completionCost ?? null,
+          context_window: model.contextWindow ?? null,
+          max_output_tokens: model.maxOutputTokens ?? null,
         })
       }
       setModels(prev => prev.map(m => m.id === model.id ? { ...m, inRegistry: true } : m))

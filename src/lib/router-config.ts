@@ -4,6 +4,21 @@ import { logger } from './logger'
 
 const DEFAULT_TEMPERATURE = 0.7
 
+export const DEFAULT_STATUS_MESSAGES: Record<string, string> = {
+  REGULAR: 'Writing...',
+  COMPLEX: 'Writing...',
+  VISION: 'Looking...',
+  WEB_SEARCH: 'Searching...',
+  RESEARCH: 'Researching...',
+  CODING: 'Coding...',
+  IMAGE_GEN: 'Drawing...',
+  AUDIO: 'Listening...',
+  CLASSIFIER: 'Analyzing...',
+  ADVISOR: 'Asking...',
+  THINKING: 'Thinking...',
+  COMPACTION: 'Compressing...',
+}
+
 export interface RouterModel {
   id: string
   provider: 'google' | 'gemini' | 'huggingface' | 'cloudflare' | 'groq' | 'local' | 'core' | 'tavily' | 'exa' | 'pollinations' | 'ollama' | 'ollama(my pc)' | 'openrouter' | 'siliconflow' | 'nvidia'
@@ -12,6 +27,10 @@ export interface RouterModel {
   is_paid?: boolean
   prompt_cost?: number
   completion_cost?: number
+  cache_read_cost?: number
+  cache_write_cost?: number
+  context_window?: number
+  max_output_tokens?: number
 }
 
 export type IntentCategory =
@@ -60,7 +79,7 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
           .maybeSingle(),
         supabase
           .from('models')
-          .select('id, is_paid, prompt_cost, completion_cost')
+          .select('id, is_paid, prompt_cost, completion_cost, cache_read_cost, cache_write_cost, context_window, max_output_tokens')
       ])
 
       if (chainResult.error) throw new Error(chainResult.error.message)
@@ -87,13 +106,25 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
       const budgets = (budgetsResult.data?.value as Record<string, string | number>) ?? {}
       const customBudget = budgets[category]
 
-      const pricingMap = new Map<string, { is_paid?: boolean, prompt_cost?: number, completion_cost?: number }>()
+      const pricingMap = new Map<string, {
+        is_paid?: boolean
+        prompt_cost?: number
+        completion_cost?: number
+        cache_read_cost?: number
+        cache_write_cost?: number
+        context_window?: number
+        max_output_tokens?: number
+      }>()
       if (modelsResult.data) {
         modelsResult.data.forEach((m: any) => {
           pricingMap.set(m.id, {
             is_paid: m.is_paid,
             prompt_cost: m.prompt_cost,
-            completion_cost: m.completion_cost
+            completion_cost: m.completion_cost,
+            cache_read_cost: m.cache_read_cost,
+            cache_write_cost: m.cache_write_cost,
+            context_window: m.context_window,
+            max_output_tokens: m.max_output_tokens,
           })
         })
       }
@@ -107,7 +138,11 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
           ...m,
           is_paid: price.is_paid,
           prompt_cost: price.prompt_cost,
-          completion_cost: price.completion_cost
+          completion_cost: price.completion_cost,
+          cache_read_cost: price.cache_read_cost,
+          cache_write_cost: price.cache_write_cost,
+          context_window: price.context_window,
+          max_output_tokens: price.max_output_tokens,
         }
       })
       
@@ -174,7 +209,6 @@ export interface PipelineSettings {
   imageGenAutoLast: boolean
   thinkingToggleDefault: boolean
   thinkingSummaryVisible: 'collapsible' | 'hidden'
-  statusMessages: Record<string, { label: string; emoji: string }>
   historyEnabledCategories?: IntentCategory[]
   globalPromptEnabledCategories?: IntentCategory[]
   inputTokenLimit: number
@@ -189,8 +223,7 @@ async function fetchPipelineSettingsFromDb(): Promise<PipelineSettings> {
       .select('key, value')
       .in('key', [
         'orchestrator_enabled', 'max_pipeline_steps', 'image_gen_auto_last',
-        'thinking_toggle_default', 'thinking_summary_visible', 'pipeline_settings',
-        'pipeline_status_messages'
+        'thinking_toggle_default', 'thinking_summary_visible', 'pipeline_settings'
       ])
 
     if (error) throw new Error(error.message)
@@ -211,7 +244,6 @@ async function fetchPipelineSettingsFromDb(): Promise<PipelineSettings> {
       imageGenAutoLast: map['image_gen_auto_last'] !== false,
       thinkingToggleDefault: map['thinking_toggle_default'] === true,
       thinkingSummaryVisible: map['thinking_summary_visible'] ?? 'collapsible',
-      statusMessages: map['pipeline_status_messages'] ?? {},
       historyEnabledCategories: map['history_enabled_categories'] || undefined,
       globalPromptEnabledCategories: map['global_prompt_enabled_categories'] || undefined,
       inputTokenLimit: typeof map['input_token_limit'] === 'number' ? map['input_token_limit'] : 0,
@@ -227,7 +259,6 @@ async function fetchPipelineSettingsFromDb(): Promise<PipelineSettings> {
       imageGenAutoLast: true,
       thinkingToggleDefault: false,
       thinkingSummaryVisible: 'collapsible',
-      statusMessages: {},
       inputTokenLimit: 0,
       outputTokenLimit: 0,
     }

@@ -377,8 +377,8 @@ export async function runChain(
             cache_creation_tokens: visionUsage?.cache_creation_input_tokens,
             prompt_cost: modelConfig.prompt_cost,
             completion_cost: modelConfig.completion_cost,
-            cache_read_cost: (modelConfig as any).cache_read_cost,
-            cache_write_cost: (modelConfig as any).cache_write_cost,
+            cache_read_cost: modelConfig.cache_read_cost,
+            cache_write_cost: modelConfig.cache_write_cost,
           })
           tracer.recordSuccess({
             ...visionTraceMeta,
@@ -1135,8 +1135,8 @@ IMAGE GENERATION:
               cache_creation_tokens: providerUsage?.cache_creation_input_tokens,
               prompt_cost: modelConfig.prompt_cost,
               completion_cost: modelConfig.completion_cost,
-              cache_read_cost: (modelConfig as any).cache_read_cost,
-              cache_write_cost: (modelConfig as any).cache_write_cost,
+              cache_read_cost: modelConfig.cache_read_cost,
+              cache_write_cost: modelConfig.cache_write_cost,
             })
             tracer.recordSuccess({
               ...traceMeta,

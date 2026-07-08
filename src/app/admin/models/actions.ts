@@ -37,6 +37,10 @@ export async function updateModel(id: string, updates: {
   is_paid?: boolean
   prompt_cost?: number | null
   completion_cost?: number | null
+  cache_read_cost?: number | null
+  cache_write_cost?: number | null
+  context_window?: number | null
+  max_output_tokens?: number | null
 }) {
   const { error } = await supabaseAdmin
     .from('models')
@@ -72,27 +76,26 @@ export async function updateModel(id: string, updates: {
       }
     }
 
-    // Cascade to backend model in bot_compiled_prompt
-    const { data: botPrompt } = await supabaseAdmin
-      .from('bot_compiled_prompt')
-      .select('backend_model')
-      .eq('mode', 'default')
+    // Cascade to backend model in settings
+    const { data: modelSetting } = await supabaseAdmin
+      .from('settings')
+      .select('value')
+      .eq('key', 'backend_model')
       .limit(1)
-      .single()
+      .maybeSingle()
 
-    if (botPrompt?.backend_model === id) {
+    if (modelSetting?.value === id) {
       await supabaseAdmin
-        .from('bot_compiled_prompt')
-        .update({ backend_model: updates.id })
-        .eq('mode', 'default')
+        .from('settings')
+        .upsert({ key: 'backend_model', value: updates.id, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     }
   }
 
   logAdminAction('router_changed', `Updated model ${id}`, { id, updates })
   revalidatePath('/admin/models')
   revalidatePath('/admin/router')
-  revalidatePath('/admin/bot/settings')
 }
+
 
 export async function deleteModel(id: string) {
   const { error } = await supabaseAdmin
@@ -113,17 +116,25 @@ export async function addModel(model: {
   is_paid?: boolean
   prompt_cost?: number | null
   completion_cost?: number | null
+  cache_read_cost?: number | null
+  cache_write_cost?: number | null
+  context_window?: number | null
+  max_output_tokens?: number | null
 }) {
   const { error } = await supabaseAdmin
     .from('models')
-    .insert({ 
-      ...model, 
+    .insert({
+      ...model,
       id: model.id.trim(),
       is_paid: model.is_paid ?? false,
       prompt_cost: model.prompt_cost ?? null,
       completion_cost: model.completion_cost ?? null,
-      usage_today: 0, 
-      last_reset_date: new Date().toISOString().split('T')[0] 
+      cache_read_cost: model.cache_read_cost ?? null,
+      cache_write_cost: model.cache_write_cost ?? null,
+      context_window: model.context_window ?? null,
+      max_output_tokens: model.max_output_tokens ?? null,
+      usage_today: 0,
+      last_reset_date: new Date().toISOString().split('T')[0]
     })
 
   if (error) throw new Error(error.message)
