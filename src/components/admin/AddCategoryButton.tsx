@@ -6,12 +6,10 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 export default function AddCategoryButton({
-  platform,
   category,
   mode = 'default',
   label,
 }: {
-  platform: 'app' | 'telegram'
   category: string
   mode?: 'default' | 'pro'
   label?: string
@@ -21,7 +19,7 @@ export default function AddCategoryButton({
   const handleCreate = async () => {
     setIsPending(true)
     try {
-      await createRouterChain(platform, category, mode)
+      await createRouterChain(category, mode)
     } catch (e) {
       console.error(e)
     } finally {
