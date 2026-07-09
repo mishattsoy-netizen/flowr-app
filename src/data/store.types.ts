@@ -283,6 +283,7 @@ export interface AIMessage {
   classification_trace?: any[];
   routing_trace?: any[];
   tokens_used?: number;
+  hasRevealed?: boolean;
   pipelineSteps?: PipelineStep[];
   image_description?: string;
   image_prompt?: string;

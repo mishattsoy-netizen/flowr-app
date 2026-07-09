@@ -1107,12 +1107,21 @@ export const useStore = create<AppState>()(
         const sid = chatId || getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const currentActiveId = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const isActive = !chatId || chatId === currentActiveId;
-        set(s => ({
-          isAILoading: isActive ? false : s.isAILoading,
-          aiAbortController: isActive ? null : s.aiAbortController,
-          loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
-          abortControllersMap: { ...s.abortControllersMap, [sid]: null }
-        }));
+        set(s => {
+          const msgs = s.chatMessagesMap[sid];
+          const updatedMsgs = msgs && msgs.length > 0
+            ? msgs.map((m, idx) => idx === msgs.length - 1 && m.role === 'assistant' ? { ...m, hasRevealed: true } : m)
+            : msgs;
+          return {
+            isAILoading: isActive ? false : s.isAILoading,
+            aiAbortController: isActive ? null : s.aiAbortController,
+            loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
+            abortControllersMap: { ...s.abortControllersMap, [sid]: null },
+            ...(updatedMsgs ? { chatMessagesMap: { ...s.chatMessagesMap, [sid]: updatedMsgs } } : {}),
+            ...(isActive && updatedMsgs ? { aiMessages: updatedMsgs } : {}),
+            ...(isActive && isTempChat && updatedMsgs ? { tempChatMessages: updatedMsgs } : {}),
+          };
+        });
         const { pendingCompaction, compactAIChat } = get();
         if (pendingCompaction) {
           set({ pendingCompaction: false });
