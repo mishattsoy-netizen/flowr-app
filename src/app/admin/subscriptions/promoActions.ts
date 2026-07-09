@@ -1,7 +1,9 @@
 'use server'
 
+import { randomInt } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
+import { assertAdmin } from '@/lib/admin/assertAdmin'
 
 export interface PromoCodeRow {
   code: string
@@ -18,12 +20,14 @@ function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // excludes ambiguous 0/O/1/I
   let code = ''
   for (let i = 0; i < 8; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
+    code += chars[randomInt(chars.length)]
   }
   return code
 }
 
-export async function listPromoCodes(): Promise<PromoCodeRow[]> {
+export async function listPromoCodes(accessToken: string): Promise<PromoCodeRow[]> {
+  await assertAdmin(accessToken)
+
   const { data, error } = await supabaseAdmin
     .from('promo_codes')
     .select('*, subscription_tiers(name)')
@@ -46,7 +50,9 @@ export async function listPromoCodes(): Promise<PromoCodeRow[]> {
   }))
 }
 
-export async function createPromoCode(tierId: string, durationDays: number, maxUses: number): Promise<{ code: string }> {
+export async function createPromoCode(accessToken: string, tierId: string, durationDays: number, maxUses: number): Promise<{ code: string }> {
+  await assertAdmin(accessToken)
+
   const code = generateCode()
   const { error } = await supabaseAdmin
     .from('promo_codes')

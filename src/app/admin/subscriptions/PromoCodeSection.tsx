@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import { createPromoCode, type PromoCodeRow } from './promoActions'
 
 export default function PromoCodeSection({
@@ -23,7 +24,10 @@ export default function PromoCodeSection({
     if (!tierId || !Number.isFinite(days) || days <= 0 || !Number.isFinite(uses) || uses <= 0) return
     setCreating(true)
     try {
-      const { code } = await createPromoCode(tierId, days, uses)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error('Not authenticated')
+      const { code } = await createPromoCode(token, tierId, days, uses)
       setNewCode(code)
       setCodes(prev => [{ code, tier_id: tierId, tier_name: tierOptions.find(t => t.id === tierId)?.name ?? tierId, duration_days: days, max_uses: uses, uses_count: 0, created_at: new Date().toISOString(), expires_at: null }, ...prev])
     } finally {

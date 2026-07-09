@@ -1,7 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import { updateUserTier, updateUserPeriod, grantBonusCredit, type SubscriptionRow } from './actions'
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+  return token
+}
 
 function UsageBar({ label, usage }: { label: string; usage: { spent: number; cap: number } }) {
   const pct = usage.cap > 0 ? Math.min(100, (usage.spent / usage.cap) * 100) : 0
@@ -31,7 +39,8 @@ export default function SubscriptionsTable({
   const [creditNote, setCreditNote] = useState('')
 
   async function handleTierChange(userId: string, tierId: string) {
-    await updateUserTier(userId, tierId)
+    const token = await getAccessToken()
+    await updateUserTier(token, userId, tierId)
     setRows(prev => prev.map(r => r.user_id === userId ? { ...r, tier_id: tierId, granted_by_promo_code: null } : r))
   }
 
@@ -40,14 +49,16 @@ export default function SubscriptionsTable({
     if (!row) return
     const nextStart = field === 'period_start' ? value : row.period_start
     const nextEnd = field === 'period_end' ? value : row.period_end
-    await updateUserPeriod(userId, new Date(nextStart).toISOString(), new Date(nextEnd).toISOString())
+    const token = await getAccessToken()
+    await updateUserPeriod(token, userId, new Date(nextStart).toISOString(), new Date(nextEnd).toISOString())
     setRows(prev => prev.map(r => r.user_id === userId ? { ...r, period_start: nextStart, period_end: nextEnd } : r))
   }
 
   async function handleGrantCredit(userId: string) {
     const amount = parseFloat(creditAmount)
     if (!Number.isFinite(amount) || amount <= 0) return
-    await grantBonusCredit(userId, amount, creditNote)
+    const token = await getAccessToken()
+    await grantBonusCredit(token, userId, amount, creditNote)
     setCreditFormOpenFor(null)
     setCreditAmount('')
     setCreditNote('')

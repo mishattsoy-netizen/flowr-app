@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 import { computeUsageWindows } from '@/lib/bot/services/usageWindows'
+import { assertAdmin } from '@/lib/admin/assertAdmin'
 
 export interface SubscriptionRow {
   user_id: string
@@ -17,7 +18,9 @@ export interface SubscriptionRow {
   monthly: { spent: number; cap: number; resets_at: string }
 }
 
-export async function getSubscriptions(): Promise<SubscriptionRow[]> {
+export async function getSubscriptions(accessToken: string): Promise<SubscriptionRow[]> {
+  await assertAdmin(accessToken)
+
   const { data: subs, error } = await supabaseAdmin
     .from('user_subscriptions')
     .select('*, subscription_tiers(*)')
@@ -59,7 +62,9 @@ export async function getSubscriptions(): Promise<SubscriptionRow[]> {
   return rows
 }
 
-export async function updateUserTier(userId: string, tierId: string): Promise<void> {
+export async function updateUserTier(accessToken: string, userId: string, tierId: string): Promise<void> {
+  await assertAdmin(accessToken)
+
   const { error } = await supabaseAdmin
     .from('user_subscriptions')
     .update({
@@ -75,7 +80,9 @@ export async function updateUserTier(userId: string, tierId: string): Promise<vo
   revalidatePath('/admin/subscriptions')
 }
 
-export async function updateUserPeriod(userId: string, periodStart: string, periodEnd: string): Promise<void> {
+export async function updateUserPeriod(accessToken: string, userId: string, periodStart: string, periodEnd: string): Promise<void> {
+  await assertAdmin(accessToken)
+
   const { error } = await supabaseAdmin
     .from('user_subscriptions')
     .update({ period_start: periodStart, period_end: periodEnd, updated_at: new Date().toISOString() })
@@ -85,7 +92,9 @@ export async function updateUserPeriod(userId: string, periodStart: string, peri
   revalidatePath('/admin/subscriptions')
 }
 
-export async function grantBonusCredit(userId: string, amountUsd: number, note: string): Promise<void> {
+export async function grantBonusCredit(accessToken: string, userId: string, amountUsd: number, note: string): Promise<void> {
+  await assertAdmin(accessToken)
+
   const { error } = await supabaseAdmin
     .from('credit_spend_events')
     .insert({
@@ -101,7 +110,9 @@ export async function grantBonusCredit(userId: string, amountUsd: number, note: 
   revalidatePath('/admin/subscriptions')
 }
 
-export async function getTierOptions(): Promise<Array<{ id: string; name: string }>> {
+export async function getTierOptions(accessToken: string): Promise<Array<{ id: string; name: string }>> {
+  await assertAdmin(accessToken)
+
   const { data } = await supabaseAdmin.from('subscription_tiers').select('id, name').order('price_usd', { ascending: true })
   return data ?? []
 }
