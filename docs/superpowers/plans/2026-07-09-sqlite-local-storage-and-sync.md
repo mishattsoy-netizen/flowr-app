@@ -47,12 +47,12 @@ If a task's steps don't match what the executor finds in the actual codebase (e.
 - Create: `electron/db.js`
 - Modify: `electron/main.js`
 
-- [ ] **Step 1: Install the dependency**
+- [x] **Step 1: Install the dependency**
 
 Run: `npm install better-sqlite3`
 Expected: adds `better-sqlite3` to `dependencies` in `package.json`, installs native binary via prebuild-install (no compiler toolchain needed on Windows/Mac for standard Node/Electron ABI versions).
 
-- [ ] **Step 2: Create `electron/db.js` — schema + connection module**
+- [x] **Step 2: Create `electron/db.js` — schema + connection module**
 
 ```javascript
 // electron/db.js
@@ -140,7 +140,7 @@ function getDb() {
 module.exports = { initDb, getDb, getDbPath };
 ```
 
-- [ ] **Step 3: Wire `initDb` into `electron/main.js` app startup**
+- [x] **Step 3: Wire `initDb` into `electron/main.js` app startup**
 
 Find the `app.whenReady()` block in `electron/main.js` (search for `app.whenReady`) and add the db init call before `createWindow()` (or equivalent) runs. Example — locate the existing block:
 
@@ -157,12 +157,12 @@ const { initDb } = require('./db');
 initDb(app);
 ```
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run electron:dev`
 Expected: app launches without errors; check `%APPDATA%/flowr-beta/flowr.db` (or platform equivalent via `app.getPath('userData')`) exists after launch. Confirm no `better-sqlite3` native module load errors in the console/log (`electron/main.js` logs to `flowr-startup.log` in the OS temp dir — check there if the window doesn't appear).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json package-lock.json electron/db.js electron/main.js
@@ -179,7 +179,7 @@ git commit -m "feat(db): add better-sqlite3 and local schema for entities/tasks/
 - Modify: `electron/db.js`
 - Modify: `electron/main.js`
 
-- [ ] **Step 1: Add row mapper + CRUD functions to `electron/db.js`**
+- [x] **Step 1: Add row mapper + CRUD functions to `electron/db.js`**
 
 Append to `electron/db.js` (before `module.exports`):
 
@@ -219,7 +219,7 @@ function getAllEntities(app) {
 module.exports = { initDb, getDb, getDbPath, upsertEntity, deleteEntity, getAllEntities };
 ```
 
-- [ ] **Step 2: Register IPC handlers in `electron/main.js`**
+- [x] **Step 2: Register IPC handlers in `electron/main.js`**
 
 Find the block of `ipcMain.handle('fs:...', ...)` registrations (around line 428). Add nearby:
 
@@ -231,7 +231,7 @@ ipcMain.handle('db:deleteEntity', async (_, id) => flowrDb.deleteEntity(app, id)
 ipcMain.handle('db:getAllEntities', async () => flowrDb.getAllEntities(app));
 ```
 
-- [ ] **Step 3: Expose `flowrDB` in `electron/preload.js`**
+- [x] **Step 3: Expose `flowrDB` in `electron/preload.js`**
 
 Add after the existing `flowrFS` block in `electron/preload.js`:
 
@@ -243,7 +243,7 @@ contextBridge.exposeInMainWorld('flowrDB', {
 });
 ```
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run electron:dev`, open DevTools in the app window (Ctrl+Shift+I), run in the console:
 
@@ -254,7 +254,7 @@ await window.flowrDB.getAllEntities();
 
 Expected: second call returns an array containing the `test-1` row.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add electron/db.js electron/main.js electron/preload.js
@@ -272,7 +272,7 @@ git commit -m "feat(db): expose flowrDB IPC bridge for entities CRUD"
 - Modify: `electron/main.js`
 - Modify: `electron/preload.js`
 
-- [ ] **Step 1: Add task/space CRUD functions to `electron/db.js`**
+- [x] **Step 1: Add task/space CRUD functions to `electron/db.js`**
 
 Append before `module.exports`:
 
@@ -332,7 +332,7 @@ module.exports = {
 };
 ```
 
-- [ ] **Step 2: Register IPC handlers in `electron/main.js`**
+- [x] **Step 2: Register IPC handlers in `electron/main.js`**
 
 Add next to the entity handlers from Task 2:
 
@@ -346,7 +346,7 @@ ipcMain.handle('db:deleteSpace', async (_, id) => flowrDb.deleteSpace(app, id));
 ipcMain.handle('db:getAllSpaces', async () => flowrDb.getAllSpaces(app));
 ```
 
-- [ ] **Step 3: Extend `electron/preload.js`**
+- [x] **Step 3: Extend `electron/preload.js`**
 
 ```javascript
 contextBridge.exposeInMainWorld('flowrDB', {
@@ -362,7 +362,7 @@ contextBridge.exposeInMainWorld('flowrDB', {
 });
 ```
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run electron:dev`, in DevTools console:
 
@@ -373,7 +373,7 @@ await window.flowrDB.getAllTasks();
 
 Expected: returns array with `t-1`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add electron/db.js electron/main.js electron/preload.js
@@ -391,7 +391,7 @@ git commit -m "feat(db): extend flowrDB IPC bridge to tasks and spaces"
 - Modify: `src/data/store.types.ts`
 - Modify: `src/lib/sync.ts`
 
-- [ ] **Step 1: Write the Supabase migration**
+- [x] **Step 1: Write the Supabase migration**
 
 ```sql
 -- supabase/migrations/20260709_tasks_spaces_last_modified.sql
@@ -401,7 +401,7 @@ ALTER TABLE spaces ADD COLUMN IF NOT EXISTS last_modified bigint NOT NULL DEFAUL
 
 Run this against the Supabase project (paste into Supabase Dashboard > SQL Editor, per the convention noted in `supabase/schema.sql`'s header comment). This is a manual/external step — no automated test covers a live Supabase schema change.
 
-- [ ] **Step 2: Add `lastModified` to the `AppTask` and `Space` TypeScript interfaces**
+- [x] **Step 2: Add `lastModified` to the `AppTask` and `Space` TypeScript interfaces**
 
 In `src/data/store.types.ts`, add `lastModified: number;` to `AppTask` (after `id`) and to `Space` (after `id`):
 
@@ -432,22 +432,22 @@ export interface AppTask {
 }
 ```
 
-- [ ] **Step 3: Update `rowToTask`/`taskToRow`/`rowToWorkspace`/`spaceToRow`-equivalent mappers in `src/lib/sync.ts`**
+- [x] **Step 3: Update `rowToTask`/`taskToRow`/`rowToWorkspace`/`spaceToRow`-equivalent mappers in `src/lib/sync.ts`**
 
 Find `rowToTask` (line 160) and add `lastModified: row.last_modified ?? 0,` to the returned object. Find `taskToRow` (line 185) and add `row.last_modified = t.lastModified ?? 0;`.
 
 Find `rowToWorkspace` (search for `function rowToWorkspace`) and add `lastModified: row.last_modified ?? 0,`. Find the corresponding `spaceToRow`-style function used by `upsertSpace` (search for `function spaceToRow` or inline object construction inside `upsertSpace`) and add `row.last_modified = w.lastModified ?? 0;` (or equivalent field name for the local variable).
 
-- [ ] **Step 4: Set `lastModified` at every task/space mutation site in the store**
+- [x] **Step 4: Set `lastModified` at every task/space mutation site in the store**
 
 Run: `grep -n "setTasks\|updateTask\|addTask\|setSpaces\|updateSpace\|addSpace" src/data/store.ts` — for each action that mutates a task or space object, add `lastModified: Date.now()` to the updated object, following the same pattern already used for `Entity.lastModified` throughout the file (e.g. `updateEntityContent`'s `{ ...e, content, lastModified: now }`).
 
-- [ ] **Step 5: Run typecheck**
+- [x] **Step 5: Run typecheck**
 
 Run: `npx tsc --noEmit`
 Expected: no new type errors (or fix any places constructing `AppTask`/`Space` literals that now need `lastModified`, e.g. test fixtures and seed data in `store.ts`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/20260709_tasks_spaces_last_modified.sql src/data/store.types.ts src/lib/sync.ts src/data/store.ts
@@ -464,7 +464,7 @@ git commit -m "feat(sync): add lastModified to tasks and spaces for correct LWW 
 - Modify: `src/components/SupabaseProvider.tsx`
 - Test: `src/components/SupabaseProvider.mergeCloudData.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // src/components/SupabaseProvider.mergeCloudData.test.ts
@@ -512,16 +512,16 @@ describe('mergeCloudData task LWW', () => {
 });
 ```
 
-- [ ] **Step 2: Export `mergeCloudData` from `SupabaseProvider.tsx`**
+- [x] **Step 2: Export `mergeCloudData` from `SupabaseProvider.tsx`**
 
 In `src/components/SupabaseProvider.tsx`, change `function mergeCloudData(` to `export function mergeCloudData(`.
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/SupabaseProvider.mergeCloudData.test.ts`
 Expected: FAIL — the current task merge branch (lines ~44-62) doesn't correctly compare `lastModified` for tasks (it currently only cares whether the task exists in cloud data, not the timestamp comparison this test expects), so the "keeps local when local is newer" case fails.
 
-- [ ] **Step 4: Fix the task merge branch to use real LWW**
+- [x] **Step 4: Fix the task merge branch to use real LWW**
 
 Replace the `// ── Tasks ──` block in `mergeCloudData` (`src/components/SupabaseProvider.tsx`, ~line 43-62) with:
 
@@ -546,12 +546,12 @@ Replace the `// ── Tasks ──` block in `mergeCloudData` (`src/components/
 
 Apply the equivalent fix to the `// ── Workspaces ──` block for spaces, replacing its current merge-without-timestamp-comparison logic with the same `lastModified`-comparison pattern used for entities.
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/SupabaseProvider.mergeCloudData.test.ts`
 Expected: PASS (both tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/SupabaseProvider.tsx src/components/SupabaseProvider.mergeCloudData.test.ts
@@ -569,7 +569,7 @@ git commit -m "fix(sync): use real lastModified-based LWW for tasks and spaces m
 - Test: `src/lib/debouncedPush.test.ts`
 - Modify: `src/data/store.ts`
 
-- [ ] **Step 1: Write the failing test for the debounce wrapper**
+- [x] **Step 1: Write the failing test for the debounce wrapper**
 
 ```typescript
 // src/lib/debouncedPush.test.ts
@@ -607,12 +607,12 @@ describe('createDebouncedPush', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/debouncedPush.test.ts`
 Expected: FAIL with "Cannot find module './debouncedPush'"
 
-- [ ] **Step 3: Implement `createDebouncedPush`**
+- [x] **Step 3: Implement `createDebouncedPush`**
 
 ```typescript
 // src/lib/debouncedPush.ts
@@ -636,12 +636,12 @@ export function createDebouncedPush<T extends { id: string }>(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/debouncedPush.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Wire debounced instances into `store.ts` and replace direct push calls**
+- [x] **Step 5: Wire debounced instances into `store.ts` and replace direct push calls**
 
 In `src/data/store.ts`, near the top (after the `upsertEntity`, `upsertTask`, `upsertSpace` imports), add:
 
@@ -664,14 +664,14 @@ debouncedPushEntity(finalEntity);
 
 **Do not** touch `setEntities`/`setTasks`/`setSpaces` (`store.ts:234`, `:527`, `:3241`) — they must continue to never call any push function, direct or debounced, preserving the pull-echo invariant from the spec.
 
-- [ ] **Step 6: Find every existing test asserting on push call counts/args, then run the full suite**
+- [x] **Step 6: Find every existing test asserting on push call counts/args, then run the full suite**
 
 Run: `grep -rln "upsertEntity\|upsertTask\|upsertSpace" src/data/*.test.ts src/**/*.test.ts` to get the complete list of test files that assert on these mocks — do not rely on the three files named in earlier steps of this plan, as that list may be incomplete. For every match, add `vi.useFakeTimers()` in `beforeEach` (or per-test) and `vi.advanceTimersByTime(1500)` immediately before any assertion on `upsertEntity`/`upsertTask`/`upsertSpace` call counts or arguments, since those calls now happen 1.5s after the triggering action via `debouncedPush` instead of synchronously.
 
 Run: `npx vitest run`
 Expected: PASS across the full suite once every matched file is updated.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/debouncedPush.ts src/lib/debouncedPush.test.ts src/data/store.ts
