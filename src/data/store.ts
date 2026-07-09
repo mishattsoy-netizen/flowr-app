@@ -3025,11 +3025,11 @@ export const useStore = create<AppState>()(
         const finalTask = {
           id: generateId(),
           completed: false,
-          lastModified: Date.now(),
           ...task,
           tag: cleanTag,
           userDueDate: task.userDueDate || task.dueDate || undefined,
-          spaceId: task.spaceId || activeSpaceId
+          spaceId: task.spaceId || activeSpaceId,
+          lastModified: Date.now(),
         } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
         return upsertTask(finalTask);
