@@ -417,6 +417,9 @@ app.whenReady().then(() => {
   // leaving the user staring at a window whose server is gone.
   if (!gotTheLock) return;
 
+  const { initDb } = require('./db');
+  initDb(app);
+
   debugLog('app.whenReady');
 
   // Start watching initial vault path if exists
