@@ -33,7 +33,7 @@ export async function linkTelegramAccount(telegramId: number, token: string): Pr
 
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/admin/users')
+    revalidatePath('/admin/subscriptions')
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message }
@@ -64,7 +64,7 @@ export async function unlinkTelegramAccount(telegramId: number): Promise<{ succe
 
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/admin/users')
+    revalidatePath('/admin/subscriptions')
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message }

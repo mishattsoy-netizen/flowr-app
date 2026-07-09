@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Activity, Cpu, Users, Zap, Shield,
+  Activity, Cpu, Zap, Shield,
   BarChart3, ScrollText, ArrowLeft,
   Database, Brain,
   RotateCcw, MessageCircle, Home, Globe,
@@ -35,7 +35,6 @@ export default function Sidebar() {
           <NavLink href="/admin/analytics" icon={BarChart3}>Analytics</NavLink>
           <NavLink href="/admin/costs" icon={DollarSign}>Costs</NavLink>
           <NavLink href="/admin/logs" icon={ScrollText}>Message Logs</NavLink>
-          <NavLink href="/admin/users" icon={Users}>Users</NavLink>
           <NavLink href="/admin/subscriptions" icon={CreditCard}>Subscriptions</NavLink>
           <NavLink href="/admin/admins" icon={UserCog}>Admins</NavLink>
           <NavLink href="/admin/beta" icon={Link2}>Beta Invites</NavLink>

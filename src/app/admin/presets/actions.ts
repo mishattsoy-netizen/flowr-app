@@ -39,7 +39,7 @@ export async function savePreset(formData: any) {
   }
 
   revalidatePath('/admin/presets')
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/subscriptions')
 }
 
 export async function deletePreset(id: string) {

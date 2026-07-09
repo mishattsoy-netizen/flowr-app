@@ -16,6 +16,7 @@ export interface SubscriptionRow {
   window: { spent: number; cap: number; resets_at: string }
   weekly: { spent: number; cap: number; resets_at: string }
   monthly: { spent: number; cap: number; resets_at: string }
+  telegram: { telegram_id: number; username: string | null; is_blocked: boolean } | null
 }
 
 export async function getSubscriptions(accessToken: string): Promise<SubscriptionRow[]> {
@@ -33,6 +34,14 @@ export async function getSubscriptions(accessToken: string): Promise<Subscriptio
   const { data: userList } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
   const emailByUserId = new Map((userList?.users ?? []).map((u: any) => [u.id, u.email as string]))
 
+  const { data: telegramLinks } = await supabaseAdmin
+    .from('telegram_users')
+    .select('telegram_id, username, is_blocked, auth_user_id')
+    .not('auth_user_id', 'is', null)
+  const telegramByUserId = new Map(
+    (telegramLinks ?? []).map((t: any) => [t.auth_user_id as string, { telegram_id: t.telegram_id, username: t.username, is_blocked: t.is_blocked }])
+  )
+
   const rows = await Promise.all(subs.map(async (sub: any) => {
     const tier = sub.subscription_tiers
 
@@ -44,6 +53,7 @@ export async function getSubscriptions(accessToken: string): Promise<Subscriptio
       period_start: sub.period_start,
       period_end: sub.period_end,
       granted_by_promo_code: sub.granted_by_promo_code,
+      telegram: telegramByUserId.get(sub.user_id) ?? null,
     }
 
     if (!tier) {
@@ -123,4 +133,16 @@ export async function getTierOptions(accessToken: string): Promise<Array<{ id: s
 
   const { data } = await supabaseAdmin.from('subscription_tiers').select('id, name').order('price_usd', { ascending: true })
   return data ?? []
+}
+
+export async function toggleTelegramBlock(accessToken: string, telegramId: number, currentlyBlocked: boolean): Promise<void> {
+  await assertAdmin(accessToken)
+
+  const { error } = await supabaseAdmin
+    .from('telegram_users')
+    .update({ is_blocked: !currentlyBlocked })
+    .eq('telegram_id', telegramId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/subscriptions')
 }

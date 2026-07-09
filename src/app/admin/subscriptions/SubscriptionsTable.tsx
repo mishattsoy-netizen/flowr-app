@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Send, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { updateUserTier, updateUserPeriod, grantBonusCredit, type SubscriptionRow } from './actions'
+import { updateUserTier, updateUserPeriod, grantBonusCredit, toggleTelegramBlock, type SubscriptionRow } from './actions'
 
 async function getAccessToken(): Promise<string> {
   const { data } = await supabase.auth.getSession()
@@ -14,14 +15,12 @@ async function getAccessToken(): Promise<string> {
 function UsageBar({ label, usage }: { label: string; usage: { spent: number; cap: number } }) {
   const pct = usage.cap > 0 ? Math.min(100, (usage.spent / usage.cap) * 100) : 0
   return (
-    <div className="space-y-0.5 min-w-[100px]">
-      <div className="flex justify-between text-[10px] text-[var(--bone-70)]">
-        <span>{label}</span>
-        <span>${usage.spent.toFixed(4)} / ${usage.cap.toFixed(2)}</span>
-      </div>
-      <div className="w-full h-1.5 rounded-full bg-[var(--bone-10)] overflow-hidden">
+    <div className="flex items-center gap-1.5 text-[10px] text-[var(--bone-70)] leading-none">
+      <span className="w-10 shrink-0 opacity-70">{label}</span>
+      <div className="w-14 h-1 rounded-sm bg-[var(--bone-10)] overflow-hidden shrink-0">
         <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
       </div>
+      <span className="font-mono whitespace-nowrap">${usage.spent.toFixed(3)}/{usage.cap.toFixed(1)}</span>
     </div>
   )
 }
@@ -67,96 +66,121 @@ export default function SubscriptionsTable({
       : r))
   }
 
+  async function handleToggleTelegramBlock(userId: string, telegramId: number, currentlyBlocked: boolean) {
+    const token = await getAccessToken()
+    await toggleTelegramBlock(token, telegramId, currentlyBlocked)
+    setRows(prev => prev.map(r => r.user_id === userId && r.telegram
+      ? { ...r, telegram: { ...r.telegram, is_blocked: !currentlyBlocked } }
+      : r))
+  }
+
   if (rows.length === 0) {
     return (
-      <div className="p-12 text-center text-bone-70">
+      <div className="p-8 text-center text-bone-70">
         <p className="text-sm font-bold tracking-tight">No subscriptions yet.</p>
-        <p className="text-[10px] mt-2 font-bold opacity-30 tracking-tight">Rows appear once a user sends their first chat message.</p>
+        <p className="text-[10px] mt-1.5 font-bold opacity-30 tracking-tight">Rows appear once a user sends their first chat message.</p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto bg-panel rounded-big border border-[var(--bone-6)]">
-      <table className="w-full text-left border-collapse">
+    <div className="overflow-x-auto bg-panel rounded-[var(--radius-medium)] border border-[var(--bone-6)]">
+      <table className="w-full text-left border-collapse text-[12px]">
         <thead>
           <tr className="bg-white/5 border-b border-[var(--bone-6)]">
-            <th className="px-6 py-4 text-[11px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">User</th>
-            <th className="px-6 py-4 text-[11px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Tier</th>
-            <th className="px-6 py-4 text-[11px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Usage</th>
-            <th className="px-6 py-4 text-[11px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Period</th>
-            <th className="px-6 py-4 text-[11px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase text-right">Actions</th>
+            <th className="px-3 py-2 text-[10px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">User</th>
+            <th className="px-3 py-2 text-[10px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Tier</th>
+            <th className="px-3 py-2 text-[10px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Usage</th>
+            <th className="px-3 py-2 text-[10px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase">Period</th>
+            <th className="px-3 py-2 text-[10px] font-ui-label font-bold text-muted-foreground/40 tracking-widest uppercase text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--bone-6)]">
           {rows.map(row => (
-            <tr key={row.user_id} className="hover:bg-[var(--bone-6)] transition-all duration-200">
-              <td className="px-6 py-4">
-                <div className="text-[13px] font-medium text-muted-foreground">{row.email}</div>
-                {row.granted_by_promo_code && (
-                  <div className="text-[10px] text-accent font-mono mt-0.5">via {row.granted_by_promo_code}</div>
-                )}
+            <tr key={row.user_id} className="hover:bg-[var(--bone-6)] transition-colors">
+              <td className="px-3 py-1.5 align-top">
+                <div className="text-[12px] font-medium text-muted-foreground leading-tight">{row.email}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {row.granted_by_promo_code && (
+                    <span className="text-[9px] text-accent font-mono">via {row.granted_by_promo_code}</span>
+                  )}
+                  {row.telegram && (
+                    <button
+                      onClick={() => handleToggleTelegramBlock(row.user_id, row.telegram!.telegram_id, row.telegram!.is_blocked)}
+                      title={row.telegram.is_blocked ? 'Blocked — click to unblock' : 'Active — click to block'}
+                      className={
+                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[9px] font-medium border transition-colors " +
+                        (row.telegram.is_blocked
+                          ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+                          : "bg-[var(--bone-6)] text-muted-foreground border-[var(--bone-6)] hover:text-foreground")
+                      }
+                    >
+                      {row.telegram.is_blocked ? <ShieldAlert className="w-2.5 h-2.5" /> : <Send className="w-2.5 h-2.5" />}
+                      {row.telegram.username ? `@${row.telegram.username}` : row.telegram.telegram_id}
+                    </button>
+                  )}
+                </div>
               </td>
-              <td className="px-6 py-4">
+              <td className="px-3 py-1.5 align-top">
                 <select
                   value={row.tier_id}
                   onChange={e => handleTierChange(row.user_id, e.target.value)}
-                  className="px-2 py-1 rounded-lg border border-[var(--bone-12)] bg-background text-[12px] text-foreground"
+                  className="px-1.5 py-1 rounded-sm border border-[var(--bone-12)] bg-background text-[11px] text-foreground"
                 >
                   {tierOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </td>
-              <td className="px-6 py-4">
-                <div className="flex flex-col gap-1.5">
+              <td className="px-3 py-1.5 align-top">
+                <div className="flex flex-col gap-0.5">
                   <UsageBar label="5h" usage={row.window} />
-                  <UsageBar label="Weekly" usage={row.weekly} />
-                  <UsageBar label="Monthly" usage={row.monthly} />
+                  <UsageBar label="Week" usage={row.weekly} />
+                  <UsageBar label="Month" usage={row.monthly} />
                 </div>
               </td>
-              <td className="px-6 py-4">
-                <div className="flex flex-col gap-1 text-[11px]">
+              <td className="px-3 py-1.5 align-top">
+                <div className="flex flex-col gap-0.5 text-[10px]">
                   <input
                     type="date"
                     value={row.period_start.slice(0, 10)}
                     onChange={e => handlePeriodChange(row.user_id, 'period_start', e.target.value)}
-                    className="px-2 py-1 rounded-lg border border-[var(--bone-12)] bg-background text-foreground"
+                    className="px-1.5 py-0.5 rounded-sm border border-[var(--bone-12)] bg-background text-foreground"
                   />
                   <input
                     type="date"
                     value={row.period_end.slice(0, 10)}
                     onChange={e => handlePeriodChange(row.user_id, 'period_end', e.target.value)}
-                    className="px-2 py-1 rounded-lg border border-[var(--bone-12)] bg-background text-foreground"
+                    className="px-1.5 py-0.5 rounded-sm border border-[var(--bone-12)] bg-background text-foreground"
                   />
                 </div>
               </td>
-              <td className="px-6 py-4 text-right">
+              <td className="px-3 py-1.5 align-top text-right">
                 {creditFormOpenFor === row.user_id ? (
-                  <div className="flex flex-col gap-1.5 items-end">
+                  <div className="flex flex-col gap-1 items-end">
                     <input
                       type="number"
                       placeholder="Amount USD"
                       value={creditAmount}
                       onChange={e => setCreditAmount(e.target.value)}
-                      className="px-2 py-1 rounded-lg border border-[var(--bone-12)] bg-background text-[11px] text-foreground w-28"
+                      className="px-1.5 py-0.5 rounded-sm border border-[var(--bone-12)] bg-background text-[10px] text-foreground w-24"
                     />
                     <input
                       type="text"
                       placeholder="Note (optional)"
                       value={creditNote}
                       onChange={e => setCreditNote(e.target.value)}
-                      className="px-2 py-1 rounded-lg border border-[var(--bone-12)] bg-background text-[11px] text-foreground w-28"
+                      className="px-1.5 py-0.5 rounded-sm border border-[var(--bone-12)] bg-background text-[10px] text-foreground w-24"
                     />
                     <div className="flex gap-1">
-                      <button onClick={() => handleGrantCredit(row.user_id)} className="px-2 py-1 rounded-lg bg-accent text-accent-foreground text-[10px] font-medium">Grant</button>
-                      <button onClick={() => setCreditFormOpenFor(null)} className="px-2 py-1 rounded-lg bg-background border border-[var(--bone-12)] text-[10px] font-medium">Cancel</button>
+                      <button onClick={() => handleGrantCredit(row.user_id)} className="px-2 py-0.5 rounded-sm bg-accent text-accent-foreground text-[9px] font-medium">Grant</button>
+                      <button onClick={() => setCreditFormOpenFor(null)} className="px-2 py-0.5 rounded-sm bg-background border border-[var(--bone-12)] text-[9px] font-medium">Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <button
                     onClick={() => setCreditFormOpenFor(row.user_id)}
-                    className="px-3 py-1.5 rounded-lg bg-background border border-[var(--bone-6)] text-[10px] font-bold text-muted-foreground hover:text-foreground transition-all"
+                    className="px-2 py-1 rounded-sm bg-background border border-[var(--bone-6)] text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    + Add Credit
+                    + Credit
                   </button>
                 )}
               </td>
