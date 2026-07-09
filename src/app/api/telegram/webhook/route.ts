@@ -597,7 +597,6 @@ Here's what I can do for you:
           : ''
         logModelWebMessage(linkedAuthUserId, (result.content as string) + tgToolSummary, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
           msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
-        incrementUsage(user.telegram_id, 'message').catch(e => logger.error('Increment message usage failed', e))
         if (!isTempChat && activeChatId) await syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, result.content as string, result.model_chain, result.captured_tool_calls)
       }
 
