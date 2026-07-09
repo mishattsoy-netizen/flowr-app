@@ -1073,6 +1073,14 @@ export const ChatMessage = memo(({
     enabled: isLast && !msg.hasRevealed,
     initialProgress: 'complete',
   });
+
+  const markMessageRevealed = useStore(state => state.markMessageRevealed);
+  useEffect(() => {
+    if (!isAILoading && !isRevealing && !msg.hasRevealed && msg.id) {
+      markMessageRevealed(msg.id);
+    }
+  }, [isAILoading, isRevealing, msg.hasRevealed, msg.id, markMessageRevealed]);
+
   const displayContent = useMemo(() => {
     if (isPureImage) return targetContent;
 

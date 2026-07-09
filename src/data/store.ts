@@ -1107,26 +1107,44 @@ export const useStore = create<AppState>()(
         const sid = chatId || getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const currentActiveId = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTempChat ? 'temp' : 'global');
         const isActive = !chatId || chatId === currentActiveId;
-        set(s => {
-          const msgs = s.chatMessagesMap[sid];
-          const updatedMsgs = msgs && msgs.length > 0
-            ? msgs.map((m, idx) => idx === msgs.length - 1 && m.role === 'assistant' ? { ...m, hasRevealed: true } : m)
-            : msgs;
-          return {
-            isAILoading: isActive ? false : s.isAILoading,
-            aiAbortController: isActive ? null : s.aiAbortController,
-            loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
-            abortControllersMap: { ...s.abortControllersMap, [sid]: null },
-            ...(updatedMsgs ? { chatMessagesMap: { ...s.chatMessagesMap, [sid]: updatedMsgs } } : {}),
-            ...(isActive && updatedMsgs ? { aiMessages: updatedMsgs } : {}),
-            ...(isActive && isTempChat && updatedMsgs ? { tempChatMessages: updatedMsgs } : {}),
-          };
-        });
+        set(s => ({
+          isAILoading: isActive ? false : s.isAILoading,
+          aiAbortController: isActive ? null : s.aiAbortController,
+          loadingStatesMap: { ...s.loadingStatesMap, [sid]: false },
+          abortControllersMap: { ...s.abortControllersMap, [sid]: null }
+        }));
         const { pendingCompaction, compactAIChat } = get();
         if (pendingCompaction) {
           set({ pendingCompaction: false });
           await compactAIChat();
         }
+      },
+      markMessageRevealed: (messageId) => {
+        // Marks a single message as having finished its word-reveal animation
+        // (persisted, unlike component-local state, so a chat-panel remount
+        // doesn't replay the reveal). Called from ChatMessage once its own
+        // useWordReveal instance reports isRevealing === false, NOT from
+        // finishAILoading — the network stream can finish well before the
+        // (fixed-pace) reveal animation catches up, and marking too early
+        // would cut the animation off instead of letting it finish naturally.
+        const mark = (m: AIMessage) => m.id === messageId ? { ...m, hasRevealed: true } : m;
+        set(s => {
+          const nextChatMessagesMap: typeof s.chatMessagesMap = {};
+          let changed = false;
+          for (const [sid, msgs] of Object.entries(s.chatMessagesMap)) {
+            if (msgs.some(m => m.id === messageId)) {
+              nextChatMessagesMap[sid] = msgs.map(mark);
+              changed = true;
+            } else {
+              nextChatMessagesMap[sid] = msgs;
+            }
+          }
+          return {
+            ...(changed ? { chatMessagesMap: nextChatMessagesMap } : {}),
+            aiMessages: s.aiMessages.some(m => m.id === messageId) ? s.aiMessages.map(mark) : s.aiMessages,
+            tempChatMessages: s.tempChatMessages.some(m => m.id === messageId) ? s.tempChatMessages.map(mark) : s.tempChatMessages,
+          };
+        });
       },
       setAIHistory: (messages) => set({ aiMessages: messages }),
       setIsAIAssistantExtended: (extended) => set({ isAIAssistantExtended: extended }),
@@ -2544,30 +2562,34 @@ export const useStore = create<AppState>()(
         }));
 
         // 6. Migrate legacy shortcuts (unscoped keys → scoped by active space)
-        const currentShortcuts = get().shortcuts;
+        const currentShortcuts = { ...get().shortcuts };
         const shortcutSpaceId = state.activeSpaceId || 'ws-personal';
         let shortcutsMigrated = false;
         for (const key of Object.keys(currentShortcuts)) {
           if (!key.includes(':')) {
             const scopedKey = `${shortcutSpaceId}:${key}`;
-            if (!currentShortcuts[scopedKey]) {
+            if (currentShortcuts[scopedKey] === undefined) {
               currentShortcuts[scopedKey] = currentShortcuts[key];
               shortcutsMigrated = true;
             }
+            delete currentShortcuts[key];
           }
         }
         if (shortcutsMigrated) {
-          set({ shortcuts: { ...currentShortcuts } });
+          set({ shortcuts: currentShortcuts });
           console.log(`[Store] Migrated legacy shortcuts to scoped keys (${shortcutSpaceId}).`);
+        } else if (Object.keys(get().shortcuts).some(k => !k.includes(':'))) {
+          // Unscoped keys exist but scoped versions already present — just clean up silently
+          set({ shortcuts: currentShortcuts });
         }
 
-        // 7. Migrate legacy task spaceIds (null or 'ws-personal' → active space)
+        // 7. Migrate legacy task spaceIds (null → active space)
         const tasks = get().tasks;
-        const hasLegacyTasks = tasks.some(t => !t.spaceId || t.spaceId === 'ws-personal');
+        const hasLegacyTasks = tasks.some(t => !t.spaceId);
         if (hasLegacyTasks) {
           const migratedTasks = tasks.map(t => ({
             ...t,
-            spaceId: (!t.spaceId || t.spaceId === 'ws-personal') ? (state.activeSpaceId || 'ws-personal') : t.spaceId,
+            spaceId: t.spaceId || (state.activeSpaceId || 'ws-personal'),
           }));
           set({ tasks: migratedTasks });
           import('@/lib/sync').then(({ upsertTask }) => {
@@ -2579,15 +2601,19 @@ export const useStore = create<AppState>()(
         // 7.5. Migrate tasks whose spaceId references a space that no longer exists
         const knownSpaceIds = new Set(state.spaces.map(s => s.id));
         const tasks2 = hasLegacyTasks ? get().tasks : tasks;
-        const orphanedTasks = tasks2.filter(t => t.spaceId && !knownSpaceIds.has(t.spaceId) && t.spaceId !== state.activeSpaceId);
+        const targetSpaceId = state.activeSpaceId || 'ws-personal';
+        
+        const orphanedTasks = tasks2.filter(t => 
+          t.spaceId && !knownSpaceIds.has(t.spaceId) && t.spaceId !== targetSpaceId
+        );
+        
         if (orphanedTasks.length > 0) {
-          const targetSpaceId = state.activeSpaceId || 'ws-personal';
           const fixedTasks = tasks2.map(t =>
-            t.spaceId && !knownSpaceIds.has(t.spaceId) ? { ...t, spaceId: targetSpaceId } : t
+            t.spaceId && !knownSpaceIds.has(t.spaceId) && t.spaceId !== targetSpaceId ? { ...t, spaceId: targetSpaceId } : t
           );
           set({ tasks: fixedTasks });
           import('@/lib/sync').then(({ upsertTask }) => {
-            fixedTasks.forEach(t => upsertTask(t));
+            orphanedTasks.forEach(t => upsertTask({ ...t, spaceId: targetSpaceId }));
           });
           console.log(`[Store] Migrated ${orphanedTasks.length} orphaned task spaceIds to ${targetSpaceId}.`);
         }

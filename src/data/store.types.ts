@@ -574,6 +574,7 @@ export interface AppState {
   setAISessionContext: (context: AISessionContext | null) => void;
   fetchAISessionContext: (chatId: string) => Promise<void>;
   finishAILoading: (chatId?: string) => Promise<void>;
+  markMessageRevealed: (messageId: string) => void;
   sendAIMessage: (content: string, attachments?: AIAttachment[], pageContext?: string, isHidden?: boolean) => Promise<void>;
   regenerateAIMessage: (messageId: string, userContent: string, userAttachments?: AIAttachment[]) => Promise<void>;
   setVariantIndex: (messageId: string, index: number) => void;
