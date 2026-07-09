@@ -211,8 +211,10 @@ $$;
 -- all the SECURITY DEFINER _for_user wrappers need to invoke them.
 -- The auth.uid()-based reserve_credit / reconcile_credit above are left
 -- untouched so authenticated web/desktop clients can still call them.
-REVOKE EXECUTE ON _reserve_credit_core, _reconcile_credit_core,
-                reserve_credit_for_user, reconcile_credit_for_user
-FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION _reserve_credit_core(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION _reconcile_credit_core(UUID, UUID, NUMERIC) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION reserve_credit_for_user(UUID, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION reconcile_credit_for_user(UUID, UUID, NUMERIC) FROM PUBLIC, anon, authenticated;
 
-GRANT EXECUTE ON reserve_credit_for_user, reconcile_credit_for_user TO service_role;
+GRANT EXECUTE ON FUNCTION reserve_credit_for_user(UUID, UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION reconcile_credit_for_user(UUID, UUID, NUMERIC) TO service_role;
