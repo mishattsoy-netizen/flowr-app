@@ -130,6 +130,27 @@ export const FLOWR_TOOLS = [
   },
 
   {
+    name: "delete_content",
+    description: "Permanently delete one or more items by ID. Supports notes, folders, canvases, canvas blocks, and tasks.\n\nCRITICAL SAFETY RULES — you MUST follow these exactly:\n1. Get PERMISSION FIRST: Before calling this tool, list EVERY item you intend to delete in your chat response with type + title for each item.\n2. AWAIT EXPLICIT CONFIRMATION: Do NOT call this tool until the user has explicitly confirmed they want those exact items deleted.\n3. ONLY the listed items: Delete only what you listed. If the user wants to keep some items from the list, loop back to step 1 with the adjusted list.\n4. Folders cascade: When a folder is deleted, ALL its children (notes, sub-folders, etc.) are also permanently deleted — note this in your list.\n\nIf the user corrects or adjusts the list, present the new list for re-confirmation before deleting.",
+    parameters: {
+      type: "object",
+      properties: {
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "IDs of items to permanently delete. Supports entity IDs (notes, folders, canvases) and task IDs (prefixed 'task-'). Canvas block IDs also accepted."
+        },
+        type: {
+          type: "string",
+          enum: ["note", "task", "folder", "canvas"],
+          description: "Optional type hint for display in the confirmation list."
+        }
+      },
+      required: ["ids"]
+    }
+  },
+
+  {
     name: "list_content",
     description: "Universal tool to fetch, search, and list any app content (entities and tasks). The ONLY reading tool.",
     parameters: {
@@ -139,6 +160,11 @@ export const FLOWR_TOOLS = [
           type: "array",
           items: { type: "string", enum: ["workspace", "folder", "note", "canvas", "task"] },
           description: "Types of content to fetch. Omit to fetch everything."
+        },
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of exact entity/task IDs to fetch directly."
         },
         parentId: {
           type: "string",
