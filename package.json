@@ -114,18 +114,21 @@
     },
     "win": {
       "target": "nsis",
-      "artifactName": "Flowr-Setup.${ext}"
+      "artifactName": "Flowr-Setup.${ext}",
+      "icon": "icons/icon.png"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "artifactName": "Flowr.${ext}"
+      "artifactName": "Flowr.${ext}",
+      "icon": "icons/icon.png"
     },
     "linux": {
       "target": "AppImage",
-      "artifactName": "Flowr.${ext}"
+      "artifactName": "Flowr.${ext}",
+      "icon": "icons/icon.png"
     }
   }
 }
