@@ -31,7 +31,7 @@ describe('setSyncMode cascading to workspace-entity descendants', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({
-      workspaces: [
+      spaces: [
         { id: 'ws-personal', name: 'Personal', type: 'personal', ownerId: null, createdAt: 0, syncMode: 'cloud-only' },
       ],
       entities: [

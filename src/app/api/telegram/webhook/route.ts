@@ -40,11 +40,21 @@ async function syncTelegramMessages(
       .maybeSingle()
 
     if (!existing) {
+      const { data: profile } = await supabaseAdmin!
+        .from('profiles')
+        .select('active_space_id')
+        .eq('id', authUserId)
+        .maybeSingle()
+
       const title = userMessage.length > 60
         ? userMessage.slice(0, 57) + '…'
         : userMessage || 'Telegram Chat'
       await supabaseAdmin!.from('conversations').insert({
-        id: chatId, user_id: authUserId, title, updated_at: new Date().toISOString(),
+        id: chatId,
+        user_id: authUserId,
+        title,
+        updated_at: new Date().toISOString(),
+        space_id: profile?.active_space_id || null,
       })
     } else if (existing.user_id === authUserId) {
       await supabaseAdmin!.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', chatId)
@@ -114,10 +124,18 @@ async function startNewSession(
 
   if (type === 'saved') {
     try {
+      const { data: profile } = await supabaseAdmin!
+        .from('profiles')
+        .select('active_space_id')
+        .eq('id', authUserId)
+        .maybeSingle()
+
       await supabaseAdmin!.from('conversations').insert({
-        id: activeChatId, user_id: authUserId,
+        id: activeChatId,
+        user_id: authUserId,
         title: systemMessage.replace(/\*+/g, '').trim(),
         updated_at: new Date().toISOString(),
+        space_id: profile?.active_space_id || null,
       })
     } catch { /* non-critical */ }
   }
@@ -376,6 +394,95 @@ Here's what I can do for you:
         return NextResponse.json({ ok: true })
       }
 
+      if (cmd.type === 'spaces') {
+        if (!linkedAuthUserId) {
+          await telegram.sendMessage(chatId, '🔒 Please /login first.')
+          return NextResponse.json({ ok: true })
+        }
+
+        const value = cmd.value.trim()
+
+        // 1. Fetch user's spaces
+        const { data: spaces, error: spacesError } = await supabaseAdmin!
+          .from('spaces')
+          .select('id, name, is_default')
+          .eq('owner_id', linkedAuthUserId)
+          .order('name', { ascending: true })
+
+        if (spacesError) {
+          logger.error('Failed to fetch spaces:', spacesError)
+          await telegram.sendMessage(chatId, '❌ Failed to fetch spaces.')
+          return NextResponse.json({ ok: true })
+        }
+
+        // 2. Fetch current profile active space ID
+        const { data: profile } = await supabaseAdmin!
+          .from('profiles')
+          .select('active_space_id')
+          .eq('id', linkedAuthUserId)
+          .single()
+
+        const currentActiveId = profile?.active_space_id || spaces?.find((s: any) => s.is_default)?.id || spaces?.[0]?.id
+
+        if (!value) {
+          // List spaces
+          if (!spaces || spaces.length === 0) {
+            await telegram.sendMessage(chatId, '📂 *No spaces found.*')
+            return NextResponse.json({ ok: true })
+          }
+
+          const spaceListText = spaces.map((s: any) => {
+            const isActive = s.id === currentActiveId
+            const isDefault = s.is_default
+            let suffix = ''
+            if (isActive && isDefault) suffix = ' (active, default)'
+            else if (isActive) suffix = ' (active)'
+            else if (isDefault) suffix = ' (default)'
+            return `• *${escapeMarkdown(s.name)}*${suffix}`
+          }).join('\n')
+
+          await telegram.sendMessage(chatId,
+            `📂 *Your Spaces*\n\n${spaceListText}\n\nTo switch spaces, send:\n/spaces <name>\n/spaces default — to switch to default space`)
+          return NextResponse.json({ ok: true })
+        }
+
+        if (value.toLowerCase() === 'default') {
+          // Switch to default space
+          const defaultSpace = spaces?.find((s: any) => s.is_default)
+          if (!defaultSpace) {
+            await telegram.sendMessage(chatId, '❌ No default space configured.')
+            return NextResponse.json({ ok: true })
+          }
+          await supabaseAdmin!
+            .from('profiles')
+            .update({ active_space_id: defaultSpace.id })
+            .eq('id', linkedAuthUserId)
+
+          await telegram.sendMessage(chatId, `✅ Switched active space to *${escapeMarkdown(defaultSpace.name)}* (default).`)
+          return NextResponse.json({ ok: true })
+        }
+
+        // Search space by name (case-insensitive) or by ID
+        const targetSpace = spaces?.find((s: any) => 
+          s.name.toLowerCase() === value.toLowerCase() || s.id === value
+        ) || spaces?.find((s: any) =>
+          s.name.toLowerCase().includes(value.toLowerCase())
+        )
+
+        if (!targetSpace) {
+          await telegram.sendMessage(chatId, `❌ Space "${escapeMarkdown(value)}" not found.`)
+          return NextResponse.json({ ok: true })
+        }
+
+        await supabaseAdmin!
+          .from('profiles')
+          .update({ active_space_id: targetSpace.id })
+          .eq('id', linkedAuthUserId)
+
+        await telegram.sendMessage(chatId, `✅ Switched active space to *${escapeMarkdown(targetSpace.name)}*.`)
+        return NextResponse.json({ ok: true })
+      }
+
       if (cmd.type === 'help') {
         await telegram.sendMessage(chatId,
           `🤖 *Flowr Bot Commands*
@@ -396,6 +503,7 @@ Here's what I can do for you:
 
 *Settings*
 /mode default|pro — Switch AI mode
+/spaces [name] — List or switch spaces
 /help — Show this message`)
         return NextResponse.json({ ok: true })
       }

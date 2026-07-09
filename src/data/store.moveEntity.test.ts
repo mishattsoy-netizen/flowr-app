@@ -24,7 +24,7 @@ describe('moveEntity syncMode adoption across workspace roots', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useStore.setState({
-      workspaces: [
+      spaces: [
         { id: 'ws-personal', name: 'Personal', type: 'personal', ownerId: null, createdAt: 0, syncMode: 'cloud-only' },
       ],
       entities: [

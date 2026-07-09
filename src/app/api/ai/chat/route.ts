@@ -44,6 +44,43 @@ function buildToolSummary(toolCalls: any[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Secure Proxy Fallback for Desktop App
+  // If the secret service role key is not defined, we are in a packaged desktop app
+  // where we cannot bundle sensitive keys. We proxy the request to the hosted backend.
+  const isDesktopAppProxy = typeof window === 'undefined' && !process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (isDesktopAppProxy) {
+    const hostedBackendUrl = 'https://www.flowr.website/api/ai/chat';
+    try {
+      console.log('[AI Chat Proxy] Forwarding chat request to hosted backend...');
+      const bodyText = await req.text();
+      const headers = new Headers();
+      req.headers.forEach((value, key) => {
+        headers.set(key, value);
+      });
+      // Point Host header to production domain to prevent routing blocks
+      headers.set('host', 'www.flowr.website');
+
+      const response = await fetch(hostedBackendUrl, {
+        method: 'POST',
+        headers,
+        body: bodyText,
+        signal: req.signal,
+      });
+
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    } catch (err: any) {
+      console.error('[AI Chat Proxy] Proxy request failed:', err);
+      return NextResponse.json({ error: 'Proxy request failed: ' + err.message }, { status: 502 });
+    }
+  }
+
   let user = null;
   let supabaseClient = null;
 
@@ -73,10 +110,10 @@ export async function POST(req: NextRequest) {
 
   const userId = user?.id || 'anonymous'
 
-  // Pro/Max are gated entirely behind login — not a metering decision.
-  if (userId === 'anonymous' && activeMode === 'pro') {
+  // Gated entirely behind login — AI chat is accessible only to registered accounts.
+  if (userId === 'anonymous') {
     return NextResponse.json(
-      { error: 'Sign in to use Pro features.', model: 'system' },
+      { error: 'Sign in to use AI chat.', model: 'system' },
       { status: 401 }
     )
   }

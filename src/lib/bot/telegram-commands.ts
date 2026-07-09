@@ -10,12 +10,13 @@ export type BotCommand =
   | { type: 'id' }
   | { type: 'start' }
   | { type: 'mode'; value: string }
+  | { type: 'spaces'; value: string }
   | { type: 'message'; text: string }
 
 const COMMANDS = [
   '/login', '/logout', '/account', '/status',
   '/new', '/temp', '/clear', '/id',
-  '/mode', '/help', '/start'
+  '/mode', '/help', '/start', '/spaces', '/space'
 ] as const
 
 /**
@@ -53,6 +54,9 @@ export function parseCommand(text: string): BotCommand {
       return { type: 'id' }
     case '/mode':
       return { type: 'mode', value: parts[1] || '' }
+    case '/spaces':
+    case '/space':
+      return { type: 'spaces', value: text.slice(parts[0].length).trim() }
     default:
       return { type: 'message', text }
   }

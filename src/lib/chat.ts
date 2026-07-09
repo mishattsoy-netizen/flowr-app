@@ -35,7 +35,11 @@ export async function fetchConversations(spaceId?: string): Promise<ChatConversa
       .eq('is_archived', false);
 
     if (spaceId) {
-      query = query.eq('space_id', spaceId);
+      if (spaceId === 'ws-personal') {
+        query = query.or('space_id.eq.ws-personal,space_id.is.null');
+      } else {
+        query = query.eq('space_id', spaceId);
+      }
     }
 
     const { data, error } = await query
@@ -69,6 +73,7 @@ export async function fetchConversations(spaceId?: string): Promise<ChatConversa
 }
 
 export async function createConversation(title = 'New Chat', spaceId?: string): Promise<ChatConversation | null> {
+  if (!supabase) return null;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const payload: Record<string, any> = { title, user_id: user.id };
@@ -96,6 +101,7 @@ export async function createConversation(title = 'New Chat', spaceId?: string): 
 }
 
 export async function updateConversationTitle(id: string, title: string): Promise<void> {
+  if (!supabase) return;
   const { error } = await supabase
     .from('conversations')
     .update({ title, updated_at: new Date().toISOString() })
@@ -104,11 +110,13 @@ export async function updateConversationTitle(id: string, title: string): Promis
 }
 
 export async function deleteConversation(id: string): Promise<void> {
+  if (!supabase) return;
   const { error } = await supabase.from('conversations').delete().eq('id', id);
   if (error) throw error;
 }
 
 export async function fetchMessages(conversationId: string): Promise<ChatMessage[]> {
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('messages')
     .select('*')
@@ -198,6 +206,22 @@ export async function insertMessage(
   toolResults?: any[]
 ): Promise<ChatMessage> {
   let finalContent = content;
+  if (!supabase) {
+    return {
+      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+      conversation_id: conversationId,
+      role,
+      content: finalContent,
+      model,
+      pipeline_steps: pipelineSteps,
+      image_description: imageDescription,
+      image_prompt: imagePrompt,
+      citations,
+      toolResults,
+      created_at: new Date().toISOString(),
+      attachments,
+    } as any;
+  }
   if (attachments && attachments.length > 0) {
     const sanitizedAttachments = attachments.map(att => {
       const { type, url, name, textContent } = att;

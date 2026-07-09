@@ -41,7 +41,7 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
 export function findWorkspaceRoot(entities: Entity[], startParentId: string | null): Entity | null {
   let current: Entity | null = startParentId ? (entities.find(e => e.id === startParentId) ?? null) : null;
   while (current) {
-    if (current.type === 'workspace') {
+    if (current.type === 'workspace' || (current.type as string) === 'collection') {
       return current;
     }
     const pid = current.parentId;

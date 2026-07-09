@@ -164,22 +164,30 @@ async function startNextServer(port) {
       : path.join(appPath, 'node_modules/next/dist/bin/next');
 
     // Load .env file for the standalone server
-    const envPath = path.join(appPath, '.env');
+    // Check multiple potential locations (inside app.asar, next to app.asar in resources/, or in userData/)
+    const possibleEnvPaths = [
+      path.join(appPath, '.env'),
+      path.join(appPath, '..', '.env'),
+      path.join(app.getPath('userData'), '.env')
+    ];
     let envVars = {};
-    if (fs.existsSync(envPath)) {
-      try {
-        const envFile = fs.readFileSync(envPath, 'utf8');
-        envFile.split('\n').forEach(line => {
-          const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-          if (match) {
-            let val = match[2] || '';
-            val = val.trim().replace(/(^['"]|['"]$)/g, '');
-            envVars[match[1]] = val;
-          }
-        });
-        debugLog('Loaded .env variables');
-      } catch (e) {
-        debugLog('Failed to load .env: ' + e.message);
+    for (const envPath of possibleEnvPaths) {
+      if (fs.existsSync(envPath)) {
+        try {
+          const envFile = fs.readFileSync(envPath, 'utf8');
+          envFile.split('\n').forEach(line => {
+            const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+            if (match) {
+              let val = match[2] || '';
+              val = val.trim().replace(/(^['"]|['"]$)/g, '');
+              envVars[match[1]] = val;
+            }
+          });
+          debugLog('Loaded .env variables from: ' + envPath);
+          break; // Stop at first successfully loaded .env file
+        } catch (e) {
+          debugLog('Failed to load .env from ' + envPath + ': ' + e.message);
+        }
       }
     }
 

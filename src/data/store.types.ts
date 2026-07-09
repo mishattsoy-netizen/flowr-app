@@ -415,6 +415,7 @@ export interface AppState {
 
   openTabIds: string[];
   activeTabId: string | null;
+  readModeStates: Record<string, boolean>;
 
   favoriteIds: string[];
   collapsedIds: string[];
@@ -518,6 +519,7 @@ export interface AppState {
   stopAIGeneration: () => void;
   add_note: (title: string, content: string, parentId?: string | null) => void;
   toggleTheme: () => void;
+  setReadMode: (entityId: string, value: boolean) => void;
   setInterfaceSize: (size: 'small' | 'regular' | 'big') => void;
   toggleSidebar: () => void;
   toggleSidebarPinned: () => void;

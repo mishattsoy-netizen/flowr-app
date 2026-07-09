@@ -35,6 +35,23 @@ export async function getSubscriptions(accessToken: string): Promise<Subscriptio
 
   const rows = await Promise.all(subs.map(async (sub: any) => {
     const tier = sub.subscription_tiers
+
+    const base = {
+      user_id: sub.user_id,
+      email: emailByUserId.get(sub.user_id) ?? '(unknown)',
+      tier_id: sub.tier_id,
+      tier_name: tier?.name ?? sub.tier_id,
+      period_start: sub.period_start,
+      period_end: sub.period_end,
+      granted_by_promo_code: sub.granted_by_promo_code,
+    }
+
+    if (!tier) {
+      console.error(`[getSubscriptions] No subscription_tiers row found for tier_id "${sub.tier_id}" (user ${sub.user_id})`)
+      const empty = { spent: 0, cap: 0, resets_at: sub.period_end }
+      return { ...base, window: empty, weekly: empty, monthly: empty }
+    }
+
     const [{ data: spend5h }, { data: spendWeek }, { data: spendMonth }] = await Promise.all([
       supabaseAdmin.from('credit_spend_events').select('amount_usd').eq('user_id', sub.user_id).gte('created_at', sub.window_5h_anchor ?? sub.period_start),
       supabaseAdmin.from('credit_spend_events').select('amount_usd').eq('user_id', sub.user_id).gte('created_at', sub.window_week_anchor ?? sub.period_start),
@@ -47,16 +64,7 @@ export async function getSubscriptions(accessToken: string): Promise<Subscriptio
       spendMonth: sum(spendMonth),
     })
 
-    return {
-      user_id: sub.user_id,
-      email: emailByUserId.get(sub.user_id) ?? '(unknown)',
-      tier_id: sub.tier_id,
-      tier_name: tier?.name ?? sub.tier_id,
-      period_start: sub.period_start,
-      period_end: sub.period_end,
-      granted_by_promo_code: sub.granted_by_promo_code,
-      ...windows,
-    }
+    return { ...base, ...windows }
   }))
 
   return rows

@@ -355,15 +355,15 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           stripHtml(entities.find(e => e.id === activeEntityId)?.title || '')}
       </div>
 
-      {/* â”€â”€â”€ Tab strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      {/* ——————————————————————————————————————————————————————————————————————————————————————————————————
           items-end: tab layout boxes sit at the bottom edge
-      â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      ———————————————————————————————————————————————————————————————————————————————————————————————————— */}
       <div
         ref={tabsRef}
         className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
         style={{ height: BAR_H, gap: M, paddingLeft: 28, paddingRight: 8 }}
       >
-        {(splitViewActive && splitViewLeftId && splitViewRightId ? [splitViewLeftId, splitViewRightId] : openTabIds).map((tabId, idx) => {
+        {!splitViewActive && openTabIds.map((tabId, idx) => {
           const isActive = activeTabId === tabId;
           const isDragged = drag?.id === tabId;
           const isReleased = release?.id === tabId;
@@ -371,7 +371,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           const path = getPath(tabId);
           if (!title && tabId !== 'dashboard' && tabId !== 'chat' && tabId !== 'tracker') return null;
 
-          // Per-tab motion â€” all transform-based (no flex reflow during drag), so all of it
+          // Per-tab motion — all transform-based (no flex reflow during drag), so all of it
           // can be transitioned. Static tabs slide aside via pushShift; the dragged tab
           // tracks the pointer with no transition (instant glue); the released tab settles
           // into its slot through a one-shot FLIP.
@@ -402,15 +402,10 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                   height:     BAR_H,
                   zIndex,
                   transform,
-                  transition,
-                  ...(splitViewActive && splitViewLeftId && splitViewRightId ? {
-                    position: 'absolute',
-                    left: idx === 0 ? (isDesktopEnv ? 28 : 28) : `calc(${splitViewPosition}% + ${isDesktopEnv ? 32 : 24}px)`,
-                    width: idx === 0 ? `calc(${splitViewPosition}% - ${isDesktopEnv ? 60 : 28}px)` : `calc(${100 - splitViewPosition}% - ${isDesktopEnv ? 60 : 32}px)`
-                  } : {})
+                  transition
                 }}
               >
-              {/* â”€â”€â”€ Visual tab background (swaps per state; content layer never moves) â”€â”€â”€ */}
+              {/* ——— Visual tab background (swaps per state; content layer never moves) ——— */}
               <div
                 className={cn(
                   "absolute inset-x-0",
@@ -430,7 +425,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                 {isActive && <ConcaveCorner side="right" r={R_ACTIVE} />}
               </div>
 
-              {/* â”€â”€â”€ Content container (Vertically centered inside BAR_H across all tabs) â”€â”€â”€ */}
+              {/* ——— Content container (Vertically centered inside BAR_H across all tabs) ——— */}
               <div
                 className="relative z-10 w-full h-full flex items-center gap-[5px]"
                 style={{
@@ -489,25 +484,27 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
         })}
 
         {/* + New Tab (matches inactive hover container height for uniform spacing) */}
-        <div
-          className="flex items-center justify-center shrink-0"
-          style={{ height: BAR_H }}
-        >
-          <button
-            onClick={e => { e.stopPropagation(); if (newItemPopup) { setNewItemPopup(null); return; } const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setNewItemPopup({ x: r.right + 4, y: r.top }); }}
-            className={cn(
-                    "flex items-center justify-center text-[var(--bone-100)] rounded-[8px] shrink-0 [-webkit-app-region:no-drag]",
-                    newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
-                  )}
-            style={{ width: 22, height: BAR_H - 2 * M }}
+        {!splitViewActive && (
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{ height: BAR_H }}
           >
-            <Plus strokeWidth={2} className="w-3.5 h-3.5"/>
-          </button>
-        </div>
+            <button
+              onClick={e => { e.stopPropagation(); if (newItemPopup) { setNewItemPopup(null); return; } const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setNewItemPopup({ x: r.right + 4, y: r.top }); }}
+              className={cn(
+                      "flex items-center justify-center text-[var(--bone-100)] rounded-[8px] shrink-0 [-webkit-app-region:no-drag]",
+                      newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                    )}
+              style={{ width: 22, height: BAR_H - 2 * M }}
+            >
+              <Plus strokeWidth={2} className="w-3.5 h-3.5"/>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Split View Toggle and Controls */}
-      {(selectedSidebarIds.length === 2 || (openTabIds.length > 0 && (() => {
+      {!splitViewActive && (selectedSidebarIds.length === 2 || (openTabIds.length > 0 && (() => {
         const entity = entities.find(e => e.id === activeEntityId);
         return entity && (entity.type === 'note' || entity.type === 'canvas');
       })())) && (
@@ -515,31 +512,6 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           className="flex items-center justify-center gap-1 shrink-0 pr-2 z-10"
           style={{ height: BAR_H }}
         >
-          {splitViewActive && (
-            <>
-              <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
-                <button
-                  onClick={e => { e.stopPropagation(); togglePin(); }}
-                  className={cn(
-                    "flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag]",
-                    splitViewPinned ? "bg-[var(--bone-10)]" : "hover:bg-[var(--bone-6)]"
-                  )}
-                  style={{ width: 32, height: 32 }}
-                >
-                  <Pin strokeWidth={2} className="w-[18px] h-[18px]" fill={splitViewPinned ? "currentColor" : "none"} />
-                </button>
-              </Tooltip>
-              <Tooltip content="Swap columns">
-                <button
-                  onClick={e => { e.stopPropagation(); swapColumns(); }}
-                  className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 [-webkit-app-region:no-drag] hover:bg-[var(--bone-6)]"
-                  style={{ width: 32, height: 32 }}
-                >
-                  <ArrowLeftRight strokeWidth={2} className="w-[18px] h-[18px]" />
-                </button>
-              </Tooltip>
-            </>
-          )}
           <Tooltip content="Split view">
             <button
               onClick={e => { e.stopPropagation(); toggleSplitView(); }}

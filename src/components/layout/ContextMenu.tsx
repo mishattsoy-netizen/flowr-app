@@ -3,7 +3,7 @@
 import { useStore } from '@/data/store';
 import type { SidebarSectionId } from '@/data/store';
 import { isDesktop } from '@/lib/env';
-import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin, FolderOpen, File, MoreVertical } from 'lucide-react';
+import { Star, Link2, FolderInput, Trash2, Edit2, Copy, Palette, ChevronRight, ChevronDown, ArrowUp, ArrowDown, EyeOff, Eye, LayoutPanelLeft, Grid, Type, Calendar, Layers, Settings, Plus, Check, ExternalLink, PanelLeft, Pin, FolderOpen, File, MoreVertical, Columns2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { IconPicker } from './IconPicker';
@@ -425,6 +425,34 @@ export function ContextMenu() {
         onClick: () => { addTab(entity!.id); closeContextMenu(); },
       }
     );
+
+    const activeEntity = entities.find(e => e.id === activeEntityId);
+    const activeIsNoteOrCanvas = activeEntity && (activeEntity.type === 'note' || activeEntity.type === 'canvas');
+    const clickedIsNoteOrCanvas = entity && (entity.type === 'note' || entity.type === 'canvas');
+    if (activeEntityId && activeEntityId !== entity!.id && activeIsNoteOrCanvas && clickedIsNoteOrCanvas) {
+      items.push({
+        icon: <Columns2 strokeWidth={2} className="w-4 h-4" />,
+        label: 'Split page',
+        onClick: () => {
+          const nextTabs = [...useStore.getState().openTabIds];
+          if (!nextTabs.includes(activeEntityId!)) nextTabs.push(activeEntityId!);
+          if (!nextTabs.includes(entity!.id)) nextTabs.push(entity!.id);
+          
+          useStore.setState({
+            splitViewActive: true,
+            splitViewLeftId: activeEntityId,
+            splitViewRightId: entity!.id,
+            splitViewPinned: false,
+            splitViewPosition: 50,
+            openTabIds: nextTabs,
+            activeEntityId: activeEntityId,
+            activeTabId: activeEntityId,
+            selectedSidebarIds: [],
+          });
+          closeContextMenu();
+        }
+      });
+    }
 
     if (isDesktop() && entity && entity.syncMode !== 'cloud-only') {
       items.push({ isDivider: true });

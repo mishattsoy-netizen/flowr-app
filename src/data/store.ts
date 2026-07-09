@@ -260,6 +260,7 @@ export const useStore = create<AppState>()(
       editingEntity: null,
       editingEntityId: null,
       editingSource: null,
+      readModeStates: {},
       theme: 'dark',
       interfaceSize: 'regular',
       isSidebarCollapsed: false,
@@ -378,6 +379,7 @@ export const useStore = create<AppState>()(
       },
 
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+      setReadMode: (entityId, value) => set((state) => ({ readModeStates: { ...state.readModeStates, [entityId]: value } })),
       setInterfaceSize: (interfaceSize) => set({ interfaceSize }),
       toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       toggleSidebarPinned: () => set((state) => ({ isSidebarPinned: !state.isSidebarPinned })),
@@ -843,6 +845,24 @@ export const useStore = create<AppState>()(
           return;
         }
 
+        if (!isSupabaseEnabled) {
+          const localMsgs = get().chatMessagesMap[id] || [];
+          set({
+            activeChatId: id,
+            isTempChat: false,
+            pendingNewChat: false,
+            tempChatMessages: [],
+            aiMessages: localMsgs,
+            chatMessagesMap: { ...get().chatMessagesMap, [id]: localMsgs },
+            aiSessionContext: get().sessionContextsMap[id] || null,
+            pendingAdvisorState: null,
+            assistantInput: get().chatInputs[id] || '',
+            isAILoading: false,
+            aiAbortController: null,
+          });
+          return;
+        }
+
         try {
           const msgs = await fetchMessages(id);
           const aiMsgs = msgs.map(m => ({
@@ -875,12 +895,28 @@ export const useStore = create<AppState>()(
           get().fetchAISessionContext(id);
         } catch (e) {
           console.error('Failed to load conversation', e);
+          const localMsgs = get().chatMessagesMap[id] || [];
+          set({
+            activeChatId: id,
+            isTempChat: false,
+            pendingNewChat: false,
+            tempChatMessages: [],
+            aiMessages: localMsgs,
+            chatMessagesMap: { ...get().chatMessagesMap, [id]: localMsgs },
+            aiSessionContext: get().sessionContextsMap[id] || null,
+            pendingAdvisorState: null,
+            assistantInput: get().chatInputs[id] || '',
+            isAILoading: false,
+            aiAbortController: null,
+          });
         }
       },
 
       deleteChatConversation: async (id: string) => {
         try {
-          await deleteConversationFromDB(id);
+          if (isSupabaseEnabled) {
+            await deleteConversationFromDB(id);
+          }
           const next = get().chatConversations.filter(c => c.id !== id);
           set({ chatConversations: next });
           if (get().activeChatId === id) {
@@ -905,6 +941,7 @@ export const useStore = create<AppState>()(
       },
 
       loadChatConversations: async () => {
+        if (!isSupabaseEnabled) return;
         try {
           const { activeSpaceId } = get();
           const convs = await fetchConversations(activeSpaceId || undefined);
@@ -938,7 +975,21 @@ export const useStore = create<AppState>()(
       saveTempChat: async () => {
         const { aiMessages, chatConversations, aiSessionContext, activeSpaceId } = get()
         try {
-          const conv = await createConversation('New Chat', activeSpaceId || undefined)
+          let conv;
+          if (!isSupabaseEnabled) {
+            conv = {
+              id: crypto.randomUUID(),
+              user_id: 'local',
+              title: 'New Chat',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              is_archived: false,
+              space_id: activeSpaceId || undefined,
+            };
+          } else {
+            conv = await createConversation('New Chat', activeSpaceId || undefined)
+          }
+
           if (!conv) {
             console.warn('Cannot save temp chat — not authenticated')
             return
@@ -959,15 +1010,32 @@ export const useStore = create<AppState>()(
           const firstUser = userAndAssistant.find(m => m.role === 'user')
           if (firstUser?.content) {
             const title = firstUser.content.slice(0, 60)
-            await updateConversationTitle(conv.id, title)
+            if (isSupabaseEnabled) {
+              await updateConversationTitle(conv.id, title)
+            }
             conv.title = title
           }
-          set({
+          const mapped = userAndAssistant.map(m => ({
+            id: m.id || crypto.randomUUID(),
+            role: m.role as 'user' | 'assistant',
+            content: m.content || '',
+            model: m.model,
+            timestamp: m.timestamp || Date.now(),
+            pipelineSteps: m.pipelineSteps,
+            image_description: m.image_description,
+            image_prompt: (m as any).image_prompt,
+            attachments: m.attachments,
+            toolResults: m.toolResults,
+            citations: m.citations,
+          }))
+          set((s) => ({
             activeChatId: conv.id,
             isTempChat: false,
             tempChatMessages: [],
             chatConversations: [conv, ...chatConversations],
-          })
+            chatMessagesMap: { ...s.chatMessagesMap, [conv.id]: mapped },
+            aiMessages: mapped,
+          }))
           get().fetchAISessionContext(conv.id)
         } catch (e) {
           console.error('Failed to save temp chat', e)
@@ -1063,11 +1131,28 @@ export const useStore = create<AppState>()(
         if (!cleanContent && attachments.length === 0 && !extractedIntent) return;
         // Create pending new chat on first message
         if (get().pendingNewChat) {
-          const conv = await createConversation('New Chat', get().activeSpaceId || undefined);
-          if (conv) {
+          let conv;
+          if (!isSupabaseEnabled) {
             const title = cleanContent.slice(0, 60);
-            await updateConversationTitle(conv.id, title);
-            conv.title = title;
+            conv = {
+              id: crypto.randomUUID(),
+              user_id: 'local',
+              title: title,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              is_archived: false,
+              space_id: get().activeSpaceId || undefined,
+            };
+          } else {
+            conv = await createConversation('New Chat', get().activeSpaceId || undefined);
+            if (conv) {
+              const title = cleanContent.slice(0, 60);
+              await updateConversationTitle(conv.id, title);
+              conv.title = title;
+            }
+          }
+
+          if (conv) {
             set({
               activeChatId: conv.id,
               newEmptyChatId: null,
@@ -1471,6 +1556,7 @@ export const useStore = create<AppState>()(
                 const innerContent = match[2] || '';
                 
                 let resultObj: any = { success: false, error: 'Unknown tool' };
+                let toolResultItem: any = null;
                 
                 try {
                   if (tagName === 'create_note') {
@@ -1478,11 +1564,23 @@ export const useStore = create<AppState>()(
                     const title = lines[0].startsWith('# ') ? lines[0].substring(2) : 'New Note';
                     const id = get().addEntity({ type: 'note', title, content: [] });
                     resultObj = { success: true, id, title };
+                    toolResultItem = {
+                      tool: 'create_content',
+                      type: 'note',
+                      success: true,
+                      id,
+                      title,
+                    };
                   } else if (tagName === 'delete_entity') {
                     const idMatch = tagFull.match(/id="([^"]+)"/);
                     if (idMatch) {
                       get().deleteEntity(idMatch[1]);
                       resultObj = { success: true, message: `Entity ${idMatch[1]} deleted.` };
+                      toolResultItem = {
+                        tool: 'delete_content',
+                        success: true,
+                        id: idMatch[1],
+                      };
                     } else {
                       resultObj = { success: false, error: 'Missing id attribute' };
                     }
@@ -1492,6 +1590,12 @@ export const useStore = create<AppState>()(
                       // Note: proper block parsing would go here
                       get().updateEntityContent(idMatch[1], [{ id: crypto.randomUUID(), type: 'text', content: innerContent }]);
                       resultObj = { success: true, message: `Note ${idMatch[1]} updated.` };
+                      toolResultItem = {
+                        tool: 'update_content',
+                        type: 'note',
+                        success: true,
+                        id: idMatch[1],
+                      };
                     } else {
                       resultObj = { success: false, error: 'Missing id attribute' };
                     }
@@ -1522,6 +1626,10 @@ export const useStore = create<AppState>()(
                       attachments: t.attachments?.map(a => ({ name: a.name, type: a.type }))
                     }));
                     resultObj = { success: true, tasks };
+                    toolResultItem = {
+                      tool: 'read_tasks',
+                      success: true,
+                    };
                   } else if (tagName === 'read_workspace_content') {
                     const wsMatch = tagFull.match(/spaceId="([^"]+)"/);
                     const targetWsId = wsMatch ? wsMatch[1] : get().activeSpaceId;
@@ -1529,18 +1637,54 @@ export const useStore = create<AppState>()(
                       .filter(e => e.spaceId === targetWsId || (targetWsId === 'ws-personal' && !e.spaceId))
                       .map(e => ({ id: e.id, title: e.title, type: e.type }));
                     resultObj = { success: true, entities };
+                    toolResultItem = {
+                      tool: 'read_workspace_content',
+                      success: true,
+                    };
                   } else if (tagName === 'read_all_content') {
                     const entities = get().entities.map(e => ({ id: e.id, title: e.title, type: e.type }));
                     const tasks = get().tasks.map(t => ({ id: t.id, title: t.title, type: 'task' }));
                     resultObj = { success: true, entities, tasks };
+                    toolResultItem = {
+                      tool: 'read_all_content',
+                      success: true,
+                    };
                   } else {
                     // For tools handled by backend or not locally mockable yet (like web_search),
                     // they shouldn't trigger local intercept loop directly unless backend delegates it.
                     // But if they do, we'll just acknowledge it.
                     resultObj = { success: true, message: `Tool ${tagName} intercepted.` };
+                    toolResultItem = {
+                      tool: tagName,
+                      success: true,
+                    };
                   }
                 } catch (err: any) {
                   resultObj = { success: false, error: err?.message || 'Execution failed' };
+                  toolResultItem = {
+                    tool: tagName === 'create_note' ? 'create_content' : tagName === 'edit_note' ? 'update_content' : tagName,
+                    type: tagName === 'create_note' || tagName === 'edit_note' ? 'note' : undefined,
+                    success: false,
+                    error: err?.message || 'Execution failed',
+                  };
+                }
+
+                if (toolResultItem) {
+                  set((s) => {
+                    const updated = (s.chatMessagesMap[targetChatId] || []).map((m) => {
+                      if (m.id === placeholderMessage.id || m.id === get().aiMessages[get().aiMessages.length - 1]?.id) {
+                        return {
+                          ...m,
+                          toolResults: [...(m.toolResults || []), toolResultItem]
+                        };
+                      }
+                      return m;
+                    });
+                    return {
+                      chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                      aiMessages: updated,
+                    };
+                  });
                 }
 
                 // Silently re-enter API with the result
@@ -2172,7 +2316,7 @@ export const useStore = create<AppState>()(
         // root — NOT from Entity.spaceId, which is an account-level id shared
         // by every entity in the same account regardless of sidebar workspace.
         const workspaceRoot = findWorkspaceRoot(get().entities, entity.parentId ?? null);
-        const defaultSyncMode: import('./store.types').SyncMode = workspaceRoot ? workspaceRoot.syncMode : 'full-sync';
+        const defaultSyncMode: import('./store.types').SyncMode = workspaceRoot ? workspaceRoot.syncMode : 'cloud-only';
 
         const finalEntity = {
           ...entity,
@@ -3277,6 +3421,7 @@ export const useStore = create<AppState>()(
         aiApiKey: state.aiApiKey,
         copiedBlock: state.copiedBlock,
         sidebarSectionSettings: state.sidebarSectionSettings,
+        readModeStates: state.readModeStates,
         trackerColumnSortModes: state.trackerColumnSortModes,
         trackerColumnSortLocks: state.trackerColumnSortLocks,
         hiddenEntityIds: state.hiddenEntityIds,

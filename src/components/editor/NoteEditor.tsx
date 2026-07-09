@@ -471,7 +471,8 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
-  const [isReadMode, setIsReadMode] = useState(false);
+  const isReadMode = useStore(s => !!s.readModeStates[entity.id]);
+  const setReadMode = useStore(s => s.setReadMode);
   const [optionsMenuPos, setOptionsMenuPos] = useState<{ x: number, y: number } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null!);
@@ -1214,18 +1215,20 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
     >
       {/* Top right corner control buttons (Read/Edit mode and Options menu) */}
       <div className="absolute top-4 right-6 z-40 flex items-center gap-1.5 [-webkit-app-region:no-drag]">
-        <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
-          <button
-            onClick={() => setIsReadMode(!isReadMode)}
-            className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
-          >
-            {isReadMode ? (
-              <BookOpen className="w-4 h-4" />
-            ) : (
-              <Pencil className="w-4 h-4" />
-            )}
-          </button>
-        </Tooltip>
+        {!splitViewActive && (
+          <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
+            <button
+              onClick={() => setReadMode(entity.id, !isReadMode)}
+              className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
+            >
+              {isReadMode ? (
+                <BookOpen className="w-4 h-4" />
+              ) : (
+                <Pencil className="w-4 h-4" />
+              )}
+            </button>
+          </Tooltip>
+        )}
         
         <Tooltip content="More Options">
           <button

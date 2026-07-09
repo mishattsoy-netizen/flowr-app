@@ -29,7 +29,7 @@ describe('addEntity syncMode inheritance from workspace root', () => {
         { id: 'w2', title: 'Local Workspace', type: 'collection', parentId: null, lastModified: 0, workspaceId: 'ws-personal', syncMode: 'local-only' },
         { id: 'f1', title: 'Folder under w1', type: 'folder', parentId: 'w1', lastModified: 0, workspaceId: 'ws-personal', syncMode: 'full-sync' },
       ] as any,
-      activeWorkspaceId: 'ws-personal',
+      activeSpaceId: 'ws-personal',
     });
   });
 

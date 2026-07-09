@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo } from 'lucide-react';
+import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil } from 'lucide-react';
 import { cn, stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -68,8 +68,10 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
   const togglePin = useStore(s => s.togglePin);
   const swapColumns = useStore(s => s.swapColumns);
 
+  const isReadMode = useStore(s => !!s.readModeStates[entityId || '']);
+  const setReadMode = useStore(s => s.setReadMode);
+
   const isDesktopEnv = isDesktop();
-  if (isDesktopEnv) return null;
 
   const BAR_H = 42;
   const M = 6;
@@ -88,6 +90,22 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
       {entityId ? (
         <>
+          {/* Read/Edit toggle inside ColumnHeader */}
+          {entities.find(e => e.id === entityId)?.type === 'note' && (
+            <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
+              <button
+                onClick={e => { e.stopPropagation(); setReadMode(entityId, !isReadMode); }}
+                className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer z-20 mr-1 shrink-0"
+              >
+                {isReadMode ? (
+                  <BookOpen className="w-4 h-4" />
+                ) : (
+                  <Pencil className="w-4 h-4" />
+                )}
+              </button>
+            </Tooltip>
+          )}
+
           {/* ── Tab pill — same visual style as HeaderBar active tab ── */}
           <Tooltip content={stripHtml(title || '')} position="bottom">
             <div

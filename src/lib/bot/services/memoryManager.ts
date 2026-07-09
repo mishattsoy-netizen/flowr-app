@@ -8,6 +8,7 @@ export interface MemoryContext {
   isTempChat?: boolean
   activeChatId?: string | null
   clientHistory?: any[]
+  _triggerType?: string
 }
 
 export async function fetchConversationHistory(
@@ -16,10 +17,10 @@ export async function fetchConversationHistory(
 ): Promise<any[]> {
   let history: any[] = []
 
-  if (context.chatId) {
-    history = await getConversationMemory(context.chatId, historyLimit)
-  } else if (context.userId && context.userId !== 'anonymous' && !context.isTempChat && context.activeChatId) {
+  if (context.userId && context.userId !== 'anonymous' && (!context.isTempChat || context._triggerType === 'telegram') && context.activeChatId) {
     history = await getWebConversationMemory(context.userId, historyLimit, context.activeChatId)
+  } else if (context.chatId) {
+    history = await getConversationMemory(context.chatId, historyLimit)
   }
 
   if (history.length === 0 && context.clientHistory && context.clientHistory.length > 0) {

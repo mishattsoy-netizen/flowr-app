@@ -212,7 +212,8 @@ export async function runChain(
     userId: context?.userId,
     isTempChat: context?.isTempChat,
     activeChatId: context?.activeChatId,
-    clientHistory: context?.clientHistory
+    clientHistory: context?.clientHistory,
+    _triggerType: context?._triggerType
   }, historyLimit)
 
   let currentSummary = sessionState?.distilled_summary || null

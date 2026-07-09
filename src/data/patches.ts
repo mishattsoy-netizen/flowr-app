@@ -37,7 +37,9 @@ export const PATCHES: Patch[] = [
           'Deep Research now plans its strategy first, then runs multiple searches in parallel — noticeably faster and more thorough answers.',
           'Default Space: the app opens in your main Space on login, and items without a home are automatically filed there.',
           'New Space options menu: rename or delete a Space from a tidy ⋮ popover instead of scattered inline buttons.',
-          'Danger zone: you can now permanently delete all your data from Account settings in one confirmed action.'
+          'Danger zone: you can now permanently delete all your data from Account settings in one confirmed action.',
+          'Telegram bot: Added the `/spaces` command to let you easily switch between your different workspaces.',
+          'Offline Chat: Chat can now function completely offline, saving conversations locally when the cloud connection is disabled.'
         ]
       },
       {
@@ -47,7 +49,8 @@ export const PATCHES: Patch[] = [
           'Chat now resets correctly when you switch Spaces.',
           'Fair AI cost accounting: cached AI responses are no longer billed at full price, and web search costs are now metered accurately.',
           'Telegram bot: fixed doubled prompts, slow syncing, broken formatting, and overdue-task handling.',
-          'Complex multi-part questions now correctly route to Deep Research instead of a single quick search.'
+          'Complex multi-part questions now correctly route to Deep Research instead of a single quick search.',
+          'Fixed an issue where synced Telegram conversations were hiding when viewing your Personal space.'
         ]
       },
       {
@@ -55,7 +58,8 @@ export const PATCHES: Patch[] = [
         items: [
           'Web search is faster and leaner: page content is capped and searches fan out in parallel, cutting response time and cost.',
           'The AI\'s internal instructions were consolidated into a single unified system prompt for more consistent behavior across all chat modes.',
-          'Anonymous sessions can no longer access Pro-tier AI features.'
+          'Anonymous sessions can no longer access Pro-tier AI features.',
+          'AI Chat security: Anonymous sessions are now completely blocked from accessing any AI chat features.'
         ]
       }
     ]
