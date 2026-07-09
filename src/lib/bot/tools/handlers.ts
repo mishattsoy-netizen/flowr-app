@@ -68,12 +68,35 @@ function processSubtasks(subtasks: any[] | undefined): any[] | null {
   }));
 }
 
-// Helper: parse content to blocks JSON string
-function contentToBlocks(content?: string, blocks?: BlockInput[]): any {
-  if (content) return parseMarkdownToBlocks(content)
-  if (blocks) return blocks
-  return []
+// Helper: parse client time into local today and yesterday ISO strings
+function getClientDateStrings(context: any): { todayStr: string; yesterdayStr: string } {
+  let today = new Date();
+  if (context?.clientTime) {
+    const parsedDate = new Date(context.clientTime);
+    if (!isNaN(parsedDate.getTime())) {
+      today = parsedDate;
+    } else {
+      // Regex fallback
+      const match = context.clientTime.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/);
+      if (match) {
+        const months: Record<string, string> = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+        const d = match[2].padStart(2, '0');
+        const formatted = `${match[3]}-${months[match[1]]}-${d}`;
+        const testDate = new Date(formatted);
+        if (!isNaN(testDate.getTime())) {
+          today = testDate;
+        }
+      }
+    }
+  }
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  return {
+    todayStr: today.toISOString().split('T')[0],
+    yesterdayStr: yesterday.toISOString().split('T')[0]
+  };
 }
+
 
 export const toolHandlers: Record<string, (args: any, context?: any) => Promise<any>> = {
 
@@ -116,15 +139,27 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
       // --- TASK ---
       if (type === 'task') {
+        const { todayStr, yesterdayStr } = getClientDateStrings(context)
+        let finalStatus = status || 'todo'
+        let finalDueDate = dueDate || null
+
+        if (status === 'today') {
+          finalStatus = 'todo'
+          finalDueDate = todayStr
+        } else if (status === 'overdue') {
+          finalStatus = 'todo'
+          finalDueDate = yesterdayStr
+        }
+
         const id = 'task-' + Date.now().toString()
         const { error } = await supabaseAdmin.from('tasks').insert({
           id,
           title,
           description: description || null,
-          status: status || 'todo',
+          status: finalStatus,
           priority: priority || null,
           tag: tag && tag.toLowerCase() !== 'none' ? tag : null,
-          due_date: dueDate || null,
+          due_date: finalDueDate,
           end_date: args.endDate || null,
           include_time: args.includeTime ?? null,
           reminder: args.reminder || null,
@@ -132,7 +167,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           space_id: spaceId || null,
           entity_id: assignedWorkspaceId || null,
           owner_id: context.userId,
-          completed: status === 'done',
+          completed: finalStatus === 'done',
           created_at: new Date().toISOString()
         })
         if (error) throw error
@@ -141,10 +176,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           id, 
           type: 'task', 
           title,
-          status: status || 'todo',
+          status: finalStatus,
           priority: priority || null,
           tag: tag && tag.toLowerCase() !== 'none' ? tag : null,
-          dueDate: dueDate || null,
+          dueDate: finalDueDate,
           endDate: args.endDate || null,
           includeTime: args.includeTime ?? false,
           reminder: args.reminder || null,
@@ -212,7 +247,17 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
         if (status !== undefined) {
-          if (['todo', 'in-progress', 'done'].includes(status)) {
+          if (status === 'today') {
+            const { todayStr } = getClientDateStrings(context)
+            updates.status = 'todo'
+            updates.completed = false
+            updates.due_date = todayStr
+          } else if (status === 'overdue') {
+            const { yesterdayStr } = getClientDateStrings(context)
+            updates.status = 'todo'
+            updates.completed = false
+            updates.due_date = yesterdayStr
+          } else if (['todo', 'in-progress', 'done'].includes(status)) {
             updates.status = status
             updates.completed = status === 'done'
           }

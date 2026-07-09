@@ -404,6 +404,11 @@ function startWatchingVault(vaultPath) {
 }
 
 app.whenReady().then(() => {
+  // app.quit() from a lost single-instance race is asynchronous — without this
+  // guard the losing instance still boots a full server + window before dying,
+  // leaving the user staring at a window whose server is gone.
+  if (!gotTheLock) return;
+
   debugLog('app.whenReady');
 
   // Start watching initial vault path if exists

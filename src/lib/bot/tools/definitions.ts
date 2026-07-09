@@ -50,7 +50,7 @@ export const FLOWR_TOOLS = [
         parentId: { type: "string", description: "For notes/folders: parent workspace or folder ID. Omit to put in unsorted. CRITICAL: If the user provides a natural language name for the destination (e.g. 'Atlantis workspace', 'Personal folder'), you MUST use list_content first to find its ID, even if it's a note. Do NOT omit parentId if the user explicitly asked to place it somewhere." },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: ID of the workspace to assign this task to." },
-        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done' | 'today' | 'overdue'. Defaults to 'todo'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time. If a user asks for a 'start date', put it here." },
@@ -84,7 +84,7 @@ export const FLOWR_TOOLS = [
         },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: reassign task to a different workspace." },
-        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done' | 'today' | 'overdue'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time." },
