@@ -66,7 +66,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "update_content",
-    description: "Update an existing note or task by ID. For notes, 'content' FULLY REPLACES the body. For tasks, only the fields you pass are updated.",
+    description: "Update an existing note or task by ID. For notes, 'content' FULLY REPLACES the body. Use this when the user asks to integrate new information, adapt the context of a report, or change existing sections. You must provide the entire rewritten content.",
     parameters: {
       type: "object",
       properties: {
@@ -100,7 +100,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "append_to_note",
-    description: "ADD content to the END of an existing note. Does NOT overwrite existing content. Use this instead of update_content when the user wants to add something to a note.",
+    description: "ADD content to the END of an existing note. Does NOT overwrite existing content. Use ONLY when the user wants to blindly tack text onto the end. Do NOT use this if the user asks to integrate new information, adapt context, or rewrite the document—use update_content instead.",
     parameters: {
       type: "object",
       properties: {

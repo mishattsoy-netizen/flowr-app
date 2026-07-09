@@ -1,99 +1,39 @@
-# Task 1 Report: Purge legacy — comments, connection type, legacy endpoints, auto-layout
+# Task 1 Report: Install `better-sqlite3` and open the local database in the main process
 
 ## What was implemented
 
-### Step 1 — Remove types (`src/data/store.types.ts`)
-- Removed `'comment'` and `'connection'` from `BlockType`.
-- Removed from `EditorBlock`: `fromId`, `toId`, `fromSide`, `toSide`, `autoLayout`, `layoutDirection`, `layoutGap`, `layoutPaddingTop/Right/Bottom/Left`, `layoutAlign`, `layoutCrossAlign`, `frameResizingH/V`, `childResizingH/V`. Kept `clipContent` per the brief (Task 8 will make clipping unconditional).
-- Removed `FrameLayoutDirection`, `FrameResizeMode`, `ChildResizeMode` type exports.
-- Removed `fixedPointType` from `ArrowBinding`.
-- Removed the 8 auto-layout action signatures (`setFrameAutoLayout`, `setFrameLayoutDirection`, `setFrameLayoutGap`, `setFramePadding`, `setFrameAlignment`, `setFrameResizing`, `setChildResizing`) from `AppState` — kept `setFrameClipContent`. **This goes beyond the brief's literal "Step 1" list** (see Cascades below) but was necessary: these actions' signatures reference the now-deleted `FrameLayoutDirection`/`FrameResizeMode`/`ChildResizeMode` types and cannot compile otherwise.
+1. **Installed `better-sqlite3`** (v12.11.1) as a production dependency via `npm install`
+2. **Created `electron/db.js`** — database connection module with:
+   - `initDb(app)` — initializes WAL-mode SQLite db at `app.getPath('userData')/flowr.db`, creates three tables (`entities`, `tasks`, `spaces`) with their indexes
+   - `getDb()` — returns existing db handle (throws if not initialized)
+   - `getDbPath(app)` — returns the db file path
+3. **Modified `electron/main.js`** — added `require('./db')` and `initDb(app)` call inside `app.whenReady()` before `createWindow()`
 
-### Step 2 — Chase compile errors, delete dead code
-Deleted the legacy branches exactly as the brief specified in every file it named:
-- `CanvasBlock.tsx`: removed the `block.type === 'comment'` render branch, removed `'comment'` from the double-click gate and `isNoteBlock` check, removed dead `block.type !== 'connection'` conditions (always-true after `'connection'` was removed from `BlockType`).
-- `CanvasToolbar.tsx`: removed `comment` from `CONTENT_TOOLS` and `CanvasTool`, removed unused `MessageSquarePlus` import, renamed the `frame` tool's `label` from `'Frame'` to `'Section'` (shortcut `F` and `Frame` icon unchanged).
-- `CanvasPage.tsx`: removed `'comment'` tool creation-on-click handling and the `C` keyboard shortcut, removed `type: 'connection'` filter paths, changed the arrow filter to `!(b.startBinding || b.endBinding)`, removed the `computeAutoLayout` import and the entire auto-layout recompute block in `handleDragCommit`, removed a stray `autoLayout: false, layoutDirection: 'freeform'` object literal from frame creation.
-- `CanvasConnections.tsx`: filter now reads `b.type === 'shape' && (b.shapeKind === 'arrow' || b.shapeKind === 'line') && (b.startBinding || b.endBinding)`.
-- `resolvePoints.ts`: deleted `legacyEndpoint()` and the two `fromId`/`toId` fallback lines.
-- `VectorPath.tsx`: `hasStart` simplified to `!!block.startBinding`.
-- `useCanvasMultiSelect.ts`, `useCanvasSnap.ts` (6 occurrences), `Dashboard.tsx`, `WorkspacePage.tsx`, `CanvasLayersPanel.tsx`: removed dead `b.type === 'connection'` comparisons surfaced by tsc.
-- `frontmatter.ts`, `markdownBlocks.ts`: removed `'comment'`/`'connection'` from block-type checks/sets surfaced by tsc.
-- `store.ts`: removed the `'connection'`-migration branch inside `migrateBlock()` (kept the `'section'→'frame'` and shape-editMode migrations, which are unrelated); removed the `computeAutoLayout` import and all 8 auto-layout action implementations (kept `setFrameClipContent`).
-- `store.setSyncMode.test.ts`, `store.moveEntity.test.ts`, `store.addEntity.test.ts`: removed the now-stale `vi.mock('@/lib/frameLayout', () => ({ computeAutoLayout: vi.fn() }))` mocks (store.ts no longer imports `frameLayout`).
+## What was tested
 
-`canvasSync.ts` and `Sidebar.tsx` required no changes — grep confirmed no references to any removed field.
-
-### Cascades beyond the brief's literal file list (flagged per "Discipline" instructions)
-1. **`src/lib/frameLayout.ts` was not a pure auto-layout module** as the brief assumed ("Delete if present: auto-layout module"). It also exports `computeGroupBounds` and `computeGroupSpacing`, which are generic geometry helpers used by `groupUtils.ts` and the group-selection UI in `CanvasStylePanel.tsx` — unrelated to frame auto-layout. Deleted only `computeAutoLayout`, its internal helpers (`layoutHorizontal`, `layoutVertical`, `layoutGrid`, `applyCrossAlign`), and the `AutoLayoutResult` type. Kept `computeGroupBounds` and `computeGroupSpacing` and the file itself.
-2. **`src/components/canvas/CanvasStylePanel.tsx`** (not in the brief's file list) had ~430 lines of frame auto-layout UI (Frame/Auto-Layout panel toggle, direction picker, resizing dropdowns, alignment picker, padding control, child-resize panel) all wired to the 8 deleted store actions and deleted `EditorBlock` fields. Collapsed the two-state Frame/Auto-Layout panel into a single plain "Frame" panel (W/H, uniform-gap display, Clip content toggle); removed the `isChildOfAutoLayoutFrame` panel entirely; removed now-dead analysis variables (`isChildOfAutoLayoutFrame`, `parentFrame`, `showFrameLayout`); removed now-unused local sub-components (`FlowDirectionPicker`, `AlignmentPicker`, `ResizeModeDropdown`, `PaddingControl`, `SVG_ICONS`, `RESIZE_OPTIONS`, `CHILD_RESIZE_OPTIONS`). Kept the group-selection Layout panel (uses only `computeGroupBounds`/`computeGroupSpacing`, unaffected).
-3. **8 auto-layout store actions** (`setFrameAutoLayout`, `setFrameLayoutDirection`, `setFrameLayoutGap`, `setFramePadding`, `setFrameAlignment`, `setFrameResizing`, `setChildResizing`, and their `AppState` signatures) were deleted from `store.ts`/`store.types.ts`, contrary to a literal reading of "(remove references; keep actions)" in the brief's file list. These action bodies were 100% auto-layout logic (compute-and-persist via `computeAutoLayout`) and their signatures named the deleted `FrameLayoutDirection`/`FrameResizeMode`/`ChildResizeMode` types — they cannot exist without the types the brief explicitly removes. `setFrameClipContent` was kept (untouched by auto-layout, needed for the `clipContent` field the brief explicitly retains).
-
-### Not touched (confirmed out of scope, left as pre-existing)
-- `src/components/canvas/LayersPanel.tsx` — an unused/dead component (not imported anywhere, superseded by `CanvasLayersPanel.tsx`) still has `case 'comment'`/`case 'connection'` in an untyped `getIcon(type: string)` switch. Compiles fine (string, not `BlockType`); pre-existing dead code unrelated to this task.
-- `src/hooks/useDrag.ts` and a resize handler in `src/components/canvas/CanvasBlock.tsx` read DOM attributes named `data-from-id`/`data-to-id`/`data-from-side`/`data-to-side` into locals named `fromId`/`toId`/`fromSide`/`toSide`. Verified these DOM attributes are never set anywhere (only `data-start-binding`/`data-end-binding` are set, by `VectorPath.tsx`) — so these branches are already dead/no-ops, but they are local variable names reading arbitrary DOM attributes, not usages of the deleted `EditorBlock.fromId/toId/fromSide/toSide` fields, and they compile cleanly. Left alone as out-of-scope live-drag rendering logic (not part of comment/connection/legacy-endpoint/auto-layout per the brief).
-- `src/components/layout/Sidebar.tsx` — `fromIdx`/`toIdx` variables are unrelated sidebar drag-reorder indices, not canvas arrow endpoints.
-- `src/components/assistant/components/ChatMessage.tsx` — `item.type === 'connection'` checks on an AI-tool-call payload (untyped `any`/loose object), not `EditorBlock`. Compiles fine, no change needed.
-
-## Verification
-- `npx tsc --noEmit` → **0 errors** (confirmed after each round of fixes and at the end).
-- `npm test` → **144 tests passed (14 test files)**.
-- `npm run build` → production build succeeded.
-- Grep checks from the brief:
-  - `grep -rn "computeAutoLayout" src` → no hits.
-  - `grep -rn "fixedPointType" src` → no hits.
-  - `grep -rn "'comment'" src/components/canvas src/data src/lib` → only the dead/unused `LayersPanel.tsx` (see above).
-  - `grep -rln "fromSide\|toSide" src` → only `CanvasBlock.tsx` and `useDrag.ts`, both confirmed to be unrelated DOM-attribute-name reuse in dead branches (see above), not the deleted `EditorBlock` fields.
+- **Native module test**: `better-sqlite3` loads and works correctly with system Node.js (in-memory database)
+- **Full schema creation test**: All three tables (`entities`, `tasks`, `spaces`) and both indexes created successfully against a temp database
+- **Insert/read cycle**: Data written and read back successfully
+- **Mocked Electron app test**: db.js logic verified with simulated `app.getPath('userData')` — db file created at expected location (OS temp dir), all tables present, read-back PASS
+- **Electron app launch**: App started without crashing (`npx electron electron/main.js` ran for 15s successfully)
 
 ## Files changed
-- `src/data/store.types.ts`
-- `src/data/store.ts`
-- `src/lib/frameLayout.ts` (partial — kept `computeGroupBounds`/`computeGroupSpacing`)
-- `src/lib/geometry/resolvePoints.ts`
-- `src/components/canvas/CanvasBlock.tsx`
-- `src/components/canvas/CanvasPage.tsx`
-- `src/components/canvas/CanvasToolbar.tsx`
-- `src/components/canvas/CanvasConnections.tsx`
-- `src/components/canvas/CanvasStylePanel.tsx`
-- `src/components/canvas/CanvasLayersPanel.tsx`
-- `src/components/canvas/edges/VectorPath.tsx`
-- `src/components/dashboard/Dashboard.tsx`
-- `src/components/workspace/WorkspacePage.tsx`
-- `src/hooks/useCanvasMultiSelect.ts`
-- `src/hooks/useCanvasSnap.ts`
-- `src/lib/editor/frontmatter.ts`
-- `src/lib/editor/markdownBlocks.ts`
-- `src/data/store.setSyncMode.test.ts`
-- `src/data/store.moveEntity.test.ts`
-- `src/data/store.addEntity.test.ts`
 
-Net: 20 files changed, 34 insertions(+), 1104 deletions(-).
+| File | Action | Notes |
+|------|--------|-------|
+| `package.json` | Modified | Added `better-sqlite3@^12.11.1` to dependencies |
+| `package-lock.json` | Modified | Auto-updated by npm install |
+| `electron/db.js` | **Created** | New module — schema + connection management |
+| `electron/main.js` | Modified | Added `initDb` call in `app.whenReady()` |
 
 ## Self-review findings
-- Every field/type in the brief's Step 1 list confirmed removed via grep.
-- Every file-specific instruction in Step 2 followed verbatim where the brief gave an exact diff (e.g. the `!(b.startBinding || b.endBinding || b.fromId || b.toId)` → `!(b.startBinding || b.endBinding)` change, and the `VectorPath.tsx` `hasStart` line).
-- No stubs left behind — every legacy branch was deleted outright, not commented out or no-op'd.
-- Consulted the advisor before starting substantive edits because of the "keep actions" vs. Step 1 type-deletion tension and the discovery that `frameLayout.ts` wasn't pure auto-layout; both were resolved per its guidance and are documented above as cascades.
-- Did not restructure/split any files; only deleted and made the minimal edits required to keep the remainder compiling.
 
-## Concerns
-None blocking. The three cascades beyond the brief's literal file list (frameLayout.ts partial delete, CanvasStylePanel.tsx auto-layout UI removal, 8 store actions removed) are a direct, unavoidable consequence of Step 1's type deletions — flagged per the task instructions rather than treated as a reason to stop.
+- Followed existing patterns: CommonJS `require`/`module.exports`, same coding style as surrounding code
+- No overbuilding: only what the task brief specified
+- No edge cases missed: the guard clause `if (db) return db` handles re-init; `getDb()` throws clearly if called before init
+- One concern: `better-sqlite3` native module is compiled for Node.js ABI, not Electron ABI. If runtime errors occur in the packaged Electron app, `@electron/rebuild` may be needed. However, the prebuild-install that ships with better-sqlite3 often provides Electron-compatible binaries, and the dev-mode launch succeeded.
+- The `initDb(app)` call is placed after the `gotTheLock` guard but before `debugLog('app.whenReady')` — consistent with the brief's instruction to place it "before any window is created"
 
-## Fix Report (review round 1)
+## Issues or concerns
 
-### Changes made
-1. **src/components/canvas/CanvasStylePanel.tsx** (line 1170–1195): Removed the entire Gap input row (the stubbed-out child-spacing display block that was associated with the now-deleted auto-layout system). This conditional block rendered when a single frame had ≥2 uniformly-spaced children; the input had `onChange={() => {}}` and served no purpose.
-2. **src/components/dashboard/Dashboard.tsx** (line 84): Removed `'comment'` and `'connection'` string literals from the NoteBlockPreview filter array. Updated from `['shape', 'frame', 'comment', 'connection', 'column']` to `['shape', 'frame', 'column']`.
-3. **src/components/dashboard/Dashboard.tsx** (line 543): Removed `'comment'` and `'connection'` string literals from the inline filter in the recent documents preview. Updated from `!['shape','frame','comment','connection','column'].includes(b.type)` to `!['shape','frame','column'].includes(b.type)`.
-4. **src/components/workspace/WorkspacePage.tsx** (line 66): Removed `'comment'` and `'connection'` string literals from the NoteBlockPreview filter array. Updated from `['shape', 'frame', 'comment', 'connection', 'column']` to `['shape', 'frame', 'column']`.
-5. **src/components/workspace/WorkspacePage.tsx** (line 607): Removed `'comment'` and `'connection'` string literals from the inline filter in recent documents preview. Updated from `!['shape','frame','comment','connection','column'].includes(b.type)` to `!['shape','frame','column'].includes(b.type)`.
-
-Note: `computeGroupSpacing` import retained in CanvasStylePanel.tsx — it remains used at line 731 in the group-selection Layout panel, which is unaffected and functional.
-
-### Verification
-- **npx tsc --noEmit**: 0 errors
-- **npx vitest run**: 14 test files passed, 144 tests passed (0 failures)
-
-### Commit
-- SHA: `650e515`
-- Message: `fix(canvas): remove stubbed frame gap input and leftover removed-type literals`
+No issues. The native module works correctly in the dev environment.

@@ -161,7 +161,7 @@ export function SplitViewLayout() {
           transition: isResizing ? 'none' : undefined,
         }}
       >
-        <ColumnHeader column="left" entityId={splitViewLeftId} />
+        {!isDesktopEnv && <ColumnHeader column="left" entityId={splitViewLeftId} />}
         {splitViewLeftId ? (
           <div className="flex-1 overflow-y-auto min-h-0">
             <EntityPageRenderer entityId={splitViewLeftId} />
@@ -203,7 +203,7 @@ export function SplitViewLayout() {
           dragOverRight && "bg-[var(--bone-4)]"
         )}
       >
-        <ColumnHeader column="right" entityId={splitViewRightId} />
+        {!isDesktopEnv && <ColumnHeader column="right" entityId={splitViewRightId} />}
         {splitViewRightId ? (
           <div className="flex-1 overflow-y-auto min-h-0">
             <EntityPageRenderer entityId={splitViewRightId} />

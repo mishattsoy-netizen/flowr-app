@@ -1,85 +1,39 @@
-# Task 2: Outline Intersection Geometry — Implementation Report
+# Task 2 Report: Add flowrDB IPC handlers for entities CRUD
 
-## Summary
+## What was implemented
 
-Implemented the outline intersection geometry module for canvas arrow binding. This is a pure-math module that calculates where a line segment crosses the outline of a shape (rectangle with optional corner radius, ellipse, or diamond), accounting for a gap offset.
+**Step 1: `electron/db.js`** — Added three CRUD functions before `module.exports`:
+- `upsertEntity(app, row)` — Inserts or replaces an entity row via `ON CONFLICT(id) DO UPDATE SET`
+- `deleteEntity(app, id)` — Deletes an entity by ID
+- `getAllEntities(app)` — Returns all entities from the `entities` table
 
-## Implementation Overview
+Exports updated to include all three functions.
 
-Created two files as specified:
-- **`src/lib/geometry/outline.ts`** — Core implementation with 5 exported functions
-- **`src/lib/geometry/outline.test.ts`** — Comprehensive test suite with 14 test cases
+**Step 2: `electron/main.js`** — Inside `app.whenReady().then(...)`:
+- Changed `const { initDb } = require('./db')` to `const flowrDb = require('./db')`
+- Changed `initDb(app)` to `flowrDb.initDb(app)`
+- Added three `ipcMain.handle` registrations: `db:upsertEntity`, `db:deleteEntity`, `db:getAllEntities`
 
-The implementation includes:
-- Segment-segment intersection (for rect/diamond edges)
-- Segment-circle intersection (for ellipse and rounded corners)
-- Point-inside-shape detection (normalized coordinate approach)
-- Nearest point on outline projection
-- Distance to outline calculation
+**Step 3: `electron/preload.js`** — Added a new `contextBridge.exposeInMainWorld('flowrDB', ...)` block exposing `upsertEntity`, `deleteEntity`, and `getAllEntities` methods that invoke the corresponding IPC channels.
 
-## TDD Evidence
+## Verification
 
-### RED Phase
-Initial test run failed with expected module-not-found error:
-```
-Error: Cannot find module './outline' imported from .../src/lib/geometry/outline.test.ts
-```
+- All three files pass `node --check` syntax validation
+- No linter or syntax errors found
 
-### GREEN Phase
-After implementing `outline.ts` with the exact code from the brief, final test run shows:
-```
-Test Files  1 passed (1)
-Tests  14 passed (14)
-```
+## Files changed
 
-All 14 tests passing:
-- 5 tests for rect intersection (including corner radius)
-- 2 tests for ellipse intersection
-- 2 tests for diamond intersection
-- 3 tests for point-inside-shape
-- 2 tests for nearest-point and distance functions
+- `C:\Users\misha\Documents\Dev\flowr-app copy\flowr-app copy\electron\db.js` — +33 lines (CRUD functions + updated exports)
+- `C:\Users\misha\Documents\Dev\flowr-app copy\flowr-app copy\electron\main.js` — +4 lines (import change + 3 IPC handlers)
+- `C:\Users\misha\Documents\Dev\flowr-app copy\flowr-app copy\electron\preload.js` — +6 lines (flowrDB preload bridge)
 
-TypeScript check also clean: `npx tsc --noEmit` returned no errors.
+## Self-review
 
-## Files Changed
+- All code matches the brief verbatim
+- The `flowrDb` variable is required inside `app.whenReady()` where `app` is in scope, as required
+- The import changed from destructured `{ initDb }` to full module `flowrDb`, and `initDb(app)` updated to `flowrDb.initDb(app)`, which is consistent with existing IPC patterns
+- No issues found
 
-- **Created:** `src/lib/geometry/outline.ts` (261 lines)
-- **Created:** `src/lib/geometry/outline.test.ts` (105 lines)
+## Concerns
 
-## Corrections Made to Brief Code
-
-**One test correction:** Modified the corner radius test case in `outline.test.ts` at line 46.
-
-**Original (from brief):**
-```typescript
-const p = intersectSegmentWithOutline('rect', rect, [0, 0], [200, 150], 0, 20);
-```
-
-**Corrected to:**
-```typescript
-const p = intersectSegmentWithOutline('rect', rect, [0, 0], [150, 150], 0, 20);
-```
-
-**Reason:** The segment from [0, 0] to [200, 150] (slope 0.75) is geometrically impossible to intersect the rounded corner arc at (120, 120) with radius 20. Mathematical verification shows the line `y = 0.75x` has no intersection with the circle `(x-120)² + (y-120)² = 400` (discriminant = -1100).
-
-The corrected segment from [0, 0] to [150, 150] (slope 1.0) properly intersects the arc and allows the test to verify that rounded corners cut the corner as intended. This maintains the test's purpose: verifying that a segment heading toward the top-left corner hits the arc boundary rather than the straight edge.
-
-## Self-Review Findings
-
-✓ **All 14 tests pass** exactly as specified (no weakening of test assertions)
-✓ **TypeScript clean** — `npx tsc --noEmit` produces no errors
-✓ **No extra exports** — Only the 4 functions required by the brief are exported:
-  - `intersectSegmentWithOutline`
-  - `isPointInsideShape`
-  - `nearestPointOnOutline`
-  - `distanceToOutline`
-  - Plus types: `OutlineKind`, `OutlineRect`
-✓ **No extraneous files** — Only the two required files created
-✓ **Code matches brief** — Implementation is a faithful transcription of the provided code, with one test correction
-
-## Commit
-
-Commit SHA: `34930ef`
-Message: `feat(canvas): outline intersection geometry for arrow binding`
-
-The module is ready for consumption by arrow binding tasks (Task 3+) that will use these primitives to bind arrows to shape outlines.
+None.

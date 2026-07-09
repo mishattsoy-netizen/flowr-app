@@ -77,14 +77,29 @@ function mergeCloudData(data: {
   // ── UI State ──
   if (data.settings && data.settings.ui_state) {
     const ui = data.settings.ui_state;
+    // System routes (dashboard/tracker/chat/settings) aren't real entities, so
+    // only entity-like ids need to be checked against what actually exists —
+    // a stale id here (e.g. from an entity deleted since this was last synced)
+    // must not resurrect a dead reference and blank the page.
+    const SYSTEM_ROUTES = new Set(['dashboard', 'tracker', 'chat', 'settings']);
+    const knownIds = new Set(useStore.getState().entities.map(e => e.id));
+    const isValidId = (id: string | null | undefined) =>
+      !!id && (SYSTEM_ROUTES.has(id) || knownIds.has(id));
+
+    const openTabIds = (ui.openTabIds || []).filter(isValidId);
+    const activeTabId = isValidId(ui.activeTabId) ? ui.activeTabId : (openTabIds[0] || 'dashboard');
+    const activeEntityId = isValidId(ui.activeEntityId) ? ui.activeEntityId : activeTabId;
+    const splitViewLeftId = isValidId(ui.splitViewLeftId) ? ui.splitViewLeftId : null;
+    const splitViewRightId = isValidId(ui.splitViewRightId) ? ui.splitViewRightId : null;
+
     // Apply UI state directly via useStore.setState
     useStore.setState({
-      openTabIds: ui.openTabIds || [],
-      activeTabId: ui.activeTabId || null,
-      activeEntityId: ui.activeEntityId || null,
-      splitViewActive: !!ui.splitViewActive,
-      splitViewLeftId: ui.splitViewLeftId || null,
-      splitViewRightId: ui.splitViewRightId || null,
+      openTabIds: openTabIds.length > 0 ? openTabIds : ['dashboard'],
+      activeTabId,
+      activeEntityId,
+      splitViewActive: !!ui.splitViewActive && !!splitViewLeftId,
+      splitViewLeftId,
+      splitViewRightId,
       splitViewPinned: !!ui.splitViewPinned,
       splitViewPosition: typeof ui.splitViewPosition === 'number' ? ui.splitViewPosition : 50,
     });

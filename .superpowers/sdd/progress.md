@@ -8,3 +8,6 @@ Task 6: complete (commit c6068e6; Shell.tsx — replaced old subscriptions with 
 Task 7: complete (commit c6068e6; HeaderBar.tsx — removed column indicator strips, old subscriptions, dead Fragment wrapper)
 Task 8: complete (tsc --noEmit zero errors, all commits verified)
 ALL 8 TASKS COMPLETE.
+Task 1: complete (commits 796802b..781713b, review clean)
+Task 2: complete (commits afcd1ac..88fcaef, review clean)
+Task 3: complete (commits 88fcaef..7384c26, review clean)

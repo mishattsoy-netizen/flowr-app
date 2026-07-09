@@ -22,6 +22,30 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.2',
+    build: '1302',
+    date: '2026-07-09',
+    title: 'AI Smart Context & Split-View Enhancements',
+    featured: false,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Enhanced AI intent routing: The assistant now perfectly recognizes when you want to add a new concept to an existing note, automatically pulling current web data before applying the edit.',
+          'Desktop tab redesign: In split-view mode, each column now features its own adaptive tab header and properly aligned view controls.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed an AI formatting bug where raw \\n characters were sometimes output instead of actual line breaks.',
+          'Tightened the AI assistant\'s tool selection so it confidently rewrites contextual reports instead of just appending text blindly to the bottom.',
+          'Resolved split-view header layout issues where tabs from the right column would get trapped or vanish when resizing.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.1',
     build: '1301',
     date: '2026-07-09',

@@ -5,7 +5,8 @@ import { getEntityIcon } from '@/data/icons';
 import {
   ArrowLeft, ArrowRight, RotateCw, Home, MessageCircle,
   ListTodo, Menu, X, ChevronRight, ChevronLeft, Plus, PanelLeft, Columns2,
-  FileText, Frame, Folder, Search, Pin, ArrowLeftRight
+  FileText, Frame, Folder, Search, Pin, ArrowLeftRight,
+  MoreVertical, BookOpen, Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -39,6 +40,107 @@ function ConcaveCorner({ side, r = 8 }: { side: 'left' | 'right'; r?: number }) 
 }
 
 
+
+
+const EntityHeaderControls = ({ entityId }: { entityId: string | null }) => {
+  const isReadMode = useStore(s => !!s.readModeStates[entityId || '']);
+  const setReadMode = useStore(s => s.setReadMode);
+  const entities = useStore(s => s.entities);
+  const openContextMenu = useStore(s => s.openContextMenu);
+
+  if (!entityId || entityId === 'dashboard' || entityId === 'chat' || entityId === 'tracker') return null;
+
+  return (
+    <div className="flex items-center shrink-0 mr-1 pb-1 z-20 [-webkit-app-region:no-drag]">
+      <Tooltip content="More Options">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            openContextMenu(entityId, rect.left, rect.bottom + 6, 'tab');
+          }}
+          className="flex items-center justify-center w-7 h-7 mr-[2px] rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer"
+        >
+          <MoreVertical className="w-4 h-4" />
+        </button>
+      </Tooltip>
+
+      {entities.find(e => e.id === entityId)?.type === 'note' && (
+        <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
+          <button
+            onClick={e => { e.stopPropagation(); setReadMode(entityId, !isReadMode); }}
+            className="flex items-center justify-center w-7 h-7 mr-[2px] rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer"
+          >
+            {isReadMode ? <BookOpen className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          </button>
+        </Tooltip>
+      )}
+      <div className="w-px h-3 bg-[var(--bone-15)] mx-1" />
+    </div>
+  );
+};
+
+const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any) => {
+  const entities = useStore(s => s.entities);
+  const chatConversations = useStore(s => s.chatConversations);
+  const activeChatId = useStore(s => s.activeChatId);
+  const isTempChat = useStore(s => s.isTempChat);
+  const removeTab = useStore(s => s.removeTab);
+
+  const getTabMeta = (id: string) => {
+    if (id === 'dashboard') return { title: 'Dashboard', Icon: Home };
+    if (id === 'chat') {
+      const ac = chatConversations.find(c => c.id === activeChatId);
+      return { title: isTempChat ? 'Temporary Chat' : (ac?.title || 'Chat'), Icon: MessageCircle };
+    }
+    if (id === 'tracker') return { title: 'Tasks', Icon: ListTodo };
+    const entity = entities.find(e => e.id === id);
+    if (entity) {
+      const Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : FileText;
+      return { title: entity.title, Icon };
+    }
+    return { title: null, Icon: null };
+  };
+
+  const { title, Icon } = getTabMeta(tabId);
+  if (!title && tabId !== 'dashboard' && tabId !== 'chat' && tabId !== 'tracker') return null;
+
+  return (
+    <Tooltip content={stripHtml(title || '')} position="bottom">
+      <div
+        className="relative flex-shrink min-w-0 max-w-[250px] [-webkit-app-region:no-drag] select-none"
+        style={{ height: BAR_H, zIndex: 20 }}
+      >
+        <div
+          className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'} bg-[var(--app-background)] border-t border-l border-r border-[var(--bone-10)]`}
+          style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
+        >
+          <ConcaveCorner side="left"  r={R_ACTIVE} />
+          <ConcaveCorner side="right" r={R_ACTIVE} />
+        </div>
+        <div
+          className="relative z-10 w-full h-full flex items-center gap-[5px]"
+          style={{ paddingLeft: 12, paddingRight: 28 }}
+        >
+          {Icon && <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }} className="text-[var(--bone-100)] opacity-90" />}
+          <span
+            className="flex-1 min-w-0 font-medium text-[var(--bone-100)]"
+            style={{ fontSize: 13, lineHeight: 1, overflow: 'hidden', whiteSpace: 'nowrap' }}
+          >
+            {stripHtml(title || '')}
+          </span>
+          <button
+            onClick={e => { e.stopPropagation(); removeTab(tabId); }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-12)] rounded-[3px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
+            style={{ width: 18, height: 18 }}
+          >
+            <X strokeWidth={2.5} className="w-3 h-3"/>
+          </button>
+        </div>
+      </div>
+    </Tooltip>
+  );
+};
 
 export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { leftWidth?: number, rightWidth?: number }) {
   const activeEntityId       = useStore(s => s.activeEntityId);
@@ -361,8 +463,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
       <div
         ref={tabsRef}
         className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
-        style={{ height: BAR_H, gap: M, paddingLeft: 28, paddingRight: 8 }}
+        style={{ height: BAR_H, gap: M, paddingLeft: 8, paddingRight: 8 }}
       >
+        {!splitViewActive && <EntityHeaderControls entityId={activeTabId} />}
         {!splitViewActive && openTabIds.map((tabId, idx) => {
           const isActive = activeTabId === tabId;
           const isDragged = drag?.id === tabId;
@@ -499,6 +602,39 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
             >
               <Plus strokeWidth={2} className="w-3.5 h-3.5"/>
             </button>
+          </div>
+        )}
+        
+        {splitViewActive && (
+          <div className="flex w-full h-full relative" style={{ gap: '8px' }}>
+            <div className="flex items-end h-full min-w-0" style={{ width: `calc(${splitViewPosition}% - 4px)` }}>
+               <EntityHeaderControls entityId={splitViewLeftId} />
+               {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+            </div>
+            <div className="flex items-end h-full justify-between min-w-0" style={{ width: `calc(${100 - splitViewPosition}% - 4px)` }}>
+               <div className="flex items-end h-full min-w-0">
+                 <EntityHeaderControls entityId={splitViewRightId} />
+                 {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+               </div>
+               
+               <div className="flex items-center gap-1 shrink-0 mb-1.5 mr-2 [-webkit-app-region:no-drag]">
+                 <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
+                   <button onClick={togglePin} className={cn("flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0", splitViewPinned ? "bg-[var(--bone-10)]" : "hover:bg-[var(--bone-6)]")} style={{ width: 28, height: 28 }}>
+                      <Pin strokeWidth={2} className="w-4 h-4" fill={splitViewPinned ? "currentColor" : "none"} />
+                   </button>
+                 </Tooltip>
+                 <Tooltip content="Swap columns">
+                   <button onClick={swapColumns} className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 hover:bg-[var(--bone-6)]" style={{ width: 28, height: 28 }}>
+                      <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
+                   </button>
+                 </Tooltip>
+                 <Tooltip content="Exit split view">
+                   <button onClick={toggleSplitView} className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)]" style={{ width: 28, height: 28 }}>
+                      <Columns2 strokeWidth={2} className="w-4 h-4" />
+                   </button>
+                 </Tooltip>
+               </div>
+            </div>
           </div>
         )}
       </div>
