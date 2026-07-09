@@ -76,6 +76,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const setShowTempNotice = useStore(state => state.setShowTempNotice);
   const saveTempChat = useStore(state => state.saveTempChat);
   const aiMessages = useStore(state => state.aiMessages);
+  const visibleMessages = useMemo(() => {
+    return aiMessages.filter(m => m.role === 'user' || m.role === 'assistant');
+  }, [aiMessages]);
   const stopAIGeneration = useStore(state => state.stopAIGeneration);
   const openModal = useStore(state => state.openModal);
   const sendAIMessage = useStore(state => state.sendAIMessage);
@@ -836,7 +839,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                 )}
               </div>
             )}
-            {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').map((msg, idx, filtered) => (
+            {visibleMessages.map((msg, idx, filtered) => (
               <div key={msg.id || `msg-${idx}`} id={`msg-row-${msg.id}`} className="w-full">
                 <ChatMessage
                   msg={msg}
@@ -1312,9 +1315,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
 
 
 
-                <div
-                  ref={contextMeterRef}
-                  className="relative flex items-center gap-2 px-1"
+                {visibleMessages.length > 0 && (
+                  <div
+                    ref={contextMeterRef}
+                    className="relative flex items-center gap-2 px-1"
                   onMouseEnter={() => {
                     if (contextMeterRef.current) {
                       const r = contextMeterRef.current.getBoundingClientRect();
@@ -1426,6 +1430,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     document.body
                   )}
                 </div>
+                )}
 
                 {isAILoading ? (
                   <Tooltip content="Stop generation">

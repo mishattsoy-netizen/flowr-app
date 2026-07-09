@@ -58,6 +58,7 @@ export function resolveChainWithFallback(
 }
 
 async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode): Promise<{ chain: RouterModel[], temperature?: number; thinking_budget?: string | number }> {
+  if (!supabase) return { chain: [] }
   let retryCount = 0
   const maxRetries = 2
 
@@ -174,6 +175,7 @@ export async function getRouterChain(category: IntentCategory, mode: RouterMode 
 }
 
 async function fetchFallbackModesFromDb(): Promise<Record<string, 'model_first' | 'api_key_first'>> {
+  if (!supabase) return {}
   const { data, error } = await supabase
     .from('settings')
     .select('value')
