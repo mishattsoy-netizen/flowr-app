@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld('flowrDB', {
   upsertEntity: (row) => ipcRenderer.invoke('db:upsertEntity', row),
   deleteEntity: (id) => ipcRenderer.invoke('db:deleteEntity', id),
   getAllEntities: () => ipcRenderer.invoke('db:getAllEntities'),
+  upsertTask: (row) => ipcRenderer.invoke('db:upsertTask', row),
+  deleteTask: (id) => ipcRenderer.invoke('db:deleteTask', id),
+  getAllTasks: () => ipcRenderer.invoke('db:getAllTasks'),
+  upsertSpace: (row) => ipcRenderer.invoke('db:upsertSpace', row),
+  deleteSpace: (id) => ipcRenderer.invoke('db:deleteSpace', id),
+  getAllSpaces: () => ipcRenderer.invoke('db:getAllSpaces'),
 });
 
 contextBridge.exposeInMainWorld('flowrPdf', {

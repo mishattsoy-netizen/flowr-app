@@ -432,6 +432,14 @@ app.whenReady().then(() => {
   ipcMain.handle('db:deleteEntity', async (_, id) => flowrDb.deleteEntity(app, id));
   ipcMain.handle('db:getAllEntities', async () => flowrDb.getAllEntities(app));
 
+  ipcMain.handle('db:upsertTask', async (_, row) => flowrDb.upsertTask(app, row));
+  ipcMain.handle('db:deleteTask', async (_, id) => flowrDb.deleteTask(app, id));
+  ipcMain.handle('db:getAllTasks', async () => flowrDb.getAllTasks(app));
+
+  ipcMain.handle('db:upsertSpace', async (_, row) => flowrDb.upsertSpace(app, row));
+  ipcMain.handle('db:deleteSpace', async (_, id) => flowrDb.deleteSpace(app, id));
+  ipcMain.handle('db:getAllSpaces', async () => flowrDb.getAllSpaces(app));
+
   ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
   ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
     const dir = path.dirname(filePath);

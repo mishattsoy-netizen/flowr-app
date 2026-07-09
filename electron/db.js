@@ -112,4 +112,56 @@ function getAllEntities(app) {
   return database.prepare('SELECT * FROM entities').all();
 }
 
-module.exports = { initDb, getDb, getDbPath, upsertEntity, deleteEntity, getAllEntities };
+function upsertTask(app, row) {
+  const database = initDb(app);
+  const stmt = database.prepare(`
+    INSERT INTO tasks (id, title, completed, due_date, end_date, include_time, reminder, entity_id, space_id, note, color, priority, status, position, created_at, completed_at, last_modified, subtasks, attachments, description, user_due_date, tag, sync_mode)
+    VALUES (@id, @title, @completed, @due_date, @end_date, @include_time, @reminder, @entity_id, @space_id, @note, @color, @priority, @status, @position, @created_at, @completed_at, @last_modified, @subtasks, @attachments, @description, @user_due_date, @tag, @sync_mode)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title, completed = excluded.completed, due_date = excluded.due_date,
+      end_date = excluded.end_date, include_time = excluded.include_time, reminder = excluded.reminder,
+      entity_id = excluded.entity_id, space_id = excluded.space_id, note = excluded.note,
+      color = excluded.color, priority = excluded.priority, status = excluded.status,
+      position = excluded.position, created_at = excluded.created_at, completed_at = excluded.completed_at,
+      last_modified = excluded.last_modified, subtasks = excluded.subtasks, attachments = excluded.attachments,
+      description = excluded.description, user_due_date = excluded.user_due_date, tag = excluded.tag,
+      sync_mode = excluded.sync_mode
+  `);
+  stmt.run(row);
+}
+
+function deleteTask(app, id) {
+  initDb(app).prepare('DELETE FROM tasks WHERE id = ?').run(id);
+}
+
+function getAllTasks(app) {
+  return initDb(app).prepare('SELECT * FROM tasks').all();
+}
+
+function upsertSpace(app, row) {
+  const database = initDb(app);
+  const stmt = database.prepare(`
+    INSERT INTO spaces (id, name, type, icon, color, settings, is_default, created_at, last_modified, sync_mode)
+    VALUES (@id, @name, @type, @icon, @color, @settings, @is_default, @created_at, @last_modified, @sync_mode)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name, type = excluded.type, icon = excluded.icon, color = excluded.color,
+      settings = excluded.settings, is_default = excluded.is_default, created_at = excluded.created_at,
+      last_modified = excluded.last_modified, sync_mode = excluded.sync_mode
+  `);
+  stmt.run(row);
+}
+
+function deleteSpace(app, id) {
+  initDb(app).prepare('DELETE FROM spaces WHERE id = ?').run(id);
+}
+
+function getAllSpaces(app) {
+  return initDb(app).prepare('SELECT * FROM spaces').all();
+}
+
+module.exports = {
+  initDb, getDb, getDbPath,
+  upsertEntity, deleteEntity, getAllEntities,
+  upsertTask, deleteTask, getAllTasks,
+  upsertSpace, deleteSpace, getAllSpaces,
+};
