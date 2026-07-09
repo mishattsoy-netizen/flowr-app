@@ -372,6 +372,74 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     }
   },
 
+  // ── DELETE CONTENT ────────────────────────────────────────────────────────────
+  async delete_content(args: any, context: any) {
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage content.' }
+    }
+
+    const { ids } = args
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return { error: "'ids' array is required" }
+    }
+
+    try {
+      const results: any[] = []
+
+      for (const id of ids) {
+        if (id.startsWith('task-')) {
+          // Delete task from tasks table
+          const { error } = await supabaseAdmin
+            .from('tasks')
+            .delete()
+            .eq('id', id)
+            .eq('owner_id', context.userId)
+
+          results.push({ id, type: 'task', success: !error, error: error?.message })
+          continue
+        }
+
+        // Entity (note/folder/canvas) or canvas block.
+        // Check entities table first (owner-scoped).
+        const { data: entity, error: lookupErr } = await supabaseAdmin
+          .from('entities')
+          .select('id, type')
+          .eq('id', id)
+          .eq('owner_id', context.userId)
+          .maybeSingle()
+
+        if (entity) {
+          const { error } = await supabaseAdmin
+            .from('entities')
+            .delete()
+            .eq('id', id)
+            .eq('owner_id', context.userId)
+          results.push({
+            id,
+            type: entity.type,
+            success: !error,
+            error: error?.message,
+            cascade: entity.type === 'folder'
+          })
+        } else {
+          // Try canvas_blocks table
+          const { error } = await supabaseAdmin
+            .from('canvas_blocks')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', context.userId)
+          results.push({ id, type: 'canvas_block', success: !error, error: error?.message })
+        }
+      }
+
+      return { success: true, deleted: results.filter(r => r.success).length, items: results }
+    } catch (e: any) {
+      logger.error('delete_content failed:', e.message)
+      return { error: e.message }
+    }
+  },
+
   // ── LIST CONTENT ──────────────────────────────────────────────────────────────
   async list_content(args: any, context: any) {
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
@@ -414,6 +482,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
         if (args.parentId) query = query.eq('parent_id', args.parentId)
         if (args.searchQuery) query = query.ilike('title', `%${args.searchQuery}%`)
+        if (args.ids && Array.isArray(args.ids) && args.ids.length > 0) query = query.in('id', args.ids)
 
         const { data: entityData, error: eError } = await query
         if (eError) throw eError
@@ -435,6 +504,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
         if (args.assignedWorkspaceId) query = query.eq('entity_id', args.assignedWorkspaceId)
         if (args.searchQuery) query = query.ilike('title', `%${args.searchQuery}%`)
+        if (args.ids && Array.isArray(args.ids) && args.ids.length > 0) query = query.in('id', args.ids)
 
         if (args.taskFilters) {
           const tf = args.taskFilters
