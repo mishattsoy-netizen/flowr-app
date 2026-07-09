@@ -833,12 +833,14 @@ git commit -m "feat(db): write tasks and spaces through to SQLite on desktop"
 
 **Assigned model tier: C (hardest — Claude or Gemini 3.1 Pro high only). Do not delegate to a Tier A/B model.** This task previously contained a real data-loss bug (SQLite data piped through `mergeCloudData`'s drop-on-absence semantics would delete every `cloud-only` entity from the store on a boot-order race) that was only caught by a dedicated review pass, not by normal execution. The plan below has the fix already, but a weaker model asked to "simplify" or "just use mergeCloudData for consistency" is likely to silently reintroduce it. Keep this one for yourself.
 
+**DONE, with a second bug found and fixed during implementation (not in the original plan text):** the Zustand `persist` localStorage blob still pre-seeds `entities`/`tasks`/`spaces` — including `cloud-only` ones — before this boot code runs. Since `setEntities()` is a full replace, hydrating from SQLite would wipe any `cloud-only` entities carried over from localStorage if Supabase's own load is slow/offline/fails afterward. Root cause: Task 7's entity subscriber excluded `cloud-only` from the SQLite mirror while Task 8's task/space subscribers (same session) did not. Fixed by removing the `cloud-only` exclusion from Task 7's entity subscriber (`src/data/store.ts`) so SQLite mirrors every sync mode consistently — confirmed with the user this does not require deprecating the `cloud-only` sync mode itself. See commit `0e1f1b1`.
+
 **Files:**
 - Create: `src/lib/loadFromSQLite.ts`
 - Test: `src/lib/loadFromSQLite.test.ts`
 - Modify: `src/components/SupabaseProvider.tsx`
 
-- [ ] **Step 1: Write the failing test for the row-to-model mapping**
+- [x] **Step 1: Write the failing test for the row-to-model mapping**
 
 ```typescript
 // src/lib/loadFromSQLite.test.ts
@@ -890,12 +892,12 @@ describe('sqliteRowToSpace', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/loadFromSQLite.test.ts`
 Expected: FAIL with "Cannot find module './loadFromSQLite'"
 
-- [ ] **Step 3: Implement `src/lib/loadFromSQLite.ts`**
+- [x] **Step 3: Implement `src/lib/loadFromSQLite.ts`**
 
 ```typescript
 // src/lib/loadFromSQLite.ts
@@ -986,12 +988,12 @@ export async function loadFromSQLite(): Promise<{ entities: Entity[]; tasks: App
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/loadFromSQLite.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Hydrate from SQLite as the base state, sequenced BEFORE the Supabase merge — do not reuse `mergeCloudData`'s drop semantics on it**
+- [x] **Step 5: Hydrate from SQLite as the base state, sequenced BEFORE the Supabase merge — do not reuse `mergeCloudData`'s drop semantics on it**
 
 **Why not `mergeCloudData` for this dataset:** `mergeCloudData`'s entity branch drops any local entity *not present* in the passed-in dataset when that entity's `syncMode !== 'local-only'` (treats it as "deleted on another device" — correct for a *cloud* dataset). `loadFromSQLite()` never returns `cloud-only` entities (Task 7 deliberately excludes them from the SQLite mirror), so passing its result through `mergeCloudData` would delete every `cloud-only` entity/task/space already in the store the moment this runs — a real, intermittent (network-race-dependent) data-loss bug, not a hypothetical.
 
@@ -1019,12 +1021,12 @@ loadFromSupabase().then((cloudData) => {
 
 If the existing effect isn't already `async`, wrap the SQLite-load block in an inner async IIFE or convert the effect callback, following whatever pattern the surrounding code already uses for other awaited calls in that file. The key invariant: **`loadFromSQLite`'s result must never be passed through `mergeCloudData` or any drop-on-absence merge** — it's a direct hydration, not a reconciliation.
 
-- [ ] **Step 6: Manual verification**
+- [x] **Step 6: Manual verification**
 
 Run: `npm run electron:dev`. Create a note, close the app fully, relaunch.
 Expected: the note is still present after relaunch, loaded from SQLite (works even with network disabled — test by disabling network in OS settings or unplugging, if practical).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/loadFromSQLite.ts src/lib/loadFromSQLite.test.ts src/components/SupabaseProvider.tsx
