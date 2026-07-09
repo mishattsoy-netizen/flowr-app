@@ -145,6 +145,7 @@ export const useStore = create<AppState>()(
           type: 'personal' as const,
           ownerId: null,
           createdAt: initialTime,
+          lastModified: initialTime,
           syncMode: 'cloud-only',
         },
       ],
@@ -425,6 +426,15 @@ export const useStore = create<AppState>()(
             for (const id of [leftId, rightId]) {
               if (!nextTabs.includes(id)) nextTabs.push(id);
             }
+          } else if (state.selectedSidebarIds.length === 1 && state.selectedSidebarIds[0] !== state.activeTabId) {
+            // One entity selected in sidebar + another already active -> open both
+            leftId = state.activeTabId ?? state.openTabIds[0] ?? 'dashboard';
+            rightId = state.selectedSidebarIds[0];
+            isPinned = false;
+            // Ensure both are in openTabIds
+            for (const id of [leftId, rightId]) {
+              if (!nextTabs.includes(id)) nextTabs.push(id);
+            }
           } else {
             // Default: active entity → left, paired entity → right (or empty)
             leftId = state.activeTabId ?? state.openTabIds[0] ?? 'dashboard';
@@ -569,6 +579,7 @@ export const useStore = create<AppState>()(
           type: input.type ?? 'personal',
           ownerId: input.ownerId ?? null,
           createdAt: Date.now(),
+          lastModified: Date.now(),
           icon: input.icon,
           color: input.color,
           settings: input.settings,
@@ -581,7 +592,7 @@ export const useStore = create<AppState>()(
 
       updateSpace: (id, patch) => {
         set(s => ({
-          spaces: s.spaces.map(w => w.id === id ? { ...w, ...patch } : w),
+          spaces: s.spaces.map(w => w.id === id ? { ...w, ...patch, lastModified: Date.now() } : w),
         }));
         const updated = get().spaces.find(w => w.id === id);
         if (updated) upsertSpace(updated);
@@ -891,6 +902,7 @@ export const useStore = create<AppState>()(
             intentTag: (m as any).intentTag,
             toolResults: (m as any).toolResults,
             citations: (m as any).citations,
+            tokens_used: (m as any).tokens_used,
           }));
           set(s => ({
             activeChatId: id,
@@ -2422,6 +2434,7 @@ export const useStore = create<AppState>()(
           };
         });
         idsToRemove.forEach(eid => deleteEntityFromDB(eid));
+        get().syncUIStateToCloud();
       },
 
       fixDatabaseIntegrity: async () => {
@@ -3012,6 +3025,7 @@ export const useStore = create<AppState>()(
         const finalTask = {
           id: generateId(),
           completed: false,
+          lastModified: Date.now(),
           ...task,
           tag: cleanTag,
           userDueDate: task.userDueDate || task.dueDate || undefined,
@@ -3029,7 +3043,8 @@ export const useStore = create<AppState>()(
               return {
                 ...t,
                 completed: nextCompleted,
-                completedAt: nextCompleted ? Date.now() : undefined
+                completedAt: nextCompleted ? Date.now() : undefined,
+                lastModified: Date.now()
               };
             }
             return t;
@@ -3211,7 +3226,7 @@ export const useStore = create<AppState>()(
                 ? (updates.dueDate || undefined)
                 : t.userDueDate;
 
-              return { ...t, ...updates, userDueDate, completedAt };
+              return { ...t, ...updates, userDueDate, completedAt, lastModified: Date.now() };
             }
             return t;
           })

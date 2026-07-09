@@ -73,6 +73,7 @@ function rowToWorkspace(row: Record<string, any>): Space {
     type:         row.type ?? 'personal',
     ownerId:      row.owner_id ?? null,
     createdAt:    parseTimestamp(row.created_at) ?? 0,
+    lastModified: row.last_modified ?? 0,
     icon:         row.icon ?? undefined,
     color:        row.color ?? undefined,
     settings:     row.settings ?? undefined,
@@ -86,6 +87,7 @@ function workspaceToRow(w: Space): Record<string, any> {
     id:            w.id,
     name:          w.name,
     type:          w.type,
+    last_modified: w.lastModified ?? 0,
   };
   if (w.ownerId)  row.owner_id = w.ownerId;
   if (w.icon)     row.icon     = w.icon;
@@ -162,6 +164,7 @@ function rowToTask(row: Record<string, any>): AppTask {
     id:          row.id,
     title:       row.title,
     completed:   row.completed ?? false,
+    lastModified: row.last_modified ?? 0,
     dueDate:     row.due_date ?? undefined,
     endDate:     row.end_date ?? undefined,
     includeTime: row.include_time ?? undefined,
@@ -218,7 +221,8 @@ function taskToRow(t: AppTask): Record<string, any> {
   row.attachments = t.attachments ?? null;
   row.sync_mode = t.syncMode;
   row.tag = t.tag ?? null;
-  
+  row.last_modified = t.lastModified ?? 0;
+
   return row;
 }
 

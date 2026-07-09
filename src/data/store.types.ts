@@ -27,6 +27,7 @@ export interface Space {
   type: SpaceType;
   ownerId: string | null;
   createdAt: number;
+  lastModified: number;
   icon?: string;
   color?: string;
   settings?: Record<string, unknown>;
@@ -204,6 +205,7 @@ export interface AppTask {
   id: string;
   title: string;
   completed: boolean;
+  lastModified: number;
   dueDate?: string;
   endDate?: string;
   includeTime?: boolean;
