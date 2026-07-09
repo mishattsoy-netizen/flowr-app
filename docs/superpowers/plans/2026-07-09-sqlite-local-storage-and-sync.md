@@ -12,7 +12,35 @@
 
 ---
 
+## Execution Assignment & Protocol (multi-model split)
+
+This plan is split across multiple AI coding assistants/models to conserve a limited Claude usage budget. Each task below is tagged with an assigned model tier. Follow the assignment — do not silently reassign a task to a stronger or weaker model without flagging it to the user first.
+
+### Model tiers
+
+- **Tier A (mechanical/boilerplate — cheapest models: DeepSeek V4 Flash, Qwen 3.7 Flash, GLM small, Gemini 3.5 Flash low):** Tasks 1, 2, 3, 4, 11, 13. Code blocks are already fully written in this plan; the task is "copy this in, wire it up, run the given commands." Subtasks are pre-split finer than usual for this tier — treat each Step as its own unit of work, do not batch steps.
+- **Tier B (moderate — mid models: Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high):** Tasks 5, 8, 10, 12, 14. Requires locating existing code correctly, integrating without regressing surrounding behavior, and coordinating 2-4 files. The exact logic is still pinned in the plan; the risk is misapplying it to the wrong call site or missing one.
+- **Tier C (hardest — reserve for Claude or Gemini 3.1 Pro high):** Tasks 6, 9. These are the two places where a previous review pass in this same plan caught a real correctness bug (echo loop risk in Task 6's debounce placement; data-loss race in Task 9's boot hydration). A weaker model is likely to reintroduce a variant of one of these bugs while "simplifying" the approach. Do not delegate these to a Tier A/B model.
+
+### Mandatory per-task protocol
+
+For **every** task, regardless of tier, the assigned executor must:
+
+1. **Execute** all steps in the task in order.
+2. **Verify** — run every command marked `Run:` in the task and confirm the `Expected:` outcome actually occurred (paste/report the real output, not an assumption of success).
+3. **Double-verify + compliance check against previous tasks** — before committing, re-read the tasks completed so far (their "Files" sections and any invariants called out in bold) and confirm this task didn't violate one. Specifically re-check, every time:
+   - Did this task add any code that calls `upsertEntity`/`upsertTask`/`upsertSpace` (or the debounced wrappers) from inside `setEntities`/`setTasks`/`setSpaces` or any pull/merge path? (Must be NO — see Task 6's echo invariant.)
+   - Did this task pass SQLite-sourced data through `mergeCloudData` or any other drop-on-absence merge? (Must be NO — see Task 9.)
+   - Do all field names/row shapes match the schema exactly as defined in Task 1/3 (no silent renames)?
+4. **Stop and report back to the user for review.** Do not proceed to the next task automatically, even if this task's own verification passed. State clearly: what was done, what was verified (with actual command output), and any deviation from the plan's written steps (and why).
+
+If a task's steps don't match what the executor finds in the actual codebase (e.g. a line number has shifted, a function was renamed since this plan was written), the executor should adapt using its best judgment but must flag the deviation explicitly in its report rather than silently improvising past it.
+
+---
+
 ## Task 1: Install `better-sqlite3` and open the local database in the main process
+
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.**
 
 **Files:**
 - Modify: `package.json`
@@ -145,6 +173,8 @@ git commit -m "feat(db): add better-sqlite3 and local schema for entities/tasks/
 
 ## Task 2: Add `flowrDB` IPC handlers in main process for `entities`
 
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.**
+
 **Files:**
 - Modify: `electron/db.js`
 - Modify: `electron/main.js`
@@ -234,6 +264,8 @@ git commit -m "feat(db): expose flowrDB IPC bridge for entities CRUD"
 ---
 
 ## Task 3: Extend `flowrDB` IPC handlers to `tasks` and `spaces`
+
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.** Nearly identical in shape to Task 2 — same executor can likely do both back to back.
 
 **Files:**
 - Modify: `electron/db.js`
@@ -352,6 +384,8 @@ git commit -m "feat(db): extend flowrDB IPC bridge to tasks and spaces"
 
 ## Task 4: Add `lastModified` to `AppTask` and `Space` types + Supabase migration
 
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.** Step 4 (finding every task/space mutation site and adding `lastModified: Date.now()`) is the one part of this task requiring care — if using a Tier A model, consider splitting Step 4 into its own sub-pass: first `grep` and list every match, then edit each one individually and re-run `tsc --noEmit` after each, rather than editing all at once.
+
 **Files:**
 - Create: `supabase/migrations/20260709_tasks_spaces_last_modified.sql`
 - Modify: `src/data/store.types.ts`
@@ -423,6 +457,8 @@ git commit -m "feat(sync): add lastModified to tasks and spaces for correct LWW 
 ---
 
 ## Task 5: Fix `mergeCloudData` to use real LWW for tasks and spaces
+
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Requires correctly locating and replacing the existing (buggy) merge block without touching the adjacent, already-correct entity merge logic.
 
 **Files:**
 - Modify: `src/components/SupabaseProvider.tsx`
@@ -525,6 +561,8 @@ git commit -m "fix(sync): use real lastModified-based LWW for tasks and spaces m
 ---
 
 ## Task 6: Add debounced Supabase push wrapper and use it at all per-mutation call sites
+
+**Assigned model tier: C (hardest — Claude or Gemini 3.1 Pro high only). Do not delegate to a Tier A/B model.** This task carries the plan's core anti-echo invariant: the debounce MUST be added as a wrapper at existing call sites, never as a new `lastModified`-watching subscriber (a subscriber can't tell a user edit from a just-pulled state update and would reintroduce the exact echo bug this design avoids — see the spec's Section 2/3 for the full trace). It also requires finding and fixing an *unknown, not-fully-enumerated* set of existing test files (Step 6) — a task that rewards careful searching over speed. Keep this one for yourself.
 
 **Files:**
 - Create: `src/lib/debouncedPush.ts`
@@ -645,6 +683,8 @@ git commit -m "feat(sync): debounce per-entity Supabase push by 1.5s at existing
 
 ## Task 7: Replace the desktop file-vault subscriber with SQLite write-through for entities
 
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Single well-scoped subscriber replacement with the exact code already written; the judgment required is confirming the trigger condition (`syncMode === 'cloud-only'` exclusion) is preserved exactly, not "improved."
+
 **Files:**
 - Modify: `src/data/store.ts`
 
@@ -708,6 +748,8 @@ git commit -m "feat(db): write entities through to SQLite instead of Markdown fi
 ---
 
 ## Task 8: Extend the desktop subscriber to `tasks` and `spaces`
+
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Same pattern as Task 7, applied twice more; code is fully written in the plan.
 
 **Files:**
 - Modify: `src/data/store.ts`
@@ -788,6 +830,8 @@ git commit -m "feat(db): write tasks and spaces through to SQLite on desktop"
 ---
 
 ## Task 9: Boot-time load from SQLite, merged via the same LWW rule as Supabase
+
+**Assigned model tier: C (hardest — Claude or Gemini 3.1 Pro high only). Do not delegate to a Tier A/B model.** This task previously contained a real data-loss bug (SQLite data piped through `mergeCloudData`'s drop-on-absence semantics would delete every `cloud-only` entity from the store on a boot-order race) that was only caught by a dedicated review pass, not by normal execution. The plan below has the fix already, but a weaker model asked to "simplify" or "just use mergeCloudData for consistency" is likely to silently reintroduce it. Keep this one for yourself.
 
 **Files:**
 - Create: `src/lib/loadFromSQLite.ts`
@@ -991,6 +1035,8 @@ git commit -m "feat(db): load and merge local SQLite data on app boot"
 
 ## Task 10: One-time legacy import from `localStorage`/file-vault into SQLite
 
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Multi-file (importer module, IPC flag handlers, boot wiring) but each piece is fully specified. The refactor called out in Step 6 (extracting shared row-mapping helpers so Tasks 7/8's subscribers and this importer don't duplicate field mapping) needs care — verify Tasks 7/8's subscribers still work identically after the extraction (re-run their manual verification, don't just trust the diff).
+
 **Files:**
 - Create: `src/lib/legacyImport.ts`
 - Test: `src/lib/legacyImport.test.ts`
@@ -1128,6 +1174,8 @@ git commit -m "feat(db): one-time import of legacy localStorage data into SQLite
 
 ## Task 11: Downgrade protocol — instant lock UI banner
 
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.** Self-contained pure function + component + test, fully written in the plan. Step 6 (finding the right place to mount it in the app layout) is the one part needing a look around the codebase — if using a Tier A model, treat Step 6 as its own sub-task: first just report back what `grep` found and where it proposes to mount the component, before actually editing the layout file.
+
 **Files:**
 - Modify: `src/data/store.types.ts`
 - Create: `src/components/DowngradeBanner.tsx`
@@ -1211,6 +1259,8 @@ git commit -m "feat(billing): add downgrade grace-period warning banner"
 
 ## Task 12: Downgrade protocol — instant `local-only` lock on subscription expiry
 
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Requires correctly locating the existing subscription-status handling before wiring in new behavior — a wrong guess about where to hook in silently fails to fire. Note the plan's explicit warning: this must use a raw `set()`, never `debouncedPush*` — verify this specifically in the double-verification pass.
+
 **Files:**
 - Modify: `src/data/store.ts`
 
@@ -1250,6 +1300,8 @@ git commit -m "feat(billing): instantly lock entities to local-only on subscript
 ---
 
 ## Task 13: 5MB client-side attachment size cap enforcement
+
+**Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.** Pure function + test fully written; Step 1 (finding the actual upload call site) and Step 6 (wiring the check in) are the only parts requiring codebase lookup — if using a Tier A model, have it report the located call site back before editing, same as Task 11's approach.
 
 **Files:**
 - Modify: `src/lib/sync.ts` (or wherever attachment uploads are initiated — confirm exact call site first)
@@ -1329,6 +1381,8 @@ git commit -m "feat(billing): enforce 5MB client-side attachment cap for cloud s
 ---
 
 ## Task 14: Remove Markdown file-vault writes for desktop builds (final cleanup)
+
+**Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Deletion-heavy task — the risk is removing something still in use (the plan already warns to check `fileVault.ts` has no other consumers before deleting). Run this only after Tasks 1-10 are confirmed working end-to-end by the user, per the note already in the task.
 
 **Files:**
 - Modify: `src/lib/persistence.ts`
