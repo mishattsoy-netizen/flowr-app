@@ -236,13 +236,16 @@ export async function POST(req: NextRequest) {
     const photo = message.photo
     const cmd = parseCommand(userText)
 
+    let linkedAuthUserId: string | null = null
+    let activeChatId: string | null = null
+    let botMode: string = 'default'
+    let requestId: string | null = null
+    let result: any = null
+
     try {
       const user = await checkUserAndLimits(chatId)
 
       // Fetch linked auth info + bot mode
-      let linkedAuthUserId: string | null = null
-      let activeChatId: string | null = null
-      let botMode: string = 'default'
       try {
         const { data: tgUser } = await supabaseAdmin!
           .from('telegram_users')
@@ -514,6 +517,21 @@ Here's what I can do for you:
         return NextResponse.json({ ok: true })
       }
 
+      // ── Reserve credit against tier budget before any model cost is incurred ──
+      requestId = crypto.randomUUID()
+      const { data: reserveResult, error: reserveError } = await supabaseAdmin!
+        .rpc('reserve_credit_for_user', { p_user_id: linkedAuthUserId, p_request_id: requestId, p_mode: botMode })
+        .single()
+
+      if (reserveError) {
+        logger.error('[reserve_credit_for_user] error:', reserveError)
+        // Fail open on infra errors — same policy as the web route
+      } else if (reserveResult && !(reserveResult as any).allowed) {
+        const { blocked_window, resets_at } = reserveResult as any
+        await telegram.sendMessage(chatId, `You've hit your ${blocked_window} limit. Resets ${resets_at ? new Date(resets_at).toLocaleString() : 'soon'}.`)
+        return NextResponse.json({ ok: true })
+      }
+
       // ── Generate active_chat_id if needed ──
       if (!activeChatId) {
         const result = await startNewSession(chatId, linkedAuthUserId, 'saved', botMode)
@@ -538,13 +556,12 @@ Here's what I can do for you:
       }
 
       // ── Log incoming user message ──
-      const requestId = crypto.randomUUID()
       const usageType = photo ? 'vision' : 'chat'
       logWebInteraction(linkedAuthUserId, activePrompt, 'user', usageType, 'success', undefined, requestId, undefined, undefined, activeChatId)
         .catch(e => logger.error('User web log failed', e))
 
       const { runChain } = await import('@/lib/bot/chainRouter')
-      const result = await runChain(activePrompt, photoBuffer, {
+      result = await runChain(activePrompt, photoBuffer, {
         chatId,
         userId: linkedAuthUserId,
         activeChatId,
@@ -591,6 +608,15 @@ Here's what I can do for you:
         logger.error('Flow error:', err)
         logInteraction(chatId, err.message || 'Engine error', 'model', 'text', 'chat', 'error').catch(() => {})
         await telegram.sendMessage(chatId, '❌ *Engine Error*')
+      }
+    } finally {
+      if (linkedAuthUserId && requestId) {
+        const finalCost = (result && typeof result.total_cost_usd === 'number') ? result.total_cost_usd : 0
+        try {
+          await supabaseAdmin!.rpc('reconcile_credit_for_user', { p_user_id: linkedAuthUserId, p_request_id: requestId, p_real_amount_usd: finalCost })
+        } catch (e: any) {
+          logger.error('[reconcile_credit_for_user] error:', e)
+        }
       }
     }
 
