@@ -354,7 +354,7 @@ export async function runOpenRouter(
       // Streaming response
       if (shouldStream && response.body) {
         const reader = response.body.getReader()
-        const { content: streamedContent, citations, reasoning: streamedReasoning } = await parseSSEStream(reader, normContext.onChunk)
+        const { content: streamedContent, citations, reasoning: streamedReasoning, usage: streamedUsage } = await parseSSEStream(reader, normContext.onChunk)
 
         if (!streamedContent) {
           throw new Error('OpenRouter returned empty streamed content')
@@ -366,7 +366,7 @@ export async function runOpenRouter(
           finalContent = `${streamedContent}\n\n${citationText}`
         }
 
-        return { content: finalContent, provider: actualProvider, reasoning: streamedReasoning }
+        return { content: finalContent, provider: actualProvider, reasoning: streamedReasoning, usage: streamedUsage }
       }
 
       // Non-streaming response

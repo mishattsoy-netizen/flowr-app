@@ -155,12 +155,11 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
           const s = useStore.getState();
           const personalWs = s.spaces.find(w => w.id === 'ws-personal');
           if (personalWs) {
-            try {
-              const updatedWs = { ...personalWs, ownerId: user.id };
-              setSpaces([...data.spaces, updatedWs]);
-              await upsertSpace(updatedWs);
-            } catch (err: any) {
-              console.warn('[Flowr sync] Could not sync personal workspace (likely RLS collision):', err.message);
+            const updatedWs = { ...personalWs, ownerId: user.id };
+            setSpaces([...data.spaces, updatedWs]);
+            const { error } = await upsertSpace(updatedWs);
+            if (error) {
+              // RLS collision: another user owns 'ws-personal'. Keep it local-only.
               setSpaces([...data.spaces, personalWs]);
             }
           }
@@ -173,6 +172,14 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
       // --- Auto-cleanup for dead entities and corrupted spaceIds ---
       s.fixDatabaseIntegrity();
+
+      // --- Seed defaults for first-time users ---
+      if (s.entities.length === 0 && !s.defaultsSeeded) {
+        const { data: { user } } = await supabase!.auth.getUser();
+        if (user) {
+          s.seedDefaults();
+        }
+      }
       
       // --- Auto-cleanup for duplicate "Untitled Canvas" entities ---
       const canvases = s.entities.filter(e => e.title === 'Untitled Canvas');
@@ -240,10 +247,16 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
     // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
     //    deleted items while this tab was closed or offline).
-    const reconcile = () => {
-      loadFromSupabase().then(data => {
-        if (data) mergeCloudData(data);
-      });
+    const reconcile = async () => {
+      const data = await loadFromSupabase();
+      if (data) {
+        mergeCloudData(data);
+        const rs = useStore.getState();
+        if (rs.entities.length === 0 && !rs.defaultsSeeded) {
+          const { data: { user } } = await supabase!.auth.getUser();
+          if (user) rs.seedDefaults();
+        }
+      }
     };
 
     reconcilerRef.current = setInterval(reconcile, RECONCILE_INTERVAL_MS);

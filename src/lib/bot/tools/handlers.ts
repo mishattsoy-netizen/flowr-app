@@ -123,7 +123,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           description: description || null,
           status: status || 'todo',
           priority: priority || null,
-          tag: tag || null,
+          tag: tag && tag.toLowerCase() !== 'none' ? tag : null,
           due_date: dueDate || null,
           end_date: args.endDate || null,
           include_time: args.includeTime ?? null,
@@ -143,7 +143,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           title,
           status: status || 'todo',
           priority: priority || null,
-          tag: tag || null,
+          tag: tag && tag.toLowerCase() !== 'none' ? tag : null,
           dueDate: dueDate || null,
           endDate: args.endDate || null,
           includeTime: args.includeTime ?? false,
@@ -212,11 +212,13 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
         if (status !== undefined) {
-          updates.status = status
-          updates.completed = status === 'done'
+          if (['todo', 'in-progress', 'done'].includes(status)) {
+            updates.status = status
+            updates.completed = status === 'done'
+          }
         }
         if (priority !== undefined) updates.priority = priority
-        if (tag !== undefined) updates.tag = tag
+        if (tag !== undefined) updates.tag = (tag && tag.toLowerCase() !== 'none') ? tag : null
         if (assignedWorkspaceId !== undefined) {
           updates.entity_id = assignedWorkspaceId || null;
         }
@@ -407,12 +409,34 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (tError) throw tError
 
         if (taskData) {
-          const formatted = taskData.map((t: any) => ({
-            ...t,
-            type: 'task',
-            assignedWorkspaceId: t.entity_id,
-            last_modified: new Date(t.created_at).getTime()
-          }))
+          let todayStr = new Date().toISOString().split('T')[0]
+          if (context?.clientTime) {
+            const match = context.clientTime.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/)
+            if (match) {
+              const months: Record<string, string> = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' }
+              const d = match[2].padStart(2, '0')
+              todayStr = `${match[3]}-${months[match[1]]}-${d}`
+            }
+          }
+          const formatted = taskData.map((t: any) => {
+            let display_status = t.status || 'todo'
+            if (t.status !== 'done' && t.due_date) {
+               const dueDateStr = t.due_date.split('T')[0]
+               if (dueDateStr < todayStr) {
+                 display_status = 'overdue'
+               } else if (dueDateStr === todayStr) {
+                 display_status = 'today'
+               }
+            }
+
+            return {
+              ...t,
+              display_status,
+              type: 'task',
+              assignedWorkspaceId: t.entity_id,
+              last_modified: new Date(t.created_at).getTime()
+            }
+          })
           rawResults.push(...formatted)
         }
       }
@@ -452,6 +476,80 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { success: true, count: processedResults.length, items: processedResults }
     } catch (e: any) {
       logger.error('list_content failed:', e.message)
+      return { error: e.message }
+    }
+  },
+
+  // ── MANAGE MEMORY ─────────────────────────────────────────────────────────────
+  async manage_memory(args: any, context: any) {
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    if (isUserAnonymous(context)) {
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage memories.' }
+    }
+
+    const { action, id, title, content } = args
+
+    if (!action) return { error: "'action' is required (add | update | delete)" }
+
+    try {
+      if (action === 'add') {
+        if (!title || !content) return { error: "'title' and 'content' are required for add" }
+        
+        // Check cap
+        const { count, error: countError } = await supabaseAdmin
+          .from('bot_memories')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', context.userId)
+        
+        if (countError) throw countError
+        if (count && count >= 20) {
+          return { error: 'Hard cap of 20 memories reached. You must delete an old memory before adding a new one.' }
+        }
+
+        const { data, error } = await supabaseAdmin.from('bot_memories').insert({
+          user_id: context.userId,
+          title,
+          content
+        }).select('id').single()
+        
+        if (error) throw error
+        return { success: true, id: data.id, action: 'add', title, content }
+      } 
+      else if (action === 'update') {
+        if (!id) return { error: "'id' is required for update" }
+        const updates: any = { updated_at: new Date().toISOString() }
+        if (title !== undefined) updates.title = title
+        if (content !== undefined) updates.content = content
+        
+        const { error } = await supabaseAdmin
+          .from('bot_memories')
+          .update(updates)
+          .eq('id', id)
+          .eq('user_id', context.userId)
+        
+        if (error) throw error
+        return { success: true, id, action: 'update', title, content }
+      }
+      else if (action === 'delete') {
+        if (!id) return { error: "'id' is required for delete" }
+        
+        // Get title before delete for the artifact
+        const { data } = await supabaseAdmin.from('bot_memories').select('title').eq('id', id).single()
+        const deletedTitle = data?.title || 'Unknown'
+
+        const { error } = await supabaseAdmin
+          .from('bot_memories')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', context.userId)
+          
+        if (error) throw error
+        return { success: true, id, action: 'delete', title: deletedTitle }
+      }
+      
+      return { error: `Unknown action '${action}'` }
+    } catch (e: any) {
+      logger.error(`manage_memory tool failed: ${e.message}`)
       return { error: e.message }
     }
   }

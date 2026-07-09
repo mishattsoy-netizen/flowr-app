@@ -1063,9 +1063,20 @@ export const ChatMessage = memo(({
     const trimmed = targetContent.trim();
     return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
   }, [targetContent]);
+  const [hasFinishedTypingState, setHasFinishedTypingState] = useState(false);
+
   const { revealedText, isRevealing } = useWordReveal(targetContent, {
-    enabled: isLast,
+    enabled: isLast && !hasFinishedTypingState,
+    initialProgress: 'complete',
   });
+
+  useEffect(() => {
+    if (isAILoading) {
+      setHasFinishedTypingState(false);
+    } else if (!isRevealing) {
+      setHasFinishedTypingState(true);
+    }
+  }, [isAILoading, isRevealing]);
   const displayContent = useMemo(() => {
     if (isPureImage) return targetContent;
 
@@ -1080,7 +1091,7 @@ export const ChatMessage = memo(({
 
     return targetContent;
   }, [targetContent, isAILoading, isLast, isPureImage, revealedText, isRevealing]);
-  const hasFinishedTyping = !isAILoading && !isRevealing;
+  const hasFinishedTyping = hasFinishedTypingState;
 
   const [feedbackState, setFeedbackState] = useState<'like' | 'dislike' | null>(null);
 
@@ -1803,7 +1814,7 @@ export const ChatMessage = memo(({
                       <div className="flex flex-col gap-2 w-full mt-3">
                         {msg.toolResults.filter(tr => {
                           const name = String((tr as any).tool || tr.type || '')
-                          return ['create_content', 'update_content', 'append_to_note', 'move_content'].includes(name)
+                          return ['create_content', 'update_content', 'append_to_note', 'move_content', 'manage_memory'].includes(name)
                         }).map((tr, i) => {
                           const actionName = String((tr as any).tool || tr.type || '')
                           const isTask = tr.type === 'task' || (tr.id && tr.id.startsWith('task-'))
@@ -1818,18 +1829,25 @@ export const ChatMessage = memo(({
                             actionText = 'Edited'
                           } else if (actionName === 'move_content') {
                             actionText = 'Moved'
+                          } else if (actionName === 'manage_memory') {
+                            const trMem = tr as any;
+                            actionText = trMem.action === 'add' ? 'NEW MEMORY' : trMem.action === 'update' ? 'UPDATED MEMORY' : trMem.action === 'delete' ? 'DELETED MEMORY' : 'MEMORY'
                           } else {
                             actionText = 'Action'
                           }
 
                           const matchedEntity = !isTask ? useStore.getState().entities.find(e => e.id === tr.id) : null
                           const matchedTask = isTask ? useStore.getState().tasks.find(t => t.id === tr.id) : null
-                          const entityTitle = matchedEntity?.title || matchedTask?.title || tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled')
+                          const entityTitle = actionName === 'manage_memory' ? tr.title : (matchedEntity?.title || matchedTask?.title || tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled'))
 
                           return (
                             <div
                               key={i}
                               onClick={() => {
+                                if (actionName === 'manage_memory') {
+                                  useStore.getState().openModal({ kind: 'settings', tab: 'capabilities' });
+                                  return;
+                                }
                                 if (!tr.id) return;
                                 if (isTask) {
                                   useStore.getState().openTaskPanel(tr.id);
@@ -1838,12 +1856,13 @@ export const ChatMessage = memo(({
                                 }
                               }}
                               className={cn(
-                                "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] cursor-pointer transition-all duration-200",
-                                "bg-white/5 hover:bg-white/10 border border-white/10 group/card"
+                                "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 group/card"
                               )}
                             >
-                              <div className="flex items-center text-bone-80 opacity-30 shrink-0 group-hover/card:opacity-80 transition-all">
-                                {isTask ? (
+                              <div className={cn("flex items-center text-bone-80 opacity-30 shrink-0 transition-all group-hover/card:opacity-80")}>
+                                {actionName === 'manage_memory' ? (
+                                  <Brain strokeWidth={1.5} className="w-8 h-8" />
+                                ) : isTask ? (
                                   <CheckCircle2 strokeWidth={1.5} className="w-8 h-8" />
                                 ) : isCanvas ? (
                                   <Layout strokeWidth={1.5} className="w-8 h-8" />
@@ -1855,12 +1874,14 @@ export const ChatMessage = memo(({
                               </div>
                               <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <p className="text-[10px] uppercase tracking-wider text-bone-100 opacity-40 font-semibold mb-0.5">{actionText}</p>
-                                <p className="text-base font-serif font-medium tracking-tight text-bone-100 opacity-80 group-hover/card:opacity-100 transition-opacity truncate">{entityTitle}</p>
+                                <p className={cn("text-base font-serif font-medium tracking-tight text-bone-100 opacity-80 transition-opacity truncate", actionName !== 'manage_memory' && "group-hover/card:opacity-100")}>{entityTitle}</p>
                                 {tr.content_preview && (
                                   <p className="text-xs text-bone-40 truncate mt-0.5">{tr.content_preview}</p>
                                 )}
                               </div>
-                              <ChevronRight strokeWidth={2} className="w-4 h-4 text-bone-30 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                              {actionName !== 'manage_memory' && (
+                                <ChevronRight strokeWidth={2} className="w-4 h-4 text-bone-30 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                              )}
                             </div>
                           )
                         })}

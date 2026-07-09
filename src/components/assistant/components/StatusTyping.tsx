@@ -4,11 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 export const StatusTyping = ({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const [isTyping, setIsTyping] = useState(true);
+  const [displayedText, setDisplayedText] = useState(text);
+  const [isTyping, setIsTyping] = useState(false);
+  const isFirstRender = useRef(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      setDisplayedText(text);
+      setIsTyping(false);
+      return;
+    }
+
     setDisplayedText('');
     setIsTyping(true);
     

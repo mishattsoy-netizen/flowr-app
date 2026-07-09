@@ -13,28 +13,20 @@ export interface CompactionConfig {
   compaction_threshold: number
 }
 
-export async function getCompactionConfig(): Promise<CompactionConfig> {
-  const { data, error } = await supabase
-    .from('bot_compaction_config')
-    .select('context_limit, compaction_threshold')
-    .eq('id', 1)
-    .single()
-
-  if (error || !data) {
-    return {
-      context_limit: 32000,
-      compaction_threshold: 0.8,
-    }
-  }
-  return data as CompactionConfig
+// ─── Hardcoded Compaction Config ────────────────────────────────────────────
+// The Admin UI sliders are a static preview only.
+const HARDCODED_COMPACTION_CONFIG: CompactionConfig = {
+  context_limit: 10000,   // tokens per session before compaction triggers
+  compaction_threshold: 0.80, // 80% of context_limit
 }
 
-export async function saveCompactionConfig(config: Partial<CompactionConfig>): Promise<void> {
-  const { error } = await supabase
-    .from('bot_compaction_config')
-    .update({ ...config, updated_at: new Date().toISOString() })
-    .eq('id', 1)
-  if (error) throw error
+export async function getCompactionConfig(): Promise<CompactionConfig> {
+  return HARDCODED_COMPACTION_CONFIG
+}
+
+// No-op: DB writes are disabled. Edit HARDCODED_COMPACTION_CONFIG above.
+export async function saveCompactionConfig(_config: Partial<CompactionConfig>): Promise<void> {
+  logger.warn('saveCompactionConfig: settings are hardcoded, DB write skipped.')
 }
 
 async function runCompactionModel(

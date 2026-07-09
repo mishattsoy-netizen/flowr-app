@@ -7,12 +7,13 @@ export function parseSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (text: string) => void,
   stallTimeoutMs: number = STREAM_STALL_TIMEOUT_MS
-): Promise<{ content: string; citations?: any[]; reasoning?: string }> {
+): Promise<{ content: string; citations?: any[]; reasoning?: string; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } }> {
   const decoder = new TextDecoder()
   let sseBuffer = ''
   let fullContent = ''
   let fullReasoning = ''
   let citations: any[] | undefined
+  let usage: any | undefined
 
   return new Promise((resolve, reject) => {
     let stallTimer: NodeJS.Timeout | null = null
@@ -36,7 +37,7 @@ export function parseSSEStream(
       reader.read().then(({ done, value }) => {
         if (done) {
           clearStallTimer()
-          resolve({ content: fullContent, citations, reasoning: fullReasoning || undefined })
+          resolve({ content: fullContent, citations, reasoning: fullReasoning || undefined, usage })
           return
         }
 
@@ -68,6 +69,15 @@ export function parseSSEStream(
             if (parsed.citations) {
               citations = parsed.citations
             }
+            if (parsed.usage) {
+              usage = {
+                prompt_tokens: parsed.usage.prompt_tokens,
+                completion_tokens: parsed.usage.completion_tokens,
+                total_tokens: parsed.usage.total_tokens,
+                cache_read_input_tokens: parsed.usage.prompt_tokens_details?.cached_tokens ?? parsed.usage.cache_read_input_tokens,
+                cache_creation_input_tokens: parsed.usage.cache_creation_input_tokens,
+              }
+            }
           } catch {
             // Skip malformed SSE lines
           }
@@ -76,7 +86,7 @@ export function parseSSEStream(
         if (isDone) {
           clearStallTimer()
           reader.cancel().catch(() => {})
-          resolve({ content: fullContent, citations, reasoning: fullReasoning || undefined })
+          resolve({ content: fullContent, citations, reasoning: fullReasoning || undefined, usage })
           return
         }
 
@@ -143,13 +153,13 @@ export async function streamOpenAICompatible(
   // Streaming
   if (shouldStream && response.body) {
     const reader = response.body.getReader()
-    const { content, reasoning } = await parseSSEStream(reader, onChunk)
+    const { content, reasoning, usage } = await parseSSEStream(reader, onChunk)
 
     if (!content) {
       throw new Error('Stream returned empty content')
     }
 
-    return { content, reasoning }
+    return { content, reasoning, usage }
   }
 
   // Non-streaming

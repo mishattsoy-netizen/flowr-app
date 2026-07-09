@@ -7,6 +7,42 @@ import { logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import fs from 'fs'
 import path from 'path'
 
+/**
+ * Converts captured tool calls into a compact one-line history annotation.
+ * Stored alongside the final AI response so future requests know what was queried.
+ * Example: [Tools: list_content(query="tasks") → 5 items | create_content(type="note", title="Meeting notes") → ok]
+ */
+function buildToolSummary(toolCalls: any[]): string {
+  if (!toolCalls || toolCalls.length === 0) return ''
+  const parts = toolCalls.map(tc => {
+    const name = tc.tool || 'unknown'
+    // Pick the most meaningful arg per tool
+    const argHints: string[] = []
+    if (tc.searchQuery) argHints.push(`query="${String(tc.searchQuery).slice(0, 40)}"`)
+    if (tc.type && name !== 'list_content') argHints.push(`type="${tc.type}"`)
+    if (tc.title) argHints.push(`title="${String(tc.title).slice(0, 30)}"`)
+    if (tc.id) argHints.push(`id="${String(tc.id).slice(0, 12)}..."`)
+    if (tc.query && !tc.searchQuery) argHints.push(`query="${String(tc.query).slice(0, 40)}"`)
+
+    const args = argHints.length > 0 ? `(${argHints.join(', ')})` : ''
+
+    // Result hint
+    let result = 'ok'
+    if (tc.success === false || tc.error) {
+      result = `error: ${String(tc.error || 'failed').slice(0, 40)}`
+    } else if (Array.isArray(tc.items)) {
+      result = `${tc.items.length} item${tc.items.length !== 1 ? 's' : ''}`
+    } else if (Array.isArray(tc.results)) {
+      result = `${tc.results.length} result${tc.results.length !== 1 ? 's' : ''}`
+    } else if (tc.id && (name === 'create_content' || name === 'update_content' || name === 'append_to_note')) {
+      result = `id=${String(tc.id).slice(0, 12)}`
+    }
+
+    return `${name}${args} → ${result}`
+  })
+  return `\n\n[Tools: ${parts.join(' | ')}]`
+}
+
 export async function POST(req: NextRequest) {
   let user = null;
   let supabaseClient = null;
@@ -197,7 +233,8 @@ export async function POST(req: NextRequest) {
 
         // 5. Log and Finalize
         const logUserId = user?.id || 'anonymous'
-        const loggedContent = typeof content === 'string' ? content : '[image]'
+        const toolSummary = buildToolSummary((result as any).captured_tool_calls ?? [])
+        const loggedContent = (typeof content === 'string' ? content : '[image]') + toolSummary
         const modelChain = result.model_chain
         const usageType = result.usage_type || 'chat'
         

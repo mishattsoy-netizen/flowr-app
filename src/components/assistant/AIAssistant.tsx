@@ -276,39 +276,37 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       : `The user is viewing "${entity.title}" (entity ID: ${entity.id}) but it has no content.`;
   };
 
-  // Local token estimate: ~4 chars per token. Mirrors the exact per-message text the
-  // server builds for history in store.ts.sendAIMessage (stripHeavyMedia + digital twin
-  // injection), so the count reflects every character the model actually receives —
-  // base64 images stripped to a placeholder (the model never sees the raw bytes), but
-  // the vision digital twin (image_description) fully counted since it's re-injected
-  // into history on every follow-up turn.
-  // Server-side token_usage_total only updates on compaction, so it stays at 0 until then.
+  // The exact token count of the NEXT request is equal to:
+  // (Total tokens of the LAST request) + (New user input text & attachments)
+  // Why? Because total_tokens = prompt_tokens (history + sys prompt) + completion_tokens (the AI's last reply).
+  // The next request sends exactly that same block, plus the new user input.
   const displayedTokens = (() => {
-    const summary = aiSessionContext?.distilled_summary;
-    const summaryTokens = summary ? Math.ceil(summary.length / 4) : 0;
+    // 1. Find the last AI response with an API-reported token count
+    const lastAssistantMsg = [...aiMessages].reverse().find(m => m.role === 'assistant' && m.tokens_used);
 
-    let chars = 0;
-    let imageTokens = 0;
-    const filteredMsgs = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant');
-    const messagesToCount = summary ? filteredMsgs.slice(-5) : filteredMsgs;
+    // 2. Draft input tokens
+    let newDraftTokens = Math.ceil((assistantInput.length || 0) / 4);
+    newDraftTokens += attachments.filter(a => a.type === 'image' || a.type === 'pdf').length * 258;
 
-    for (const m of messagesToCount) {
-      let text = (m.content || '').includes('data:image/')
-        ? (m.content || '').replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, m.image_description ? `[Image: ${m.image_description}]` : '[Image: (visual content generated)]')
-        : (m.content || '');
-      if (m.role === 'user' && m.image_description) {
-        text = `${text}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${m.image_description}`;
-      } else if (m.role === 'user' && !m.image_description && m.attachments?.some(a => a.type === 'image' || a.type === 'pdf')) {
-        text = `${text}\n[Image attached]`;
-      }
-
-      const imageCount = m.attachments?.filter(a => a.type === 'image' || a.type === 'pdf').length || 0;
-      imageTokens += imageCount * 258;
-      chars += text.length;
+    if (lastAssistantMsg?.tokens_used) {
+      // If it's a legacy raw tokens count (typically > 2500), subtract the system prompt + tools footprint.
+      // Otherwise, use the clean dynamic count calculated by the backend directly.
+      const isLegacy = lastAssistantMsg.tokens_used > 2500;
+      const cleanBaseline = isLegacy 
+        ? Math.max(0, lastAssistantMsg.tokens_used - 3800) 
+        : lastAssistantMsg.tokens_used;
+      return cleanBaseline + newDraftTokens;
     }
+
+    // 3. Fallback for new chats (no previous API response yet)
+    // Exclude system prompt: baseTokens starts at 0
+    let baseTokens = 0; 
+
+    // Add page context
     const pageCtx = buildPageContext();
-    const pageContextTokens = pageCtx ? Math.ceil(pageCtx.length / 4) : 0;
-    return summaryTokens + Math.ceil(chars / 4) + imageTokens + pageContextTokens;
+    if (pageCtx) baseTokens += Math.ceil(pageCtx.length / 4);
+
+    return baseTokens + newDraftTokens;
   })();
 
   useEffect(() => {
@@ -1327,24 +1325,22 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                   onMouseLeave={closeContextTooltip}
                 >
                   <div className="flex items-center gap-2 z-10 cursor-help">
-                    {aiSessionContext && (
-                      <div className="relative w-4 h-4 flex items-center justify-center">
-                        <ContextMeter
-                          usage={displayedTokens}
-                          limit={aiSessionContext.context_limit}
-                          threshold={aiSessionContext.compaction_threshold}
-                          size={16}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-[7px] font-bold text-bone-100">
-                            {Math.round((displayedTokens / aiSessionContext.context_limit) * 100)}
-                          </span>
-                        </div>
+                    <div className="relative w-4 h-4 flex items-center justify-center">
+                      <ContextMeter
+                        usage={displayedTokens}
+                        limit={aiSessionContext?.context_limit ?? 10000}
+                        threshold={aiSessionContext?.compaction_threshold ?? 0.8}
+                        size={16}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[7px] font-bold text-bone-100">
+                          {Math.round((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100)}
+                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {aiSessionContext && showContextTooltip && contextTooltipPos && createPortal(
+                  {showContextTooltip && contextTooltipPos && createPortal(
                     <div
                       className="fixed bg-[var(--color-panel)] p-4 rounded-[16px] border border-[var(--bone-12)] backdrop-blur-3xl w-[220px]"
                       style={{ bottom: contextTooltipPos.bottom, right: contextTooltipPos.right, zIndex: 150 }}
@@ -1354,15 +1350,15 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center text-[11px] font-bold text-bone-80">
                           <span className="tracking-tight">Memory Usage</span>
-                          <span className="text-bone-100">{Math.round((displayedTokens / aiSessionContext.context_limit) * 100)}%</span>
+                          <span className="text-bone-100">{Math.round((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100)}%</span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
                             className={cn(
                               "h-full duration-1000",
-                              (displayedTokens / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold ? "bg-white/40" : "bg-[var(--brand-blue)]"
+                              (displayedTokens / (aiSessionContext?.context_limit ?? 10000)) > (aiSessionContext?.compaction_threshold ?? 0.8) ? "bg-white/40" : "bg-[var(--brand-blue)]"
                             )}
-                            style={{ width: `${Math.min((displayedTokens / aiSessionContext.context_limit) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100, 100)}%` }}
                           />
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
@@ -1371,11 +1367,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                               Press <span className="font-mono text-[9px] bg-white/10 px-1 py-0.5 rounded text-bone-80">/</span> for tools
                             </div>
                           )}
-                          <p className="text-[10px] text-bone-70 font-medium">
-                            {displayedTokens.toLocaleString()} / {aiSessionContext.context_limit.toLocaleString()} tokens
-                          </p>
-                          <p className="text-[9px] text-bone-30 opacity-60 leading-relaxed italic">
-                            {(displayedTokens / aiSessionContext.context_limit) > aiSessionContext.compaction_threshold
+                           <p className="text-[9px] text-bone-30 opacity-60 leading-relaxed italic">
+                            {(displayedTokens / (aiSessionContext?.context_limit ?? 10000)) > (aiSessionContext?.compaction_threshold ?? 0.8)
                               ? "Memory full. Preparing to distill..."
                               : "Session history is currently clear and fast."}
                           </p>
@@ -1384,7 +1377,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                         {(() => {
                           const msgCount = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length
                           const belowMinMsgs = msgCount < 5
-                          const minTokens = (aiSessionContext?.context_limit ?? 32000) * 0.5
+                          const minTokens = (aiSessionContext?.context_limit ?? 10000) * 0.5
                           const belowMinTokens = displayedTokens < minTokens
                           const canCompact = !isCompacting && !belowMinMsgs && !belowMinTokens
                           return (

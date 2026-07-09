@@ -28,7 +28,6 @@ import { getPipelineSettings } from '../router-config'
 import { expandImagePrompt } from './prompt-expansion'
 import { TraceCollector } from './tracing'
 import { buildTranscript } from './transcript'
-import { getAiUserDescription } from '@/app/settings/ai/actions'
 import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from './services/providerExecution'
 import { buildSystemPrompt } from './services/promptBuilder'
 import { getChainPrompt } from './prompts'
@@ -200,11 +199,10 @@ export async function runChain(
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
-  const [sessionState, fallbackModes, pipelineSettings, userDescription] = await Promise.all([
+  const [sessionState, fallbackModes, pipelineSettings] = await Promise.all([
     getSessionState(sessionId),
     getFallbackModes(),
     getPipelineSettings(),
-    context?.userId ? getAiUserDescription(context.userId) : null,
   ])
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
@@ -602,7 +600,7 @@ export async function runChain(
       label: getStatusLabel('CLASSIFIER'),
       status: 'running'
     })
-    const historyForClassifier = (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes('CLASSIFIER')) ? history : []
+    const historyForClassifier = (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes('CLASSIFIER')) ? history.slice(-8) : []
     const classifyRes = await classifyIntentWithModel(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer)
     rawCategory = classifyRes.category
     classifierModel = classifyRes.classifierModel
@@ -1337,7 +1335,9 @@ IMAGE GENERATION:
               finalContent: typeof finalContent === 'string' ? finalContent : '[image]',
               finalModel: modelConfig.id,
               citations,
-              tokensUsed: providerUsage?.total_tokens ?? (typeof finalContent === 'string' ? estimateTokens(prompt + (finalContent as string) + (system_prompt || '')) : undefined),
+              tokensUsed: providerUsage 
+                ? ((providerUsage.prompt_tokens ?? 0) - (providerUsage.cache_read_input_tokens ?? 0) + (providerUsage.completion_tokens ?? 0))
+                : (typeof finalContent === 'string' ? estimateTokens(prompt + (finalContent as string) + (system_prompt || '')) : undefined),
               providerUsage,
               providerReasoning,
               chainDuration: Date.now() - t0,
@@ -1356,7 +1356,27 @@ IMAGE GENERATION:
               classification_trace: classificationTrace,
               routing_trace: routingTrace,
               citations,
-              tokens_used: providerUsage?.total_tokens ?? (typeof finalContent === 'string' ? estimateTokens(prompt + (finalContent as string) + (system_prompt || '')) : undefined),
+              tokens_used: (() => {
+                const userPromptTokens = finalUserPrompt ? estimateTokens(finalUserPrompt) : 0;
+                const historyText = historyForChain && historyForChain.length > 0 
+                  ? historyForChain.map(h => h.parts?.[0]?.text || h.content || '').join('\n')
+                  : '';
+                const historyTokens = estimateTokens(historyText);
+                
+                if (providerUsage) {
+                  const completion = providerUsage.completion_tokens ?? 0;
+                  const estimatedPrompt = userPromptTokens + historyTokens;
+                  const totalPrompt = providerUsage.prompt_tokens ?? 0;
+                  const calc = Math.min(estimatedPrompt, totalPrompt) + completion;
+                  logger.info(`[TokenCalc] totalPrompt=${totalPrompt}, estimatedPrompt=${estimatedPrompt} (user=${userPromptTokens}, hist=${historyTokens}), completion=${completion}, calculated=${calc}`);
+                  return calc;
+                }
+                
+                const completionEst = typeof finalContent === 'string' ? estimateTokens(finalContent) : 0;
+                const calc = userPromptTokens + historyTokens + completionEst;
+                logger.info(`[TokenCalc] fallback estimate calculated=${calc}`);
+                return calc;
+              })(),
               image_description: imageDescription || (context as any)?._visionImageDescription,
               image_prompt: category === 'IMAGE_GEN' ? activePromptForGen : undefined,
               pipeline_steps: thinkPipelineStepsPrepass.length > 0 ? thinkPipelineStepsPrepass : undefined,

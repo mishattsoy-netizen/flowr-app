@@ -276,7 +276,11 @@ export async function upsertSetting(key: string, value: any) {
     .from('settings')
     .upsert(row, { onConflict: 'owner_id,key' });
 
-  if (error) console.error('[Flowr sync] upsertSetting:', error.message);
+  if (error) {
+    // Duplicate key is expected until the settings PK migration runs
+    const isDuplicateKey = error.message.includes('duplicate key') || error.message.includes('settings_pkey') || error.message.includes('unique constraint');
+    if (!isDuplicateKey) console.error('[Flowr sync] upsertSetting:', error.message);
+  }
 }
 
 export async function upsertSpace(workspace: Space): Promise<{ error: any }> {
@@ -306,7 +310,11 @@ export async function upsertSpace(workspace: Space): Promise<{ error: any }> {
   }
 
   const { error } = await performUpsert(row);
-  if (error) console.error('[Flowr sync] upsertSpace:', error.message);
+  if (error) {
+    // RLS violations are expected when a row belongs to another user (e.g. ws-personal).
+    const isRls = error.message.includes('row-level security');
+    if (!isRls) console.error('[Flowr sync] upsertSpace:', error.message);
+  }
   return { error };
 }
 
@@ -345,7 +353,10 @@ export async function upsertEntity(entity: Entity): Promise<{ error: any }> {
   }
 
   const { error } = await performUpsert(row);
-  if (error) console.error('[Flowr sync] upsertEntity:', error.message);
+  if (error) {
+    const isRls = error.message.includes('row-level security');
+    if (!isRls) console.error('[Flowr sync] upsertEntity:', error.message);
+  }
   return { error };
 }
 
@@ -353,7 +364,10 @@ export async function deleteEntityFromDB(id: string): Promise<{ error: any }> {
   if (!supabase) return { error: null };
   markSelfDeleted(id);
   const { error } = await supabase!.from('entities').delete().eq('id', id);
-  if (error) console.error('[Flowr sync] deleteEntity:', error.message);
+  if (error) {
+    const isFk = error.message.includes('foreign key constraint');
+    if (!isFk) console.error('[Flowr sync] deleteEntity:', error.message);
+  }
   return { error };
 }
 
@@ -385,7 +399,11 @@ export async function upsertTask(task: AppTask): Promise<{ error: any }> {
   }
 
   const { error } = await performUpsert(row);
-  if (error) console.error('[Flowr sync] upsertTask:', error.message);
+  if (error) {
+    const isRls = error.message.includes('row-level security');
+    const isFk = error.message.includes('foreign key constraint');
+    if (!isRls && !isFk) console.error('[Flowr sync] upsertTask:', error.message);
+  }
   return { error };
 }
 

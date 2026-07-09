@@ -1,304 +1,19 @@
 "use client";
 
-import { useStore, SettingsTab } from '@/data/store';
-import { User, Monitor, Settings as SettingsIcon, ShieldCheck, Zap, Sun, Moon, Sparkles, Trash2, RefreshCw, ArrowLeft, X } from 'lucide-react';
-import { useState, useCallback, useEffect, type ComponentType } from 'react';
+import { useStore } from '@/data/store';
+import { User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, RefreshCw, Brain } from 'lucide-react';
+import { useEffect, useState, useCallback, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
-import { useAuth } from '@/components/AuthProvider';
-import { Toggle } from '@/components/ui/Toggle';
-import { useTheme } from '@/components/ThemeProvider';
-import UpdatesSection from '@/components/settings/UpdatesSection';
-import AISettingsSection from '@/components/settings/AISettingsSection';
 import UsagePanel from '@/components/settings/UsagePanel';
-import { AIAvatar } from '@/components/assistant/components/AIAvatar';
+import CapabilitiesPanel from '@/components/settings/CapabilitiesPanel';
+import { useAuth } from '@/components/AuthProvider';
+import AISettingsSection from '@/components/settings/AISettingsSection';
 import { isDesktop } from '@/lib/env';
-import { FolderOpen } from 'lucide-react';
-import { PATCHES } from '@/data/patches';
+import { useTheme } from '@/components/ThemeProvider';
+import { SettingsTab } from '@/components/modals/SettingsModal';
 
-export function SettingsPage() {
-  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, goBack } = useStore();
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-  
-  const toggleTheme = useCallback(() => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-  }, [resolvedTheme, setTheme]);
-
-  const [activeTab, setActiveTab] = useState<SettingsTab>('interface');
-  const { isAdmin } = useAuth();
-
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isDesktop()) {
-      import('@/lib/fileVault').then(({ getVaultPath }) => {
-        getVaultPath().then(path => setVaultPath(path));
-      });
-    }
-  }, []);
-
-  const handleChangeVault = async () => {
-    const { pickVaultFolder } = await import('@/lib/fileVault');
-    const path = await pickVaultFolder();
-    if (path) setVaultPath(path);
-  };
-
-  const tabs: { id: SettingsTab | 'admin'; label: string; icon: ComponentType<{ className?: string }> }[] = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'interface', label: 'Interface', icon: Monitor },
-    { id: 'account', label: 'Account', icon: SettingsIcon },
-    { id: 'ai', label: 'AI', icon: AIAvatar },
-    { id: 'updates', label: "What's New", icon: Sparkles },
-    ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin Suite', icon: ShieldCheck }] : []),
-  ];
-
-  if (activeTab === 'admin' && !isAdmin) {
-    setActiveTab('interface');
-  }
-
-  const activeThemeIndex = isMounted
-    ? (theme === 'light' ? 1 : theme === 'dark' ? 2 : 0)
-    : 0;
-
-  const activeSizeIndex = isMounted
-    ? (interfaceSize === 'regular' ? 1 : interfaceSize === 'big' ? 2 : 0)
-    : 1;
-
-  return (
-    <div className="flex-1 flex overflow-hidden h-full bg-[var(--color-bg)]">
-      {/* Settings Sub-Sidebar */}
-      <div className="w-64 border-r border-[var(--bone-10)] flex flex-col p-6 bg-sidebar/30 shrink-0">
-        <div className="flex items-center justify-between mb-8 px-2">
-          <h2 className="text-xl font-display font-semibold tracking-tight text-[var(--bone-100)]">Settings</h2>
-          <button
-            onClick={() => goBack()}
-            className="p-1 rounded-md hover:bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-colors cursor-pointer"
-            title="Go back"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-        </div>
-
-        <nav className="flex-1 space-y-1 overflow-y-auto scrollbar-none">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  if (tab.id === 'admin') {
-                    window.location.href = '/admin';
-                    return;
-                  }
-                  setActiveTab(tab.id as SettingsTab);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-medium)] group text-[14px] font-medium transition-all text-left",
-                  isActive
-                    ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-semibold"
-                    : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)]"
-                )}
-              >
-                <Icon className={cn("w-4 h-4 transition-colors", "shrink-0", isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]")} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Version Info */}
-        <div className="pt-4 border-t border-[var(--bone-6)] mt-4">
-          <p className="text-[10px] text-[var(--bone-30)] uppercase tracking-widest text-center font-mono">Flowr Beta {PATCHES[0].version} - Build {PATCHES[0].build}</p>
-        </div>
-      </div>
-
-      {/* Main Settings Content */}
-      <div className={cn("flex-1 flex flex-col min-w-0 bg-transparent", activeTab !== 'updates' && "overflow-y-auto")}>
-        <div className={cn("flex-1 max-w-4xl w-full mx-auto px-8 md:px-12", activeTab === 'updates' ? "pt-10 pb-0 flex flex-col min-h-0 h-full" : "py-10")}>
-          <div className="mb-8 pb-4 border-b border-[var(--bone-6)] shrink-0">
-            <h3 className="font-display text-2xl font-bold tracking-tight text-[var(--bone-100)] capitalize">{activeTab}</h3>
-            <p className="text-sm text-[var(--bone-70)] mt-1">
-              {activeTab === 'profile' && "Manage your visual presentation and account identity."}
-              {activeTab === 'interface' && "Customize visual theme, scale, and layout preferences."}
-              {activeTab === 'account' && "Manage your workspace and credentials settings."}
-              {activeTab === 'ai' && "Configure AI behavior, personal preferences, and memory settings."}
-              {activeTab === 'updates' && "Stay up to date with the latest additions, improvements, and fixes."}
-            </p>
-          </div>
-
-          <div className={cn(activeTab === 'updates' ? "flex-1 min-h-0" : "space-y-10")}>
-            {activeTab === 'interface' && (
-              <div className="space-y-10">
-                {/* Appearance/Theme Section */}
-                <section className="flex items-center justify-between py-1 max-w-2xl">
-                  <div>
-                    <h4 className="text-sm font-semibold text-[var(--bone-100)]">Appearance</h4>
-                    <p className="text-xs text-[var(--bone-70)] mt-0.5">Customize the visual tone of your workspace.</p>
-                  </div>
-                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[280px] h-[36px] shrink-0 select-none">
-                    {/* Sliding Pill */}
-                    {isMounted && (
-                      <div
-                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
-                        style={{
-                          width: 'calc((100% - 8px) / 3)',
-                          left: `calc(4px + (${activeThemeIndex} * (100% - 8px) / 3))`,
-                          boxShadow: 'var(--slider-pill-shadow)'
-                        }}
-                      />
-                    )}
-                    {[
-                      { id: 'system', icon: Monitor, label: 'System' },
-                      { id: 'light', icon: Sun, label: 'Light' },
-                      { id: 'dark', icon: Moon, label: 'Dark' }
-                    ].map((opt) => {
-                      const Icon = opt.icon;
-                      const isActive = isMounted ? (theme === opt.id) : (opt.id === 'system');
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() => setTheme(opt.id as 'system' | 'light' | 'dark')}
-                          className={cn(
-                            "relative z-10 flex-1 flex items-center justify-center gap-1.5 h-full rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide",
-                            isActive 
-                              ? "text-[var(--bone-100)]" 
-                              : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                          )}
-                        >
-                          <Icon className="w-3.5 h-3.5" strokeWidth={2} />
-                          <span>{opt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                {/* Scale Section */}
-                <section className="border-t border-[var(--bone-6)] pt-8 flex items-center justify-between max-w-2xl">
-                  <div>
-                    <h4 className="text-sm font-semibold text-[var(--bone-100)]">Interface Scaling</h4>
-                    <p className="text-xs text-[var(--bone-70)] mt-0.5">Adjust the overall size of the UI components.</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[280px] h-[36px] shrink-0 select-none">
-                      {/* Sliding Pill */}
-                      {isMounted && (
-                        <div
-                          className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
-                          style={{
-                            width: 'calc((100% - 8px) / 3)',
-                            left: `calc(4px + (${activeSizeIndex} * (100% - 8px) / 3))`,
-                            boxShadow: 'var(--slider-pill-shadow)'
-                          }}
-                        />
-                      )}
-                      {['small', 'regular', 'big'].map((size) => {
-                        const isActive = isMounted ? (interfaceSize === size) : (size === 'regular');
-                        return (
-                          <button
-                            key={size}
-                            onClick={() => setInterfaceSize(size as 'small' | 'regular' | 'big')}
-                            className={cn(
-                              "relative z-10 flex-1 flex items-center justify-center h-full rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide capitalize",
-                              isActive
-                                ? "text-[var(--bone-100)]"
-                                : "text-[var(--bone-40)] hover:text-[var(--bone-100)]"
-                            )}
-                          >
-                            <span>{size}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="grid grid-cols-3 w-[280px] px-[4px] text-[9px] text-[var(--bone-40)] font-semibold uppercase tracking-wider text-center">
-                      <span>85% scale</span>
-                      <span>Default (100%)</span>
-                      <span>115% scale</span>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Tabs Header Section */}
-                <section className="border-t border-[var(--bone-6)] pt-8">
-                  <div className="flex items-center justify-between max-w-md">
-                    <div>
-                      <h4 className="text-xs font-semibold text-[var(--bone-40)] uppercase tracking-widest">Tabs Header</h4>
-                      <p className="text-sm text-[var(--bone-70)] mt-1">Show or hide the tabs navigation bar.</p>
-                    </div>
-                    <Toggle
-                      checked={isTabsHeaderVisible}
-                      onChange={() => toggleTabsHeader()}
-                      size="sm"
-                    />
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'profile' && (
-              <div className="bg-transparent rounded-2xl">
-                <ProfileSection />
-              </div>
-            )}
-
-            {activeTab === 'account' && (
-              <div className="space-y-10">
-                {/* Local Directory (Vault) (Desktop only) */}
-                {isDesktop() && (
-                  <section className="flex items-center justify-between py-1 max-w-2xl">
-                    <div className="min-w-0 flex-1 pr-4">
-                      <h4 className="text-sm font-semibold text-[var(--bone-100)]">Local Directory (Vault)</h4>
-                      <p className="text-xs text-[var(--bone-70)] mt-0.5 truncate max-w-md">
-                        {vaultPath ? vaultPath : 'No local directory selected.'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleChangeVault}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-90)] hover:bg-[var(--bone-10)] transition-all shrink-0 cursor-pointer"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" />
-                      Change Directory
-                    </button>
-                  </section>
-                )}
-
-                {/* Clear Local Cache */}
-                <section className={cn(
-                  "flex items-center justify-between py-1 max-w-2xl",
-                  isDesktop() && "border-t border-[var(--bone-6)] pt-8"
-                )}>
-                  <div>
-                    <h4 className="text-sm font-semibold text-[var(--bone-100)]">Local Cache</h4>
-                    <p className="text-xs text-[var(--bone-70)] mt-0.5">
-                      Clears locally stored data (tasks, notes, canvases) and reloads fresh from the cloud.
-                    </p>
-                  </div>
-                  <ClearCacheButton />
-                </section>
-              </div>
-            )}
-            {activeTab === 'ai' && (
-              <div className="space-y-10">
-                <UsagePanel />
-                <div className="h-px bg-[var(--bone-6)] w-full" />
-                <AISettingsSection />
-              </div>
-            )}
-            {activeTab === 'updates' && <UpdatesSection />}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ClearCacheButton() {
+export function ClearCacheButton() {
   const [cleared, setCleared] = useState(false);
 
   const handleClear = useCallback(() => {
@@ -317,10 +32,10 @@ function ClearCacheButton() {
     <button
       onClick={handleClear}
       className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all shrink-0",
+        "flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all shrink-0",
         cleared
-          ? "bg-green-500/10 text-green-500 border border-green-500/20"
-          : "bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500/10 hover:border-red-500/20"
+          ? "bg-green-500/10 text-green-500"
+          : "bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100"
       )}
     >
       {cleared ? (
@@ -331,9 +46,320 @@ function ClearCacheButton() {
       ) : (
         <>
           <Trash2 className="w-3.5 h-3.5" />
-          Clear Cache & Reload
+          Clear Cache
         </>
       )}
     </button>
+  );
+}
+
+export function SettingsPage() {
+  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, openModal } = useStore();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
+  useEffect(() => {
+    if (isDesktop()) {
+      import('@/lib/fileVault').then(({ getVaultPath }) => {
+        getVaultPath().then(path => setVaultPath(path));
+      });
+    }
+  }, []);
+
+  const handleChangeVault = async () => {
+    const { pickVaultFolder } = await import('@/lib/fileVault');
+    const path = await pickVaultFolder();
+    if (path) setVaultPath(path);
+  };
+
+  const tabs: { id: SettingsTab; label: string; icon: ComponentType<{ className?: string, strokeWidth?: number }> }[] = [
+    { id: 'general', label: 'General', icon: SettingsIcon },
+    { id: 'account', label: 'Account', icon: User },
+    { id: 'usage', label: 'Usage', icon: Zap },
+    { id: 'ai', label: 'Flowr AI', icon: Sparkles },
+    { id: 'capabilities', label: 'Capabilities', icon: Brain },
+    { id: 'connectors', label: 'Connectors', icon: FolderOpen },
+  ];
+
+  const inverseScale = interfaceSize === 'small' ? 1.142857 : interfaceSize === 'big' ? 0.888888 : 1;
+
+  return (
+    <div 
+      className="flex bg-background origin-top-left overflow-hidden"
+      style={{
+        transform: `scale(${inverseScale})`,
+        width: `${100 / inverseScale}%`,
+        height: `${100 / inverseScale}%`
+      }}
+    >
+      {/* Sidebar */}
+      <div className="w-[240px] flex-shrink-0 flex flex-col p-4">
+        <div className="px-2 pt-2 pb-4">
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-bone-70">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search settings..."
+              className="w-full bg-[var(--bone-6)] border border-transparent hover:border-[var(--bone-12)] focus:border-[var(--brand-blue)] focus:shadow-[0_0_0_0.5px_var(--brand-blue)] rounded-md pl-9 pr-3 py-1.5 text-[13px] text-bone-100 placeholder:text-bone-70/50 outline-none transition-colors"
+            />
+          </div>
+          <h2 className="text-[16px] font-medium tracking-tight text-bone-100">Settings</h2>
+        </div>
+
+        <nav className="flex-1 space-y-0.5 overflow-y-auto scrollbar-none">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as SettingsTab)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md group text-[14px]",
+                  isActive
+                    ? "bg-[#2b2a29] text-bone-100 font-medium"
+                    : "text-bone-70 hover:text-bone-100 hover:bg-[#2b2a29]/50"
+                )}
+              >
+                <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-bone-100" : "text-bone-70 group-hover:text-bone-100")} strokeWidth={1.5} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] border-l border-[#2e2e2e] overflow-y-auto">
+        <div className="flex-1 max-w-2xl w-full mx-auto px-12 py-10 pt-16">
+          {activeTab === 'general' && (
+            <div className="space-y-12">
+              <section>
+                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Preferences</h3>
+                
+                {/* Visual Theme */}
+                <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Appearance</h4>
+                  </div>
+                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[120px]">
+                    <div
+                      className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                      style={{
+                        width: 'calc((100% - 8px) / 3)',
+                        left: `calc(4px + (${
+                          (!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
+                        } * (100% - 8px) / 3))`
+                      }}
+                    />
+                    <button
+                      onClick={() => setTheme('system')}
+                      className={cn(
+                        "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                        (!isMounted || theme === 'system') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                      )}
+                      title="System"
+                    >
+                      <Monitor className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
+                    <button
+                      onClick={() => setTheme('light')}
+                      className={cn(
+                        "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                        (isMounted && theme === 'light') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                      )}
+                      title="Light"
+                    >
+                      <Sun className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
+                    <button
+                      onClick={() => setTheme('dark')}
+                      className={cn(
+                        "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                        (isMounted && theme === 'dark') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                      )}
+                      title="Dark"
+                    >
+                      <Moon className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Interface Scaling */}
+                <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Interface Scaling</h4>
+                  </div>
+                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[240px]">
+                    <div
+                      className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                      style={{
+                        width: 'calc((100% - 8px) / 3)',
+                        left: `calc(4px + (${
+                          interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
+                        } * (100% - 8px) / 3))`
+                      }}
+                    />
+                    {['small', 'regular', 'big'].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setInterfaceSize(size as 'small' | 'regular' | 'big')}
+                        className={cn(
+                          "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium capitalize transition-colors text-center",
+                          interfaceSize === size ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                        )}
+                      >
+                        {size === 'regular' ? 'Default' : size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tabs Header */}
+                <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Tabs Navigation</h4>
+                  </div>
+                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[160px]">
+                    <div
+                      className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                      style={{
+                        width: 'calc((100% - 8px) / 2)',
+                        left: `calc(4px + (${
+                          isTabsHeaderVisible ? 0 : 1
+                        } * (100% - 8px) / 2))`
+                      }}
+                    />
+                    <button
+                      onClick={() => !isTabsHeaderVisible && toggleTabsHeader()}
+                      className={cn(
+                        "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium transition-colors text-center",
+                        isTabsHeaderVisible ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                      )}
+                    >
+                      Visible
+                    </button>
+                    <button
+                      onClick={() => isTabsHeaderVisible && toggleTabsHeader()}
+                      className={cn(
+                        "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium transition-colors text-center",
+                        !isTabsHeaderVisible ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                      )}
+                    >
+                      Hidden
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'account' && (
+            <div className="space-y-12">
+              <section>
+                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Profile</h3>
+                <ProfileSection />
+              </section>
+
+              {isDesktop() && (
+                <section>
+                  <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Local Storage</h3>
+                  <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                    <div className="min-w-0 flex-1 pr-4">
+                      <h4 className="text-[14px] font-medium text-bone-100">Vault Directory</h4>
+                      <p className="text-[13px] text-bone-70 mt-0.5 truncate max-w-sm font-mono">
+                        {vaultPath ? vaultPath : 'No local directory selected.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleChangeVault}
+                      className="px-3 py-1.5 rounded-md text-[13px] font-medium bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100 transition-colors shrink-0"
+                    >
+                      Change Directory
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Data</h3>
+                {/* Clear Local Cache */}
+                <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Local Cache</h4>
+                  </div>
+                  <ClearCacheButton />
+                </div>
+
+                {/* Delete All Data */}
+                <div className="flex items-center justify-between py-4">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Delete All Data</h4>
+                    <p className="text-[13px] text-bone-70 mt-0.5 max-w-sm">
+                      Permanently removes all entities, tasks, conversations, shortcuts, and the entire workspace. Cannot be undone.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openModal({ kind: 'deleteAllDataConfirm' })}
+                    className="flex items-center gap-2 px-4 py-2 rounded-md text-[13px] font-medium bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Everything
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'usage' && (
+            <div className="py-2">
+              <UsagePanel />
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="space-y-12">
+              <section>
+                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Flowr AI</h3>
+                <AISettingsSection />
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'capabilities' && (
+            <div className="py-2">
+              <CapabilitiesPanel />
+            </div>
+          )}
+
+          {activeTab === 'connectors' && (
+            <div className="space-y-12">
+              <section>
+                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Connectors</h3>
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                  <FolderOpen className="w-8 h-8 text-bone-70 mb-4" />
+                  <h4 className="text-[14px] font-medium text-bone-100">No active connectors</h4>
+                  <p className="text-[13px] text-bone-70 mt-1 max-w-sm">
+                    Integration with third-party providers like Google, Slack, and Notion is coming soon.
+                  </p>
+                </div>
+              </section>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

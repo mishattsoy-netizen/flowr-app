@@ -107,12 +107,14 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = client.auth.onAuthStateChange((_event, s) => {
       // If the auth user changed (different person signed in/out), purge stale
-      // localStorage cache to prevent the previous user's data from leaking.
+      // localStorage cache and reload to prevent the previous user's in-memory
+      // Zustand state from leaking into the new user's session.
       const newUserId = s?.user?.id ?? null
       const prevUserId = prevUserIdRef.current
       prevUserIdRef.current = newUserId
       if (prevUserId && prevUserId !== newUserId && typeof window !== 'undefined') {
         try { localStorage.removeItem('flowr-storage') } catch {}
+        window.location.reload()
       }
 
       setSession(s)
@@ -183,6 +185,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('is_guest')
+      try { localStorage.removeItem('flowr-storage') } catch {}
     }
     setIsGuest(false)
     await supabase.current!.auth.signOut()

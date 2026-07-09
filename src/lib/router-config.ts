@@ -170,15 +170,7 @@ export async function getRouterChain(category: IntentCategory, mode: RouterMode 
     { tags: ['router-config'], revalidate: false }
   )()
 
-  if (mode === 'default') {
-    return getCachedForMode('default')
-  }
-
-  const [proResult, defaultResult] = await Promise.all([
-    getCachedForMode('pro'),
-    getCachedForMode('default'),
-  ])
-  return resolveChainWithFallback(proResult, defaultResult)
+  return getCachedForMode(mode)
 }
 
 async function fetchFallbackModesFromDb(): Promise<Record<string, 'model_first' | 'api_key_first'>> {
@@ -216,60 +208,26 @@ export interface PipelineSettings {
   tokenLimitEnabledCategories?: IntentCategory[]
 }
 
-async function fetchPipelineSettingsFromDb(): Promise<PipelineSettings> {
-  try {
-    const { data: rows, error } = await supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', [
-        'orchestrator_enabled', 'max_pipeline_steps', 'image_gen_auto_last',
-        'thinking_toggle_default', 'thinking_summary_visible', 'pipeline_settings'
-      ])
-
-    if (error) throw new Error(error.message)
-
-    const map: Record<string, any> = {}
-    for (const row of (rows ?? [])) {
-      if (row.key === 'pipeline_settings' && row.value) {
-        Object.assign(map, row.value)
-      } else {
-        map[row.key] = row.value
-      }
-    }
-
-    return {
-      orchestratorEnabled: map['orchestrator_enabled'] !== false,
-      maxPipelineSteps: typeof map['max_pipeline_steps'] === 'number' ? map['max_pipeline_steps'] : 20,
-      historyLimit: typeof map['history_limit'] === 'number' ? map['history_limit'] : 20,
-      imageGenAutoLast: map['image_gen_auto_last'] !== false,
-      thinkingToggleDefault: map['thinking_toggle_default'] === true,
-      thinkingSummaryVisible: map['thinking_summary_visible'] ?? 'collapsible',
-      historyEnabledCategories: map['history_enabled_categories'] || undefined,
-      globalPromptEnabledCategories: map['global_prompt_enabled_categories'] || undefined,
-      inputTokenLimit: typeof map['input_token_limit'] === 'number' ? map['input_token_limit'] : 0,
-      outputTokenLimit: typeof map['output_token_limit'] === 'number' ? map['output_token_limit'] : 0,
-      tokenLimitEnabledCategories: map['token_limit_enabled_categories'] || undefined
-    }
-  } catch (err) {
-    logger.warn(`Pipeline settings DB load failed: ${(err as Error).message}`)
-    return {
-      orchestratorEnabled: true,
-      maxPipelineSteps: 20,
-      historyLimit: 20,
-      imageGenAutoLast: true,
-      thinkingToggleDefault: false,
-      thinkingSummaryVisible: 'collapsible',
-      inputTokenLimit: 0,
-      outputTokenLimit: 0,
-    }
-  }
+// ─── Hardcoded Pipeline Settings ────────────────────────────────────────────
+// These values are the authoritative source of truth. The Admin UI page
+// is a static preview only and does NOT control these values.
+// To change any setting, edit this constant and redeploy.
+const HARDCODED_PIPELINE_SETTINGS: PipelineSettings = {
+  orchestratorEnabled: true,
+  maxPipelineSteps: 5,
+  historyLimit: 50,
+  imageGenAutoLast: true,
+  thinkingToggleDefault: false,
+  thinkingSummaryVisible: 'collapsible',
+  inputTokenLimit: 0,   // 0 = unlimited
+  outputTokenLimit: 0,  // 0 = unlimited
+  // Only inject global prompt (personality + memories) into final output chains.
+  // Utility chains (CLASSIFIER, COMPACTION, THINKING) don't need personal context.
+  globalPromptEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'AUDIO', 'VISION', 'ADVISOR'],
+  // Inject conversation history into all chains that benefit from it.
+  historyEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'AUDIO', 'VISION', 'ADVISOR', 'THINKING'],
 }
 
-export async function getPipelineSettings() {
-  const getCached = unstable_cache(
-    async () => fetchPipelineSettingsFromDb(),
-    ['pipeline-settings'],
-    { tags: ['router-config'], revalidate: false }
-  )
-  return getCached()
+export async function getPipelineSettings(): Promise<PipelineSettings> {
+  return HARDCODED_PIPELINE_SETTINGS
 }

@@ -226,7 +226,7 @@ export interface AppTask {
   tag?: string;
 }
 
-export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai';
+export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai' | 'general' | 'usage' | 'capabilities' | 'connectors';
 
 export type ModalType =
   | null
@@ -240,7 +240,8 @@ export type ModalType =
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file' | 'pdf'; description?: string; messageId?: string; title?: string }
   | { kind: 'summaryPreview'; summary: string }
   | { kind: 'pdfExport'; entityId: string; entityTitle: string; blocks: EditorBlock[] }
-  | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> };
+  | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> }
+  | { kind: 'deleteAllDataConfirm' };
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
 
@@ -420,6 +421,8 @@ export interface AppState {
   modal: ModalType;
   contextMenu: { entityId: string | null; x: number; y: number; source: EditingSource } | null;
   editingEntity: { id: string; source: EditingSource } | null;
+  editingEntityId: string | null;
+  editingSource: string | null;
   theme: 'dark' | 'light';
   interfaceSize: 'small' | 'regular' | 'big';
   isSidebarCollapsed: boolean;
@@ -477,6 +480,7 @@ export interface AppState {
   assistantInput: string;
   showPaidModels: boolean;
   isInitialSync: boolean;
+  defaultsSeeded: boolean;
   pendingCompaction: boolean;
   isCompacting: boolean;
   manualTimezone: string | null;
@@ -539,6 +543,7 @@ export interface AppState {
   createSpace: (input: Partial<Space>) => string;
   updateSpace: (id: string, patch: Partial<Space>) => void;
   deleteSpace: (id: string) => void;
+  deleteAllSpaceData: (spaceId: string) => Promise<void>;
   setAIKey: (key: string | null) => void;
   toggleAIAssistant: () => void;
   setAIAssistantOpen: (open: boolean) => void;
@@ -584,6 +589,7 @@ export interface AppState {
   duplicateEntity: (id: string) => void;
   setEntityIcon: (id: string, icon: string) => void;
   setEditingEntityId: (id: string | null, source?: EditingSource | null) => void;
+  clearEditingEntityId: () => void;
   setSectionSortMode: (sectionId: SidebarSectionId, mode: SortMode) => void;
   setSectionItemLimit: (sectionId: SidebarSectionId, limit: number) => void;
   toggleEntityVisibility: (id: string) => void;
@@ -656,6 +662,7 @@ export interface AppState {
   loadChatConversations: () => Promise<void>;
   openChatInPage: () => void;
   setInitialSync: (isInitialSync: boolean) => void;
+  seedDefaults: () => void;
 }
 
 export interface Shortcut {

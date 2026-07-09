@@ -52,7 +52,7 @@ export const FLOWR_TOOLS = [
         assignedWorkspaceId: { type: "string", description: "For tasks: ID of the workspace to assign this task to." },
         status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
-        tag: { type: "string", description: "For tasks: custom tag." },
+        tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time. If a user asks for a 'start date', put it here." },
         endDate: { type: "string", description: "For tasks: end date/time. If a user asks for a 'start date' and an 'end date', put the end date here." },
         includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
@@ -86,7 +86,7 @@ export const FLOWR_TOOLS = [
         assignedWorkspaceId: { type: "string", description: "For tasks: reassign task to a different workspace." },
         status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
-        tag: { type: "string", description: "For tasks: custom tag." },
+        tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time." },
         endDate: { type: "string", description: "For tasks: end date/time." },
         includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
@@ -176,6 +176,21 @@ export const FLOWR_TOOLS = [
           }
         }
       }
+    }
+  },
+
+  {
+    name: "manage_memory",
+    description: "Manage facts and details about the user to build a long-term profile. Use this to remember things the user tells you about themselves, their preferences, or their environment. Do not memorize irrelevant chat messages. Hard cap of 20 memories.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["add", "update", "delete"], description: "Action to perform." },
+        id: { type: "string", description: "ID of the memory to update or delete. Required for 'update' and 'delete'." },
+        title: { type: "string", description: "Short title for the memory. Required for 'add' and 'update'. Not injected into prompt, used only for UI cards." },
+        content: { type: "string", description: "The factual detail to remember. Required for 'add' and 'update'." }
+      },
+      required: ["action"]
     }
   }
 ]

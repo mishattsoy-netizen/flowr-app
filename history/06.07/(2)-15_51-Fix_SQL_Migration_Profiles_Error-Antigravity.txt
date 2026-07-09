@@ -1,0 +1,23 @@
+User request: "Error: Failed to run sql query: ERROR: 42P01: relation "profiles" does not exist"
+
+### 0. Date and time of the request
+06.07.2026 15_51
+
+### 1. User request
+User request: "Error: Failed to run sql query: ERROR: 42P01: relation "profiles" does not exist"
+
+### 2. Objective Reconstruction
+The user attempted to run the newly created database migration but encountered an error stating the profiles table does not exist. The objective is to identify why this table is being referenced and remove or correct it in the migration.
+
+### 3. Strategic Reasoning
+Upon reviewing the database migrations, I realized I hallucinated the existence of the profiles table. ctive_workspace_id is actually a purely frontend-managed state property handled by Zustand's local storage persist. It does not exist in the Supabase schema. Therefore, the line attempting to rename ctive_workspace_id on the profiles table was invalid and needed to be removed from the SQL script.
+
+### 4. Detailed Blueprint
+- Removed ALTER TABLE profiles RENAME COLUMN active_workspace_id TO active_space_id; from supabase/migrations/20260706_rename_workspace_to_space.sql.
+
+### 5. Operational Trace
+- Verified the lack of a profiles table across all historical Supabase migration files.
+- Replaced the erroneous line in 20260706_rename_workspace_to_space.sql with an empty string using PowerShell.
+
+### 6. Status Assessment
+The invalid SQL line has been removed. The user should now be able to run the migration successfully.

@@ -8,6 +8,7 @@ import { ContextMenu } from './ContextMenu';
 import { NewSpaceModal } from '../modals/NewSpaceModal';
 import { DeleteConfirmModal } from '../modals/DeleteConfirmModal';
 import { DeleteSpaceConfirmModal } from '../modals/DeleteSpaceConfirmModal';
+import { DeleteAllDataModal } from '../modals/DeleteAllDataModal';
 import { MoveToModal } from '../modals/MoveToModal';
 import { RenameModal } from '../modals/RenameModal';
 import { SettingsModal } from '../modals/SettingsModal';
@@ -497,6 +498,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <ContextMenu />
         <DeleteConfirmModal key={modal?.kind === 'deleteConfirm' ? modalKey : 'delete-none'} />
         <DeleteSpaceConfirmModal key={modal?.kind === 'deleteSpaceConfirm' ? modalKey : 'delete-space-none'} />
+        <DeleteAllDataModal key={modal?.kind === 'deleteAllDataConfirm' ? modalKey : 'delete-all-none'} />
         <MoveToModal key={modal?.kind === 'moveTo' ? modalKey : 'move-none'} />
         <RenameModal key={modal?.kind === 'rename' ? modalKey : 'rename-none'} />
         {modal?.kind === 'pdfExport' && <PdfExportModal key={modalKey} />}

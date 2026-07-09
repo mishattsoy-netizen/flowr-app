@@ -126,7 +126,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
   const allTags = useMemo(() => {
     return Array.from(new Set(
       tasks
-        .filter(t => t.tag && t.tag.trim())
+        .filter(t => t.tag && t.tag.trim() && t.tag.toLowerCase() !== 'none')
         .map(t => t.tag!.trim())
     ));
   }, [tasks]);

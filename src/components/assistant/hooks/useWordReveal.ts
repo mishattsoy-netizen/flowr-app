@@ -27,6 +27,7 @@ function getWordRevealDelay(wordCount: number): number {
 
 interface UseWordRevealOptions {
   enabled?: boolean;
+  initialProgress?: 'zero' | 'complete';
 }
 
 interface UseWordRevealResult {
@@ -38,14 +39,16 @@ export function useWordReveal(
   fullText: string,
   options?: UseWordRevealOptions
 ): UseWordRevealResult {
-  const { enabled = true } = options ?? {};
+  const { enabled = true, initialProgress = 'zero' } = options ?? {};
 
   const tokens = useMemo(() => tokenizeWords(fullText), [fullText]);
 
-  const [revealIndex, setRevealIndex] = useState(0);
+  const [revealIndex, setRevealIndex] = useState(() => {
+    return initialProgress === 'complete' ? tokens.length : 0;
+  });
   const [isRevealing, setIsRevealing] = useState(false);
 
-  const posRef = useRef(0);
+  const posRef = useRef(initialProgress === 'complete' ? tokens.length : 0);
   const totalRef = useRef(tokens.length);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevFullTextRef = useRef(fullText);
@@ -108,6 +111,12 @@ export function useWordReveal(
     prevFullTextRef.current = fullText;
 
     if (fullText === prevFullText) return;
+
+    if (initialProgress === 'complete' && prevFullText === '') {
+      posRef.current = tokens.length;
+      setRevealIndex(tokens.length);
+      return;
+    }
 
     const isGrowth = prevFullText !== '' && fullText.startsWith(prevFullText);
 

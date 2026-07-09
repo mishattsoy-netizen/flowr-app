@@ -122,3 +122,4 @@ BEGIN
   WHERE request_id = p_request_id AND is_reservation = true AND user_id = v_user_id;
 END;
 $$;
+

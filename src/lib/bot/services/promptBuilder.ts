@@ -1,5 +1,5 @@
-import { getAiUserDescription } from '@/app/settings/ai/actions'
 import { getGlobalPrompt, getToolInstructions, getChainPrompt } from '../prompts'
+import { supabaseAdmin } from '../../supabase'
 import type { IntentCategory } from '../../router-config'
 
 export interface PromptBuilderContext {
@@ -80,22 +80,18 @@ When the user provides TWO dates (e.g. "start now, end tomorrow at 6pm"):
 You MUST set BOTH dueDate AND endDate. Never omit endDate when the user explicitly mentions an end date or a date range.
 `
 
-  const userDescription = context.userId ? await getAiUserDescription(context.userId) : null
   const chainInstructions = getChainInstructions(category)
 
-  let finalSysPrompt = dateContext
+  let finalSysPrompt = ""
 
   // Global prompt (personality, answer style, thinking, restrictions)
   const globalPrompt = getGlobalPrompt()
   if (globalPrompt && context.isGlobalPromptEnabled) {
-    finalSysPrompt += "\n\n" + globalPrompt
+    finalSysPrompt += globalPrompt
   }
 
-  if (userDescription) {
-    finalSysPrompt += `\n\n[ABOUT THE USER]\nThe following is what the user has shared about themselves. Use this information to personalize your responses and understand who they are:\n${userDescription}\n`
-  }
-
-  finalSysPrompt += `\n\n[ABOUT THE APP & CREATOR]
+  if (context.isGlobalPromptEnabled) {
+    finalSysPrompt += `\n\n[ABOUT THE APP & CREATOR]
 Flowr is a productivity platform by Mikhail Tsoy (19, independent developer) combining knowledge management, task planning, visual whiteboarding, and a context-aware AI agent — all in one workspace. Not a cryptocurrency or financial service.
 
 What Flowr does:
@@ -105,6 +101,7 @@ What Flowr does:
 - Personal AI agent that reads and writes your content
 
 Desktop mode: files local, offline-capable. Web mode: cloud sync across devices. Both include AI + tasks.\n`
+  }
 
   if (chainInstructions) {
     finalSysPrompt += "\n\n" + chainInstructions
@@ -112,6 +109,13 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
 
   if (['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH'].includes(category)) {
     finalSysPrompt += "\n\n" + getToolInstructions()
+  }
+
+  // Inject dynamic date context after the static rules to preserve prefix caching!
+  if (finalSysPrompt) {
+    finalSysPrompt += "\n\n" + dateContext
+  } else {
+    finalSysPrompt = dateContext
   }
 
   if (context.pageContext) {
@@ -136,6 +140,26 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
 
   if (context.replyContext?.attentionBlock) {
     dynamicContext += context.replyContext.attentionBlock + "\n\n"
+  }
+
+  if (context.isGlobalPromptEnabled && context.userId && supabaseAdmin) {
+    try {
+      const { data: memories } = await supabaseAdmin
+        .from('bot_memories')
+        .select('id, content')
+        .eq('user_id', context.userId)
+        .order('created_at', { ascending: true })
+
+      if (memories && memories.length > 0) {
+        dynamicContext += `[USER MEMORY FACT SHEET]\nThe following are confirmed facts you have memorized about the user:\n`
+        for (const mem of memories) {
+          dynamicContext += `- [ID: ${mem.id}] ${mem.content}\n`
+        }
+        dynamicContext += `\n`
+      }
+    } catch (e) {
+      console.error('Failed to fetch bot memories:', e)
+    }
   }
 
   return { staticPrompt: system_prompt, dynamicContext }

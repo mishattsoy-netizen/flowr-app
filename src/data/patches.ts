@@ -22,6 +22,45 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.0',
+    build: '1300',
+    date: '2026-07-09',
+    title: 'AI Memory, Usage Dashboard, Smarter Research & True Space Isolation',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'AI Memory: the assistant now remembers facts about you across conversations — view, edit, or delete everything it knows in the new Capabilities settings page.',
+          'Usage dashboard: track your AI usage in real time with 5-hour, weekly, and monthly progress bars in the new Usage settings tab.',
+          'Completely redesigned Settings with a cleaner layout: General, Account, Usage, Flowr AI, Capabilities, and Connectors.',
+          'Deep Research now plans its strategy first, then runs multiple searches in parallel — noticeably faster and more thorough answers.',
+          'Default Space: the app opens in your main Space on login, and items without a home are automatically filed there.',
+          'New Space options menu: rename or delete a Space from a tidy ⋮ popover instead of scattered inline buttons.',
+          'Danger zone: you can now permanently delete all your data from Account settings in one confirmed action.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'True Space isolation: notes, tasks, chats, widgets, and shortcuts no longer leak between Spaces — each Space now shows only its own content.',
+          'Chat now resets correctly when you switch Spaces.',
+          'Fair AI cost accounting: cached AI responses are no longer billed at full price, and web search costs are now metered accurately.',
+          'Telegram bot: fixed doubled prompts, slow syncing, broken formatting, and overdue-task handling.',
+          'Complex multi-part questions now correctly route to Deep Research instead of a single quick search.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Web search is faster and leaner: page content is capped and searches fan out in parallel, cutting response time and cost.',
+          'The AI\'s internal instructions were consolidated into a single unified system prompt for more consistent behavior across all chat modes.',
+          'Anonymous sessions can no longer access Pro-tier AI features.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.2.1',
     build: '1201',
     date: '2026-07-08',

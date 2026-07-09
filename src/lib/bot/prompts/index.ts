@@ -77,22 +77,7 @@ export function getChainPrompt(chain: string): string {
  * This is the static, cacheable portion of the system prompt.
  */
 export function getGlobalPrompt(): string {
-  return [
-    '[CORE RULES]',
-    getCoreRules(),
-    '',
-    '[PERSONALITY]',
-    getPersonality(),
-    '',
-    '[ANSWER STYLE]',
-    getAnswerStyle(),
-    '',
-    '[THINKING PATTERN]',
-    getThinkingPattern(),
-    '',
-    '[RESTRICTIONS]',
-    getRestrictions(),
-  ].join('\n')
+  return loadPrompt('system_prompt.txt')
 }
 
 /**

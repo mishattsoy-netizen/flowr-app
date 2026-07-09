@@ -28,7 +28,9 @@ interface SmartTaskStackProps extends WidgetProps {
 }
 
 const formatDate = (dateStr: string) => {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d);
 };
 

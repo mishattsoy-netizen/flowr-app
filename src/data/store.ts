@@ -130,22 +130,12 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       entities: [
-        { id: 'c1', title: 'Space 1', type: 'workspace', parentId: null, lastModified: initialTime, icon: 'Folder', spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'c2', title: 'Space 2', type: 'workspace', parentId: null, lastModified: initialTime - oneDayMs * 2, icon: 'Briefcase', spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'f1', title: 'Folder 1', type: 'folder', parentId: 'c1', lastModified: initialTime - oneDayMs, spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'cv1', title: 'Canvas 1', type: 'canvas', parentId: 'f1', lastModified: initialTime - 500000, spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
-        { id: 'n1', title: 'Notes 1', type: 'note', parentId: 'c2', lastModified: initialTime - 100000, tags: ['research', 'draft'], spaceId: 'ws-personal', pairedEntityId: null, syncMode: 'cloud-only' },
       ],
 
       tasks: [
-        { id: 't1', title: 'Review mockups', completed: false, dueDate: new Date(Date.now() - oneDayMs).toISOString().split('T')[0], entityId: 'cv1', color: '#EF4444', spaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't2', title: 'Outline next week', completed: true, dueDate: new Date().toISOString().split('T')[0], entityId: 'n1', spaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't3', title: 'Design review meeting', completed: false, dueDate: new Date(Date.now() + oneDayMs).toISOString().split('T')[0], entityId: null, color: '#3B82F6', spaceId: 'ws-personal', syncMode: 'cloud-only' },
-        { id: 't4', title: 'Prepare assets', completed: false, dueDate: new Date().toISOString().split('T')[0], entityId: null, spaceId: 'ws-personal', syncMode: 'cloud-only' },
       ],
 
       blocks: [
-        { id: 'b1', type: 'text', content: 'Explore unified navigation.', x: 100, y: 100, canvasId: 'cv1' },
       ],
 
       spaces: [
@@ -166,8 +156,28 @@ export const useStore = create<AppState>()(
       lastSaved: null,
       syncMode: 'local-only',
       isInitialSync: true,
+      defaultsSeeded: false,
 
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
+
+      seedDefaults: () => {
+        if (get().defaultsSeeded) return;
+        const now = Date.now();
+        const dayMs = 86400000;
+        get().addEntity({ id: 'seed-ws-1', title: 'Space 1', type: 'workspace', parentId: null, lastModified: now, icon: 'Folder', syncMode: 'cloud-only' });
+        get().addEntity({ id: 'seed-ws-2', title: 'Space 2', type: 'workspace', parentId: null, lastModified: now - dayMs * 2, icon: 'Briefcase', syncMode: 'cloud-only' });
+        get().addEntity({ id: 'seed-f-1', title: 'Folder 1', type: 'folder', parentId: 'seed-ws-1', lastModified: now - dayMs, syncMode: 'cloud-only' });
+        get().addEntity({ id: 'seed-cv-1', title: 'Canvas 1', type: 'canvas', parentId: 'seed-f-1', lastModified: now - 500000, syncMode: 'cloud-only' });
+        get().addEntity({ id: 'seed-n-1', title: 'Notes 1', type: 'note', parentId: 'seed-ws-2', lastModified: now - 100000, tags: ['research', 'draft'], syncMode: 'cloud-only' });
+        // Tasks
+        get().addTask({ id: 'seed-t-1', title: 'Review mockups', completed: false, dueDate: new Date(now - dayMs).toISOString().split('T')[0], entityId: 'seed-cv-1', color: '#EF4444', syncMode: 'cloud-only' });
+        get().addTask({ id: 'seed-t-2', title: 'Outline next week', completed: true, dueDate: new Date(now).toISOString().split('T')[0], entityId: 'seed-n-1', syncMode: 'cloud-only' });
+        get().addTask({ id: 'seed-t-3', title: 'Design review meeting', completed: false, dueDate: new Date(now + dayMs).toISOString().split('T')[0], color: '#3B82F6', syncMode: 'cloud-only' });
+        get().addTask({ id: 'seed-t-4', title: 'Prepare assets', completed: false, dueDate: new Date(now).toISOString().split('T')[0], syncMode: 'cloud-only' });
+        // Canvas block
+        get().addCanvasBlock({ id: 'seed-b-1', type: 'text', content: 'Explore unified navigation.', x: 100, y: 100, canvasId: 'seed-cv-1' });
+        set({ defaultsSeeded: true });
+      },
 
       setSyncMode: async (entityId, mode) => {
         const cascadeIds = getDescendantIds(get().entities, entityId);
@@ -248,6 +258,8 @@ export const useStore = create<AppState>()(
       selectedTaskIds: [],
       taskContextMenu: null,
       editingEntity: null,
+      editingEntityId: null,
+      editingSource: null,
       theme: 'dark',
       interfaceSize: 'regular',
       isSidebarCollapsed: false,
@@ -565,7 +577,53 @@ export const useStore = create<AppState>()(
         import('@/lib/sync').then(({ deleteSpaceFromDB }) => deleteSpaceFromDB(id));
       },
 
+      deleteAllSpaceData: async (spaceId) => {
+        const state = get();
 
+        // Phase 1: Delete tasks FIRST (they have FK constraint to entities)
+        const spaceTasks = state.tasks.filter(t => t.spaceId === spaceId);
+        if (spaceTasks.length > 0) {
+          const { deleteTaskFromDB } = await import('@/lib/sync');
+          await Promise.all(spaceTasks.map(t => deleteTaskFromDB(t.id)));
+        }
+
+        // Phase 2: Delete entities (now that FK-blocking tasks are gone)
+        const spaceEntities = state.entities.filter(e => e.spaceId === spaceId);
+        if (spaceEntities.length > 0) {
+          const { deleteEntityFromDB } = await import('@/lib/sync');
+          await Promise.all(spaceEntities.map(e => deleteEntityFromDB(e.id)));
+        }
+
+        // Phase 3: Delete conversations
+        const spaceConvs = state.chatConversations.filter(c => c.space_id === spaceId);
+        if (spaceConvs.length > 0) {
+          const { deleteConversation } = await import('@/lib/chat');
+          await Promise.all(spaceConvs.map(c => deleteConversation(c.id)));
+        }
+
+        // Phase 4: Remove scoped shortcut keys for this space
+        const currentShortcuts = { ...state.shortcuts };
+        let shortcutsChanged = false;
+        for (const key of Object.keys(currentShortcuts)) {
+          if (key.startsWith(`${spaceId}:`)) {
+            delete currentShortcuts[key];
+            shortcutsChanged = true;
+          }
+        }
+        if (shortcutsChanged) {
+          set({ shortcuts: currentShortcuts });
+          const { upsertSetting } = await import('@/lib/sync');
+          await upsertSetting('shortcuts', currentShortcuts);
+        }
+
+        // Phase 5: Delete the space itself
+        const { deleteSpaceFromDB } = await import('@/lib/sync');
+        await deleteSpaceFromDB(spaceId);
+
+        // Clear local cache and reload
+        localStorage.removeItem('flowr-storage');
+        window.location.reload();
+      },
 
       setAIKey: (aiApiKey) => {
         if (aiApiKey) localStorage.setItem('flowr_ai_key', aiApiKey);
@@ -1252,6 +1310,7 @@ export const useStore = create<AppState>()(
             let lastToolResults: any = undefined;
             let lastAdvisorQuestions: string | undefined = undefined;
             let lastAdvisorState: string | undefined = undefined;
+            let lastTokensUsed: number | undefined = undefined;
 
             if (reader) {
               let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1267,7 +1326,7 @@ export const useStore = create<AppState>()(
                       ...m,
                       content: contentToSet,
                       model: lastModel || m.model,
-                      tokens_used: Math.ceil((content.length + contentToSet.length) / 4),
+                      tokens_used: lastTokensUsed !== undefined ? lastTokensUsed : m.tokens_used,
                       image_description: lastImageDescription ?? m.image_description,
                       image_prompt: lastImagePrompt ?? (m as any).image_prompt,
                       model_chain: (m as any).model_chain,
@@ -1352,6 +1411,7 @@ export const useStore = create<AppState>()(
                         }
                         if ((parsed as any).advisor_questions) lastAdvisorQuestions = (parsed as any).advisor_questions;
                         if ((parsed as any).advisor_state) lastAdvisorState = (parsed as any).advisor_state;
+                        if (parsed.tokens_used) lastTokensUsed = parsed.tokens_used;
                       } else if (parsed.status) {
                         set((s) => {
                           const updated = (s.chatMessagesMap[targetChatId] || []).map((m) =>
@@ -2400,7 +2460,12 @@ export const useStore = create<AppState>()(
         if (updatedWs) upsertSpace(updatedWs);
       },
 
-      setEditingEntityId: (id, source) => set({ editingEntity: id && source ? { id, source } : null }),
+      setEditingEntityId: (id, source) => set({
+        editingEntity: id && source ? { id, source } : null,
+        editingEntityId: id ?? null,
+        editingSource: source ?? null,
+      }),
+      clearEditingEntityId: () => set({ editingEntity: null, editingEntityId: null, editingSource: null }),
       setSectionSortMode: (sectionId, mode) => set(s => ({
         sidebarSectionSettings: {
           ...s.sidebarSectionSettings,
@@ -2727,10 +2792,12 @@ export const useStore = create<AppState>()(
 
       addTask: (task) => {
         const activeSpaceId = get().activeSpaceId;
+        const cleanTag = (task.tag && typeof task.tag === 'string' && task.tag.toLowerCase() !== 'none') ? task.tag : undefined;
         const finalTask = {
           id: generateId(),
           completed: false,
           ...task,
+          tag: cleanTag,
           userDueDate: task.userDueDate || task.dueDate || undefined,
           spaceId: task.spaceId || activeSpaceId
         } as AppTask;
@@ -2842,7 +2909,7 @@ export const useStore = create<AppState>()(
                 reminder: tr.reminder || null,
                 note: tr.description || null,
                 priority: (tr.priority as any) || 'none',
-                tag: (tr.tag as any) || 'none',
+                tag: (tr.tag && typeof tr.tag === 'string' && tr.tag.toLowerCase() !== 'none') ? tr.tag : null,
                 syncMode: 'full-sync' as const
               });
             }
@@ -2885,11 +2952,11 @@ export const useStore = create<AppState>()(
           }
 
           // update_content: update the entity in the store
-          if (tr.tool === 'update_content' && tr.success && tr.id && !tr.id.startsWith('task-') && tr.content) {
+          if (tr.tool === 'update_content' && tr.success && tr.id && !tr.id.startsWith('task-')) {
             set(s => ({
               entities: s.entities.map(e =>
                 e.id === tr.id
-                  ? { ...e, content: typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content, title: tr.title || e.title, lastModified: Date.now() }
+                  ? { ...e, content: tr.content || tr.blocks ? (typeof tr.content === 'string' ? markdownToBlocks(tr.content) : (tr.content || tr.blocks)) : e.content, title: tr.title || e.title, lastModified: Date.now() }
                   : e
               ),
             }));
@@ -2897,8 +2964,8 @@ export const useStore = create<AppState>()(
           }
 
           // append_to_note: append blocks to the entity's content
-          if (tr.tool === 'append_to_note' && tr.success && tr.id && tr.content) {
-            const newBlocks = typeof tr.content === 'string' ? markdownToBlocks(tr.content) : tr.content;
+          if (tr.tool === 'append_to_note' && tr.success && tr.id && (tr.content || tr.blocks)) {
+            const newBlocks = typeof tr.content === 'string' ? markdownToBlocks(tr.content) : (tr.blocks || tr.content);
             set(s => ({
               entities: s.entities.map(e =>
                 e.id === tr.id
@@ -2912,6 +2979,9 @@ export const useStore = create<AppState>()(
       },
 
       updateTask: (id, updates) => {
+        if (updates.tag !== undefined) {
+          updates.tag = (updates.tag && typeof updates.tag === 'string' && updates.tag.toLowerCase() !== 'none') ? updates.tag : undefined;
+        }
         set((s) => ({
           tasks: s.tasks.map(t => {
             if (t.id === id) {
@@ -3216,6 +3286,7 @@ export const useStore = create<AppState>()(
         isTempChat: state.isTempChat,
         pendingNewChat: state.pendingNewChat,
         chatHistoryOpen: state.chatHistoryOpen,
+        defaultsSeeded: state.defaultsSeeded,
         chatInputs: state.chatInputs,
         chatMessagesMap: state.chatMessagesMap,
         sessionContextsMap: state.sessionContextsMap,

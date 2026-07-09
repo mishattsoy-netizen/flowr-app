@@ -455,7 +455,22 @@ Here's what I can do for you:
         if (!isTempChat) await syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, '📸 [Image generated]', result.model_chain)
       } else {
         const msgId = await telegram.sendMessage(chatId, result.content as string)
-        logModelWebMessage(linkedAuthUserId, result.content as string, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
+        const tgToolSummary = (result.captured_tool_calls?.length)
+          ? '\n\n[Tools: ' + result.captured_tool_calls.map((tc: any) => {
+              const name = tc.tool || 'unknown'
+              const argHints: string[] = []
+              if (tc.searchQuery) argHints.push(`query="${String(tc.searchQuery).slice(0, 40)}"`)
+              if (tc.title) argHints.push(`title="${String(tc.title).slice(0, 30)}"`)
+              if (tc.id) argHints.push(`id="${String(tc.id).slice(0, 12)}..."`)
+              const args = argHints.length > 0 ? `(${argHints.join(', ')})` : ''
+              let result2 = 'ok'
+              if (tc.success === false || tc.error) result2 = `error`
+              else if (Array.isArray(tc.items)) result2 = `${tc.items.length} items`
+              else if (Array.isArray(tc.results)) result2 = `${tc.results.length} results`
+              return `${name}${args} → ${result2}`
+            }).join(' | ') + ']'
+          : ''
+        logModelWebMessage(linkedAuthUserId, (result.content as string) + tgToolSummary, result.usage_type || 'chat', result.status || 'success', result.model_chain, requestId,
           msgId ? { telegram_message_id: msgId } : undefined, undefined, activeChatId).catch(e => logger.error('Model web log failed', e))
         incrementUsage(user.telegram_id, 'message').catch(e => logger.error('Increment message usage failed', e))
         if (!isTempChat && activeChatId) await syncTelegramMessages(linkedAuthUserId, activeChatId, activePrompt, result.content as string, result.model_chain, result.captured_tool_calls)

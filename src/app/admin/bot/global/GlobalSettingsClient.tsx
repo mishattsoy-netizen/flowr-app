@@ -50,13 +50,17 @@ export default function GlobalSettingsClient({
   const [saved, setSaved] = useState(false)
   const ALL_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'VISION', 'AUDIO', 'CLASSIFIER', 'ADVISOR', 'THINKING', 'COMPACTION']
 
-  const [historyLimit, setHistoryLimit] = useState(initialPipelineSettings.history_limit ?? 20)
-  const [historyCats, setHistoryCats] = useState<string[]>(initialPipelineSettings.history_enabled_categories || ALL_CATS)
-  const [globalCats, setGlobalCats] = useState<string[]>(initialPipelineSettings.global_prompt_enabled_categories || ALL_CATS)
-  const [tokenLimitCats, setTokenLimitCats] = useState<string[]>(initialPipelineSettings.token_limit_enabled_categories || [])
-  const [inputTokenLimit, setInputTokenLimit] = useState(initialPipelineSettings.input_token_limit ?? 0)
-  const [outputTokenLimit, setOutputTokenLimit] = useState(initialPipelineSettings.output_token_limit ?? 0)
-  const [autoLast, setAutoLast] = useState(initialPipelineSettings.image_gen_auto_last !== false)
+  // ── Hardcoded pipeline settings (read-only preview) ────────────────────────
+  // Source of truth: src/lib/router-config.ts → HARDCODED_PIPELINE_SETTINGS
+  const HISTORY_LIMIT = 50
+  const INPUT_TOKEN_LIMIT = 0
+  const OUTPUT_TOKEN_LIMIT = 0
+  const AUTO_LAST = true
+  const GLOBAL_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'AUDIO', 'VISION', 'ADVISOR']
+  const HISTORY_CATS = ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'AUDIO', 'VISION', 'ADVISOR', 'THINKING']
+  // Source of truth: src/lib/bot/compaction.ts → HARDCODED_COMPACTION_CONFIG
+  const CONTEXT_LIMIT = 16000
+  const COMPACTION_THRESHOLD = 70 // percent
 
   const handleSetting = (key: string, value: any, setter: (v: any) => void) => {
     setter(value)
@@ -185,9 +189,12 @@ export default function GlobalSettingsClient({
 
 
 
-      {/* Context & Compaction */}
+      {/* Context & Compaction — read-only preview */}
       <section className="flex flex-col gap-4 px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
-        <h2 className="text-sm font-medium text-bone-80">Context & Compaction</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-bone-80">Context &amp; Compaction</h2>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-bone-50 bg-white/5 border border-white/10 px-2 py-0.5 rounded-sm">Hardcoded in code</span>
+        </div>
 
         <div className="flex items-center justify-between">
           <div>
@@ -196,14 +203,12 @@ export default function GlobalSettingsClient({
           </div>
           <div className="flex gap-2">
             {[32000, 64000, 128000].map(v => (
-              <button key={v} onClick={() => handleConfigChange('context_limit', v)}
-                className={cn('px-2 py-1 text-xs rounded-[8px]', config.context_limit === v ? 'bg-accent/10 text-accent' : 'bg-white/5 text-bone-70 hover:text-bone-100 hover:bg-white/10')}>
+              <span key={v}
+                className={cn('px-2 py-1 text-xs rounded-[8px]', CONTEXT_LIMIT === v ? 'bg-accent/10 text-accent' : 'bg-white/5 text-bone-70')}>
                 {v / 1000}k
-              </button>
+              </span>
             ))}
-            <input type="number" value={config.context_limit}
-              onChange={e => handleConfigChange('context_limit', parseInt(e.target.value) || 32000)}
-              className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 focus:outline-none focus:bg-white/10 transition-colors" />
+            <span className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 text-center">{CONTEXT_LIMIT}</span>
           </div>
         </div>
 
@@ -213,97 +218,24 @@ export default function GlobalSettingsClient({
             <p className="text-xs text-bone-70">Trigger compaction at this % of context limit</p>
           </div>
           <div className="flex items-center gap-2">
-            <input type="range" min={50} max={95} step={5} value={Math.round(config.compaction_threshold * 100)}
-              onChange={e => handleConfigChange('compaction_threshold', parseInt(e.target.value) / 100)}
-              className="w-24" />
-            <span className="text-xs text-bone-70 w-8">{Math.round(config.compaction_threshold * 100)}%</span>
+            <input type="range" min={50} max={95} step={5} value={COMPACTION_THRESHOLD}
+              readOnly disabled
+              className="w-24 opacity-60 cursor-not-allowed" />
+            <span className="text-xs text-bone-70 w-8">{COMPACTION_THRESHOLD}%</span>
           </div>
         </div>
-
-        {/* Compaction Chain Card */}
-        {chainId && (
-          <div className="flex flex-col gap-3 px-6 py-4 rounded-regular bg-white/5 border border-[var(--bone-12)]">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold text-bone-70 uppercase tracking-widest px-1">Compaction Chain</p>
-              <div className="flex items-center gap-2">
-                <button onClick={saveCompactionChain}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded-sm bg-accent/10 text-accent hover:bg-accent/20 transition-colors">
-                  {chainSaved ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-                  {chainSaved ? 'Saved' : 'Save'}
-                </button>
-              </div>
-            </div>
-            <div
-              className="flex flex-col gap-1"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-            >
-              {chainModels.map((m, index) => {
-                const provider = m.provider
-                return (
-                  <div
-                    key={m._key}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                    onDrop={handleDrop}
-                    className={cn(
-                      "flex items-center gap-2 bg-background/40 rounded-medium p-1.5 border border-[var(--bone-6)] cursor-grab active:cursor-grabbing transition-all",
-                      draggedIndex === index ? "opacity-20 scale-[0.98]" : "opacity-100"
-                    )}
-                  >
-                    <ProviderSelector
-                      value={provider}
-                      providers={allProviders}
-                      onChange={(v) => { updateChainModel(m._key!, 'provider', v); updateChainModel(m._key!, 'id', '') }}
-                    />
-                    <ModelDropdown
-                      value={m.id}
-                      models={models}
-                      providerFilter={m.provider}
-                      onChange={(v) => updateChainModel(m._key!, 'id', v)}
-                      className="flex-1 min-w-[180px] max-w-[280px]"
-                    />
-                    <div className="flex items-center gap-2 ml-auto shrink-0">
-                      {m.provider.toLowerCase() === 'openrouter' ? (
-                        <OpenRouterRoutingProviderSelector
-                          value={m.openrouter_provider || ''}
-                          onChange={(val) => updateChainModel(m._key!, 'openrouter_provider', val)}
-                          isEnabled={m.is_enabled}
-                        />
-                      ) : null}
-                      <button
-                        onClick={() => updateChainModel(m._key!, 'is_enabled', !m.is_enabled)}
-                        className={cn('p-1 rounded transition-colors', m.is_enabled ? 'text-green-400 hover:text-green-300' : 'text-bone-30 hover:text-bone-70')}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => removeChainModel(m._key!)} className="p-1 rounded text-danger hover:text-red-300 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-              <button onClick={addChainModel} className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-bone-70 hover:text-bone-100 transition-colors">
-                <Plus className="w-3 h-3" />
-                Add Model
-              </button>
-            </div>
-          </div>
-        )}
-
-        {saved && <p className="text-xs text-green-400">Saved</p>}
       </section>
 
 
 
-      {/* Context & Settings */}
+      {/* Context & Settings — read-only preview */}
       <section className="flex flex-col gap-4 px-6 py-4 rounded-big bg-white/5 border border-[var(--bone-12)]">
-        <div className="flex items-center gap-3">
-          <Settings2 className="w-5 h-5 text-accent" />
-          <h2 className="text-sm font-bold text-bone-100 tracking-wider">Context & Settings</h2>
+        <div className="flex items-center gap-3 justify-between">
+          <div className="flex items-center gap-3">
+            <Settings2 className="w-5 h-5 text-accent" />
+            <h2 className="text-sm font-bold text-bone-100 tracking-wider">Context &amp; Settings</h2>
+          </div>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-bone-50 bg-white/5 border border-white/10 px-2 py-0.5 rounded-sm">Hardcoded in code</span>
         </div>
 
         {/* History limit */}
@@ -312,9 +244,7 @@ export default function GlobalSettingsClient({
             <p className="text-sm text-bone-100">History Limit</p>
             <p className="text-xs text-bone-70">Max messages sent to model as context</p>
           </div>
-          <input type="number" value={historyLimit} min={0} max={100}
-            onChange={e => handleSetting('history_limit', parseInt(e.target.value) || 20, setHistoryLimit)}
-            className="w-16 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 focus:outline-none text-center" />
+          <span className="w-16 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 text-center">{HISTORY_LIMIT}</span>
         </div>
 
         {/* History enabled categories */}
@@ -322,11 +252,11 @@ export default function GlobalSettingsClient({
           <p className="text-xs font-bold text-bone-70 uppercase tracking-wider mb-2">History Enabled Categories</p>
           <div className="flex flex-wrap gap-1.5">
             {ALL_CATS.map(cat => (
-              <button key={cat} onClick={() => handleSetting('history_enabled_categories', toggleCat(historyCats, cat), setHistoryCats)}
-                className={cn('px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm transition-colors',
-                  historyCats.includes(cat) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-bone-70 border border-transparent hover:bg-white/10')}>
+              <span key={cat}
+                className={cn('px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm',
+                  HISTORY_CATS.includes(cat) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-bone-70 border border-transparent')}>
                 {cat}
-              </button>
+              </span>
             ))}
           </div>
         </div>
@@ -336,48 +266,32 @@ export default function GlobalSettingsClient({
           <p className="text-xs font-bold text-bone-70 uppercase tracking-wider mb-2">Global Prompt Enabled Categories</p>
           <div className="flex flex-wrap gap-1.5">
             {ALL_CATS.map(cat => (
-              <button key={cat} onClick={() => handleSetting('global_prompt_enabled_categories', toggleCat(globalCats, cat), setGlobalCats)}
-                className={cn('px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm transition-colors',
-                  globalCats.includes(cat) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-bone-70 border border-transparent hover:bg-white/10')}>
+              <span key={cat}
+                className={cn('px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm',
+                  GLOBAL_CATS.includes(cat) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-bone-70 border border-transparent')}>
                 {cat}
-              </button>
+              </span>
             ))}
           </div>
         </div>
 
-        {/* Token limit */}
+        {/* Token limits */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-bone-100">Input Token Limit</p>
             <p className="text-xs text-bone-70">0 = unlimited</p>
           </div>
-          <input type="number" value={inputTokenLimit} min={0} step={1000}
-            onChange={e => handleSetting('input_token_limit', parseInt(e.target.value) || 0, setInputTokenLimit)}
-            className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 focus:outline-none text-center" />
+          <span className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 text-center">{INPUT_TOKEN_LIMIT}</span>
         </div>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-bone-100">Output Token Limit</p>
             <p className="text-xs text-bone-70">0 = unlimited</p>
           </div>
-          <input type="number" value={outputTokenLimit} min={0} step={1000}
-            onChange={e => handleSetting('output_token_limit', parseInt(e.target.value) || 0, setOutputTokenLimit)}
-            className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 focus:outline-none text-center" />
+          <span className="w-20 px-2 py-1 text-xs bg-white/5 rounded-[8px] text-bone-100 text-center">{OUTPUT_TOKEN_LIMIT}</span>
         </div>
 
-        {/* Token limit enabled categories */}
-        <div>
-          <p className="text-xs font-bold text-bone-70 uppercase tracking-wider mb-2">Token Limit Enabled Categories</p>
-          <div className="flex flex-wrap gap-1.5">
-            {ALL_CATS.map(cat => (
-              <button key={cat} onClick={() => handleSetting('token_limit_enabled_categories', toggleCat(tokenLimitCats, cat), setTokenLimitCats)}
-                className={cn('px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm transition-colors',
-                  tokenLimitCats.includes(cat) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-bone-70 border border-transparent hover:bg-white/10')}>
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Token limit enabled categories — removed (no longer configurable) */}
 
         {/* Image gen auto last */}
         <div className="flex items-center justify-between">
@@ -385,7 +299,9 @@ export default function GlobalSettingsClient({
             <p className="text-sm text-bone-100">Image Gen Auto Last</p>
             <p className="text-xs text-bone-70">Auto-move IMAGE_GEN to last pipeline position</p>
           </div>
-          <Toggle checked={autoLast} onChange={v => handleSetting('image_gen_auto_last', v, setAutoLast)} />
+          <div className={cn('w-10 h-5 rounded-full relative transition-colors', AUTO_LAST ? 'bg-accent' : 'bg-white/10')}>
+            <span className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm', AUTO_LAST ? 'left-5' : 'left-0.5')} />
+          </div>
         </div>
       </section>
     </div>

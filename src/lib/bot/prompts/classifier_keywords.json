@@ -1,9 +1,9 @@
 {
   "WEB_SEARCH": [
-    "latest", "newest", "current price", "release date",
+    "latest news", "latest version", "newest model", "current price", "release date",
     "how much does", "where to buy", "news about",
     "compare prices", "best deals", "stock price",
-    "weather", "score", "election", "trending"
+    "weather forecast", "live score", "election results", "trending on"
   ],
   "IMAGE_GEN": [
     "draw", "generate image", "create image", "make a picture",
@@ -11,8 +11,8 @@
     "illustrate", "paint", "sketch", "render image"
   ],
   "CODING": [
-    "write code", "debug", "fix this code", "code snippet",
-    "function that", "implement", "refactor", "write a script",
+    "write code", "debug this", "fix this code", "code snippet",
+    "function that", "implement function", "refactor", "write a script",
     "regex for", "sql query", "api endpoint", "unit test"
   ],
   "RESEARCH": [
@@ -21,7 +21,7 @@
     "thorough analysis", "exhaustive comparison"
   ],
   "AUDIO": [
-    "read aloud", "speak this", "voice", "text to speech",
-    "say this", "pronounce", "audio"
+    "read aloud", "speak this", "voice message", "text to speech",
+    "say this", "pronounce this", "audio output"
   ]
 }
