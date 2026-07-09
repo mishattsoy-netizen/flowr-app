@@ -13,7 +13,7 @@ const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
  * the cloud were deleted on another device — remove them. Only keep items explicitly
  * marked syncMode = 'local-only'.
  */
-function mergeCloudData(data: {
+export function mergeCloudData(data: {
   entities: Entity[];
   tasks: AppTask[];
   spaces: Space[];
@@ -48,13 +48,9 @@ function mergeCloudData(data: {
     for (const lt of localTasks) {
       const ct = byId.get(lt.id);
       if (!ct) {
-        // Not in cloud — assume deleted on another device (or RLS now blocks it). Drop it.
-        continue;
+        continue; // not in cloud — assume deleted on another device (or RLS now blocks it)
       }
-      // Both exist — prefer the newer one (approximate: local writes are newer during
-      // a session, but on a fresh page load cloud is authoritative).
-      if ((lt as any).lastModified && (ct as any).lastModified &&
-          (lt as any).lastModified > (ct as any).lastModified) {
+      if ((lt.lastModified ?? 0) > (ct.lastModified ?? 0)) {
         byId.set(lt.id, lt);
       }
     }
@@ -64,14 +60,20 @@ function mergeCloudData(data: {
   // ── Workspaces ──
   if (data.spaces.length > 0) {
     const localWorkspaces = store().spaces;
-    const merged = [...data.spaces];
+    const byId = new Map<string, Space>();
+    for (const cw of data.spaces) byId.set(cw.id, cw);
     for (const lw of localWorkspaces) {
-      if (!merged.find((mw: any) => mw.id === lw.id)) {
-        if ((lw as any).syncMode !== 'local-only') continue; // deleted on another device — drop
-        merged.push(lw);
+      const cw = byId.get(lw.id);
+      if (!cw) {
+        if (lw.syncMode !== 'local-only') continue; // deleted on another device — drop
+        byId.set(lw.id, lw);
+        continue;
       }
+      const localTs = lw.lastModified ?? 0;
+      const cloudTs = cw.lastModified ?? 0;
+      if (localTs > cloudTs) byId.set(lw.id, lw);
     }
-    store().setSpaces(merged);
+    store().setSpaces(Array.from(byId.values()));
   }
 
   // ── UI State ──
@@ -244,9 +246,23 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         useStore.getState().setRecentEntityIds(merged.slice(0, 10));
       }
 
-      // 5. Restore cross-device shortcuts
+      // 5. Restore cross-device shortcuts (strip legacy unscoped keys)
       if (data.settings?.shortcuts) {
-        useStore.getState().setShortcutsState(data.settings.shortcuts);
+        const cloudShortcuts = data.settings.shortcuts;
+        const cleaned: Record<string, any> = {};
+        let hadUnscoped = false;
+        for (const [key, value] of Object.entries(cloudShortcuts)) {
+          if (key.includes(':')) {
+            cleaned[key] = value;
+          } else {
+            hadUnscoped = true;
+          }
+        }
+        useStore.getState().setShortcutsState(cleaned);
+        // Push cleaned shortcuts back to Supabase so unscoped keys don't come back
+        if (hadUnscoped) {
+          import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', cleaned));
+        }
       }
 
       useStore.getState().setInitialSync(false);
@@ -279,10 +295,12 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
     // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
     //    deleted items while this tab was closed or offline).
+    //    IMPORTANT: Only sync data (entities/tasks/spaces), NOT UI state — otherwise
+    //    switching tabs and back overwrites the user's current page with stale cloud data.
     const reconcile = async () => {
       const data = await loadFromSupabase();
       if (data) {
-        mergeCloudData(data);
+        mergeCloudData({ ...data, settings: undefined });
         const rs = useStore.getState();
         if (rs.entities.length === 0 && !rs.defaultsSeeded) {
           const { data: { user } } = await supabase!.auth.getUser();
