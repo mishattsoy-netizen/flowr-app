@@ -70,3 +70,29 @@ export async function unlinkTelegramAccount(telegramId: number): Promise<{ succe
     return { success: false, error: err.message }
   }
 }
+
+export async function getTelegramConnectionStatus(): Promise<{ connected: boolean; telegramId?: number; username?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.id) return { connected: false }
+
+    const { data: existing } = await supabaseAdmin
+      .from('telegram_users')
+      .select('telegram_id, username')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (existing) {
+      return { 
+        connected: true, 
+        telegramId: existing.telegram_id,
+        username: existing.username
+      }
+    }
+
+    return { connected: false }
+  } catch (err) {
+    return { connected: false }
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
+import { TelegramConnector } from '@/components/settings/TelegramConnector';
 import { X, User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, Brain, Rocket } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
@@ -372,12 +373,8 @@ export function SettingsModal() {
                 <div className="space-y-12">
                   <section>
                     <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Connectors</h3>
-                    <div className="py-12 flex flex-col items-center justify-center text-center">
-                      <FolderOpen className="w-8 h-8 text-bone-70 mb-4" />
-                      <h4 className="text-[14px] font-medium text-bone-100">No active connectors</h4>
-                      <p className="text-[13px] text-bone-70 mt-1 max-w-sm">
-                        Integration with third-party providers like Google, Slack, and Notion is coming soon.
-                      </p>
+                    <div className="space-y-4">
+                      <TelegramConnector />
                     </div>
                   </section>
                 </div>
