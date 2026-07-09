@@ -9,7 +9,7 @@ import {
   Database, Brain,
   RotateCcw, MessageCircle, Home, Globe,
   Telescope, DollarSign, SlidersHorizontal, Monitor,
-  UserCog, Link2
+  UserCog, Link2, CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +36,7 @@ export default function Sidebar() {
           <NavLink href="/admin/costs" icon={DollarSign}>Costs</NavLink>
           <NavLink href="/admin/logs" icon={ScrollText}>Message Logs</NavLink>
           <NavLink href="/admin/users" icon={Users}>Users</NavLink>
+          <NavLink href="/admin/subscriptions" icon={CreditCard}>Subscriptions</NavLink>
           <NavLink href="/admin/admins" icon={UserCog}>Admins</NavLink>
           <NavLink href="/admin/beta" icon={Link2}>Beta Invites</NavLink>
         </PlatformSection>
