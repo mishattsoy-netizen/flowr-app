@@ -243,7 +243,7 @@ export type ModalType =
   | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> }
   | { kind: 'deleteAllDataConfirm' };
 
-export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle';
+export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle' | 'tab';
 
 export interface PipelineStep {
   chain: string
@@ -582,6 +582,7 @@ export interface AppState {
   setNavigationState: (id: string | null, history: string[], index: number) => void;
   goBack: () => void;
   goForward: () => void;
+  syncUIStateToCloud: () => void;
   addEntity: (entity: Partial<Entity> & { type: EntityType; title: string }) => string;
   deleteEntity: (id: string) => void;
   fixDatabaseIntegrity: () => Promise<void>;

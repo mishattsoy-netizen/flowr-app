@@ -129,7 +129,7 @@ export const ChatInputEditable = React.forwardRef<HTMLDivElement, ChatInputEdita
           let iconSvg = '';
           if (cmd.id === 'image') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
           else if (cmd.id === 'search') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>';
-          else if (cmd.id === 'research') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><path d="m10 10.5 2-2 5.5 5.5-2 2-5.5-5.5Z"/><path d="m13.41 12 1.59-1.59a2 2 0 0 1 2.83 0l.17.17a2 2 0 0 1 0 2.83l-1.59 1.59"/><path d="m12 13.41-1.59 1.59a2 2 0 0 1-2.83 0l-.17-.17a2 2 0 0 1 0-2.83l1.59-1.59"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/></svg>';
+          else if (cmd.id === 'research') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><path d="m10.065 12.493-6.18 1.318a.934.934 0 0 1-1.108-.702l-.537-2.15a1.07 1.07 0 0 1 .691-1.265l13.504-4.44"/><path d="m13.56 11.747 4.332-.924"/><path d="m16 21-3.105-6.21"/><path d="M16.485 5.94a2 2 0 0 1 1.455-2.425l1.09-.272a1 1 0 0 1 1.212.727l1.515 6.06a1 1 0 0 1-.727 1.213l-1.09.272a2 2 0 0 1-2.425-1.455z"/><path d="m6.158 8.633 1.114 4.456"/><path d="m8 21 3.105-6.21"/><circle cx="12" cy="13" r="2"/></svg>';
           else if (cmd.id === 'note') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>';
           else if (cmd.id === 'canvas') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>';
           else if (cmd.id === 'task') iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="m9 12 2 2 4-4"/></svg>';
@@ -248,7 +248,7 @@ export const ChatInputEditable = React.forwardRef<HTMLDivElement, ChatInputEdita
     };
 
     // Placeholder hack
-    const showPlaceholder = value.length === 0;
+    const showPlaceholder = value.trim().length === 0;
     const fontSize = isNewPage ? '17.5px' : '17px';
 
     return (
@@ -275,7 +275,7 @@ export const ChatInputEditable = React.forwardRef<HTMLDivElement, ChatInputEdita
             height: 'auto', 
             maxHeight: '120px', 
             overflowY: 'auto', 
-            minHeight: '24px',
+            minHeight: '1.625em',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word'
           }}

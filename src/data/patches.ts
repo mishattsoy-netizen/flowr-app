@@ -22,6 +22,35 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.1',
+    build: '1301',
+    date: '2026-07-09',
+    title: 'Cloud Tab Sync & UI Refinements',
+    featured: false,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Tab sync: your open tabs and split-view layout are now securely backed up to the cloud and restored perfectly when you reopen the app or switch devices.',
+          'Middle-click (scrollwheel) on a sidebar item now opens it in a new tab or side-by-side if you have an empty split-view column.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Visual polish: beautifully aligned the Options and Edit buttons in the split-view tab header to match the surrounding margins.',
+          'Removed the ability to open the exact same note in both split-view columns simultaneously.',
+          'Fixed a layout bug that previously allowed you to enter split-view with two empty columns.',
+          'Fixed a bug where clicking a @mention or inserting a /slash command would delete the text you had already typed after it.',
+          'Resolved an issue where the "Ask Flowr AI" placeholder disappeared prematurely when only spaces were typed.',
+          'Slash commands (like /search) can now be reliably triggered anywhere in your sentence, not just at the very beginning.',
+          'Fixed a visual layout shift where the message bar would "jump" slightly when you typed your first character.',
+          'Corrected a state bug where clicking the "Temporary Chat" button would wipe the chat display, but inadvertently resume appending messages to your invisible previous session.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.0',
     build: '1300',
     date: '2026-07-09',

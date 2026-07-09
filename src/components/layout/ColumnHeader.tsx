@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil } from 'lucide-react';
+import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical } from 'lucide-react';
 import { cn, stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -90,12 +90,28 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
       {entityId ? (
         <>
+          {/* Options Menu Button */}
+          {entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker' && (
+            <Tooltip content="More Options">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  useStore.getState().openContextMenu(entityId, rect.left, rect.bottom + 6, 'tab');
+                }}
+                className="flex items-center justify-center w-7 h-7 mr-[6px] rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer z-20 shrink-0"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          )}
+
           {/* Read/Edit toggle inside ColumnHeader */}
           {entities.find(e => e.id === entityId)?.type === 'note' && (
             <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
               <button
                 onClick={e => { e.stopPropagation(); setReadMode(entityId, !isReadMode); }}
-                className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer z-20 mr-1 shrink-0"
+                className="flex items-center justify-center w-7 h-7 mr-[6px] rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer z-20 shrink-0"
               >
                 {isReadMode ? (
                   <BookOpen className="w-4 h-4" />

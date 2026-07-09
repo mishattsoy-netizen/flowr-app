@@ -1214,8 +1214,8 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
       style={{ direction: 'ltr' }}
     >
       {/* Top right corner control buttons (Read/Edit mode and Options menu) */}
-      <div className="absolute top-4 right-6 z-40 flex items-center gap-1.5 [-webkit-app-region:no-drag]">
-        {!splitViewActive && (
+      {!splitViewActive && (
+        <div className="absolute top-4 right-6 z-40 flex items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
             <button
               onClick={() => setReadMode(entity.id, !isReadMode)}
@@ -1228,21 +1228,21 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
               )}
             </button>
           </Tooltip>
-        )}
-        
-        <Tooltip content="More Options">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const rect = e.currentTarget.getBoundingClientRect();
-              setOptionsMenuPos({ x: rect.left - 150, y: rect.bottom + 6 });
-            }}
-            className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-        </Tooltip>
-      </div>
+          
+          <Tooltip content="More Options">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                setOptionsMenuPos({ x: rect.left - 150, y: rect.bottom + 6 });
+              }}
+              className="flex items-center justify-center w-8 h-8 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] border border-transparent transition-all cursor-pointer"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        </div>
+      )}
 
       <div 
         id="note-editor-container"

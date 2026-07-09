@@ -198,20 +198,22 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     }));
   }, [isMentionTriggered, entities, spaces, mentionSearchTerm, recentEntityIds]);
 
+  const isCommandTriggered = /(?:^|\s)\/[^\s\/]*$/.test(cursorText);
+
   useEffect(() => {
-    if (assistantInput.startsWith('/')) {
+    if (isCommandTriggered) {
       setShowCommandMenu(true);
       setShowMentionMenu(false);
-      setActiveCommandIndex(0);
+      if (!showCommandMenu) setActiveCommandIndex(0);
     } else if (isMentionTriggered) {
       setShowMentionMenu(true);
       setShowCommandMenu(false);
-      setActiveCommandIndex(0);
+      if (!showMentionMenu) setActiveCommandIndex(0);
     } else {
       setShowCommandMenu(false);
       setShowMentionMenu(false);
     }
-  }, [assistantInput, isMentionTriggered]);
+  }, [assistantInput, cursorText, isCommandTriggered, isMentionTriggered]);
   const getGreeting = () => {
     if (isTempChat) {
       return tempChatGreeting || "Write like nobody's listening.";
@@ -588,20 +590,45 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
 
   const isNewChatEmpty = chatPageMode && aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0;
 
-  const filteredCommands = assistantInput.startsWith('/')
-    ? commands.filter(c => c.label.toLowerCase().includes(assistantInput.slice(1).toLowerCase()) || c.id.includes(assistantInput.slice(1).toLowerCase()))
+  const commandMatch = cursorText.match(/(?:^|\s)\/([^\s\/]*)$/);
+  const commandSearchTerm = commandMatch ? commandMatch[1].toLowerCase() : '';
+
+  const filteredCommands = isCommandTriggered
+    ? commands.filter(c => c.label.toLowerCase().includes(commandSearchTerm) || c.id.toLowerCase().includes(commandSearchTerm))
     : [];
 
   const handleCommandSelect = (cmd: typeof commands[0]) => {
     if (cmd.id === 'mention') {
-      setAssistantInput('@');
+      const atIndex = cursorText.lastIndexOf('/');
+      if (atIndex !== -1) {
+        const newValue = assistantInput.slice(0, atIndex) + '@' + assistantInput.slice(cursorText.length);
+        setAssistantInput(newValue);
+        setCursorText(newValue);
+      } else {
+        setAssistantInput('@');
+        setCursorText('@');
+      }
       setShowMentionMenu(true);
       textareaRef.current?.focus();
     } else if (cmd.prefix) {
-      setAssistantInput(cmd.prefix);
+      const atIndex = cursorText.lastIndexOf('/');
+      if (atIndex !== -1) {
+        const newValue = assistantInput.slice(0, atIndex) + cmd.prefix + assistantInput.slice(cursorText.length);
+        setAssistantInput(newValue);
+        setCursorText(newValue);
+      } else {
+        setAssistantInput(cmd.prefix);
+        setCursorText(cmd.prefix);
+      }
       textareaRef.current?.focus();
     } else if (cmd.action) {
       cmd.action();
+      const atIndex = cursorText.lastIndexOf('/');
+      if (atIndex !== -1) {
+        const newValue = assistantInput.slice(0, atIndex) + assistantInput.slice(cursorText.length);
+        setAssistantInput(newValue);
+        setCursorText(newValue);
+      }
     }
     setShowCommandMenu(false);
   };
@@ -1118,7 +1145,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                   if (e.key === 'Enter' || e.key === 'Tab') {
                     e.preventDefault();
                     const ent = filteredEntities[activeCommandIndex];
-                    const newValue = assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
+                    const atIndex = cursorText.lastIndexOf('@');
+                    const newValue = atIndex !== -1 
+                      ? assistantInput.slice(0, atIndex) + `@${ent.title} ` + assistantInput.slice(cursorText.length)
+                      : assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
                     setAssistantInput(newValue);
                     setCursorText(newValue);
                     setShowMentionMenu(false);
@@ -1541,7 +1571,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     <button
                       key={ent.id}
                       onClick={() => {
-                        const newValue = assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
+                        const atIndex = cursorText.lastIndexOf('@');
+                        const newValue = atIndex !== -1 
+                          ? assistantInput.slice(0, atIndex) + `@${ent.title} ` + assistantInput.slice(cursorText.length)
+                          : assistantInput.replace(/@([^@]*)$/, `@${ent.title} `);
                         setAssistantInput(newValue);
                         setCursorText(newValue);
                         setShowMentionMenu(false);

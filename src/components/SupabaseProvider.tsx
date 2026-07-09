@@ -17,6 +17,7 @@ function mergeCloudData(data: {
   entities: Entity[];
   tasks: AppTask[];
   spaces: Space[];
+  settings?: Record<string, any>;
 }) {
   const store = useStore.getState;
 
@@ -71,6 +72,22 @@ function mergeCloudData(data: {
       }
     }
     store().setSpaces(merged);
+  }
+
+  // ── UI State ──
+  if (data.settings && data.settings.ui_state) {
+    const ui = data.settings.ui_state;
+    // Apply UI state directly via useStore.setState
+    useStore.setState({
+      openTabIds: ui.openTabIds || [],
+      activeTabId: ui.activeTabId || null,
+      activeEntityId: ui.activeEntityId || null,
+      splitViewActive: !!ui.splitViewActive,
+      splitViewLeftId: ui.splitViewLeftId || null,
+      splitViewRightId: ui.splitViewRightId || null,
+      splitViewPinned: !!ui.splitViewPinned,
+      splitViewPosition: typeof ui.splitViewPosition === 'number' ? ui.splitViewPosition : 50,
+    });
   }
 }
 

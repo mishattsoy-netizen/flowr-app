@@ -392,8 +392,16 @@ export const useStore = create<AppState>()(
         const state = get();
         if (state.splitViewActive) {
           // Exit split: keep left column entity as active
+          let nextTabs = [...state.openTabIds];
+          if (state.splitViewLeftId && !nextTabs.includes(state.splitViewLeftId)) {
+            nextTabs.push(state.splitViewLeftId);
+          }
+          if (state.splitViewRightId && !nextTabs.includes(state.splitViewRightId)) {
+            nextTabs.push(state.splitViewRightId);
+          }
           set({
             splitViewActive: false,
+            openTabIds: nextTabs,
             activeEntityId: state.splitViewLeftId ?? state.activeEntityId,
             activeTabId: state.splitViewLeftId ?? state.activeEntityId,
             splitViewLeftId: null,
@@ -425,6 +433,12 @@ export const useStore = create<AppState>()(
             isPinned = !!(leftEntity?.pairedEntityId);
           }
 
+          const leftIsReal = leftId && state.entities.some(e => e.id === leftId);
+          const rightIsReal = rightId && state.entities.some(e => e.id === rightId);
+          if (!leftIsReal && !rightIsReal) {
+            return; // Prevent entering split view with two empty columns
+          }
+
           set({
             splitViewActive: true,
             splitViewLeftId: leftId,
@@ -437,13 +451,16 @@ export const useStore = create<AppState>()(
             selectedSidebarIds: [],
           });
         }
+        get().syncUIStateToCloud();
       },
       setColumnEntity: (column, entityId) => {
         const state = get();
         if (column === 'left') {
+          if (entityId && entityId === state.splitViewRightId) return;
           set({ splitViewLeftId: entityId });
           if (entityId) set({ activeEntityId: entityId, activeTabId: entityId });
         } else {
+          if (entityId && entityId === state.splitViewLeftId) return;
           set({ splitViewRightId: entityId });
         }
         // Recompute pinned state
@@ -488,6 +505,7 @@ export const useStore = create<AppState>()(
           activeEntityId: state.splitViewRightId ?? state.activeEntityId,
           activeTabId: state.splitViewRightId ?? state.activeTabId,
         });
+        get().syncUIStateToCloud();
       },
       exitSplitView: () => {
         const state = get();
@@ -752,41 +770,36 @@ export const useStore = create<AppState>()(
 
       startTempChat: async () => {
         await get().cleanupActiveChatIfEmpty();
-        const sid = 'temp';
         
-        // If already in temp chat, click should clear it
-        if (get().isTempChat && get().activeChatId === null && get().activeEntityId === 'chat') {
+        const { activeEntityId, activeSpaceId, isTempChat, activeChatId } = get();
+        const sid = getChatSessionId(null, activeEntityId, activeSpaceId, 'temp');
+        
+        // If already in temp chat for this entity, click should clear it
+        if (isTempChat && activeChatId === null) {
           await get().clearAIChat();
           return;
         }
 
-        set(s => ({
-          activeChatId: null,
-          newEmptyChatId: null,
-          isTempChat: true,
-          pendingNewChat: false,
-          showTempNotice: true,
-          tempChatMessages: [],
-          aiMessages: [],
-          aiSessionContext: null,
-          pendingAdvisorState: null,
-          assistantInput: '',
-          isAILoading: false,
-          aiAbortController: null,
-          tempChatGreeting: getRandomTempGreeting(),
-          chatMessagesMap: {
-            ...s.chatMessagesMap,
-            [sid]: []
-          },
-          sessionContextsMap: {
-            ...s.sessionContextsMap,
-            [sid]: null
-          },
-          chatInputs: {
-            ...s.chatInputs,
-            [sid]: ''
-          }
-        }));
+        set(s => {
+          const existingMessages = s.chatMessagesMap[sid] || [];
+          const existingContext = s.sessionContextsMap[sid] || null;
+          const existingInput = s.chatInputs[sid] || '';
+
+          return {
+            activeChatId: null,
+            newEmptyChatId: null,
+            isTempChat: true,
+            pendingNewChat: false,
+            showTempNotice: true,
+            tempChatMessages: existingMessages,
+            aiMessages: existingMessages,
+            aiSessionContext: existingContext,
+            pendingAdvisorState: null,
+            assistantInput: existingInput,
+            isAILoading: s.loadingStatesMap[sid] || false,
+            tempChatGreeting: existingMessages.length > 0 ? s.tempChatGreeting : getRandomTempGreeting(),
+          };
+        });
 
         try {
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -2123,12 +2136,16 @@ export const useStore = create<AppState>()(
         // When split view is active and the user clicks an entity not in either
         // column, exit split view and navigate to that entity normally.
         if (state.splitViewActive && id && id !== state.splitViewLeftId && id !== state.splitViewRightId) {
+          if (state.splitViewLeftId && !nextTabs.includes(state.splitViewLeftId)) {
+            nextTabs.push(state.splitViewLeftId);
+          }
+          if (state.splitViewRightId && !nextTabs.includes(state.splitViewRightId)) {
+            nextTabs.push(state.splitViewRightId);
+          }
+          
           const existingIndex = nextTabs.indexOf(id);
           if (existingIndex !== -1) {
             // Already in tabs, just jump
-            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
-          } else if (tabIndex !== -1) {
-            nextTabs[tabIndex] = id;
             set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
           } else {
             nextTabs.push(id);
@@ -2174,6 +2191,7 @@ export const useStore = create<AppState>()(
           navigationHistory: newHistory,
           historyIndex: newHistory.length - 1
         });
+        get().syncUIStateToCloud();
       },
 
       addTab: (id = 'dashboard') => {
@@ -2183,6 +2201,7 @@ export const useStore = create<AppState>()(
         const alreadyOpen = state.openTabIds.includes(id);
         if (alreadyOpen) {
           set({ activeTabId: id, activeEntityId: id });
+          get().syncUIStateToCloud();
           return;
         }
 
@@ -2191,6 +2210,7 @@ export const useStore = create<AppState>()(
           activeTabId: id,
           activeEntityId: id
         });
+        get().syncUIStateToCloud();
       },
 
       removeTab: (id) => {
@@ -2221,6 +2241,7 @@ export const useStore = create<AppState>()(
                 splitViewRightId: null,
                 splitViewPinned: false,
               });
+              get().syncUIStateToCloud();
               return;
             }
             // Move partner to left column
@@ -2234,6 +2255,7 @@ export const useStore = create<AppState>()(
                 splitViewRightId: null,
                 splitViewPinned: false,
               });
+              get().syncUIStateToCloud();
               return;
             }
           }
@@ -2244,6 +2266,7 @@ export const useStore = create<AppState>()(
           activeTabId: nextActive,
           activeEntityId: nextActive,
         });
+        get().syncUIStateToCloud();
       },
 
       setActiveTab: (id) => {
@@ -2258,13 +2281,39 @@ export const useStore = create<AppState>()(
         } else {
           set({ activeTabId: id, activeEntityId: id });
         }
+        get().syncUIStateToCloud();
       },
-      setOpenTabs: (ids) => set({ openTabIds: ids }),
+      setOpenTabs: (ids) => {
+        set({ openTabIds: ids });
+        get().syncUIStateToCloud();
+      },
 
-      setNavigationState: (id, history, index) => set({ activeEntityId: id, navigationHistory: history, historyIndex: index }),
+      setNavigationState: (id, history, index) => {
+        set({ activeEntityId: id, navigationHistory: history, historyIndex: index });
+        get().syncUIStateToCloud();
+      },
 
       goBack: () => window.history.back(),
       goForward: () => window.history.forward(),
+
+      syncUIStateToCloud: () => {
+        if (!isSupabaseEnabled) return;
+        if ((window as any).__uiSyncTimeout) clearTimeout((window as any).__uiSyncTimeout);
+        (window as any).__uiSyncTimeout = setTimeout(() => {
+          const state = get();
+          const uiState = {
+            openTabIds: state.openTabIds,
+            activeTabId: state.activeTabId,
+            activeEntityId: state.activeEntityId,
+            splitViewActive: state.splitViewActive,
+            splitViewLeftId: state.splitViewLeftId,
+            splitViewRightId: state.splitViewRightId,
+            splitViewPinned: state.splitViewPinned,
+            splitViewPosition: state.splitViewPosition,
+          };
+          import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('ui_state', uiState));
+        }, 1500);
+      },
 
       addEntity: (entity) => {
         // Content quality gate for AI-generated notes
@@ -2343,12 +2392,35 @@ export const useStore = create<AppState>()(
           newActiveSpaceId = remainingSpaces.length > 0 ? remainingSpaces[0].id : 'ws-personal';
         }
 
-        set((s) => ({
-          entities: s.entities.filter(e => !idsToRemove.has(e.id)),
-          favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
-          activeEntityId: idsToRemove.has(s.activeEntityId ?? '') ? 'dashboard' : s.activeEntityId,
-          activeSpaceId: newActiveSpaceId,
-        }));
+        set((s) => {
+          const newOpenTabs = s.openTabIds.filter(tid => !idsToRemove.has(tid));
+          const newActiveTabId = idsToRemove.has(s.activeTabId ?? '') ? (newOpenTabs.length > 0 ? newOpenTabs[newOpenTabs.length - 1] : 'dashboard') : s.activeTabId;
+          const newActiveEntityId = idsToRemove.has(s.activeEntityId ?? '') ? newActiveTabId : s.activeEntityId;
+          
+          let newSplitActive = s.splitViewActive;
+          let newSplitLeft = s.splitViewLeftId;
+          let newSplitRight = s.splitViewRightId;
+
+          if (newSplitActive) {
+            if (newSplitLeft && idsToRemove.has(newSplitLeft)) newSplitLeft = null;
+            if (newSplitRight && idsToRemove.has(newSplitRight)) newSplitRight = null;
+            if (!newSplitLeft && !newSplitRight) {
+              newSplitActive = false;
+            }
+          }
+
+          return {
+            entities: s.entities.filter(e => !idsToRemove.has(e.id)),
+            favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
+            activeEntityId: newActiveEntityId,
+            activeTabId: newActiveTabId,
+            openTabIds: newOpenTabs,
+            activeSpaceId: newActiveSpaceId,
+            splitViewActive: newSplitActive,
+            splitViewLeftId: newSplitLeft,
+            splitViewRightId: newSplitRight,
+          };
+        });
         idsToRemove.forEach(eid => deleteEntityFromDB(eid));
       },
 

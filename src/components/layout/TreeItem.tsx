@@ -877,6 +877,23 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     setActiveEntityId(entity.id);
   };
 
+  const handleAuxClick = (e: React.MouseEvent) => {
+    if (e.button === 1) { // Middle click
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const state = useStore.getState();
+      
+      if (state.splitViewActive && !state.splitViewRightId) {
+        state.setColumnEntity('right', entity.id);
+      } else {
+        if (!state.openTabIds.includes(entity.id)) {
+          useStore.setState({ openTabIds: [...state.openTabIds, entity.id] });
+        }
+      }
+    }
+  };
+
   const handleChevronClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     toggleCollapsed(entity.id);
@@ -978,6 +995,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       <div
         ref={rowRef}
         onClick={handleClick}
+        onAuxClick={handleAuxClick}
+        onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
         data-selected={isActive || undefined}
         className={cn(
           "sidebar-item-row group relative flex w-full select-none",
