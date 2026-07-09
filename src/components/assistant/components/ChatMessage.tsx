@@ -14,6 +14,7 @@ import { StatusTyping } from './StatusTyping';
 import { ChatImage } from './ChatImage';
 import { ChatAudioPlayer } from './ChatAudioPlayer';
 import { useWordReveal } from '../hooks/useWordReveal';
+import { deferIncompleteBlock } from '../utils/deferIncompleteBlock';
 import { cn } from '@/lib/utils';
 import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 import { getEntityIcon } from '@/data/icons';
@@ -1063,20 +1064,15 @@ export const ChatMessage = memo(({
     const trimmed = targetContent.trim();
     return /^!\[.*?\]\s*\(\s*(data:image\/|https?:\/\/|\/|AUO)[\s\S]*?(\s+"[\s\S]*?")?\s*(\s*\)|$)/.test(trimmed);
   }, [targetContent]);
-  const [hasFinishedTypingState, setHasFinishedTypingState] = useState(false);
+  const safeContent = useMemo(
+    () => deferIncompleteBlock(targetContent, !isAILoading),
+    [targetContent, isAILoading]
+  );
 
-  const { revealedText, isRevealing } = useWordReveal(targetContent, {
-    enabled: isLast && !hasFinishedTypingState,
+  const { revealedText, isRevealing } = useWordReveal(safeContent, {
+    enabled: isLast && !msg.hasRevealed,
     initialProgress: 'complete',
   });
-
-  useEffect(() => {
-    if (isAILoading) {
-      setHasFinishedTypingState(false);
-    } else if (!isRevealing) {
-      setHasFinishedTypingState(true);
-    }
-  }, [isAILoading, isRevealing]);
   const displayContent = useMemo(() => {
     if (isPureImage) return targetContent;
 
@@ -1091,8 +1087,6 @@ export const ChatMessage = memo(({
 
     return targetContent;
   }, [targetContent, isAILoading, isLast, isPureImage, revealedText, isRevealing]);
-  const hasFinishedTyping = hasFinishedTypingState;
-
   const [feedbackState, setFeedbackState] = useState<'like' | 'dislike' | null>(null);
 
 
