@@ -688,11 +688,11 @@ git commit -m "feat(sync): debounce per-entity Supabase push by 1.5s at existing
 **Files:**
 - Modify: `src/data/store.ts`
 
-- [ ] **Step 1: Locate and read the existing `isDesktop()` subscriber**
+- [x] **Step 1: Locate and read the existing `isDesktop()` subscriber**
 
 Run: `grep -n "if (isDesktop())" src/data/store.ts` — confirm it's still around line 3518 (may have shifted from earlier edits in this plan).
 
-- [ ] **Step 2: Replace `saveEntityToFile` call with `flowrDB.upsertEntity`**
+- [x] **Step 2: Replace `saveEntityToFile` call with `flowrDB.upsertEntity`**
 
 Replace the subscriber body:
 
@@ -729,16 +729,16 @@ if (isDesktop()) {
 }
 ```
 
-- [ ] **Step 3: Remove the now-unused `saveEntityToFile` import if no longer referenced elsewhere**
+- [x] **Step 3: Remove the now-unused `saveEntityToFile` import if no longer referenced elsewhere**
 
 Run: `grep -n "saveEntityToFile" src/data/store.ts src/lib/persistence.ts` — if `store.ts` no longer calls it, remove its import from `store.ts`. Leave `saveEntityToFile` itself defined in `src/lib/persistence.ts` for now (removing the Markdown-writing code path entirely is a separate cleanup, not required for this task to function correctly — the spec's "Out of Scope" section defers continued Markdown support, not necessarily deleting the old function in this same task).
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run electron:dev`. Create a new note, type some content. In DevTools console: `await window.flowrDB.getAllEntities()`.
 Expected: the new note appears as a row with `content` containing the typed text as JSON.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/data/store.ts
@@ -754,7 +754,7 @@ git commit -m "feat(db): write entities through to SQLite instead of Markdown fi
 **Files:**
 - Modify: `src/data/store.ts`
 
-- [ ] **Step 1: Add task and space write-through subscribers**
+- [x] **Step 1: Add task and space write-through subscribers**
 
 Immediately after the entity subscriber from Task 7 (still inside `if (isDesktop()) { ... }`, or as a second `useStore.subscribe(...)` call within the same `if (isDesktop())` block), add:
 
@@ -815,12 +815,12 @@ Immediately after the entity subscriber from Task 7 (still inside `if (isDesktop
   });
 ```
 
-- [ ] **Step 2: Manual verification**
+- [x] **Step 2: Manual verification**
 
 Run: `npm run electron:dev`. Create a task and rename a space. In DevTools console: `await window.flowrDB.getAllTasks()` and `await window.flowrDB.getAllSpaces()`.
 Expected: both reflect the changes made.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/data/store.ts
