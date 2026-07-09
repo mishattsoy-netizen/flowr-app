@@ -38,10 +38,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No subscription tier configured' }, { status: 404 })
   }
 
-  const [{ data: spend5h }, { data: spendWeek }, { data: spendMonth }] = await Promise.all([
+  const [{ data: spend5h }, { data: spendWeek }, { data: spendMonth }, { data: recentSpend }] = await Promise.all([
     supabaseAdmin.from('credit_spend_events').select('amount_usd').eq('user_id', user.id).gte('created_at', sub.window_5h_anchor ?? sub.period_start),
     supabaseAdmin.from('credit_spend_events').select('amount_usd').eq('user_id', user.id).gte('created_at', sub.window_week_anchor ?? sub.period_start),
     supabaseAdmin.from('credit_spend_events').select('amount_usd').eq('user_id', user.id).gte('created_at', sub.period_start),
+    supabaseAdmin.from('credit_spend_events').select('amount_usd, created_at, mode').eq('user_id', user.id).eq('is_reservation', false).order('created_at', { ascending: false }).limit(10),
   ])
 
   const sum = (rows: any[] | null) => (rows ?? []).reduce((acc, r) => acc + Number(r.amount_usd), 0)
@@ -55,5 +56,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     tier: { id: tier.id, name: tier.name, price_usd: tier.price_usd },
     ...windows,
+    recentSpend: recentSpend ?? [],
   })
 }

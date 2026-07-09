@@ -33,3 +33,26 @@ export async function redeemPromoCode(code: string, accessToken: string): Promis
 
   return { success: true }
 }
+
+export async function downgradeToFree(accessToken: string): Promise<{ success: boolean }> {
+  const supabase = createClient(
+    supabaseUrl!,
+    supabaseAnonKey!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  )
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData.user
+  if (!user) return { success: false }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      tier_id: 'free',
+      granted_by_promo_code: null,
+      period_start: new Date().toISOString(),
+      period_end: new Date(Date.now() + 30 * 24 * 3600_000).toISOString(),
+    })
+    .eq('user_id', user.id)
+
+  return { success: !error }
+}
