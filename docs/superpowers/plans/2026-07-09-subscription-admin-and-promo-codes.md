@@ -4,7 +4,7 @@
 
 **Goal:** Give the admin a working page to view/edit any user's subscription tier, period, and bonus credit; let the admin generate promo codes that grant a friend a paid tier for a fixed duration (auto-reverting to free with no cron job); and enrich the existing Settings usage panel with tier context, code redemption, spend history, and a downgrade-only self-service control.
 
-**Architecture:** Two new Postgres tables (`promo_codes`, `promo_code_redemptions`) plus two new columns on existing tables. A new `redeem_promo_code` RPC follows the exact `SECURITY DEFINER` + pinned `search_path` + `auth.uid()`-scoped pattern already used by `reserve_credit`/`reconcile_credit`. `reserve_credit` itself gains a small expiry-revert check at the top. A new `/admin/subscriptions` admin page (protected automatically by the existing `/admin/*` layout auth gate) lists every user's subscription with live usage bars and edit controls, reusing the existing `UsageBar` component and the window-math formula already duplicated once in `/api/usage/route.ts` — this plan extracts that formula into a shared helper the first time it's needed twice. Along the way, this plan also fixes a real regression: `UsagePanel` was wired into `SettingsPage.tsx` by an earlier task, but a later, unrelated rewrite of that file dropped the wiring — Task 1 restores it before building on top.
+**Architecture:** Two new Postgres tables (`promo_codes`, `promo_code_redemptions`) plus two new columns on existing tables. A new `redeem_promo_code` RPC follows the exact `SECURITY DEFINER` + pinned `search_path` + `auth.uid()`-scoped pattern already used by `reserve_credit`/`reconcile_credit`. `reserve_credit` itself gains a small expiry-revert check at the top. A new `/admin/subscriptions` admin page (protected automatically by the existing `/admin/*` layout auth gate) lists every user's subscription with live usage bars and edit controls, reusing the existing `UsageBar` component and the window-math formula already duplicated once in `/api/usage/route.ts` — this plan extracts that formula into a shared helper the first time it's needed twice. `UsagePanel` is already correctly wired into `SettingsModal.tsx` (the standalone `SettingsPage.tsx` this plan was originally drafted against has since been dropped from the codebase) — Task 1 is a quick confirmation of that current state rather than a fix, so later tasks can safely build on top of it.
 
 **Tech Stack:** Next.js server actions, Supabase (Postgres RPCs, SECURITY DEFINER functions, RLS), React client components, Vitest.
 
@@ -12,7 +12,7 @@
 
 ## Reference: current state (verified by direct inspection during planning)
 
-- **`UsagePanel` is currently NOT rendered anywhere.** It was wired into `SettingsPage.tsx`'s `ai` tab by commit `a16797d`, but the current `src/components/settings/SettingsPage.tsx` has a completely different structure (imports `SettingsTab` from `@/components/modals/SettingsModal`, no `UsagePanel` import) — some other, unrelated rewrite of this file landed after `a16797d` and dropped the wiring. The file currently shows a "Usage tracking coming soon" placeholder `<section>` (search for `Usage tracking coming soon`) right before the `activeTab === 'ai'` block. This plan's Task 1 fixes this before anything else, since every later task assumes `UsagePanel` is live.
+- **`UsagePanel` is currently wired into `src/components/modals/SettingsModal.tsx`**, under a dedicated `activeTab === 'usage'` tab (`<UsagePanel />` at ~line 345). The standalone `SettingsPage.tsx` this plan was originally drafted against has since been dropped from the codebase entirely — `SettingsModal.tsx` is the live settings surface. Task 1 just confirms this current state before later tasks build on it.
 - `src/app/api/usage/route.ts` — existing read-only endpoint; the exact window-math formula this plan needs to share with the new admin page.
 - `src/components/settings/UsagePanel.tsx` — existing three-bar panel; this plan extends it in Task 8.
 - `supabase/migrations/20260707_credit_metering_schema.sql` — defines `subscription_tiers`, `user_subscriptions`, `credit_spend_events`, `search_providers`.
@@ -31,53 +31,20 @@
 
 ---
 
-## Task 1: Restore `UsagePanel` wiring in `SettingsPage.tsx`
+## Task 1: Confirm `UsagePanel` is live in `SettingsModal.tsx`
 
 **Files:**
-- Modify: `src/components/settings/SettingsPage.tsx`
+- None modified — verification only.
 
-- [ ] **Step 1: Read the current file and locate the "Usage tracking coming soon" placeholder**
+- [ ] **Step 1: Confirm the wiring**
 
-Run: `grep -n "Usage tracking coming soon" src/components/settings/SettingsPage.tsx`
+Run: `grep -n "UsagePanel" src/components/modals/SettingsModal.tsx`
 
-Read 15 lines before and after that match to see the exact current `<section>` structure for the Usage tab, and confirm the exact tab condition it's nested under (likely something like `activeTab === 'usage'` or similar — read the file to find the real condition, since the tab names may differ from the `ai`/`usage` split described in this plan's reference notes).
+Expected: one import line (`import UsagePanel from '@/components/settings/UsagePanel';`) and one usage site inside an `activeTab === 'usage'` block rendering `<UsagePanel />`. This confirms the panel is already live and Task 8 can safely extend `UsagePanel.tsx` without any wiring step of its own.
 
-- [ ] **Step 2: Replace the placeholder with `UsagePanel`**
+If this grep comes back empty or the structure looks materially different (e.g. no `usage` tab, or `UsagePanel` genuinely not rendered), STOP and report back — the rest of this plan (particularly Task 8) assumes this wiring already exists, and if it doesn't, that gap needs to be re-planned rather than silently patched.
 
-Add the import near the other component imports at the top of the file:
-
-```typescript
-import UsagePanel from '@/components/settings/UsagePanel';
-```
-
-Replace the placeholder `<section>` body (the one containing the `Zap` icon and "Usage tracking coming soon" text) with:
-
-```typescript
-<section>
-  <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Usage</h3>
-  <UsagePanel />
-</section>
-```
-
-(Keep the exact same outer `<section>`/tab-condition wrapper that was already there — only replace the placeholder's inner content with `<UsagePanel />`.)
-
-- [ ] **Step 3: Typecheck**
-
-Run: `npx tsc --noEmit`
-Expected: no new errors.
-
-- [ ] **Step 4: Manually verify in the browser**
-
-Run: `npm run dev`, log in, open Settings → the tab that previously showed "Usage tracking coming soon". Expected: the three existing usage bars (5-hour, weekly, monthly) now render with real data instead of the placeholder message.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/components/settings/SettingsPage.tsx
-git commit -m "fix(credits): restore UsagePanel wiring dropped by an unrelated SettingsPage rewrite"
-```
-
-**Before committing, run `git status` and confirm ONLY `src/components/settings/SettingsPage.tsx` is staged** — this repository frequently has unrelated pre-existing uncommitted work in the tree; do not stage anything else.
+No commit for this task — nothing changes.
 
 ---
 
