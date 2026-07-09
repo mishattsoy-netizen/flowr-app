@@ -3241,6 +3241,20 @@ export const useStore = create<AppState>()(
             }));
             entitiesUpdated = true;
           }
+
+          // delete_content: remove item from local store
+          if (tr.tool === 'delete_content' && tr.success && tr.id) {
+            if (tr.type === 'task') {
+              get().deleteTask(tr.id);
+            } else if (tr.type === 'canvas_block') {
+              get().deleteCanvasBlock(tr.id);
+            } else if (tr.cascade) {
+              // Folders cascade to descendants — deleteEntity handles this
+              get().deleteEntity(tr.id);
+            } else {
+              get().deleteEntity(tr.id);
+            }
+          }
         }
       },
 
