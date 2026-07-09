@@ -14,15 +14,10 @@ function tokenizeWords(text: string): string[] {
   return tokens;
 }
 
-function getWordRevealDelay(wordCount: number): number {
-  if (wordCount <= 2) return 0;
-  let delay = Math.round(Math.min(6000, 2000 + wordCount * 8) / wordCount);
-  delay = Math.max(12, Math.min(250, delay));
-  const totalMs = wordCount * delay;
-  if (totalMs > 8000) {
-    delay = Math.max(8, Math.round(8000 / wordCount));
-  }
-  return delay;
+const WORD_REVEAL_DELAY_MS = 22; // ~45 words/sec — fixed rate, independent of message length
+
+export function getWordRevealDelay(_wordCount: number): number {
+  return WORD_REVEAL_DELAY_MS;
 }
 
 interface UseWordRevealOptions {
