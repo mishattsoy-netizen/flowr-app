@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { supabaseAdmin as supabase } from './supabase'
 import { logger } from './logger'
+import offlineChains from '../../bot configs(premission to edit needed!)/router-chains.json'
 
 const DEFAULT_TEMPERATURE = 0.7
 
@@ -58,7 +59,17 @@ export function resolveChainWithFallback(
 }
 
 async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode): Promise<{ chain: RouterModel[], temperature?: number; thinking_budget?: string | number }> {
-  if (!supabase) return { chain: [] }
+  if (!supabase) {
+    const offlineMode = mode === 'pro' ? 'pro' : 'default'
+    const offlineCategory = offlineChains[offlineMode]?.[category]
+    if (offlineCategory) {
+      return {
+        chain: offlineCategory.chain as RouterModel[],
+        temperature: offlineCategory.temperature
+      }
+    }
+    return { chain: [] }
+  }
   let retryCount = 0
   const maxRetries = 2
 

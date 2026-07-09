@@ -1577,7 +1577,7 @@ export const useStore = create<AppState>()(
             }
             // Persist assistant reply
             if (activeChatId && !isTemp && accumulatedContent) {
-              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations, lastToolResults).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
+              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations, undefined, lastToolResults).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
               // Auto-set title from first message if still default
               const conv = get().chatConversations.find(c => c.id === activeChatId);
               if (conv && conv.title === 'New Chat' && content) {
@@ -1626,7 +1626,7 @@ export const useStore = create<AppState>()(
 
           // Persist non-streaming assistant reply
           if (activeChatId && !isTemp && data.content) {
-            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt, undefined, undefined, (data as any).toolResults).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
+            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt, undefined, undefined, undefined, (data as any).toolResults).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
             // Auto-set title from first message if still default
             const conv = get().chatConversations.find(c => c.id === activeChatId);
             if (conv && conv.title === 'New Chat' && content) {
