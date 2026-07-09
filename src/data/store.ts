@@ -49,6 +49,18 @@ import {
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
 import { saveEntityToFile } from '@/lib/persistence';
+import { createDebouncedPush } from '@/lib/debouncedPush';
+
+// Debounces the ~20 per-mutation Supabase push call sites below by 1.5s per row id,
+// so rapid edits (typing) collapse into one network call instead of firing on every
+// keystroke. This wrapper is only ever invoked from mutation actions (addEntity,
+// updateEntityContent, etc.) — NEVER from setEntities/setTasks/setSpaces, which is
+// what mergeCloudData uses to apply pulled remote data. That separation is what keeps
+// pulls from re-triggering a push back to Supabase (no dirty-flag/echo-suppression
+// needed): bulk setters never call these wrappers, so a pull can never loop back out.
+const debouncedPushEntity = createDebouncedPush<Entity>((e) => { upsertEntity(e); }, 1500);
+const debouncedPushTask = createDebouncedPush<AppTask>((t) => { upsertTask(t); }, 1500);
+const debouncedPushSpace = createDebouncedPush<Space>((s) => { upsertSpace(s); }, 1500);
 
 
 function migrateBlock(block: any): any {
@@ -198,7 +210,7 @@ export const useStore = create<AppState>()(
 
         const ws = get().spaces.find(w => w.id === entityId);
         if (ws) {
-          upsertSpace(ws);
+          debouncedPushSpace(ws);
         }
 
         const { saveEntity } = await import('@/lib/persistence');
@@ -586,7 +598,7 @@ export const useStore = create<AppState>()(
           syncMode: 'cloud-only',
         };
         set(s => ({ spaces: [...s.spaces, workspace] }));
-        upsertSpace(workspace);
+        debouncedPushSpace(workspace);
         return id;
       },
 
@@ -595,7 +607,7 @@ export const useStore = create<AppState>()(
           spaces: s.spaces.map(w => w.id === id ? { ...w, ...patch, lastModified: Date.now() } : w),
         }));
         const updated = get().spaces.find(w => w.id === id);
-        if (updated) upsertSpace(updated);
+        if (updated) debouncedPushSpace(updated);
       },
 
       deleteSpace: (id) => {
@@ -2416,7 +2428,7 @@ export const useStore = create<AppState>()(
           lastModified: entity.lastModified || Date.now()
         } as Entity;
         set((state) => ({ entities: [...state.entities, finalEntity] }));
-        if (finalEntity.syncMode !== 'local-only') upsertEntity(finalEntity);
+        if (finalEntity.syncMode !== 'local-only') debouncedPushEntity(finalEntity);
         return finalEntity.id;
       },
 
@@ -2513,7 +2525,7 @@ export const useStore = create<AppState>()(
             if (correctSpaceId && e.spaceId !== correctSpaceId) {
               console.log(`[Store] Fixing spaceId for ${e.title} (${e.type}): ${e.spaceId} -> ${correctSpaceId}`);
               const fixed = { ...e, spaceId: correctSpaceId };
-              upsertEntity(fixed);
+              debouncedPushEntity(fixed);
               return fixed;
             }
           }
@@ -2532,7 +2544,7 @@ export const useStore = create<AppState>()(
               console.log(`[Store] Rescuing orphaned ${e.type}: ${e.title}`);
               rescuedIds.add(e.id);
               const rescued = { ...e, parentId: null, spaceId: state.activeSpaceId || 'ws-personal' };
-              upsertEntity(rescued); // Sync rescued status to DB
+              debouncedPushEntity(rescued); // Sync rescued status to DB
               return rescued;
             }
             return e;
@@ -2592,9 +2604,7 @@ export const useStore = create<AppState>()(
             spaceId: t.spaceId || (state.activeSpaceId || 'ws-personal'),
           }));
           set({ tasks: migratedTasks });
-          import('@/lib/sync').then(({ upsertTask }) => {
-            migratedTasks.forEach(t => upsertTask(t));
-          });
+          migratedTasks.forEach(t => debouncedPushTask(t));
           console.log(`[Store] Migrated legacy task spaceIds to ${state.activeSpaceId || 'ws-personal'}.`);
         }
 
@@ -2612,9 +2622,7 @@ export const useStore = create<AppState>()(
             t.spaceId && !knownSpaceIds.has(t.spaceId) && t.spaceId !== targetSpaceId ? { ...t, spaceId: targetSpaceId } : t
           );
           set({ tasks: fixedTasks });
-          import('@/lib/sync').then(({ upsertTask }) => {
-            orphanedTasks.forEach(t => upsertTask({ ...t, spaceId: targetSpaceId }));
-          });
+          orphanedTasks.forEach(t => debouncedPushTask({ ...t, spaceId: targetSpaceId }));
           console.log(`[Store] Migrated ${orphanedTasks.length} orphaned task spaceIds to ${targetSpaceId}.`);
         }
       },
@@ -2649,11 +2657,11 @@ export const useStore = create<AppState>()(
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated && updated.syncMode !== 'local-only') {
-          upsertEntity(updated);
+          debouncedPushEntity(updated);
           if (updated.type === 'folder' || updated.type === 'workspace') {
             const descendants = getAllDescendants(get().entities, id);
             descendants.forEach(d => {
-              if (d.syncMode !== 'local-only') upsertEntity(d);
+              if (d.syncMode !== 'local-only') debouncedPushEntity(d);
             });
           }
         }
@@ -2671,7 +2679,7 @@ export const useStore = create<AppState>()(
         orderedIds.forEach(id => {
           const updated = freshEntities.find(e => e.id === id);
           if (updated && updated.syncMode !== 'local-only') {
-            upsertEntity(updated);
+            debouncedPushEntity(updated);
           }
         });
       },
@@ -2684,16 +2692,16 @@ export const useStore = create<AppState>()(
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated) {
-          upsertEntity(updated);
+          debouncedPushEntity(updated);
           if (updated.type === 'folder' || updated.type === 'workspace') {
             const descendants = getAllDescendants(get().entities, id);
             descendants.forEach(d => {
-              if (d.syncMode !== 'local-only') upsertEntity(d);
+              if (d.syncMode !== 'local-only') debouncedPushEntity(d);
             });
           }
         }
         const updatedWs = get().spaces.find(w => w.id === id);
-        if (updatedWs) upsertSpace(updatedWs);
+        if (updatedWs) debouncedPushSpace(updatedWs);
       },
 
       duplicateEntity: (id: string) => {
@@ -2710,7 +2718,7 @@ export const useStore = create<AppState>()(
         };
         duplicateRecursive(rootEntity, rootEntity.parentId);
         set((state) => ({ entities: [...state.entities, ...newEntities] }));
-        newEntities.filter(e => e.syncMode !== 'local-only').forEach(e => upsertEntity(e));
+        newEntities.filter(e => e.syncMode !== 'local-only').forEach(e => debouncedPushEntity(e));
       },
 
       setEntityIcon: (id, icon) => {
@@ -2719,9 +2727,9 @@ export const useStore = create<AppState>()(
           spaces: state.spaces.map(w => w.id === id ? { ...w, icon, lastModified: Date.now() } : w)
         }));
         const updated = get().entities.find(e => e.id === id);
-        if (updated) upsertEntity(updated);
+        if (updated) debouncedPushEntity(updated);
         const updatedWs = get().spaces.find(w => w.id === id);
-        if (updatedWs) upsertSpace(updatedWs);
+        if (updatedWs) debouncedPushSpace(updatedWs);
       },
 
       setEditingEntityId: (id, source) => set({
@@ -2766,7 +2774,7 @@ export const useStore = create<AppState>()(
         set(s => ({ entities: [...s.entities, divider] }));
         // Inherit divider sync from parent context if applicable (cast so compiler knows it's complete)
         const typedDivider = divider as Entity;
-        if (typedDivider.syncMode !== 'local-only') upsertEntity(typedDivider);
+        if (typedDivider.syncMode !== 'local-only') debouncedPushEntity(typedDivider);
       },
       updateEntityContent: (id, content) => {
         const now = Date.now();
@@ -2778,7 +2786,7 @@ export const useStore = create<AppState>()(
         const updated = get().entities.find(e => e.id === id);
 
         if (updated && updated.syncMode !== 'local-only') {
-          upsertEntity(updated);
+          debouncedPushEntity(updated);
         }
       },
 
@@ -3067,7 +3075,11 @@ export const useStore = create<AppState>()(
           lastModified: Date.now(),
         } as AppTask;
         set((state) => ({ tasks: [...state.tasks, finalTask] }));
-        return upsertTask(finalTask);
+        debouncedPushTask(finalTask);
+        // Push is now debounced (fires 1.5s after the last edit to this id), so the
+        // real Supabase result isn't available synchronously. No caller of addTask()
+        // consumes this resolved value today; this preserves the Promise<{error}> contract.
+        return Promise.resolve({ error: null });
       },
 
       toggleTask: (id) => {
@@ -3086,7 +3098,7 @@ export const useStore = create<AppState>()(
           })
         }));
         const updated = get().tasks.find(t => t.id === id);
-        if (updated) upsertTask(updated);
+        if (updated) debouncedPushTask(updated);
       },
 
       deleteTask: (id) => {
@@ -3281,7 +3293,9 @@ export const useStore = create<AppState>()(
           })
         }));
         const updated = get().tasks.find(t => t.id === id);
-        if (updated) return upsertTask(updated);
+        if (updated) debouncedPushTask(updated);
+        // See addTask() for why this resolves immediately rather than awaiting the
+        // (now debounced) push — no caller consumes the resolved error value today.
         return Promise.resolve({ error: null });
       },
 
@@ -3292,7 +3306,7 @@ export const useStore = create<AppState>()(
           )
         }));
         const updated = get().entities.find(e => e.id === entityId);
-        if (updated && updated.syncMode !== 'local-only') upsertEntity(updated);
+        if (updated && updated.syncMode !== 'local-only') debouncedPushEntity(updated);
       },
 
       sortEntities: (criteria) => set((s) => ({ entities: [...s.entities].sort((a, b) => criteria === 'title' ? a.title.localeCompare(b.title) : (b.lastModified || 0) - (a.lastModified || 0)) })),
