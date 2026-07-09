@@ -39,7 +39,7 @@ describe('desktop SQLite write-through subscribers (Tasks 7-8)', () => {
     (global as any).localStorage = localStorageStub;
   });
 
-  it('writes a note entity through to SQLite when its lastModified changes, excluding cloud-only', async () => {
+  it('writes a note entity through to SQLite when its lastModified changes', async () => {
     const { useStore } = await import('./store');
 
     // First setState (prev undefined -> present) itself counts as a lastModified
@@ -64,7 +64,7 @@ describe('desktop SQLite write-through subscribers (Tasks 7-8)', () => {
     expect(flowrDB.upsertEntity.mock.calls[0][0]).toMatchObject({ id: 'e-local', last_modified: 2 });
   });
 
-  it('does NOT write cloud-only entities to SQLite', async () => {
+  it('DOES write cloud-only entities to SQLite too (mirrors everything, so boot-time SQLite hydration is a complete snapshot)', async () => {
     const { useStore } = await import('./store');
 
     useStore.setState({
@@ -72,13 +72,16 @@ describe('desktop SQLite write-through subscribers (Tasks 7-8)', () => {
         { id: 'e-cloud', title: 'Cloud note', type: 'note', parentId: null, lastModified: 1, syncMode: 'cloud-only', pairedEntityId: null } as any,
       ],
     });
+    flowrDB.upsertEntity.mockClear();
+
     useStore.setState({
       entities: [
         { id: 'e-cloud', title: 'Cloud note', type: 'note', parentId: null, lastModified: 2, syncMode: 'cloud-only', pairedEntityId: null } as any,
       ],
     });
 
-    expect(flowrDB.upsertEntity).not.toHaveBeenCalled();
+    expect(flowrDB.upsertEntity).toHaveBeenCalledTimes(1);
+    expect(flowrDB.upsertEntity.mock.calls[0][0]).toMatchObject({ id: 'e-cloud', sync_mode: 'cloud-only', last_modified: 2 });
   });
 
   it('writes a task through to SQLite when its lastModified changes', async () => {

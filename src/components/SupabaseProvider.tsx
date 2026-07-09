@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 import { useStore, Entity, AppTask, Space } from '@/data/store';
 import { loadFromSupabase, subscribeRealtime, upsertSpace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
+import { loadFromSQLite } from '@/lib/loadFromSQLite';
+import { isDesktop } from '@/lib/env';
 
 const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
@@ -168,14 +170,42 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
   const reconcilerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!isSupabaseEnabled || loaded.current) {
-      if (!loaded.current) useStore.getState().setInitialSync(false);
-      return;
-    }
+    if (loaded.current) return;
     loaded.current = true;
 
+    // 0. Hydrate from local SQLite first (desktop only), regardless of whether
+    //    Supabase is configured — SQLite is the local source of truth and must
+    //    load even fully offline. This is a direct hydration via the bulk
+    //    setters, NOT a merge through mergeCloudData: loadFromSQLite() never
+    //    returns cloud-only rows (the desktop write-through subscriber
+    //    deliberately excludes them), so piping this dataset through
+    //    mergeCloudData's drop-on-absence semantics would delete every
+    //    cloud-only entity/task/space already in the store. The Supabase
+    //    load below (step 1) is awaited AFTER this so its mergeCloudData call
+    //    — which correctly preserves local-only entries and applies LWW —
+    //    always layers on top of a fully-hydrated local base instead of
+    //    racing it.
+    const sqliteHydration = isDesktop()
+      ? loadFromSQLite().then((localData) => {
+          const s = useStore.getState();
+          s.setEntities(localData.entities);
+          s.setTasks(localData.tasks);
+          s.setSpaces(localData.spaces);
+        }).catch(err => {
+          console.error('[Flowr sync] SQLite hydration failed:', err);
+        })
+      : Promise.resolve();
+
+    if (!isSupabaseEnabled) {
+      // Same early-return as before this change, just deferred until after
+      // SQLite hydration: no Supabase realtime/reconciliation/fs-watcher setup
+      // when Supabase isn't configured.
+      sqliteHydration.then(() => useStore.getState().setInitialSync(false));
+      return;
+    }
+
     // 1. Initial load
-    loadFromSupabase().then(async (data) => {
+    sqliteHydration.then(() => loadFromSupabase()).then(async (data) => {
       if (!data) {
         useStore.getState().setInitialSync(false);
         return;

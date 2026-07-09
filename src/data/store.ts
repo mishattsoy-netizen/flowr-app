@@ -3595,7 +3595,13 @@ if (isDesktop()) {
   useStore.subscribe((state, prevState) => {
     for (const entity of state.entities) {
       if (entity.type !== 'note' && entity.type !== 'canvas') continue;
-      if (entity.syncMode === 'cloud-only') continue;
+      // SQLite mirrors ALL sync modes, including cloud-only — consistent with the
+      // task/space subscribers below, and required so that boot-time SQLite
+      // hydration (loadFromSQLite + setEntities) is a complete local snapshot.
+      // If cloud-only entities were excluded here, a boot-time setEntities()
+      // call would wipe any cloud-only entities carried over from the
+      // localStorage persist blob, with no guarantee Supabase's own load
+      // (which may be slow, offline, or fail) re-adds them in time.
       const prev = prevState.entities.find(e => e.id === entity.id);
       if (!prev || prev.lastModified !== entity.lastModified) {
         const blocks = entity.type === 'canvas'
