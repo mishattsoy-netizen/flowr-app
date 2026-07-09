@@ -193,7 +193,7 @@ export const useStore = create<AppState>()(
 
         set(s => ({
           entities: s.entities.map(e => targetIds.has(e.id) ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
-          spaces: s.spaces.map(w => w.id === entityId ? { ...w, syncMode: mode } : w)
+          spaces: s.spaces.map(w => w.id === entityId ? { ...w, syncMode: mode, lastModified: Date.now() } : w)
         }));
 
         const ws = get().spaces.find(w => w.id === entityId);
@@ -2679,7 +2679,7 @@ export const useStore = create<AppState>()(
       renameEntity: (id, newTitle) => {
         set((state) => ({
           entities: state.entities.map(e => e.id === id ? { ...e, title: newTitle, lastModified: Date.now() } : e),
-          spaces: state.spaces.map(w => w.id === id ? { ...w, name: newTitle } : w),
+          spaces: state.spaces.map(w => w.id === id ? { ...w, name: newTitle, lastModified: Date.now() } : w),
           editingEntity: null
         }));
         const updated = get().entities.find(e => e.id === id);
@@ -2716,7 +2716,7 @@ export const useStore = create<AppState>()(
       setEntityIcon: (id, icon) => {
         set((state) => ({
           entities: state.entities.map(e => e.id === id ? { ...e, icon, lastModified: Date.now() } : e),
-          spaces: state.spaces.map(w => w.id === id ? { ...w, icon } : w)
+          spaces: state.spaces.map(w => w.id === id ? { ...w, icon, lastModified: Date.now() } : w)
         }));
         const updated = get().entities.find(e => e.id === id);
         if (updated) upsertEntity(updated);
