@@ -32,8 +32,7 @@ CREATE TABLE entities (
   space_id       TEXT,
   sync_mode      TEXT NOT NULL DEFAULT 'local-only', -- local-only | cloud-only | full-sync
   paired_entity_id TEXT,
-  widget_layout  TEXT,                       -- JSON, nullable
-  dirty          INTEGER NOT NULL DEFAULT 0  -- 1 = pending push to Supabase
+  widget_layout  TEXT                        -- JSON, nullable
 );
 
 CREATE INDEX entities_parent_id_idx ON entities(parent_id);
@@ -82,8 +81,7 @@ CREATE TABLE tasks (
   description    TEXT,
   user_due_date  TEXT,
   tag            TEXT,
-  sync_mode      TEXT NOT NULL DEFAULT 'local-only',
-  dirty          INTEGER NOT NULL DEFAULT 0
+  sync_mode      TEXT NOT NULL DEFAULT 'local-only'
 );
 
 CREATE TABLE spaces (
@@ -96,12 +94,11 @@ CREATE TABLE spaces (
   is_default     INTEGER NOT NULL DEFAULT 0,
   created_at     INTEGER,
   last_modified  INTEGER NOT NULL DEFAULT 0,
-  sync_mode      TEXT NOT NULL DEFAULT 'local-only',
-  dirty          INTEGER NOT NULL DEFAULT 0
+  sync_mode      TEXT NOT NULL DEFAULT 'local-only'
 );
 ```
 
-`flowrDB` IPC methods (`upsertEntity`, `deleteEntity`, `getAllEntities`, `getDirtyEntities`, `clearDirty`) get `Task`/`Space` counterparts (`upsertTask`, `upsertSpace`, etc.) following the identical shape.
+`flowrDB` IPC methods (`upsertEntity`, `writeFromRemote`, `deleteEntity`, `getAllEntities`, per Section 2) get `Task`/`Space` counterparts (`upsertTask`, `upsertSpace`, etc.) following the identical shape.
 
 ## 2. Data Flow (renderer ↔ SQLite)
 
@@ -113,18 +110,20 @@ Tracing the current codebase (`src/data/store.ts`, `src/lib/persistence.ts`, `sr
 
 **This means SQLite plugs in as a new branch inside `saveEntity()`, parallel to `saveEntityToFile()` — not a replacement of the Zustand persist blob.** The persist/localStorage blob for UI state (theme, sidebar, tabs, etc., via `partialize`) is unchanged and out of scope. Only the entity-content persistence path changes for desktop builds.
 
-- **Write path:** `saveEntity(entity)` → when desktop and `syncMode` is `local-only` or `full-sync` → `window.flowrDB.upsertEntity(entityRow)` (new IPC call) → main process does a synchronous `better-sqlite3` write, immediately marking the row `dirty = 1`.
-- **Push (local → Supabase):** main process runs a debounced (~1.5s) sweep of `dirty = 1` rows and pushes each via the existing `upsertEntity()` Supabase call shape (reusing `entityToRow`), then clears `dirty`.
+**Where Supabase pushes run — renderer, not main.** The Supabase session (`supabase.auth.getUser()`) only exists in the renderer; `upsertEntity`/`upsertTask`/`upsertSpace` in `src/lib/sync.ts` depend on it. The Electron main process has no auth context and cannot independently call Supabase without standing up and authenticating a second client — that's real new work, not a "reuse" of existing code, and is explicitly out of scope for MVP. **Main process is SQLite-only**: it only ever reads/writes the local `.db` file over IPC and never talks to Supabase. All Supabase push/pull continues to run in the renderer exactly as it does today.
+
+- **Write path:** `saveEntity(entity)` (`src/lib/persistence.ts`) already calls `upsertEntity(entity)` immediately for `cloud-only`/`full-sync` modes — **this existing immediate push is kept as-is, not replaced by a dirty-flag sweep** (a separate debounce+dirty mechanism would double-push the same write). `saveEntity()` gains one new step for desktop builds: for any `syncMode` (including `local-only`), also call `window.flowrDB.upsertEntity(entityRow)` to write through to the local SQLite mirror. This call is synchronous inside the main process and always succeeds locally regardless of network state.
+- **Debounce:** the 1.5s debounce lives where the store already triggers saves on edit (renderer-side, around the call sites that invoke `saveEntity`/`updateEntityContent`) — collapsing rapid keystrokes into one `saveEntity` call per entity per debounce window, rather than being a separate main-process sweep. This satisfies the doc's "debounced push" requirement using the existing push path, not a new one.
 - **Read/boot path:** on app boot (desktop only), a new `loadFromSQLite()` bulk-reads all rows via IPC and merges into the store using the **same LWW-by-`lastModified` pattern already implemented in `mergeCloudData()`** (`src/components/SupabaseProvider.tsx`), so cloud and local merges use one consistent rule.
-- **Pull (Supabase → local):** the existing Supabase Realtime subscription (`subscribeRealtime` in `sync.ts`) gets one addition: after merging an incoming row into the store, also write it back into SQLite (via `flowrDB.upsertEntity`) so the local DB stays the durable mirror, not just an in-memory cache.
-- **Electron IPC surface:** parallel to the existing `flowrFS` bridge (`electron/preload.js`), add `flowrDB` exposing `upsertEntity`, `deleteEntity`, `getAllEntities`, `getDirtyEntities`, `clearDirty`. The renderer never touches SQLite directly, matching the existing `flowrFS` pattern exactly.
+- **Pull (Supabase → local), and avoiding the re-push echo:** the existing Supabase Realtime subscription (`subscribeRealtime` in `sync.ts`) gets one addition: after `mergeCloudData` applies an incoming remote row to the store, also write it into SQLite via a **`flowrDB.writeFromRemote(entityRow)`** IPC call — a distinct method from `upsertEntity` that writes the row but does **not** trigger `saveEntity`'s Supabase push. This is the same self-echo problem `markSelfDeleted`/`consumeSelfDeleteEcho` already solve for deletes (`sync.ts`); the fix here is structural instead of a suppression window: pull-driven writes go through a different function than user-edit-driven writes, so there is no path back to Supabase for them to loop through.
+- **Electron IPC surface:** parallel to the existing `flowrFS` bridge (`electron/preload.js`), add `flowrDB` exposing `upsertEntity` (user-edit write-through), `writeFromRemote` (pull-driven write, no re-push), `deleteEntity`, `getAllEntities`. The renderer never touches SQLite directly, matching the existing `flowrFS` pattern exactly. No `dirty`/`getDirtyEntities`/`clearDirty` methods — those belonged to the now-removed main-process sweep design.
 
 ## 3. Sync Engine
 
-- **Push (local → Supabase):** SQLite writes are immediate and synchronous (main-process write, always succeeds locally regardless of network). A debounced background push (~1.5s after the last edit to a given entity) sends the changed row to Supabase via the existing `entityToRow`/`upsertEntity` shape.
-- **Pull (Supabase → local):** the existing Supabase Realtime subscription per authenticated user (already implemented in `sync.ts`/`SupabaseProvider.tsx`) continues to drive `mergeCloudData`, comparing `remote.lastModified` vs local `lastModified` (both stored as `last_modified` epoch-ms — there is no separate server `updated_at` clock in the current schema, so this spec does not introduce one). The merge result is additionally written back into SQLite per Section 2.
+- **Push (local → Supabase):** unchanged from today's mechanism — `saveEntity()` calls `upsertEntity()` (etc.) in the renderer immediately on each debounced edit, per Section 2. SQLite write-through happens alongside it, not instead of it.
+- **Pull (Supabase → local):** the existing Supabase Realtime subscription per authenticated user (already implemented in `sync.ts`/`SupabaseProvider.tsx`) continues to drive `mergeCloudData`, comparing `remote.lastModified` vs local `lastModified` (both stored as `last_modified` epoch-ms — there is no separate server `updated_at` clock in the current schema, so this spec does not introduce one). The merge result is additionally written into SQLite via `flowrDB.writeFromRemote` per Section 2 — never `upsertEntity`, to avoid the pull→push echo.
 - **Conflict resolution:** Whole-row LWW — newer `lastModified` wins entirely, no field/block-level merge. **Known MVP trade-off:** if the same note is edited offline on two devices before either syncs, one edit is fully discarded. This matches the doc's explicit anti-CRDT stance ("DO NOT build complex CRDT merging algorithms"). Not addressed further for MVP.
-- **Tier gating:** SQLite writes always happen regardless of subscription tier. The push layer no-ops entirely when `sync_mode = 'local-only'` (Free tier or post-downgrade state) — no network calls are attempted.
+- **Tier gating:** SQLite writes always happen regardless of subscription tier. `saveEntity()`'s Supabase branch already no-ops when `syncMode === 'local-only'` (Free tier or post-downgrade state) — unchanged, no new gating needed.
 
 ## 4. Storage Limits & Supabase Scaling
 
@@ -157,5 +156,4 @@ To avoid silently losing existing users' data when they update into the SQLite-b
 
 ## Open Implementation Details (resolve during planning, not blocking spec approval)
 
-- Exact IPC method names/shapes for `flowrDB`.
-- Whether `dirty`/`deleted` flags need a dedicated outbox table vs. columns on `entities` (columns are sufficient for MVP volume).
+- Exact IPC method names/shapes for `flowrDB` beyond what's named in Section 2 (e.g. task/space method naming conventions).
