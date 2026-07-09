@@ -50,15 +50,19 @@ ADVISOR: Strategic advice, coaching, planning, clarification-needed scenarios.
 [ROUTING PRIORITY - Evaluate in order]
 1. User attached an image -> VISION
 2. Message refers to an image already in history ([VISION CONTEXT - DIGITAL TWIN] / [Image: ...] present) -> REGULAR (or COMPLEX). NEVER WEB_SEARCH/RESEARCH.
-3. Create/generate image -> IMAGE_GEN
-4. Code/programming -> CODING
-5. Names ANY product/model/version/company/event (and NOT a reference to the user's own image):
+3. Message refers to the current page/document ("this page", "this note", "what am I looking at"):
+   - PURELY INTERNAL: If asking to summarize, reformat, translate, extract, edit, or analyze the EXISTING content (e.g. "remove X") -> Route to REGULAR (or COMPLEX). Do NOT route to WEB_SEARCH just because a product is named in the text.
+   - EXTERNAL/MIXED: If asking to ADD NEW external information ("add info about X and Y", "add X to the report"), VERIFY facts ("is it correct?", "double check the rest"), or COMBINE internal analysis with external research ("analyze this note and add info about X") -> Route to WEB_SEARCH or RESEARCH.
+   The AI will use list_content to read the document based on the ID in the context block.
+4. Create/generate image -> IMAGE_GEN
+5. Code/programming -> CODING
+6. Names ANY product/model/version/company/event (and NOT a reference to the user's own image):
    - Has 3+ independent facets stacked together (list/ranking + filter + required
      inclusion, or comparison + a filter + an extra angle to verify) -> RESEARCH
    - Plain lookup, plain comparison, or a list/comparison with only ONE filter
      -> WEB_SEARCH
-6. Workspace command -> REGULAR if it is a simple/single action (e.g. "create new task", "move note to folder"). COMPLEX if it involves multi-step reasoning, data generation, or chaining actions (e.g. "analyze X and write a report, then create a task based on it", "review my 5 recent notes and generate tasks").
-7. Audio -> AUDIO
+7. Workspace command -> REGULAR if it is a simple/single action (e.g. "create new task", "move note to folder"). COMPLEX if it involves multi-step reasoning, data generation, or chaining actions (e.g. "analyze X and write a report, then create a task based on it", "review my 5 recent notes and generate tasks").
+8. Audio -> AUDIO
 
 If none of the above:
 - Historical/scientific facts (pre-cutoff, stable knowledge) -> REGULAR

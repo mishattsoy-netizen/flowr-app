@@ -11,3 +11,4 @@ ALL 8 TASKS COMPLETE.
 Task 1: complete (commits 796802b..781713b, review clean)
 Task 2: complete (commits afcd1ac..88fcaef, review clean)
 Task 3: complete (commits 88fcaef..7384c26, review clean)
+Task 4: complete (commit ed1b08b + fixup in 180a1f1, review clean after fix)

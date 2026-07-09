@@ -57,7 +57,7 @@ export function ClearCacheButton() {
 export function SettingsPage() {
   const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, openModal } = useStore();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -92,7 +92,7 @@ export function SettingsPage() {
   const inverseScale = interfaceSize === 'small' ? 1.142857 : interfaceSize === 'big' ? 0.888888 : 1;
 
   return (
-    <div 
+    <div
       className="flex bg-background origin-top-left overflow-hidden"
       style={{
         transform: `scale(${inverseScale})`,
@@ -143,13 +143,13 @@ export function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] border-l border-[#2e2e2e] overflow-y-auto">
-        <div className="flex-1 max-w-2xl w-full mx-auto px-12 py-10 pt-16">
+      <div className={cn("flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] border-l border-[#2e2e2e] relative", activeTab === 'usage' ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <div className="flex-1 flex flex-col min-h-0 max-w-2xl w-full mx-auto px-12 py-10 pt-16">
           {activeTab === 'general' && (
             <div className="space-y-12">
               <section>
                 <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Preferences</h3>
-                
+
                 {/* Visual Theme */}
                 <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
                   <div>
@@ -160,9 +160,8 @@ export function SettingsPage() {
                       className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                       style={{
                         width: 'calc((100% - 8px) / 3)',
-                        left: `calc(4px + (${
-                          (!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
-                        } * (100% - 8px) / 3))`
+                        left: `calc(4px + (${(!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
+                          } * (100% - 8px) / 3))`
                       }}
                     />
                     <button
@@ -208,9 +207,8 @@ export function SettingsPage() {
                       className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                       style={{
                         width: 'calc((100% - 8px) / 3)',
-                        left: `calc(4px + (${
-                          interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
-                        } * (100% - 8px) / 3))`
+                        left: `calc(4px + (${interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
+                          } * (100% - 8px) / 3))`
                       }}
                     />
                     {['small', 'regular', 'big'].map((size) => (
@@ -238,9 +236,8 @@ export function SettingsPage() {
                       className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                       style={{
                         width: 'calc((100% - 8px) / 2)',
-                        left: `calc(4px + (${
-                          isTabsHeaderVisible ? 0 : 1
-                        } * (100% - 8px) / 2))`
+                        left: `calc(4px + (${isTabsHeaderVisible ? 0 : 1
+                          } * (100% - 8px) / 2))`
                       }}
                     />
                     <button

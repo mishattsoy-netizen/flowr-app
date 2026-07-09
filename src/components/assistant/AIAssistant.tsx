@@ -11,6 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { ChatPlusMenu } from '@/components/chat/ChatPlusMenu';
 import { useState, useRef, useEffect, memo, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { StarIcon } from './components/StarIcon';
 import { AIAvatar } from './components/AIAvatar';
@@ -60,6 +61,7 @@ const ContextMeter = ({ usage, limit, threshold = 0.8, size = 30 }: { usage: num
 
 const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceVisible = false }: { isFloating?: boolean; chatPageMode?: boolean; forceVisible?: boolean }) => {
   const { resolvedTheme } = useTheme();
+  const pathname = usePathname();
   const { user } = useAuth();
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
@@ -93,7 +95,6 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const aiSessionContext = useStore(state => state.aiSessionContext);
   const fetchAISessionContext = useStore(state => state.fetchAISessionContext);
   const setAISessionContext = useStore(state => state.setAISessionContext);
-  const sessionContextsMap = useStore(state => state.sessionContextsMap);
   const compactAIChat = useStore(state => state.compactAIChat);
   const entities = useStore(state => state.entities);
   const spaces = useStore(state => state.spaces);
@@ -261,24 +262,22 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   // or when there is no active entity with content.
   const buildPageContext = (): string | null => {
     if (chatPageMode) return null;
+    
     const state = useStore.getState();
     const entity = state.entities.find(e => e.id === activeEntityId);
-    if (!entity) return null;
-    let pageContent = '';
-    if (entity.type === 'canvas') {
-      const canvasBlocks = state.blocks.filter(b => b.canvasId === entity.id);
-      pageContent = blocksToMarkdown(canvasBlocks);
-    } else if (Array.isArray(entity.content) && entity.content.length > 0) {
-      pageContent = blocksToMarkdown(entity.content);
-    } else if (entity.type === 'folder' || entity.type === 'workspace') {
-      const children = state.entities.filter(e => e.parentId === entity.id);
-      if (children.length > 0) {
-        pageContent = children.map(c => `- ${c.title} (${c.type})`).join('\n');
+    
+    if (!entity) {
+      if (pathname === '/' || pathname === '/dashboard') {
+        return "The AI is in sidebar panel mode. The user is currently viewing the Dashboard. (No entity is open).";
+      } else if (pathname === '/tasks') {
+        return "The AI is in sidebar panel mode. The user is currently viewing the global Tasks page. (No entity is open).";
+      } else if (pathname === '/settings') {
+        return "The AI is in sidebar panel mode. The user is currently viewing the Settings page. (No entity is open).";
       }
+      return "The AI is in sidebar panel mode. The user is not viewing a specific entity.";
     }
-    return pageContent
-      ? `Here is the content of the "${entity.title}" page the user is currently viewing (entity ID: ${entity.id}):\n${pageContent}`
-      : `The user is viewing "${entity.title}" (entity ID: ${entity.id}) but it has no content.`;
+    
+    return `The AI is in sidebar panel mode. The user is currently viewing [Type: ${entity.type}] "${entity.title}" (ID: ${entity.id}). The full content is NOT provided here. Only use the list_content tool with readContent=true and ids=["${entity.id}"] to fetch it if the user explicitly asks to summarize, analyze, edit, or refer to this page.`;
   };
 
   // The exact token count of the NEXT request is equal to:
@@ -320,11 +319,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
 
   useEffect(() => {
     if (isAIAssistantOpen) {
-      const savedContext = sessionContextsMap[sessionId];
+      const savedContext = useStore.getState().sessionContextsMap[sessionId];
       setAISessionContext(savedContext || null);
       fetchAISessionContext(sessionId);
     }
-  }, [isAIAssistantOpen, sessionId, fetchAISessionContext, sessionContextsMap, setAISessionContext]);
+  }, [isAIAssistantOpen, sessionId, fetchAISessionContext, setAISessionContext]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
