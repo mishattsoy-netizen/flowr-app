@@ -48,7 +48,6 @@ import {
   robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
-import { saveEntityToFile } from '@/lib/persistence';
 import { createDebouncedPush } from '@/lib/debouncedPush';
 
 // Debounces the ~20 per-mutation Supabase push call sites below by 1.5s per row id,
