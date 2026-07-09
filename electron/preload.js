@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('flowrFS', {
   openPath: (path) => ipcRenderer.invoke('fs:openPath', path),
 });
 
+contextBridge.exposeInMainWorld('flowrDB', {
+  upsertEntity: (row) => ipcRenderer.invoke('db:upsertEntity', row),
+  deleteEntity: (id) => ipcRenderer.invoke('db:deleteEntity', id),
+  getAllEntities: () => ipcRenderer.invoke('db:getAllEntities'),
+});
+
 contextBridge.exposeInMainWorld('flowrPdf', {
   exportPdf: (options) => ipcRenderer.invoke('pdf:export', options),
 });

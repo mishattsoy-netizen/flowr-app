@@ -80,4 +80,36 @@ function getDb() {
   return db;
 }
 
-module.exports = { initDb, getDb, getDbPath };
+function upsertEntity(app, row) {
+  const database = initDb(app);
+  const stmt = database.prepare(`
+    INSERT INTO entities (id, title, type, parent_id, last_modified, icon, tags, content, sort_order, space_id, sync_mode, paired_entity_id, widget_layout)
+    VALUES (@id, @title, @type, @parent_id, @last_modified, @icon, @tags, @content, @sort_order, @space_id, @sync_mode, @paired_entity_id, @widget_layout)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      type = excluded.type,
+      parent_id = excluded.parent_id,
+      last_modified = excluded.last_modified,
+      icon = excluded.icon,
+      tags = excluded.tags,
+      content = excluded.content,
+      sort_order = excluded.sort_order,
+      space_id = excluded.space_id,
+      sync_mode = excluded.sync_mode,
+      paired_entity_id = excluded.paired_entity_id,
+      widget_layout = excluded.widget_layout
+  `);
+  stmt.run(row);
+}
+
+function deleteEntity(app, id) {
+  const database = initDb(app);
+  database.prepare('DELETE FROM entities WHERE id = ?').run(id);
+}
+
+function getAllEntities(app) {
+  const database = initDb(app);
+  return database.prepare('SELECT * FROM entities').all();
+}
+
+module.exports = { initDb, getDb, getDbPath, upsertEntity, deleteEntity, getAllEntities };

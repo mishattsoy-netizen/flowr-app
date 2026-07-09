@@ -417,8 +417,8 @@ app.whenReady().then(() => {
   // leaving the user staring at a window whose server is gone.
   if (!gotTheLock) return;
 
-  const { initDb } = require('./db');
-  initDb(app);
+  const flowrDb = require('./db');
+  flowrDb.initDb(app);
 
   debugLog('app.whenReady');
 
@@ -427,6 +427,10 @@ app.whenReady().then(() => {
   if (initialVault) {
     startWatchingVault(initialVault);
   }
+
+  ipcMain.handle('db:upsertEntity', async (_, row) => flowrDb.upsertEntity(app, row));
+  ipcMain.handle('db:deleteEntity', async (_, id) => flowrDb.deleteEntity(app, id));
+  ipcMain.handle('db:getAllEntities', async () => flowrDb.getAllEntities(app));
 
   ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
   ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
