@@ -269,7 +269,7 @@ export async function classifyIntentWithModel(
   let contextHint = imageHint
   if (lastWasImage) {
     // Iterating on a just-generated image takes priority over the upload-context hint.
-    contextHint = `\n[CONTEXT: The last response contained an image. Follow-up requests like "one more", "make it...", or "change..." should likely be IMAGE_GEN.]`
+    contextHint = `\n[CONTEXT: The last response was a generated image. Any follow-up request asking to visualize, modify, change style, redraw, or alter that image (e.g., "show it like a diagram", "change color", "more realistic") MUST be classified as IMAGE_GEN to maintain the workflow.]`
   }
   const finalUserPrompt = `${replyPrefix}${contextHint}\nUser: "${message}"`
 

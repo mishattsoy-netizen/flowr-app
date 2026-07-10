@@ -7,6 +7,18 @@ export interface MemoryItem {
 }
 
 /**
+ * Strips the "[Tools: ...]" history annotation appended to logged assistant
+ * messages (see buildToolSummary in route.ts/webhook route.ts). This text is
+ * bookkeeping for humans/analytics only — replaying it verbatim as the
+ * model's own prior turn taught the model to imitate the pattern as plain
+ * text instead of issuing real tool calls, which broke UI artifact
+ * rendering and leaked the annotation into Telegram messages.
+ */
+export function stripToolSummary(content: string): string {
+  return content.replace(/\n\n\[Tools:[\s\S]*?\]$/, '')
+}
+
+/**
  * Fetches the last N messages for a Telegram chat to provide context.
  */
 export async function getConversationMemory(telegramId: number, limit: number = 100): Promise<MemoryItem[]> {
@@ -22,7 +34,7 @@ export async function getConversationMemory(telegramId: number, limit: number = 
 
     const reversed = data.reverse()
     const history = reversed.map((msg: any, i: number) => {
-      let cleanContent = msg.content || "";
+      let cleanContent = stripToolSummary(msg.content || "");
       if (cleanContent.includes('data:image/')) {
         const description = msg.context_messages?.image_description;
         cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, description ? `[Image: ${description}]` : '[Image: (visual content generated)]');
@@ -98,7 +110,7 @@ export async function getWebConversationMemory(authUserId: string, limit: number
 
     const reversed = (resultData || []).reverse()
     const history = reversed.map((msg: any, i: number) => {
-      let cleanContent = msg.content || "";
+      let cleanContent = stripToolSummary(msg.content || "");
       // Truncate massive base64 images in history to avoid context bloat and model hallucination
       if (cleanContent.includes('data:image/')) {
         const description = msg.context_messages?.image_description;

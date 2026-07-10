@@ -399,7 +399,7 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
       let deg = (angle - initAngle) * 180 / Math.PI;
 
       // Shift-45° snap
-      if (ev.shiftKey) deg = Math.round(deg / 45) * 45;
+      if (ev.shiftKey) deg = Math.round(deg / 22.5) * 22.5;
 
       const totalDeg = existingRotation + deg;
       const transform = `rotate(${totalDeg}deg)`;
@@ -481,29 +481,21 @@ export function VectorPath({ block, selected, editing, activeTool, viewportScale
           }}
         >
           {/* Sharp-corner selection outline */}
-          <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
+          <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-[var(--brand-blue)] pointer-events-none rounded-none z-[190]" />
 
-          {/* Dimension & Rotation Labels */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 z-[4000] pointer-events-none">
-            <div className="dimension-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
-              {Math.round(bounds.w - 12)} × {Math.round(bounds.h - 12)}
-            </div>
-            <div className="rotation-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
-              {Math.round(renderRotation)}°
-            </div>
-          </div>
+          {/* Dimension & Rotation Labels removed per user request */}
 
           {/* Rotation handle */}
           {!isDrawingTool && !editing && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
               <div
-                className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
+                className="w-3 h-3 bg-[var(--brand-blue)] rounded-full cursor-grab active:cursor-grabbing"
                 onPointerDown={e => {
                   e.stopPropagation();
                   handleRotateStart(e, bounds);
                 }}
               />
-              <div className="w-[1px] h-3 bg-brand-blue" />
+              <div className="w-[1px] h-3 bg-[var(--brand-blue)]" />
             </div>
           )}
 

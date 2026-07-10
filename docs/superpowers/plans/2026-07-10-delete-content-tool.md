@@ -222,7 +222,7 @@ git commit -m "feat(ai): add delete_content result handling in syncToolResults"
 
 ### Task 5: Verify the full build
 
-- [ ] **Step 1: Run the build and check for TypeScript errors**
+- [x] **Step 1: Run the build and check for TypeScript errors**
 
 ```bash
 npm run build 2>&1 | head -50
@@ -230,7 +230,7 @@ npm run build 2>&1 | head -50
 
 Expected: Build succeeds with no type errors.
 
-- [ ] **Step 2: Verify the tool is registered**
+- [x] **Step 2: Verify the tool is registered**
 
 Check that the `toolHandlers` object's keys match the `FLOWR_TOOLS` names by grepping:
 
@@ -240,7 +240,7 @@ grep -n "delete_content" src/lib/bot/tools/definitions.ts src/lib/bot/tools/hand
 
 Expected: Found in definitions (tool entry) and handlers (handler + map key).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A

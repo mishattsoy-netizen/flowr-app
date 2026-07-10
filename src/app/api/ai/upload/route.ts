@@ -57,6 +57,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Local disk fallback only helps on a persistent filesystem (desktop/dev).
+    // On serverless (Vercel), writes land in an ephemeral copy that's gone by
+    // the next invocation, so the returned /user_uploads/... URL 404s on the
+    // very next page load. Try it, but if it's not durable, use a self-contained
+    // data URL instead — same pattern as the generated-image upload fallback.
     try {
       const publicDir = path.join(process.cwd(), 'public', 'user_uploads')
       if (!fs.existsSync(publicDir)) {
@@ -65,6 +70,10 @@ export async function POST(req: NextRequest) {
 
       const filePath = path.join(publicDir, filename)
       fs.writeFileSync(filePath, buffer)
+
+      if (process.env.VERCEL) {
+        return NextResponse.json({ url: dataUrl });
+      }
 
       const relativeUrl = `/user_uploads/${filename}`
       return NextResponse.json({ url: relativeUrl })

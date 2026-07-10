@@ -779,7 +779,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
         const currentAngle = Math.atan2(moveEvent.clientY - screenCy, moveEvent.clientX - screenCx) + Math.PI / 2;
         let deltaDeg = ((currentAngle - startAngle) * 180) / Math.PI;
-        if (moveEvent.shiftKey) deltaDeg = Math.round(deltaDeg / 45) * 45;
+        if (moveEvent.shiftKey) deltaDeg = Math.round(deltaDeg / 22.5) * 22.5;
         finalDeltaRef.deg = deltaDeg;
 
         // Pre-compute trig once per frame (not per block)
@@ -1326,6 +1326,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
               ...activeStyle,
               fill: isLineish ? 'transparent' : activeStyle.fill,
               fillOpacity: isLineish ? 0 : activeStyle.fillOpacity,
+              roundCorners: isLineish ? undefined : true,
             },
           });
           setSelectedIds(new Set([newBlockId]));
@@ -1333,7 +1334,6 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         }
         
         setDrawingShape(null);
-        setActiveTool('select');
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
       };

@@ -44,15 +44,15 @@ export function MultiSelectionBox({ boundingBox, selectedCount, onResizeStart, o
       {onRotateStart && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
-            className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
+            className="w-3 h-3 bg-[var(--brand-blue)] rounded-full cursor-grab active:cursor-grabbing"
             onPointerDown={onRotateStart}
           />
-          <div className="w-[1px] h-3 bg-brand-blue" />
+          <div className="w-[1px] h-3 bg-[var(--brand-blue)]" />
         </div>
       )}
 
       {/* Blue border */}
-      <div className="absolute inset-0 border-2 border-brand-blue pointer-events-none rounded-[1px]" />
+      <div className="absolute inset-0 border-2 border-[var(--brand-blue)] pointer-events-none rounded-[1px]" />
 
       {/* Resize handles */}
       {HANDLES.map(h => (

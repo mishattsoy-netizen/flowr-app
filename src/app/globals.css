@@ -252,6 +252,7 @@ html[data-interface-size="big"] {
   --color-accent: var(--accent);
   --color-on-accent: var(--on-accent);
   --color-danger: var(--color-danger);
+  --color-brand-blue: var(--brand-blue);
 
   --radius-sm: var(--radius-small);
   --radius-8: var(--radius-medium);

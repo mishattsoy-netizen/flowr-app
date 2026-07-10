@@ -118,7 +118,28 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     finalSysPrompt = dateContext
   }
 
-  if (context.pageContext) {
+  // Fetch and inject memory fact sheet BEFORE page context
+  if (context.isGlobalPromptEnabled && context.userId && supabaseAdmin) {
+    try {
+      const { data: memories } = await supabaseAdmin
+        .from('bot_memories')
+        .select('id, content')
+        .eq('user_id', context.userId)
+        .order('created_at', { ascending: true })
+
+      if (memories && memories.length > 0) {
+        finalSysPrompt += `\n\n[USER MEMORY FACT SHEET]\nThe following are confirmed facts you have memorized about the user:\n`
+        for (const mem of memories) {
+          finalSysPrompt += `- [ID: ${mem.id}] [${mem.title}] ${mem.content}\n`
+        }
+        finalSysPrompt += `\n`
+      }
+    } catch (e) {
+      console.error('Failed to fetch bot memories:', e)
+    }
+  }
+
+  if (context.pageContext && context.pageContext !== 'null') {
     const limit = 15000
     let contextStr = context.pageContext
     if (contextStr.length > limit) {
@@ -142,24 +163,10 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     dynamicContext += context.replyContext.attentionBlock + "\n\n"
   }
 
-  if (context.isGlobalPromptEnabled && context.userId && supabaseAdmin) {
-    try {
-      const { data: memories } = await supabaseAdmin
-        .from('bot_memories')
-        .select('id, content')
-        .eq('user_id', context.userId)
-        .order('created_at', { ascending: true })
-
-      if (memories && memories.length > 0) {
-        dynamicContext += `[USER MEMORY FACT SHEET]\nThe following are confirmed facts you have memorized about the user:\n`
-        for (const mem of memories) {
-          dynamicContext += `- [ID: ${mem.id}] ${mem.content}\n`
-        }
-        dynamicContext += `\n`
-      }
-    } catch (e) {
-      console.error('Failed to fetch bot memories:', e)
-    }
+  // Strip system prompt and memory for IMAGE_GEN chain
+  if (category === 'IMAGE_GEN') {
+    system_prompt = ''
+    dynamicContext = ''
   }
 
   return { staticPrompt: system_prompt, dynamicContext }

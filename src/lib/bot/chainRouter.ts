@@ -25,7 +25,6 @@ import { getSessionState, updateSessionState, estimateTokens, summarizeSession }
 import type { StatusCallback, PipelineStep } from './pipeline'
 import { runThinkChain } from './thinkChain'
 import { getPipelineSettings } from '../router-config'
-import { expandImagePrompt } from './prompt-expansion'
 import { TraceCollector } from './tracing'
 import { buildTranscript } from './transcript'
 import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from './services/providerExecution'
@@ -816,27 +815,7 @@ IMAGE GENERATION:
     }
   }
 
-  // ── Prompt Expansion for IMAGE_GEN ──
-  if (category === 'IMAGE_GEN') {
-    onStatus({ chain: 'IMAGE_GEN', goal: 'Expanding prompt with context', status: 'running', label: getStatusLabel('IMAGE_GEN') })
-    const expansionT0 = Date.now()
-    const { getSubchainConfig } = await import('../subchain-config')
-    const expanderCfg = await getSubchainConfig('prompt_expander')
-    const expansionResult = await expandImagePrompt(prompt, history, context)
-    activePromptForGen = expansionResult.expanded
-    if (expansionResult.modelId) {
-      routingTrace.push({ model: expansionResult.modelId, category: 'FAST_SIMPLE', key: 'PROMPT_EXPANSION', success: true })
-      tracer.recordSuccess({
-        chain: 'PROMPT_EXPANSION',
-        model: expansionResult.modelId,
-        provider: expansionResult.provider ?? 'unknown',
-        input_system: expanderCfg?.system_prompt,
-        input_user: prompt,
-        output: activePromptForGen,
-      }, Date.now() - expansionT0)
-    }
-    onStatus({ chain: 'IMAGE_GEN', goal: 'Expanding prompt with context', status: 'done' })
-  }
+
 
   // ── Status label for text-processing categories ──
   const STATUS_CATEGORIES = ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'AUDIO', 'WEB_SEARCH']
@@ -1027,7 +1006,7 @@ IMAGE GENERATION:
             const result = await executeProvider(
               modelConfig,
               category,
-              finalUserPrompt,
+              category === 'IMAGE_GEN' ? activePromptForGen : finalUserPrompt,
               system_prompt,
               historyForChain,
               activeKey,

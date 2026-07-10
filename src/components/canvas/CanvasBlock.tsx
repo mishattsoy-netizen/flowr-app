@@ -478,7 +478,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         deg = (deg % 360 + 360) % 360;
 
         if (moveEvent.shiftKey) {
-          deg = Math.round(deg / 45) * 45;
+          deg = Math.round(deg / 22.5) * 22.5;
         }
         deg = (deg % 360 + 360) % 360;
         if (deg > 180) deg -= 360;
@@ -618,16 +618,16 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
       {!isBoundLabel && isSelected && (!selectedIds || selectedIds.size <= 1) && !(block.type === 'shape' && ['line', 'arrow', 'freedraw'].includes(block.shapeKind || '')) && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center pb-[1px] pointer-events-auto z-[200]">
           <div
-            className="w-3 h-3 bg-brand-blue rounded-full cursor-grab active:cursor-grabbing"
+            className="w-3 h-3 bg-[var(--brand-blue)] rounded-full cursor-grab active:cursor-grabbing"
             onPointerDown={handleRotateStart}
           />
-          <div className="w-[1px] h-3 bg-brand-blue" />
+          <div className="w-[1px] h-3 bg-[var(--brand-blue)]" />
         </div>
       )}
 
       {/* Sharp-corner selection outline sitting exactly 1px outside of the block/shape boundary */}
       {!isBoundLabel && ((isSelected && (!selectedIds || selectedIds.size <= 1)) || isDraggingLocal || isResizing) && (
-        <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-brand-blue pointer-events-none rounded-none z-[190]" />
+        <div className="absolute -top-[1px] -left-[1px] -right-[1px] -bottom-[1px] border border-[var(--brand-blue)] pointer-events-none rounded-none z-[190]" />
       )}
 
       {/* Edge drag trigger — for frames this must NOT be a full-area overlay: sections select
@@ -661,17 +661,7 @@ export function CanvasBlock({ block, activeTool, viewport, isSelected, selectedI
         <ResizeHandle key={h} position={h} onResizeStart={handleResizeStart} isSelected={isSelected} />
       ))}
 
-      {/* Dimension & Rotation Labels — hidden for text (auto-sized, dimensions aren't meaningful) and while editing */}
-      {!isBoundLabel && isSelected && !isEditing && block.type !== 'text' && (
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 z-[4000] pointer-events-none">
-          <div className="dimension-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
-            {Math.round(size.width)} × {Math.round(size.height || containerRef.current?.offsetHeight || 0)}
-          </div>
-          <div className="rotation-label bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] shadow-md text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tiny)] whitespace-nowrap">
-            {Math.round(block.canvasStyleExt?.rotation ?? 0)}°
-          </div>
-        </div>
-      )}
+      {/* Dimension & Rotation Labels removed per user request */}
 
       {/* Bind highlight: a SOLID BLUE trace of the shape's own outline (not a generic
           bounding box) while an arrow endpoint is being aimed at it — either drawing a new
