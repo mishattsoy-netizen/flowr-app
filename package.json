@@ -80,7 +80,8 @@
     },
     "asar": true,
     "asarUnpack": [
-      ".next/standalone/**/*"
+      ".next/standalone/**/*",
+      "node_modules/better-sqlite3/**/*"
     ],
     "files": [
       "electron/**/*",
@@ -105,6 +106,9 @@
       "node_modules/debug/**/*",
       "node_modules/ms/**/*",
       "node_modules/sax/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*",
       ".env"
     ],
     "publish": {
