@@ -91,11 +91,20 @@ function buildColumns(
     return sortManual;
   };
 
+  const taskDeadline = (t: AppTask): string | null => {
+    const dates = [t.dueDate, t.endDate].filter((d): d is string => !!d);
+    return dates.length > 0 ? dates.sort()[0] : null;
+  };
+
   return {
-    todo:      tasks.filter(t => !t.completed && t.status !== 'in-progress' && (!t.dueDate || t.dueDate > today)).sort(getSorter('todo')),
+    todo:      tasks.filter(t => !t.completed && t.status !== 'in-progress' && (() => {
+      const d = taskDeadline(t); return !d || d > today;
+    })()).sort(getSorter('todo')),
     inProgress: tasks.filter(t => !t.completed && t.status === 'in-progress').sort(getSorter('inProgress')),
-    today:     tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate === today).sort(getSorter('today')),
-    overdue:   tasks.filter(t => !t.completed && t.status !== 'in-progress' && t.dueDate && t.dueDate < today).sort(getSorter('overdue')),
+    today:     tasks.filter(t => !t.completed && t.status !== 'in-progress' && taskDeadline(t) === today).sort(getSorter('today')),
+    overdue:   tasks.filter(t => !t.completed && t.status !== 'in-progress' && (() => {
+      const d = taskDeadline(t); return !!d && d < today;
+    })()).sort(getSorter('overdue')),
     completed: tasks.filter(t => t.completed).sort(getSorter('completed')),
   };
 }

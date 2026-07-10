@@ -3,6 +3,7 @@
 import { AppTask, useStore } from '@/data/store';
 import { Calendar, Check, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isTaskOverdue } from '@/lib/task-overdue';
 import React, { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { createPortal } from 'react-dom';
@@ -52,8 +53,7 @@ export function TaskCardUI({
     updateTask(task.id, { subtasks: nextSubtasks });
   };
 
-  const today = new Date().toISOString().split('T')[0];
-  const isOverdue = !task.completed && task.dueDate && task.dueDate < today;
+  const isOverdue = isTaskOverdue({ completed: task.completed, dueDate: task.dueDate, endDate: task.endDate });
 
   const openTaskPanel = useStore(s => s.openTaskPanel);
   const onClick = () => {

@@ -6,6 +6,7 @@ import { X, Plus, Trash2, CheckSquare, Flag, Folder, Check, Loader, Tag, FileTex
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { NotionDateTimePicker } from '@/components/ui/notion-datetime-picker';
+import { isTaskOverdue } from '@/lib/task-overdue';
 import { getEntityIcon } from '@/data/icons';
 import {
   Popover,
@@ -544,28 +545,53 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                 {!color && <CircleDashed className="w-4 h-4 shrink-0" />}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[200px] p-1.5 bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] z-[202]" align="start">
-              <div className="flex items-center gap-2 flex-nowrap">
+            <PopoverContent className="w-[170px] p-0 bg-transparent border-none shadow-none z-[202]" align="start">
+              <div className="popup-glass-small p-2 flex flex-col gap-2 min-w-[160px] shadow-2xl">
                 <button
                   onClick={() => setColor('')}
                   className={cn(
-                    "w-5 h-5 rounded-full transition-all flex items-center justify-center cursor-pointer border border-dashed",
-                    !color ? "border-[var(--bone-70)] scale-110" : "border-[var(--bone-25)] opacity-40 hover:opacity-100"
+                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-[13px] font-medium cursor-pointer transition-none",
+                    !color
+                      ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
+                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                   )}
                 >
-                  <div className="w-2 h-2 rounded-full bg-[var(--bone-40)]" />
+                  <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
+                  <span>None</span>
+                  {!color && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
                 </button>
-                {COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className={cn(
-                      "w-5 h-5 rounded-full transition-all cursor-pointer",
-                      color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-1 ring-offset-sidebar" : "opacity-40 hover:opacity-100"
-                    )}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
+                <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
+                  {COLORS.slice(0, 4).map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setColor(color === c ? '' : c)}
+                      className={cn(
+                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                        color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
+                      )}
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    >
+                      {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-2 px-1 pb-0 place-items-center">
+                  {COLORS.slice(4, 8).map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setColor(color === c ? '' : c)}
+                      className={cn(
+                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                        color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
+                      )}
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    >
+                      {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                    </button>
+                  ))}
+                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -602,11 +628,11 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                   "bg-blue-500/15 text-blue-400"
                 )}>
                   <div className="flex items-center gap-2">
-                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0",
-                      displayStatus === 'done' ? "bg-emerald-400" :
-                      displayStatus === 'in-progress' ? "bg-amber-400" :
-                      displayStatus === 'today' ? "bg-violet-400" :
-                      displayStatus === 'overdue' ? "bg-red-400" : "bg-blue-400"
+                    <span className={cn("w-2 h-2 rounded-full shrink-0",
+                      displayStatus === 'done' ? "bg-emerald-500" :
+                      displayStatus === 'in-progress' ? "bg-amber-500" :
+                      displayStatus === 'today' ? "bg-violet-500" :
+                      displayStatus === 'overdue' ? "bg-red-500" : "bg-blue-500"
                     )} />
                     <span>
                       {displayStatus === 'done' ? 'Done' :
@@ -618,29 +644,29 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                   <ChevronDown className="w-3 h-3 opacity-60 shrink-0 transition-none" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[180px] p-1 bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] z-[202]" align="start">
+              <PopoverContent className="w-[150px] p-1.5 flex flex-col gap-[2px] bg-[var(--background-secondary)] bg-panel border border-[var(--bone-6)] shadow-2xl rounded-[12px] z-[202]" align="start">
                 {[
-                  { id: 'todo' as const, label: 'To Do', color: 'bg-blue-400', activeColor: 'text-blue-400', bgColor: 'bg-blue-500/15', hoverClass: 'hover:bg-blue-500/15 hover:text-blue-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(''); } },
-                  { id: 'in-progress' as const, label: 'In Progress', color: 'bg-amber-400', activeColor: 'text-amber-400', bgColor: 'bg-amber-500/15', hoverClass: 'hover:bg-amber-500/15 hover:text-amber-400', onClick: () => { setCompleted(false); setStatus('in-progress'); } },
-                  { id: 'today' as const, label: 'Today', color: 'bg-violet-400', activeColor: 'text-violet-400', bgColor: 'bg-violet-500/15', hoverClass: 'hover:bg-violet-500/15 hover:text-violet-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(todayStr); } },
-                  { id: 'overdue' as const, label: 'Overdue', color: 'bg-red-400', activeColor: 'text-red-400', bgColor: 'bg-red-500/15', hoverClass: 'hover:bg-red-500/15 hover:text-red-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(yesterdayStr); } },
-                  { id: 'done' as const, label: 'Done', color: 'bg-emerald-400', activeColor: 'text-emerald-400', bgColor: 'bg-emerald-500/15', hoverClass: 'hover:bg-emerald-500/15 hover:text-emerald-400', onClick: () => { setCompleted(true); } },
+                  { id: 'todo' as const, label: 'To Do', color: 'bg-blue-500', activeClass: 'bg-blue-500/15 text-blue-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(''); } },
+                  { id: 'in-progress' as const, label: 'In progress', color: 'bg-amber-500', activeClass: 'bg-amber-500/15 text-amber-400', onClick: () => { setCompleted(false); setStatus('in-progress'); } },
+                  { id: 'today' as const, label: 'Today', color: 'bg-violet-500', activeClass: 'bg-violet-500/15 text-violet-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(todayStr); } },
+                  { id: 'overdue' as const, label: 'Overdue', color: 'bg-red-500', activeClass: 'bg-red-500/15 text-red-400', onClick: () => { setCompleted(false); setStatus('todo'); setDueDate(yesterdayStr); } },
+                  { id: 'done' as const, label: 'Done', color: 'bg-emerald-500', activeClass: 'bg-emerald-500/15 text-emerald-400', onClick: () => { setCompleted(true); } },
                 ].map(opt => {
                   const isActive = (opt.id === 'done' && displayStatus === 'done') || (opt.id !== 'done' && displayStatus === opt.id);
                   return (
                     <button key={opt.id} onClick={opt.onClick}
                       className={cn(
-                        "w-full px-3 py-2 text-left text-xs rounded-[8px] flex items-center justify-between mt-0.5 cursor-pointer transition-none",
+                        "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center justify-between cursor-pointer transition-none",
                         isActive
-                          ? `${opt.bgColor} ${opt.activeColor} font-semibold`
-                          : `${opt.activeColor}/70 ${opt.hoverClass}`
+                          ? opt.activeClass
+                          : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", opt.color)} />
+                      <div className="flex items-center gap-2.5">
+                        <span className={cn("w-2 h-2 rounded-full shrink-0", opt.color)} />
                         <span>{opt.label}</span>
                       </div>
-                      {isActive && <Check className="w-3 h-3" />}
+                      {isActive && <Check className="w-3.5 h-3.5 shrink-0 ml-2" />}
                     </button>
                   );
                 })}
@@ -678,6 +704,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
               setIncludeTime={setIncludeTime}
               reminder={reminder}
               setReminder={setReminder}
+              isOverdue={isTaskOverdue({ completed, dueDate, endDate })}
             />
           </div>
 
@@ -695,7 +722,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                     return (
                       <button className="w-full flex items-center bg-[var(--bone-6)] rounded-[6px] pl-2.5 pr-8 py-1.5 text-xs text-[var(--bone-90)] hover:bg-[var(--bone-10)] focus:bg-[var(--bone-10)] outline-none transition-all cursor-pointer text-left">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <WsIcon className="w-3 h-3 opacity-60 shrink-0" />
+                          <WsIcon className="w-3 h-3 opacity-60 shrink-0 text-[var(--bone-100)]" />
                           <span className="truncate font-medium">{ws.title}</span>
                         </div>
                       </button>
@@ -717,7 +744,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                     <button key={w.id} onClick={() => { setEntityId(w.id); }}
                       className={cn("w-full px-3 py-1.5 text-left text-xs rounded-[8px] transition-none mt-0.5 cursor-pointer", entityId === w.id ? "bg-[var(--bone-10)] text-[var(--bone-100)] font-semibold" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]")}>
                       <div className="flex items-center gap-1.5">
-                        <WsIcon className="w-3 h-3 opacity-60" />
+                        <WsIcon className="w-3 h-3 opacity-60 text-[var(--bone-100)]" />
                         <span className="truncate">{w.title}</span>
                       </div>
                     </button>
@@ -788,7 +815,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
                       setTag(t);
                       setIsTagDropdownOpen(false);
                     }}
-                    className="w-full px-2.5 py-1.5 text-left text-xs rounded-[6px] hover:bg-[var(--bone-5)] text-[var(--bone-80)] hover:text-[var(--bone-100)] cursor-pointer truncate transition-none border-none outline-none bg-transparent"
+                    className="w-full px-2.5 py-1.5 text-left text-xs rounded-[6px] hover:bg-[var(--bone-5)] text-[var(--bone-80)] hover:text-[var(--bone-100)] cursor-pointer truncate transition-none border-none outline-none bg-transparent shrink-0"
                   >
                     {t}
                   </button>

@@ -18,6 +18,7 @@ export type NotionDateTimePickerProps = {
   setIncludeTime: (include: boolean) => void
   reminder?: string
   setReminder: (reminder: string | undefined) => void
+  isOverdue?: boolean
 }
 
 export function NotionDateTimePicker({
@@ -28,7 +29,8 @@ export function NotionDateTimePicker({
   includeTime,
   setIncludeTime,
   reminder,
-  setReminder
+  setReminder,
+  isOverdue
 }: NotionDateTimePickerProps) {
   const [open, setOpen] = React.useState(false)
   
@@ -280,10 +282,10 @@ export function NotionDateTimePicker({
         <button
           className={cn(
             "w-full flex items-center justify-between font-medium text-xs h-8 px-3 rounded-[6px] border-none transition-all text-left cursor-pointer outline-none focus:outline-none",
-            !startDate ? "bg-[var(--bone-6)] text-[var(--bone-30)] hover:bg-[var(--bone-10)] focus:bg-[var(--bone-10)]" : "bg-[var(--bone-6)] text-[var(--bone-90)] hover:bg-[var(--bone-10)]"
+            !startDate ? "bg-[var(--bone-6)] text-[var(--bone-30)] hover:bg-[var(--bone-10)] focus:bg-[var(--bone-10)]" : "bg-[var(--bone-6)] hover:bg-[var(--bone-10)]"
           )}
         >
-          <span className="truncate">{getDisplayValue()}</span>
+          <span className={cn("truncate", startDate && (isOverdue ? "text-red-400 font-medium" : "text-[var(--bone-90)]"))}>{getDisplayValue()}</span>
           {startDate && (
             <span
               onClick={(e) => {

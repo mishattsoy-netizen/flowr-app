@@ -50,7 +50,8 @@ export const PATCHES: Patch[] = [
           'Fixed an issue where the AI Memory usage meter would get stuck on "..." or falsely show 0% when refreshing the page on the dedicated Chat view.',
           'Prevented temporary network interruptions from permanently caching an empty memory state for your session.',
           'Fixed a bug where the AI chat window would sometimes falsely replay or retype the most recent message when reopening the panel.',
-          'Fixed an issue where shortcuts, recent widgets, and UI settings would occasionally reset on app restart due to local storage limits being exceeded.'
+          'Fixed an issue where shortcuts, recent widgets, and UI settings would occasionally reset on app restart due to local storage limits being exceeded.',
+          'Polished the Task Context Menu: unified "Overdue" logic across all task views so red deadline colors perfectly sync, and refined submenu alignments, dot colors, and text styles to exactly mirror the main popups.'
         ]
       }
     ]

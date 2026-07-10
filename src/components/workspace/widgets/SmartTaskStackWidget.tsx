@@ -3,6 +3,7 @@
 import { useStore } from '@/data/store';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { isTaskOverdue } from '@/lib/task-overdue';
 import { Calendar, AlertCircle, Clock, CheckCircle2, Plus, X, Check, Play, ArrowUpRight, Paperclip } from 'lucide-react';
 import { stripHtml } from '@/lib/utils';
 import type { WidgetProps } from './types';
@@ -343,8 +344,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
           <div className="space-y-1">
             {displayTasks.map(t => {
               const workspaceName = entities.find(e => e.id === (t.entityId || t.spaceId))?.title || null;
-              const todayStr = getLocalDateStr();
-              const isOverdue = !t.completed && t.dueDate && t.dueDate < todayStr;
+              const isOverdue = isTaskOverdue({ completed: t.completed, dueDate: t.dueDate, endDate: t.endDate });
               return (
                 <div
                   key={t.id}
