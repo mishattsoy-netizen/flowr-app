@@ -206,7 +206,13 @@ function taskToRow(t: AppTask): Record<string, any> {
   row.color        = t.color       ?? null;
   row.status       = t.status      ?? null;
   row.position     = t.position    ?? null;
-  if (t.priority !== undefined) row.priority = t.priority;
+  
+  if (t.priority !== undefined) {
+    row.priority = (t.priority === 'low' || t.priority === 'medium' || t.priority === 'high') 
+      ? t.priority 
+      : null;
+  }
+  
   if (t.subtasks)   row.subtasks    = t.subtasks;
   if (t.createdAt) {
     row.created_at = typeof t.createdAt === 'number'

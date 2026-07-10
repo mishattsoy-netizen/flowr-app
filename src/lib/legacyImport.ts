@@ -54,7 +54,7 @@ export function taskToSQLiteRow(task: AppTask): any {
     space_id: task.spaceId ?? null,
     note: task.note ?? null,
     color: task.color ?? null,
-    priority: task.priority ?? null,
+    priority: (task.priority === 'low' || task.priority === 'medium' || task.priority === 'high') ? task.priority : null,
     status: task.status ?? null,
     position: task.position ?? null,
     created_at: task.createdAt ?? null,
