@@ -1109,6 +1109,10 @@ export const ChatMessage = memo(({
         if (!timerStartRef.current) {
           timerStartRef.current = msg.timestamp || Date.now();
         }
+        // Set the first value synchronously so the timer text appears on the
+        // same paint as the status row, instead of waiting ~100ms for the
+        // first interval tick (visible as a delayed pop-in on remount).
+        setElapsed(Date.now() - timerStartRef.current);
         const timer = setInterval(() => {
           if (timerStartRef.current) {
             setElapsed(Date.now() - timerStartRef.current);
