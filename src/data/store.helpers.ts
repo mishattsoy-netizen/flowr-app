@@ -1,4 +1,4 @@
-import type { Entity, EditorBlock, FlowIntentCategory } from './store.types';
+import type { Entity, EditorBlock, FlowIntentCategory, AppTask } from './store.types';
 
 let _idCounter = 100;
 export function generateId(): string {
@@ -29,6 +29,25 @@ export function getDescendantIds(entities: Entity[], parentId: string): string[]
     ids = ids.concat(getDescendantIds(entities, c.id));
   }
   return ids;
+}
+
+/**
+ * Full cascade set for a workspace-level sync-mode switch: the workspace
+ * entity, every descendant entity, and every task tied to any of them
+ * (via entityId) or to the workspace directly (via spaceId).
+ * Unassigned tasks (no entityId, no matching spaceId) are NOT included.
+ */
+export function getSyncModeCascade(
+  entities: Entity[],
+  tasks: AppTask[],
+  workspaceId: string
+): { entityIds: string[]; taskIds: string[] } {
+  const entityIds = [workspaceId, ...getDescendantIds(entities, workspaceId)];
+  const entitySet = new Set(entityIds);
+  const taskIds = tasks
+    .filter(t => (t.entityId && entitySet.has(t.entityId)) || t.spaceId === workspaceId)
+    .map(t => t.id);
+  return { entityIds, taskIds };
 }
 
 /**

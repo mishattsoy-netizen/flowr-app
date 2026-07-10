@@ -425,6 +425,52 @@ export async function deleteTaskFromDB(id: string): Promise<{ error: any }> {
   return { error };
 }
 
+// ─── Local-only purge (grace period) ─────────────────────────────────────────
+//
+// Every normal push path (debouncedPush*, saveEntity) is hard-suppressed for
+// local-only rows — that's how local-only stays out of the cloud during
+// day-to-day edits. But that same suppression means flipping a row to
+// local-only through the normal path never informs Supabase at all: the
+// cloud row would silently keep its OLD sync_mode forever.
+//
+// markForPurge/clearPurge are the only functions allowed to write local-only
+// state to Supabase. They bypass the debounced push path on purpose.
+
+export const PURGE_GRACE_MS = 48 * 60 * 60 * 1000;
+
+export interface PurgeTargets {
+  entityIds: string[];
+  taskIds: string[];
+  spaceIds?: string[];
+}
+
+export async function markForPurge(targets: PurgeTargets): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
+  const purgeAt = new Date(Date.now() + PURGE_GRACE_MS).toISOString();
+  const values = { sync_mode: 'local-only', purge_at: purgeAt };
+  const ops: Promise<{ error: any }>[] = [];
+  if (targets.entityIds.length) ops.push(supabase.from('entities').update(values).in('id', targets.entityIds));
+  if (targets.taskIds.length)   ops.push(supabase.from('tasks').update(values).in('id', targets.taskIds));
+  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update(values).in('id', targets.spaceIds));
+  const results = await Promise.all(ops);
+  const firstError = results.find(r => r.error)?.error ?? null;
+  if (firstError) console.error('[Flowr sync] markForPurge:', firstError.message);
+  return { error: firstError };
+}
+
+export async function clearPurge(targets: PurgeTargets, newMode: 'cloud-only' | 'full-sync'): Promise<{ error: any }> {
+  if (!supabase) return { error: null };
+  const values = { sync_mode: newMode, purge_at: null };
+  const ops: Promise<{ error: any }>[] = [];
+  if (targets.entityIds.length) ops.push(supabase.from('entities').update(values).in('id', targets.entityIds));
+  if (targets.taskIds.length)   ops.push(supabase.from('tasks').update(values).in('id', targets.taskIds));
+  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update(values).in('id', targets.spaceIds));
+  const results = await Promise.all(ops);
+  const firstError = results.find(r => r.error)?.error ?? null;
+  if (firstError) console.error('[Flowr sync] clearPurge:', firstError.message);
+  return { error: firstError };
+}
+
 // ─── Realtime subscriptions ───────────────────────────────────────────────────
 
 type StoreSetters = {
