@@ -235,6 +235,7 @@ export function SpacePage({ entity }: { entity: Entity }) {
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setActiveSpaceId = useStore(state => state.setActiveSpaceId);
   const setSyncMode = useStore(state => state.setSyncMode);
+  const openModal = useStore(state => state.openModal);
   const cloudSyncOn = entity.syncMode === 'cloud-only' || entity.syncMode === 'full-sync';
   const isFullWidth = useStore(state => state.isFullWidth);
   const { resolvedTheme } = useTheme();
@@ -458,13 +459,13 @@ export function SpacePage({ entity }: { entity: Entity }) {
                     {(
                       isDesktop()
                         ? [
-                            { mode: 'full-sync', label: 'Full Sync', desc: 'Local file + Database', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
-                            { mode: 'local-only', label: 'Local Only', desc: 'Local file only, no DB sync', icon: <HardDrive className="w-3.5 h-3.5 text-emerald-400" /> },
-                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Database only, no local file', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
+                            { mode: 'full-sync', label: 'Full Sync', desc: 'On this device + cloud', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
+                            { mode: 'local-only', label: 'Local Only', desc: 'This device only — leaves the cloud', icon: <HardDrive className="w-3.5 h-3.5 text-emerald-400" /> },
+                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Cloud only', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
                           ]
                         : [
-                            { mode: 'full-sync', label: 'Full Sync', desc: 'Local file + Database', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
-                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Database only, no local file', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
+                            { mode: 'full-sync', label: 'Full Sync', desc: 'On this device + cloud', icon: <Cloud className="w-3.5 h-3.5 text-blue-400" /> },
+                            { mode: 'cloud-only', label: 'Cloud Only', desc: 'Cloud only', icon: <Cloud className="w-3.5 h-3.5 text-purple-400" /> },
                           ]
                     ).map(({ mode, label, desc, icon }) => (
                       <button
@@ -472,6 +473,10 @@ export function SpacePage({ entity }: { entity: Entity }) {
                         onClick={async () => {
                           setShowSyncPicker(false);
                           if (syncPending) return;
+                          if (mode === 'local-only') {
+                            openModal({ kind: 'localOnlyConfirm', workspaceId: entity.id });
+                            return;
+                          }
                           setSyncPending(true);
                           try {
                             await setSyncMode(entity.id, mode as any);

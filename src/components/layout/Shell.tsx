@@ -16,6 +16,7 @@ import { MediaViewerModal } from '../modals/MediaViewerModal';
 import { SummaryPreviewModal } from '../modals/SummaryPreviewModal';
 import { VaultSetupModal } from '../modals/VaultSetupModal';
 import { SyncFileCleanupModal } from '../modals/SyncFileCleanupModal';
+import { LocalOnlyConfirmModal } from '../modals/LocalOnlyConfirmModal';
 import { PdfExportModal } from '../modals/PdfExportModal';
 import { SplitViewLayout } from './SplitViewLayout';
 
@@ -509,6 +510,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         <CommandPalette key="command-palette" />
         <VaultSetupModal key="vault-setup" />
         <SyncFileCleanupModal key="sync-file-cleanup" />
+        <LocalOnlyConfirmModal key="local-only-confirm" />
 
 
 
