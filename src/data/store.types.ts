@@ -251,7 +251,6 @@ export type ModalType =
   | { kind: 'mediaViewer'; url: string; mediaType: 'image' | 'audio' | 'video' | 'file' | 'pdf'; description?: string; messageId?: string; title?: string }
   | { kind: 'summaryPreview'; summary: string }
   | { kind: 'pdfExport'; entityId: string; entityTitle: string; blocks: EditorBlock[] }
-  | { kind: 'syncFileCleanup'; files: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> }
   | { kind: 'deleteAllDataConfirm' };
 
 export type EditingSource = 'sidebar' | 'sidebar-section' | 'header' | 'view' | 'favorites' | 'recent' | 'canvas' | 'editor' | 'modal' | 'all-files' | 'folders' | 'spaces' | 'sidebar-toggle' | 'tab';

@@ -9,7 +9,6 @@ import ProfileSection from '@/components/profile/ProfileSection';
 import UsagePanel from '@/components/settings/UsagePanel';
 import { useAuth } from '@/components/AuthProvider';
 import AISettingsSection from '@/components/settings/AISettingsSection';
-import { isDesktop } from '@/lib/env';
 import { useTheme } from '@/components/ThemeProvider';
 import { ClearCacheButton } from '@/components/settings/SettingsPage';
 import { Toggle } from '@/components/ui/Toggle';
@@ -56,21 +55,6 @@ export function SettingsModal() {
       }
     }
   }, [isVisible, modal?.kind, interfaceSize]);
-
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
-  useEffect(() => {
-    if (isDesktop()) {
-      import('@/lib/fileVault').then(({ getVaultPath }) => {
-        getVaultPath().then(path => setVaultPath(path));
-      });
-    }
-  }, []);
-
-  const handleChangeVault = async () => {
-    const { pickVaultFolder } = await import('@/lib/fileVault');
-    const path = await pickVaultFolder();
-    if (path) setVaultPath(path);
-  };
 
   if (!isVisible) return null;
 
@@ -278,26 +262,6 @@ export function SettingsModal() {
                     <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Profile</h3>
                     <ProfileSection />
                   </section>
-
-                  {isDesktop() && (
-                    <section>
-                      <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Local Storage</h3>
-                      <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                        <div className="min-w-0 flex-1 pr-4">
-                          <h4 className="text-[14px] font-medium text-bone-100">Vault Directory</h4>
-                          <p className="text-[13px] text-bone-70 mt-0.5 truncate max-w-sm font-mono">
-                            {vaultPath ? vaultPath : 'No local directory selected.'}
-                          </p>
-                        </div>
-                        <button
-                          onClick={handleChangeVault}
-                          className="px-3 py-1 rounded-md text-[13px] font-medium bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100 transition-colors shrink-0"
-                        >
-                          Change Directory
-                        </button>
-                      </div>
-                    </section>
-                  )}
 
                   <section>
                     <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Data</h3>

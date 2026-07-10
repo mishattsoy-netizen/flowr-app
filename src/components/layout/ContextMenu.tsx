@@ -454,41 +454,6 @@ export function ContextMenu() {
       });
     }
 
-    if (isDesktop() && entity && entity.syncMode !== 'cloud-only') {
-      items.push({ isDivider: true });
-      items.push(
-        {
-          icon: <FolderOpen strokeWidth={2} className="w-4 h-4" />,
-          label: 'Show in Explorer',
-          onClick: async () => {
-            const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
-            const vault = await getVaultPath();
-            if (!vault) return;
-            const filePath = await findLocalFileForEntity(vault, entity);
-            if (filePath && (window as any).flowrFS) {
-              (window as any).flowrFS.showItemInFolder(filePath);
-            }
-            closeContextMenu();
-          },
-        },
-        {
-          icon: <File strokeWidth={2} className="w-4 h-4" />,
-          label: 'Open local file',
-          onClick: async () => {
-            const { getVaultPath, findLocalFileForEntity } = await import('@/lib/syncFileScan');
-            const vault = await getVaultPath();
-            if (!vault) return;
-            const filePath = await findLocalFileForEntity(vault, entity);
-            if (filePath && (window as any).flowrFS) {
-              (window as any).flowrFS.openPath(filePath);
-            }
-            closeContextMenu();
-          },
-        }
-      );
-    }
-
-
     items.push({ isDivider: true });
     items.push({
       icon: <Trash2 strokeWidth={2} className="w-4 h-4" />,

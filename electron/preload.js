@@ -2,26 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('__FLOWR_DESKTOP__', true);
 
-contextBridge.exposeInMainWorld('flowrFS', {
-  readFile: (path) => ipcRenderer.invoke('fs:readFile', path),
-  writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content),
-  deleteFile: (path) => ipcRenderer.invoke('fs:deleteFile', path),
-  readdir: (path) => ipcRenderer.invoke('fs:readdir', path),
-  mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
-  pickVaultFolder: () => ipcRenderer.invoke('dialog:pickVaultFolder'),
-  getDefaultVaultPath: () => ipcRenderer.invoke('fs:getDefaultVaultPath'),
-  getVaultPath: () => ipcRenderer.invoke('fs:getVaultPath'),
-  setVaultPath: (path) => ipcRenderer.invoke('fs:setVaultPath', path),
-  listAllFiles: (vaultPath) => ipcRenderer.invoke('fs:listAllFiles', vaultPath),
-  onFileChanged: (callback) => {
-    const listener = (_, data) => callback(data);
-    ipcRenderer.on('fs:file-changed', listener);
-    return () => ipcRenderer.removeListener('fs:file-changed', listener);
-  },
-  showItemInFolder: (path) => ipcRenderer.invoke('fs:showItemInFolder', path),
-  openPath: (path) => ipcRenderer.invoke('fs:openPath', path),
-});
-
 contextBridge.exposeInMainWorld('flowrDB', {
   upsertEntity: (row) => ipcRenderer.invoke('db:upsertEntity', row),
   deleteEntity: (id) => ipcRenderer.invoke('db:deleteEntity', id),

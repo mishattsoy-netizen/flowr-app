@@ -128,45 +128,6 @@ export function mergeCloudData(data: {
 }
 
 /**
- * After cloud data has loaded, scan the local vault for files that shouldn't
- * exist anymore: files belonging to now-cloud-only entities (stale orphans,
- * often left over from the syncMode-frontmatter bug), and files whose id
- * doesn't match any known entity at all (unrecognized). Surfaces one batched
- * confirm popup rather than one per file.
- */
-async function scanForStaleLocalFiles() {
-  const { isDesktop } = await import('@/lib/env');
-  if (!isDesktop()) return;
-
-  const { getVaultPath, listVaultFiles, isFileKeptByUser } = await import('@/lib/syncFileScan');
-  const vault = await getVaultPath();
-  if (!vault) return;
-
-  const files = await listVaultFiles(vault);
-  if (files.length === 0) return;
-
-  const entities = useStore.getState().entities;
-  const entityById = new Map(entities.map(e => [e.id, e]));
-
-  const flagged: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> = [];
-
-  for (const file of files) {
-    const entity = entityById.get(file.parsed.id);
-    if (!entity) {
-      const candidate = { path: file.path, entityId: file.parsed.id, entityTitle: file.fileName, recognized: false };
-      if (!isFileKeptByUser(candidate)) flagged.push(candidate);
-    } else if (entity.syncMode === 'cloud-only') {
-      const candidate = { path: file.path, entityId: entity.id, entityTitle: entity.title, recognized: true };
-      if (!isFileKeptByUser(candidate)) flagged.push(candidate);
-    }
-  }
-
-  if (flagged.length > 0) {
-    useStore.getState().openModal({ kind: 'syncFileCleanup', files: flagged });
-  }
-}
-
-/**
  * Mounts once at app root.
  * - Loads initial data from Supabase on boot (overrides localStorage if Supabase is configured).
  * - Subscribes to realtime changes so edits from other devices appear instantly.
@@ -345,7 +306,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
 
       useStore.getState().setInitialSync(false);
-      scanForStaleLocalFiles();
       import('@/data/store').then(({ drainPendingModeWrites }) => drainPendingModeWrites());
     }).catch(err => {
       console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);
@@ -359,19 +319,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       setSpaces, getWorkspaces,
       setShortcutsState,
     });
-
-    // 2.5 Real-time Local File System Watcher
-    let unsubscribeFsWatcher: (() => void) | null = null;
-    const flowrFS = (window as any).flowrFS;
-    if (flowrFS && flowrFS.onFileChanged) {
-      import('@/lib/vaultSyncBridge').then(({ handleLocalFileChanged }) => {
-        unsubscribeFsWatcher = flowrFS.onFileChanged((data: any) => {
-          handleLocalFileChanged(data).catch((err: any) => {
-            console.error('[Flowr FS watcher] Reconciler error:', err);
-          });
-        });
-      });
-    }
 
     // 3. Periodic reconciliation — catches missed realtime events (e.g. other browser
     //    deleted items while this tab was closed or offline).
@@ -402,7 +349,6 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       unsubscribeCore();
       if (reconcilerRef.current) clearInterval(reconcilerRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (unsubscribeFsWatcher) unsubscribeFsWatcher();
     };
   }, []);
  // eslint-disable-line react-hooks/exhaustive-deps
