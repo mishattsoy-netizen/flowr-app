@@ -49,10 +49,15 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     }
   }
 
+  let dbChatId = chatId;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)) {
+    dbChatId = `chat:${chatId}`;
+  }
+
   const sessionResult = await supabase
     .from('bot_session_states')
     .select('*')
-    .eq('chat_id', chatId)
+    .eq('chat_id', dbChatId)
     .maybeSingle()
 
   if (sessionResult.error) {

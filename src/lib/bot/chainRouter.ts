@@ -194,8 +194,8 @@ export async function runChain(
   let dateContext = `[CURRENT CONTEXT]\nDate: ${now.toDateString()}\nTime: ${now.toLocaleTimeString()}\n`
 
   // 0. Prefetch independent config in parallel
-  const sessionId = context?.chatId?.toString()
-    || (context?.activeChatId ? `chat:${context.activeChatId}` : null)
+  const sessionId = (context?.activeChatId ? `chat:${context.activeChatId}` : null)
+    || context?.chatId?.toString()
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
@@ -1294,7 +1294,8 @@ IMAGE GENERATION:
                   }
                 }).catch((e: any) => logger.error(`Background compaction failed for ${sid}:`, e))
               } else {
-                updateSessionState(sid, { token_usage_total: totalUsage, context_limit: limit, compaction_threshold: threshold })
+                await updateSessionState(sid, { token_usage_total: totalUsage, context_limit: limit, compaction_threshold: threshold })
+                  .catch((e: any) => logger.error(`Failed to update session state for ${sid}:`, e))
               }
             }
 

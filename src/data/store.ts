@@ -97,7 +97,7 @@ const DEFAULT_DASHBOARD_LAYOUT: WidgetConfig[] = [
 
 const SYSTEM_ROUTES = ['chat', 'dashboard', 'tracker', 'settings'];
 
-const getChatSessionId = (
+export const getChatSessionId = (
   activeChatId: string | null,
   activeEntityId: string | null,
   activeSpaceId: string | null,
@@ -703,14 +703,18 @@ export const useStore = create<AppState>()(
       setAISessionContext: (context) => set({ aiSessionContext: context }),
       
       fetchAISessionContext: async (chatId) => {
-        let sessionData: any = null
+        let sessionData: any = null;
+        let fetchSuccess = false;
         try {
           const res = await fetch(`/api/ai/memory/context?chatId=${encodeURIComponent(chatId)}&t=${Date.now()}`);
-          if (res.ok) sessionData = await res.json();
+          if (res.ok) {
+            sessionData = await res.json();
+            fetchSuccess = true;
+          }
         } catch (err) {
           console.error('Failed to fetch session context:', err);
         }
-        // Always fetch live compaction config separately to guarantee correct context_limit
+        
         try {
           const configRes = await fetch(`/api/ai/config?t=${Date.now()}`);
           if (configRes.ok) {
@@ -720,10 +724,11 @@ export const useStore = create<AppState>()(
         } catch (err) {
           console.error('Failed to fetch compaction config:', err);
         }
+        
         if (sessionData) {
           set(s => ({
             aiSessionContext: sessionData,
-            sessionContextsMap: { ...s.sessionContextsMap, [chatId]: sessionData }
+            ...(fetchSuccess ? { sessionContextsMap: { ...s.sessionContextsMap, [chatId]: sessionData } } : {})
           }));
         }
       },
@@ -867,6 +872,7 @@ export const useStore = create<AppState>()(
 
       loadConversation: async (id: string) => {
         await get().cleanupActiveChatIfEmpty();
+        const sid = getChatSessionId(id, get().activeEntityId, get().activeSpaceId, 'global');
 
         // If the chat is currently generating, DO NOT fetch/overwrite messages from database.
         // This preserves the active streaming status.
@@ -878,7 +884,7 @@ export const useStore = create<AppState>()(
             pendingNewChat: false,
             tempChatMessages: [],
             aiMessages: get().chatMessagesMap[id] || [],
-            aiSessionContext: get().sessionContextsMap[id] || null,
+            aiSessionContext: get().sessionContextsMap[sid] || null,
             pendingAdvisorState: null,
             assistantInput: get().chatInputs[id] || '',
             isAILoading: true,
@@ -896,7 +902,7 @@ export const useStore = create<AppState>()(
             tempChatMessages: [],
             aiMessages: localMsgs,
             chatMessagesMap: { ...get().chatMessagesMap, [id]: localMsgs },
-            aiSessionContext: get().sessionContextsMap[id] || null,
+            aiSessionContext: get().sessionContextsMap[sid] || null,
             pendingAdvisorState: null,
             assistantInput: get().chatInputs[id] || '',
             isAILoading: false,
@@ -929,13 +935,13 @@ export const useStore = create<AppState>()(
             tempChatMessages: [],
             aiMessages: aiMsgs,
             chatMessagesMap: { ...s.chatMessagesMap, [id]: aiMsgs },
-            aiSessionContext: s.sessionContextsMap[id] || null,
+            aiSessionContext: s.sessionContextsMap[sid] || null,
             pendingAdvisorState: null,
             assistantInput: s.chatInputs[id] || '',
             isAILoading: false,
             aiAbortController: null,
           }));
-          get().fetchAISessionContext(id);
+          get().fetchAISessionContext(sid);
         } catch (e) {
           console.error('Failed to load conversation', e);
           const localMsgs = get().chatMessagesMap[id] || [];
@@ -946,7 +952,7 @@ export const useStore = create<AppState>()(
             tempChatMessages: [],
             aiMessages: localMsgs,
             chatMessagesMap: { ...get().chatMessagesMap, [id]: localMsgs },
-            aiSessionContext: get().sessionContextsMap[id] || null,
+            aiSessionContext: get().sessionContextsMap[sid] || null,
             pendingAdvisorState: null,
             assistantInput: get().chatInputs[id] || '',
             isAILoading: false,
@@ -1079,7 +1085,8 @@ export const useStore = create<AppState>()(
             chatMessagesMap: { ...s.chatMessagesMap, [conv.id]: mapped },
             aiMessages: mapped,
           }))
-          get().fetchAISessionContext(conv.id)
+          const sid = getChatSessionId(conv.id, get().activeEntityId, get().activeSpaceId, 'global');
+          get().fetchAISessionContext(sid)
         } catch (e) {
           console.error('Failed to save temp chat', e)
         }
@@ -1135,6 +1142,8 @@ export const useStore = create<AppState>()(
         if (pendingCompaction) {
           set({ pendingCompaction: false });
           await compactAIChat();
+        } else {
+          await get().fetchAISessionContext(sid);
         }
       },
       markMessageRevealed: (messageId) => {
@@ -1230,7 +1239,8 @@ export const useStore = create<AppState>()(
               isTempChat: false,
               chatConversations: [conv, ...get().chatConversations],
             });
-            await get().fetchAISessionContext(conv.id);
+            const sid = getChatSessionId(conv.id, get().activeEntityId, get().activeSpaceId, 'global');
+            await get().fetchAISessionContext(sid);
           } else {
             set({ pendingNewChat: false, isTempChat: true });
           }
@@ -1410,7 +1420,7 @@ export const useStore = create<AppState>()(
               prompt: finalPrompt,
               buffer: imageBuffer,
               images: imagesArray,
-              activeEntityId,
+              activeEntityId: targetChatId,
               activeChatId,
               aiApiKey,
               activeSpaceId,
@@ -2469,6 +2479,7 @@ export const useStore = create<AppState>()(
           return {
             entities: s.entities.filter(e => !idsToRemove.has(e.id)),
             favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
+            recentEntityIds: s.recentEntityIds.filter(rid => !idsToRemove.has(rid)),
             activeEntityId: newActiveEntityId,
             activeTabId: newActiveTabId,
             openTabIds: newOpenTabs,
@@ -2575,6 +2586,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           entities: updatedEntities.filter(e => !idsToRemove.has(e.id)),
           favoriteIds: s.favoriteIds.filter(fid => !idsToRemove.has(fid)),
+          recentEntityIds: s.recentEntityIds.filter(rid => !idsToRemove.has(rid)),
           activeEntityId: idsToRemove.has(s.activeEntityId ?? '') ? 'dashboard' : s.activeEntityId,
           activeSpaceId: newActiveSpaceId,
         }));
@@ -3548,10 +3560,13 @@ export const useStore = create<AppState>()(
         };
       })(),
       partialize: (state: AppState) => ({
-        entities: state.entities,
-        tasks: state.tasks,
-        blocks: state.blocks,
-        spaces: state.spaces,
+        ...(!isDesktop() && {
+          entities: state.entities,
+          tasks: state.tasks,
+          blocks: state.blocks,
+          spaces: state.spaces,
+          chatMessagesMap: state.chatMessagesMap,
+        }),
         activeSpaceId: state.activeSpaceId,
 
         favoriteIds: state.favoriteIds,
@@ -3590,7 +3605,6 @@ export const useStore = create<AppState>()(
         chatHistoryOpen: state.chatHistoryOpen,
         defaultsSeeded: state.defaultsSeeded,
         chatInputs: state.chatInputs,
-        chatMessagesMap: state.chatMessagesMap,
         sessionContextsMap: state.sessionContextsMap,
         shortcuts: state.shortcuts,
         cachedDisplayName: state.cachedDisplayName,

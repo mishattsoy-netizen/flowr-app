@@ -13,6 +13,7 @@ import AISettingsSection from '@/components/settings/AISettingsSection';
 import { isDesktop } from '@/lib/env';
 import { useTheme } from '@/components/ThemeProvider';
 import { SettingsTab } from '@/components/modals/SettingsModal';
+import { Toggle } from '@/components/ui/Toggle';
 
 export function ClearCacheButton() {
   const [cleared, setCleared] = useState(false);
@@ -55,7 +56,7 @@ export function ClearCacheButton() {
 }
 
 export function SettingsPage() {
-  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, openModal } = useStore();
+  const { interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, isChatNewNoteButtonVisible, setChatNewNoteButtonVisible, openModal } = useStore();
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -155,7 +156,7 @@ export function SettingsPage() {
                   <div>
                     <h4 className="text-[14px] font-medium text-bone-100">Appearance</h4>
                   </div>
-                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[120px]">
+                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[140px]">
                     <div
                       className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                       style={{
@@ -226,39 +227,27 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Tabs Header */}
+                {/* Tabs Navigation */}
                 <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
                   <div>
                     <h4 className="text-[14px] font-medium text-bone-100">Tabs Navigation</h4>
                   </div>
-                  <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[160px]">
-                    <div
-                      className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
-                      style={{
-                        width: 'calc((100% - 8px) / 2)',
-                        left: `calc(4px + (${isTabsHeaderVisible ? 0 : 1
-                          } * (100% - 8px) / 2))`
-                      }}
-                    />
-                    <button
-                      onClick={() => !isTabsHeaderVisible && toggleTabsHeader()}
-                      className={cn(
-                        "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium transition-colors text-center",
-                        isTabsHeaderVisible ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
-                      )}
-                    >
-                      Visible
-                    </button>
-                    <button
-                      onClick={() => isTabsHeaderVisible && toggleTabsHeader()}
-                      className={cn(
-                        "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium transition-colors text-center",
-                        !isTabsHeaderVisible ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
-                      )}
-                    >
-                      Hidden
-                    </button>
+                  <Toggle
+                    checked={isTabsHeaderVisible}
+                    onChange={() => toggleTabsHeader()}
+                  />
+                </div>
+
+                {/* Chat Action Button */}
+                <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+                  <div>
+                    <h4 className="text-[14px] font-medium text-bone-100">Chat 'New Note' Button</h4>
+                    <p className="text-[13px] text-bone-70 mt-0.5">Show the quick action button under AI messages.</p>
                   </div>
+                  <Toggle
+                    checked={isChatNewNoteButtonVisible}
+                    onChange={(checked) => setChatNewNoteButtonVisible(checked)}
+                  />
                 </div>
               </section>
             </div>

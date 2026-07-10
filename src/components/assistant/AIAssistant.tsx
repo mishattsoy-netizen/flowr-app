@@ -2,7 +2,7 @@
 // Force rebuild to ensure 'input' is fully replaced by 'assistantInput'
 
 
-import { useStore } from '@/data/store';
+import { useStore, getChatSessionId } from '@/data/store';
 import type { AIAttachment, EditorBlock } from '@/data/store';
 import { generateId, blocksToMarkdown } from '@/data/store';
 import type { BotMode } from '@/data/store.types';
@@ -88,6 +88,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const clearAIChat = useStore(state => state.clearAIChat);
   const isAILoading = useStore(state => state.isAILoading);
   const activeEntityId = useStore(state => state.activeEntityId);
+  const activeSpaceId = useStore(state => state.activeSpaceId);
   const isTaskPanelOpen = useStore(state => state.isTaskPanelOpen);
   const activeTaskId = useStore(state => state.activeTaskId);
   const updateEntityContent = useStore(state => state.updateEntityContent);
@@ -251,12 +252,12 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const showSkeleton = useDeferredLoading(isAILoading, 200);
 
   const MODE_OPTIONS: { key: BotMode; label: string; description: string }[] = [
-    { key: 'default', label: 'Regular', description: 'Fast, universal' },
-    { key: 'pro', label: 'Professional', description: 'Max precision' },
+    { key: 'default', label: 'Regular', description: 'Best for everyday tasks' },
+    { key: 'pro', label: 'Max', description: 'For complex tasks' },
   ]
 
   const actualExtended = isFloating ? false : isAIAssistantExtended;
-  const sessionId = activeChatId || activeEntityId || 'global';
+  const sessionId = getChatSessionId(activeChatId, activeEntityId, activeSpaceId, isTempChat ? 'temp' : 'global');
 
   // Build page context string for sidebar/floating modes. Returns null on chat page
   // or when there is no active entity with content.
@@ -280,50 +281,18 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
     return `The AI is in sidebar panel mode. The user is currently viewing [Type: ${entity.type}] "${entity.title}" (ID: ${entity.id}). The full content is NOT provided here. Only use the list_content tool with readContent=true and ids=["${entity.id}"] to fetch it if the user explicitly asks to summarize, analyze, edit, or refer to this page.`;
   };
 
-  // The exact token count of the NEXT request is equal to:
-  // (Total tokens of the LAST request) + (New user input text & attachments)
-  // Why? Because total_tokens = prompt_tokens (history + sys prompt) + completion_tokens (the AI's last reply).
-  // The next request sends exactly that same block, plus the new user input.
-  const displayedTokens = (() => {
-    // 1. Find the last AI response with an API-reported token count
-    const lastAssistantMsg = [...aiMessages].reverse().find(m => m.role === 'assistant' && m.tokens_used);
-
-    // 2. Draft input tokens
-    let newDraftTokens = Math.ceil((assistantInput.length || 0) / 4);
-    newDraftTokens += attachments.filter(a => a.type === 'image' || a.type === 'pdf').length * 258;
-
-    if (lastAssistantMsg?.tokens_used) {
-      // If it's a legacy raw tokens count (typically > 2500), subtract the system prompt + tools footprint.
-      // Otherwise, use the clean dynamic count calculated by the backend directly.
-      const isLegacy = lastAssistantMsg.tokens_used > 2500;
-      const cleanBaseline = isLegacy 
-        ? Math.max(0, lastAssistantMsg.tokens_used - 3800) 
-        : lastAssistantMsg.tokens_used;
-      return cleanBaseline + newDraftTokens;
-    }
-
-    // 3. Fallback for new chats (no previous API response yet)
-    // Exclude system prompt: baseTokens starts at 0
-    let baseTokens = 0; 
-
-    // Add page context
-    const pageCtx = buildPageContext();
-    if (pageCtx) baseTokens += Math.ceil(pageCtx.length / 4);
-
-    return baseTokens + newDraftTokens;
-  })();
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (isAIAssistantOpen) {
+    if (isAIAssistantOpen || chatPageMode) {
       const savedContext = useStore.getState().sessionContextsMap[sessionId];
       setAISessionContext(savedContext || null);
       fetchAISessionContext(sessionId);
     }
-  }, [isAIAssistantOpen, sessionId, fetchAISessionContext, setAISessionContext]);
+  }, [isAIAssistantOpen, chatPageMode, sessionId, fetchAISessionContext, setAISessionContext]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -592,8 +561,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const commandMatch = cursorText.match(/(?:^|\s)\/([^\s\/]*)$/);
   const commandSearchTerm = commandMatch ? commandMatch[1].toLowerCase() : '';
 
-  const filteredCommands = isCommandTriggered
-    ? commands.filter(c => c.label.toLowerCase().includes(commandSearchTerm) || c.id.toLowerCase().includes(commandSearchTerm))
+  const filteredCommands = showCommandMenu
+    ? (commandSearchTerm
+        ? commands.filter(c => c.label.toLowerCase().includes(commandSearchTerm) || c.id.toLowerCase().includes(commandSearchTerm))
+        : commands)
     : [];
 
   const handleCommandSelect = (cmd: typeof commands[0]) => {
@@ -604,20 +575,25 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
         setAssistantInput(newValue);
         setCursorText(newValue);
       } else {
-        setAssistantInput('@');
-        setCursorText('@');
+        // Button-triggered: insert @ at cursor position
+        const newValue = cursorText + '@' + assistantInput.slice(cursorText.length);
+        setAssistantInput(newValue);
+        setCursorText(newValue);
       }
       setShowMentionMenu(true);
       textareaRef.current?.focus();
     } else if (cmd.prefix) {
       const atIndex = cursorText.lastIndexOf('/');
       if (atIndex !== -1) {
+        // Typing-triggered: replace /commandtext with prefix
         const newValue = assistantInput.slice(0, atIndex) + cmd.prefix + assistantInput.slice(cursorText.length);
         setAssistantInput(newValue);
         setCursorText(newValue);
       } else {
-        setAssistantInput(cmd.prefix);
-        setCursorText(cmd.prefix);
+        // Button-triggered: insert prefix at cursor position
+        const newValue = cursorText + cmd.prefix + assistantInput.slice(cursorText.length);
+        setAssistantInput(newValue);
+        setCursorText(cursorText + cmd.prefix);
       }
       textareaRef.current?.focus();
     } else if (cmd.action) {
@@ -1108,6 +1084,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
               isNewPage={isNewChatEmpty}
               onChange={(val) => { setAssistantInput(val); setCursorText(val); }}
               onCursorTextChange={(textUpToCursor) => setCursorText(textUpToCursor)}
+              cursorAnchor={cursorText}
               onKeyDown={(e) => {
                 if (showCommandMenu && filteredCommands.length > 0) {
                   if (e.key === 'ArrowDown') {
@@ -1170,7 +1147,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
             <div className={cn("flex items-center justify-between", chatPageMode ? (isNewChatEmpty ? "mt-4" : "mt-3") : "mt-1")}>
               {/* Left Actions */}
               <div className="flex items-center gap-0.5 relative">
-                {chatPageMode && showPlusMenu && plusMenuPos && (
+                {showPlusMenu && plusMenuPos && (
                   <ChatPlusMenu
                     onClose={() => setShowPlusMenu(false)}
                     onMediaClick={() => fileInputRef.current?.click()}
@@ -1181,15 +1158,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                   <button
                     ref={plusMenuBtnRef}
                     onClick={() => {
-                      if (chatPageMode) {
-                        if (plusMenuBtnRef.current) {
-                          const r = plusMenuBtnRef.current.getBoundingClientRect();
-                          setPlusMenuPos({ bottom: window.innerHeight - r.top + 8, left: r.left });
-                        }
-                        setShowPlusMenu(v => !v);
-                      } else {
-                        fileInputRef.current?.click();
+                      if (plusMenuBtnRef.current) {
+                        const r = plusMenuBtnRef.current.getBoundingClientRect();
+                        setPlusMenuPos({ bottom: window.innerHeight - r.top + 8, left: r.left });
                       }
+                      setShowPlusMenu(v => !v);
                     }}
                     className={cn(
                       "p-1.5 rounded-[8px]",
@@ -1205,12 +1178,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                 <Tooltip content="AI Actions">
                   <button
                     onClick={() => {
-                      if (!assistantInput.startsWith('/')) {
-                        setAssistantInput('/');
-                        textareaRef.current?.focus();
-                      } else {
-                        setShowCommandMenu(!showCommandMenu);
-                      }
+                      setShowCommandMenu(v => !v);
                     }}
                     className={cn(
                       "p-1.5 rounded-[8px] ",
@@ -1360,14 +1328,14 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                   <div className="flex items-center gap-2 z-10 cursor-help">
                     <div className="relative w-4 h-4 flex items-center justify-center">
                       <ContextMeter
-                        usage={displayedTokens}
+                        usage={aiSessionContext?.token_usage_total ?? 0}
                         limit={aiSessionContext?.context_limit ?? 10000}
                         threshold={aiSessionContext?.compaction_threshold ?? 0.8}
                         size={16}
                       />
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <span className="text-[7px] font-bold text-bone-100">
-                          {Math.round((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100)}
+                          {Math.round(((aiSessionContext?.token_usage_total ?? 0) / (aiSessionContext?.context_limit ?? 10000)) * 100)}
                         </span>
                       </div>
                     </div>
@@ -1383,15 +1351,23 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center text-[11px] font-bold text-bone-80">
                           <span className="tracking-tight">Memory Usage</span>
-                          <span className="text-bone-100">{Math.round((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100)}%</span>
+                          <span className="text-bone-100">
+                            {aiSessionContext === null 
+                              ? "..." 
+                              : `${Math.round(((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) * 100)}%`}
+                          </span>
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
                             className={cn(
                               "h-full duration-1000",
-                              (displayedTokens / (aiSessionContext?.context_limit ?? 10000)) > (aiSessionContext?.compaction_threshold ?? 0.8) ? "bg-white/40" : "bg-[var(--brand-blue)]"
+                              aiSessionContext === null
+                                ? "bg-transparent"
+                                : ((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) > (aiSessionContext.compaction_threshold ?? 0.8) 
+                                  ? "bg-white/40" 
+                                  : "bg-[var(--brand-blue)]"
                             )}
-                            style={{ width: `${Math.min((displayedTokens / (aiSessionContext?.context_limit ?? 10000)) * 100, 100)}%` }}
+                            style={{ width: aiSessionContext === null ? '0%' : `${Math.min(((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) * 100, 100)}%` }}
                           />
                         </div>
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
@@ -1401,9 +1377,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                             </div>
                           )}
                            <p className="text-[9px] text-bone-30 opacity-60 leading-relaxed italic">
-                            {(displayedTokens / (aiSessionContext?.context_limit ?? 10000)) > (aiSessionContext?.compaction_threshold ?? 0.8)
-                              ? "Memory full. Preparing to distill..."
-                              : "Session history is currently clear and fast."}
+                            {aiSessionContext === null
+                              ? "Loading session memory..."
+                              : ((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) > (aiSessionContext.compaction_threshold ?? 0.8)
+                                ? "Memory full. Preparing to distill..."
+                                : "Session history is currently clear and fast."}
                           </p>
                         </div>
 
@@ -1411,7 +1389,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                           const msgCount = aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length
                           const belowMinMsgs = msgCount < 5
                           const minTokens = (aiSessionContext?.context_limit ?? 10000) * 0.5
-                          const belowMinTokens = displayedTokens < minTokens
+                          const belowMinTokens = (aiSessionContext?.token_usage_total ?? 0) < minTokens
                           const canCompact = !isCompacting && !belowMinMsgs && !belowMinTokens
                           return (
                             <button

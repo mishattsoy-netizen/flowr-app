@@ -445,6 +445,9 @@ export function subscribeRealtime(store: StoreSetters) {
         if (row && row.key === 'shortcuts' && row.value) {
           store.setShortcutsState(row.value);
         }
+        if (row && row.key === 'recentEntityIds' && row.value) {
+          import('@/data/store').then(({ useStore }) => useStore.setState({ recentEntityIds: row.value }));
+        }
       }
     )
     .on(
@@ -454,6 +457,9 @@ export function subscribeRealtime(store: StoreSetters) {
         if (row && row.key === 'shortcuts' && row.value) {
           store.setShortcutsState(row.value);
         }
+        if (row && row.key === 'recentEntityIds' && row.value) {
+          import('@/data/store').then(({ useStore }) => useStore.setState({ recentEntityIds: row.value }));
+        }
       }
     )
     .on(
@@ -462,6 +468,9 @@ export function subscribeRealtime(store: StoreSetters) {
       ({ old: row }: any) => {
         if (row && (row as any).key === 'shortcuts') {
           store.setShortcutsState({});
+        }
+        if (row && (row as any).key === 'recentEntityIds') {
+          import('@/data/store').then(({ useStore }) => useStore.setState({ recentEntityIds: [] }));
         }
       }
     )

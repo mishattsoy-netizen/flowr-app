@@ -486,6 +486,20 @@ Here's what I can do for you:
         return NextResponse.json({ ok: true })
       }
 
+      if (cmd.type === 'context') {
+        if (!linkedAuthUserId || !activeChatId) {
+          await telegram.sendMessage(chatId, '🔒 Please /login first to use the bot.')
+          return NextResponse.json({ ok: true })
+        }
+        const { getSessionState } = await import('@/lib/bot/context')
+        const sessionState = await getSessionState(activeChatId)
+        const pct = sessionState
+          ? Math.round((sessionState.token_usage_total / sessionState.context_limit) * 100)
+          : 0
+        await telegram.sendMessage(chatId, `🧠 *Memory Usage:* ${pct}%`)
+        return NextResponse.json({ ok: true })
+      }
+
       if (cmd.type === 'help') {
         await telegram.sendMessage(chatId,
           `🤖 *Flowr Bot Commands*
@@ -498,7 +512,8 @@ Here's what I can do for you:
 *Chat*
 /new — New saved session (history visible in app)
 /temp <msg> — New temporary session (ephemeral, no history saved)
-/clear — Clear messages, then pick next action
+/clear — Start fresh context in current session
+/context — Session memory usage
 
 *Info*
 /status — Session stats & health

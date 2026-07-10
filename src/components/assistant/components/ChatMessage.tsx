@@ -943,6 +943,7 @@ export const ChatMessage = memo(({
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setVariantIndex = useStore(state => state.setVariantIndex);
   const aiSessionContext = useStore(state => state.aiSessionContext);
+  const isChatNewNoteButtonVisible = useStore(state => state.isChatNewNoteButtonVisible);
 
   const variants = msg.variants ?? [];
   const totalVariants = variants.length;
@@ -1899,10 +1900,7 @@ export const ChatMessage = memo(({
                       >
                         {msg.citations && msg.citations.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2 pt-3 border-t border-white/5 w-full">
-                            <div className="w-full flex items-center gap-2 mb-1">
-                              <Paperclip strokeWidth={2} className="w-3 h-3 text-[var(--bone-40)]" />
-                              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--bone-40)]">Sources</p>
-                            </div>
+
                             {msg.citations.slice(0, 8).map((url, i) => {
                               let domain = '';
                               try { domain = new URL(url).hostname.replace('www.', ''); } catch { }
@@ -1917,7 +1915,7 @@ export const ChatMessage = memo(({
                                   rel="noopener noreferrer"
                                   className="flex items-center gap-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[var(--bone-70)] hover:text-bone-100 transition-none max-w-[160px] shrink-0"
                                 >
-                                  <span className="w-3.5 h-3.5 flex items-center justify-center bg-white/5 rounded text-[8px] font-bold shrink-0 opacity-40">{i + 1}</span>
+
                                   {faviconUrl && (
                                     <span className="w-3 h-3 flex items-center justify-center shrink-0 overflow-hidden">
                                       <img src={faviconUrl} alt="" className="w-3 h-3 object-contain opacity-60" />
@@ -1998,30 +1996,31 @@ export const ChatMessage = memo(({
                               </Tooltip>
 
                               {/* Copy to Note Button */}
-                              <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
-                              <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
-                                {chatPageMode || !isNoteActive ? (
-                                  <Tooltip content="Create a new note with this message">
-                                    <button
-                                      onClick={() => handleCopyToNote(true)}
-                                      className="h-full px-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
-                                    >
-                                      <FileText className="w-3 h-3" />
-                                      <span>New Note</span>
-                                    </button>
-                                  </Tooltip>
-                                ) : (
-                                  <Tooltip content="Append to active note">
-                                    <button
-                                      onClick={() => handleCopyToNote(false)}
-                                      className="h-full px-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
-                                    >
-                                      <FileText className="w-3 h-3" />
-                                      <span>Add to Note</span>
-                                    </button>
-                                  </Tooltip>
-                                )}
-                              </div>
+                              {isChatNewNoteButtonVisible && (
+                                <div className="flex items-center gap-0 relative h-7 rounded-md overflow-hidden bg-[var(--bone-6)] hover:bg-[var(--bone-12)] opacity-60 hover:opacity-100 transition-colors">
+                                  {chatPageMode || !isNoteActive ? (
+                                    <Tooltip content="Create a new note with this message">
+                                      <button
+                                        onClick={() => handleCopyToNote(true)}
+                                        className="h-full px-2 flex items-center gap-1.5 text-[12px] font-semibold tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
+                                      >
+                                        <FileText className="w-3 h-3" />
+                                        <span>New note</span>
+                                      </button>
+                                    </Tooltip>
+                                  ) : (
+                                    <Tooltip content="Append to active note">
+                                      <button
+                                        onClick={() => handleCopyToNote(false)}
+                                        className="h-full px-2 flex items-center gap-1.5 text-[12px] font-semibold tracking-wider text-[var(--bone-40)] hover:text-bone-100 transition-colors"
+                                      >
+                                        <FileText className="w-3 h-3" />
+                                        <span>Add to note</span>
+                                      </button>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              )}
                               {/* Copy Transcript - only in dev server */}
                               {process.env.NODE_ENV === 'development' && chatPageMode && (
                                 (msg as any).transcript_md ? (

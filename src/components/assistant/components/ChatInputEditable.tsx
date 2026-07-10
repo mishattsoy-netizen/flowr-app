@@ -8,6 +8,7 @@ interface ChatInputEditableProps {
   onChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   onCursorTextChange?: (textUpToCursor: string) => void;
+  cursorAnchor?: string;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -15,7 +16,7 @@ interface ChatInputEditableProps {
 }
 
 export const ChatInputEditable = React.forwardRef<HTMLDivElement, ChatInputEditableProps>(
-  ({ value, onChange, onKeyDown, onCursorTextChange, placeholder, className, disabled, isNewPage }, ref) => {
+  ({ value, onChange, onKeyDown, onCursorTextChange, cursorAnchor, placeholder, className, disabled, isNewPage }, ref) => {
     const internalRef = useRef<HTMLDivElement>(null);
     const setRef = useCallback(
       (node: HTMLDivElement) => {
@@ -51,6 +52,72 @@ export const ChatInputEditable = React.forwardRef<HTMLDivElement, ChatInputEdita
         lastRenderedText.current = value;
       }
     }, [value, entities, spaces]);
+
+    // Restore cursor position after programmatic value changes
+    const prevAnchorRef = useRef<string>('');
+    useEffect(() => {
+      if (!cursorAnchor || !internalRef.current) return;
+      if (cursorAnchor === prevAnchorRef.current) return;
+      prevAnchorRef.current = cursorAnchor;
+      // Wait for DOM to settle, then restore cursor at the right offset
+      requestAnimationFrame(() => {
+        const el = internalRef.current;
+        if (!el) return;
+        const targetLen = cursorAnchor.length;
+        let accumulated = 0;
+        const walk = (node: Node): boolean => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = (node.textContent || '').replace(/ /g, ' ');
+            if (accumulated + text.length >= targetLen) {
+              const offset = Math.min(targetLen - accumulated, text.length);
+              const range = document.createRange();
+              range.setStart(node, offset);
+              range.setEnd(node, offset);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(range);
+              return true;
+            }
+            accumulated += text.length;
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const elNode = node as HTMLElement;
+            if (elNode.hasAttribute('data-raw-value')) {
+              const rawVal = elNode.getAttribute('data-raw-value') || '';
+              if (accumulated + rawVal.length >= targetLen) {
+                // Cursor lands inside a pill — place it just after the pill
+                const range = document.createRange();
+                range.setStartAfter(elNode);
+                range.setEndAfter(elNode);
+                const sel = window.getSelection();
+                sel?.removeAllRanges();
+                sel?.addRange(range);
+                return true;
+              }
+              accumulated += rawVal.length;
+            } else if (elNode.tagName === 'BR') {
+              accumulated += 1;
+            } else {
+              for (let i = 0; i < elNode.childNodes.length; i++) {
+                if (walk(elNode.childNodes[i])) return true;
+              }
+            }
+          }
+          return false;
+        };
+        for (let i = 0; i < el.childNodes.length; i++) {
+          if (walk(el.childNodes[i])) return true;
+        }
+        // Fallback: cursor at end
+        const sel = window.getSelection();
+        if (sel && el.lastChild) {
+          const range = document.createRange();
+          range.setStartAfter(el.lastChild);
+          range.setEndAfter(el.lastChild);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
+    }, [cursorAnchor]);
 
     // SVG path data for named workspace icons (matches ICON_MAP keys)
     const ICON_SVG_PATHS: Record<string, string> = {

@@ -13,6 +13,7 @@ const COMMANDS = [
   { command: 'help', description: 'Show help message' },
   { command: 'clear', description: 'Clear conversation history' },
   { command: 'id', description: 'Show your chat ID' },
+  { command: 'context', description: 'Session memory usage' },
 ]
 
 async function resetCommands(chatId?: number) {

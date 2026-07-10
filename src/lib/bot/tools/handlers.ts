@@ -171,22 +171,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           created_at: new Date().toISOString()
         })
         if (error) throw error
-        return { 
-          success: true, 
-          id, 
-          type: 'task', 
-          title,
-          status: finalStatus,
-          priority: priority || null,
-          tag: tag && tag.toLowerCase() !== 'none' ? tag : null,
-          dueDate: finalDueDate,
-          endDate: args.endDate || null,
-          includeTime: args.includeTime ?? false,
-          reminder: args.reminder || null,
-          description: description || null,
-          assignedWorkspaceId: assignedWorkspaceId || null,
-          spaceId: spaceId || null
-        }
+        return { success: true, id, type: 'task', title }
       }
 
       // --- WORKSPACE ---
@@ -217,7 +202,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           parent_id: parentId || null
         })
         if (error) throw error
-        return { success: true, id, type, title, content }
+        return { success: true, id, type, title }
       }
       return { error: `Unknown type '${type}'. Must be: note | folder | workspace | task` }
     } catch (e: any) {
@@ -278,7 +263,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (!data || data.length === 0) {
           throw new Error(`Task with ID '${id}' not found or you do not have permission to edit it.`)
         }
-        return { success: true, id, ...args }
+        return { success: true, id }
       } else {
         // --- UPDATE NOTE / CANVAS ---
         const updates: any = {}
@@ -291,7 +276,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (!data || data.length === 0) {
           throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
         }
-        return { success: true, id, ...updates }
+        return { success: true, id }
       }
     } catch (e: any) {
       logger.error('update_content failed:', e.message)
@@ -494,8 +479,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         let query = supabaseAdmin
           .from('tasks')
           .select(readContent
-            ? '*'
-            : 'id, title, status, priority, due_date, tag, space_id, entity_id, created_at')
+            ? 'id, title, status, priority, tag, due_date, end_date, description, subtasks, reminder, attachments, entity_id, created_at'
+            : 'id, title, status, priority, tag, due_date, end_date, description, subtasks, reminder, entity_id, created_at')
           .eq('owner_id', context.userId)
         
         if (spaceId) {
@@ -549,10 +534,28 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
               display_status,
               type: 'task',
               assignedWorkspaceId: t.entity_id,
-              last_modified: new Date(t.created_at).getTime()
+              last_modified: new Date(t.created_at).getTime(),
+              attachmentCount: Array.isArray(t.attachments) ? t.attachments.length : 0
             }
           })
+          // Remove raw attachments array from task results (count is enough)
+          formatted.forEach((t: any) => delete t.attachments)
           rawResults.push(...formatted)
+
+          // Resolve workspace titles server-side (batch query)
+          const wsIds = [...new Set(formatted.map((t: any) => t.entity_id).filter(Boolean))]
+          if (wsIds.length > 0) {
+            const { data: workspaces } = await supabaseAdmin
+              .from('entities')
+              .select('id, title')
+              .in('id', wsIds)
+            if (workspaces) {
+              const titleMap = Object.fromEntries(workspaces.map((w: any) => [w.id, w.title]))
+              formatted.forEach((t: any) => {
+                t.workspaceTitle = t.entity_id ? titleMap[t.entity_id] || null : null
+              })
+            }
+          }
         }
       }
 

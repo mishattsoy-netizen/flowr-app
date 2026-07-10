@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { Plus, X, ExternalLink, File, FileText, Layout, Edit2, Trash2, Link2, Check, ChevronDown, Folder, Frame, ChevronRight } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getEntityIcon } from '@/data/icons';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,24 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPageDropdown, setShowPageDropdown] = useState(false);
   const [entitySearch, setEntitySearch] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const selectBtnRef = useRef<HTMLButtonElement>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  // Position the portal dropdown below the trigger button when it opens
+  useEffect(() => {
+    if (showPageDropdown && selectBtnRef.current) {
+      const rect = selectBtnRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        left: `${rect.left}px`,
+        top: `${rect.bottom + 4}px`,
+        width: `${rect.width}px`,
+      });
+    } else {
+      setDropdownStyle({});
+    }
+  }, [showPageDropdown]);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [justDropped, setJustDropped] = useState<{ id: string; nonce: number } | null>(null);
 
@@ -206,6 +223,7 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
               <div className="relative">
                 <button
                   type="button"
+                  ref={selectBtnRef}
                   onClick={() => setShowPageDropdown(p => !p)}
                   className="w-full flex items-center justify-between bg-[var(--slider-track)] border border-[var(--bone-6)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-left text-[var(--bone-100)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
                 >
@@ -217,48 +235,51 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
                 {showPageDropdown && (
                   <>
                     <div className="fixed inset-0 z-[199]" onClick={() => { setShowPageDropdown(false); setEntitySearch(''); }} />
-                    <div className="absolute left-0 right-0 mt-1 z-[200] popup-glass-small flex flex-col">
-                      <div className="p-1.5 border-b border-[var(--bone-6)]">
-                        <input
-                          autoFocus
-                          placeholder="Search pages..."
-                          value={entitySearch}
-                          onChange={e => setEntitySearch(e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          className="w-full bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
-                        />
-                      </div>
-                      <div className="max-h-[200px] overflow-y-auto p-1 flex flex-col gap-[2px]">
-                        {entities
-                          .filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase()))
-                          .map(e => {
-                            const Icon = e.icon ? getEntityIcon(e.icon) : (() => {
-                              if (e.type === 'note') return FileText;
-                              if (e.type === 'canvas') return Frame;
-                              return Folder;
-                            })();
-                            return (
-                              <button
-                                key={e.id}
-                                type="button"
-                                onClick={() => { setNewValue(e.id); setShowPageDropdown(false); setEntitySearch(''); }}
-                                className="popup-item flex items-center justify-between text-left w-full outline-none focus:outline-none"
-                              >
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <Icon className="w-4 h-4 opacity-70 shrink-0 text-current" />
-                                  <span className="truncate flex-1">{e.title}</span>
-                                </div>
-                                {newValue === e.id && (
-                                  <Check className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        {entities.filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase())).length === 0 && (
-                          <p className="text-[11px] text-[var(--bone-30)] text-center py-3">No pages found</p>
-                        )}
-                      </div>
-                    </div>
+                    {createPortal(
+                      <div className="z-[200] popup-glass-small flex flex-col" style={dropdownStyle}>
+                        <div className="p-1.5 border-b border-[var(--bone-6)]">
+                          <input
+                            autoFocus
+                            placeholder="Search pages..."
+                            value={entitySearch}
+                            onChange={e => setEntitySearch(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-[8px] px-2.5 py-1.5 text-[11px] text-[var(--bone-100)] placeholder-[var(--bone-30)] outline-none focus:outline-none focus:border-[var(--bone-30)] transition-all duration-200"
+                          />
+                        </div>
+                        <div className="max-h-[200px] overflow-y-auto p-1 flex flex-col gap-[2px]">
+                          {entities
+                            .filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase()))
+                            .map(e => {
+                              const Icon = e.icon ? getEntityIcon(e.icon) : (() => {
+                                if (e.type === 'note') return FileText;
+                                if (e.type === 'canvas') return Frame;
+                                return Folder;
+                              })();
+                              return (
+                                <button
+                                  key={e.id}
+                                  type="button"
+                                  onClick={() => { setNewValue(e.id); setShowPageDropdown(false); setEntitySearch(''); }}
+                                  className="popup-item flex items-center justify-between text-left w-full outline-none focus:outline-none"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <Icon className="w-4 h-4 opacity-70 shrink-0 text-current" />
+                                    <span className="truncate flex-1">{e.title}</span>
+                                  </div>
+                                  {newValue === e.id && (
+                                    <Check className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          {entities.filter(e => (e.type === 'note' || e.type === 'canvas') && e.title?.toLowerCase().includes(entitySearch.toLowerCase())).length === 0 && (
+                            <p className="text-[11px] text-[var(--bone-30)] text-center py-3">No pages found</p>
+                          )}
+                        </div>
+                      </div>,
+                      document.body
+                    )}
                   </>
                 )}
               </div>

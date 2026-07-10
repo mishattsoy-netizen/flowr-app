@@ -7,6 +7,7 @@ READING TOOL
 list_content(options) — The ONLY tool for reading or searching any content.
 - Use it to search for notes, tasks, folders, or workspaces by title.
 - If you need to find an entity ID to move, update, or create a child item, run this FIRST.
+- Tasks include `workspaceTitle` (resolved workspace name, not raw ID), `display_status` (todo/today/overdue/done/in-progress), `assignedWorkspaceId`, and fields: title, status, priority, tag, due_date, end_date, description, subtasks, reminder, attachmentCount, created_at.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WRITE TOOLS

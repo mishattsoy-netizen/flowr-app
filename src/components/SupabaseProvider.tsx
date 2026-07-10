@@ -109,6 +109,16 @@ export function mergeCloudData(data: {
       splitViewPosition: typeof ui.splitViewPosition === 'number' ? ui.splitViewPosition : 50,
     });
   }
+
+  // ── Shortcuts and Recent Entities ──
+  if (data.settings) {
+    if (data.settings.shortcuts) {
+      store().setShortcutsState(data.settings.shortcuts);
+    }
+    if (data.settings.recentEntityIds) {
+      useStore.setState({ recentEntityIds: data.settings.recentEntityIds });
+    }
+  }
 }
 
 /**
@@ -290,6 +300,23 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
           if (!merged.includes(id)) merged.push(id);
         }
         useStore.getState().setRecentEntityIds(merged.slice(0, 10));
+      }
+
+      // 4b. Prune stale recent entities — IDs that point to entities/spaces that
+      //     no longer exist (e.g. dropped by mergeCloudData when the cloud doesn't
+      //     have them yet, or deleted on another device). Without this, the recents
+      //     widget silently shows "No recent documents" because the IDs fail to
+      //     resolve, even though the array itself persists correctly in localStorage.
+      {
+        const state = useStore.getState();
+        const knownIds = new Set([
+          ...state.entities.map(e => e.id),
+          ...state.spaces.map(s => s.id),
+        ]);
+        const pruned = state.recentEntityIds.filter(id => knownIds.has(id));
+        if (pruned.length !== state.recentEntityIds.length) {
+          useStore.getState().setRecentEntityIds(pruned);
+        }
       }
 
       // 5. Restore cross-device shortcuts (strip legacy unscoped keys)

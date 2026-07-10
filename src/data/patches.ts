@@ -22,6 +22,40 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.3',
+    build: '1303',
+    date: '2026-07-10',
+    title: 'Desktop Local-First Architecture, AI Deletions & Chat Polish',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'The Desktop App has been heavily refactored with a true local-first architecture using a background SQLite database. Edits now save locally instantly, boot times are faster, and offline mode is rock-solid.',
+          'The AI Assistant has learned a new trick: it can now delete unwanted notes, tasks, or canvas elements if you ask it to. It will always ask for your explicit confirmation before permanently deleting anything.',
+          'Telegram Chat now perfectly integrates with the unified AI usage meter, ensuring all chats on the go are accurately tracked against your tier limits.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Rebuilt the chat text streaming engine: AI responses now flow onto the screen at a steady, human-readable pace instead of bursting in uneven chunks.',
+          'Markdown rendering in the chat is smarter: it now defers rendering unfinished markdown blocks (like half-written bold tags or tables) to prevent layout flickering while the AI is typing.',
+          'Optimized cloud syncing logic to gracefully merge your offline and online changes, drastically reducing network jitter and sync conflicts.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed an issue where the AI Memory usage meter would get stuck on "..." or falsely show 0% when refreshing the page on the dedicated Chat view.',
+          'Prevented temporary network interruptions from permanently caching an empty memory state for your session.',
+          'Fixed a bug where the AI chat window would sometimes falsely replay or retype the most recent message when reopening the panel.',
+          'Fixed an issue where shortcuts, recent widgets, and UI settings would occasionally reset on app restart due to local storage limits being exceeded.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.2',
     build: '1302',
     date: '2026-07-09',
