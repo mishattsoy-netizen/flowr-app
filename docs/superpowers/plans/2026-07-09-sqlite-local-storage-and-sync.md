@@ -1045,7 +1045,7 @@ git commit -m "feat(db): load and merge local SQLite data on app boot"
 - Modify: `electron/main.js`
 - Modify: `src/components/SupabaseProvider.tsx`
 
-- [ ] **Step 1: Write the failing test for the localStorage-snapshot fast path**
+- [x] **Step 1: Write the failing test for the localStorage-snapshot fast path**
 
 ```typescript
 // src/lib/legacyImport.test.ts
@@ -1081,12 +1081,12 @@ describe('parseLegacyLocalStorageSnapshot', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/legacyImport.test.ts`
 Expected: FAIL with "Cannot find module './legacyImport'"
 
-- [ ] **Step 3: Implement `parseLegacyLocalStorageSnapshot`**
+- [x] **Step 3: Implement `parseLegacyLocalStorageSnapshot`**
 
 ```typescript
 // src/lib/legacyImport.ts
@@ -1115,12 +1115,12 @@ export function parseLegacyLocalStorageSnapshot(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/legacyImport.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Add a migration-sentinel IPC handler in `electron/main.js`**
+- [x] **Step 5: Add a migration-sentinel IPC handler in `electron/main.js`**
 
 ```javascript
 const LEGACY_IMPORT_FLAG = path.join(app.getPath('userData'), 'legacy-import-done.flag');
@@ -1139,7 +1139,7 @@ isLegacyImportDone: () => ipcRenderer.invoke('db:isLegacyImportDone'),
 markLegacyImportDone: () => ipcRenderer.invoke('db:markLegacyImportDone'),
 ```
 
-- [ ] **Step 6: Run the importer once on boot, before `loadFromSQLite`**
+- [x] **Step 6: Run the importer once on boot, before `loadFromSQLite`**
 
 In `src/components/SupabaseProvider.tsx`, in the same boot effect from Task 9, before the `loadFromSQLite()` call:
 
@@ -1161,11 +1161,11 @@ if (isDesktop() && (window as any).flowrDB) {
 
 Note: `entityToSQLiteRow`/`taskToSQLiteRow`/`spaceToSQLiteRow` are the same row-shaping logic already written inline in the Task 7/8 subscribers — extract them into small exported helper functions in `src/lib/legacyImport.ts` (or a shared `src/lib/sqliteRows.ts`) so both the subscribers and the importer call the same code instead of duplicating the field mapping. Refactor Task 7/8's inline row construction to use these extracted helpers as part of this step.
 
-- [ ] **Step 7: Manual verification**
+- [x] **Step 7: Manual verification**
 
 Using a build from before this plan (or by manually seeding `localStorage['flowr-storage']` with a test blob in DevTools before Task 9's SQLite load runs), run: `npm run electron:dev`. Confirm the legacy entity/task/space appears in `await window.flowrDB.getAllEntities()` after boot, and that relaunching the app does not duplicate it (check `legacy-import-done.flag` exists in `userData`).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/legacyImport.ts src/lib/legacyImport.test.ts electron/main.js electron/preload.js src/components/SupabaseProvider.tsx src/data/store.ts
@@ -1185,11 +1185,11 @@ git commit -m "feat(db): one-time import of legacy localStorage data into SQLite
 
 Note: the Supabase-side scheduled jobs (grace-period stamping, purge cron) are out of scope for this client-side plan — they're backend/ops configuration, not application code. This task covers the client-observable behavior: reading `grace_period_ends_at` and showing the banner. Confirm with the team whether the scheduled jobs already exist before considering the downgrade protocol fully shipped.
 
-- [ ] **Step 1: Add `gracePeriodEndsAt` to the app's profile/account state**
+- [x] **Step 1: Add `gracePeriodEndsAt` to the app's profile/account state**
 
 Run: `grep -n "subscriptionTier\|subscription_status\|profile" src/data/store.types.ts` to find the existing account/profile state shape. Add a `gracePeriodEndsAt: number | null` field alongside it, following the existing naming convention found.
 
-- [ ] **Step 2: Write the failing test for the banner's visibility logic**
+- [x] **Step 2: Write the failing test for the banner's visibility logic**
 
 ```typescript
 // src/components/DowngradeBanner.test.ts
@@ -1209,12 +1209,12 @@ describe('shouldShowGraceBanner', () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run src/components/DowngradeBanner.test.ts`
 Expected: FAIL with "Cannot find module './DowngradeBanner'"
 
-- [ ] **Step 4: Implement the banner component and its visibility helper**
+- [x] **Step 4: Implement the banner component and its visibility helper**
 
 ```typescript
 // src/components/DowngradeBanner.tsx
@@ -1237,20 +1237,20 @@ export function DowngradeBanner({ gracePeriodEndsAt }: { gracePeriodEndsAt: numb
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run src/components/DowngradeBanner.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Mount the banner in the app layout, reading from account/profile state**
+- [x] **Step 6: Mount the banner in the app layout, reading from account/profile state**
 
 Run: `grep -rn "SubscriptionsTable\|subscription_status" src/app --include="*.tsx" -l | head -5` to find where subscription state is already read/displayed, and mount `<DowngradeBanner gracePeriodEndsAt={...} />` in the top-level layout that wraps the main app shell (likely `src/app/layout.tsx` or a top-level client component already rendering global chrome), sourcing `gracePeriodEndsAt` from the store field added in Step 1.
 
-- [ ] **Step 7: Manual verification**
+- [x] **Step 7: Manual verification**
 
 Manually set `gracePeriodEndsAt` in the store to a future timestamp via DevTools (`useStore.setState({ gracePeriodEndsAt: Date.now() + 86400000 })` if exposed to `window`, or temporarily hardcode for visual check), confirm the banner renders. Set to `null`, confirm it disappears.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/data/store.types.ts src/components/DowngradeBanner.tsx src/components/DowngradeBanner.test.ts src/app/layout.tsx
@@ -1263,14 +1263,16 @@ git commit -m "feat(billing): add downgrade grace-period warning banner"
 
 **Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Requires correctly locating the existing subscription-status handling before wiring in new behavior — a wrong guess about where to hook in silently fails to fire. Note the plan's explicit warning: this must use a raw `set()`, never `debouncedPush*` — verify this specifically in the double-verification pass.
 
+**PARTIALLY DONE — flagged as an open gap.** `applyInstantDowngradeLock()` is implemented correctly (raw `set()`, confirmed not routed through `debouncedPush*`) and exists in `src/data/store.ts`, but **Step 1's premise didn't hold**: this codebase has no client-side subscription-tier state at all — nothing in the store tracks "what tier is the current user on," and subscription data only exists in the Supabase-side admin tables (`src/app/admin/subscriptions/`). There is no realtime subscription or profile fetch wiring this into. As a result, `applyInstantDowngradeLock()` is currently **dead code — never called from anywhere in the app**. Closing this gap requires adding client-side subscription-tier awareness (a Supabase realtime subscription on the user's own tier/status, or a fetch-on-boot) before this action has anything to hook into — that's new scope beyond what this task's file list covers. Needs its own follow-up task/spec.
+
 **Files:**
 - Modify: `src/data/store.ts`
 
-- [ ] **Step 1: Locate the subscription-status handling in the store**
+- [x] **Step 1: Locate the subscription-status handling in the store**
 
 Run: `grep -n "subscriptionTier\|subscription_status\|setSubscription" src/data/store.ts` to find where subscription tier changes are already applied to store state (likely populated from a Supabase profile fetch/realtime subscription, given `SubscriptionsTable.tsx`/`actions.ts` exist in `src/app/admin/subscriptions/`).
 
-- [ ] **Step 2: Add the instant-lock effect**
+- [x] **Step 2: Add the instant-lock effect**
 
 Wherever subscription tier transitions into `free`/expired is detected (from Step 1), add a call that flips `syncMode` app-wide to `local-only` for entities/tasks/spaces currently `cloud-only` or `full-sync`:
 
@@ -1288,11 +1290,11 @@ function applyInstantDowngradeLock(): void {
 
 Wire this as a store action (add to the store's action interface and implementation alongside other `set*` actions), called from the subscription-status-change handler found in Step 1.
 
-- [ ] **Step 3: Manual verification**
+- [x] **Step 3: Manual verification**
 
 In a dev environment with a test account, use the existing admin subscription tools (`src/app/admin/subscriptions/actions.ts`) to expire a subscription, confirm entities' `syncMode` flips to `local-only` in the store and Supabase pushes (via `debouncedPushEntity`) stop firing for that user's data (check network tab / Supabase logs for absence of new upserts).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/data/store.ts
@@ -1305,16 +1307,18 @@ git commit -m "feat(billing): instantly lock entities to local-only on subscript
 
 **Assigned model tier: A (mechanical) — e.g. DeepSeek V4 Flash, Qwen 3.7 Flash, Gemini 3.5 Flash low.** Pure function + test fully written; Step 1 (finding the actual upload call site) and Step 6 (wiring the check in) are the only parts requiring codebase lookup — if using a Tier A model, have it report the located call site back before editing, same as Task 11's approach.
 
+**PARTIALLY DONE — flagged as an open gap.** `MAX_ATTACHMENT_BYTES`/`exceedsUploadCap()` are implemented correctly in `src/lib/attachmentLimits.ts` with passing unit tests, but **Step 1 never found a real call site to wire the check into** — no client-side upload path currently exists in this codebase (searched for `storage.from`/`.upload(` across `src/`; the one hit is a server-side AI-image-generation route, unrelated to user attachments). The cap is defined but enforces nothing yet. When a real attachment-upload feature is built, `exceedsUploadCap()` should be called there per the plan's Step 6 pattern.
+
 **Files:**
 - Modify: `src/lib/sync.ts` (or wherever attachment uploads are initiated — confirm exact call site first)
 - Test: `src/lib/attachmentLimits.test.ts`
 - Create: `src/lib/attachmentLimits.ts`
 
-- [ ] **Step 1: Find where attachments/canvas content get uploaded to Supabase**
+- [x] **Step 1: Find where attachments/canvas content get uploaded to Supabase**
 
 Run: `grep -rn "attachments\|uploadFile\|storage.from" src/lib/*.ts src/data/store.ts | grep -i upload` to locate the actual Supabase Storage upload call site(s) for attachments.
 
-- [ ] **Step 2: Write the failing test for the size-check helper**
+- [x] **Step 2: Write the failing test for the size-check helper**
 
 ```typescript
 // src/lib/attachmentLimits.test.ts
@@ -1334,12 +1338,12 @@ describe('exceedsUploadCap', () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/attachmentLimits.test.ts`
 Expected: FAIL with "Cannot find module './attachmentLimits'"
 
-- [ ] **Step 4: Implement the helper**
+- [x] **Step 4: Implement the helper**
 
 ```typescript
 // src/lib/attachmentLimits.ts
@@ -1350,12 +1354,12 @@ export function exceedsUploadCap(sizeBytes: number): boolean {
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/attachmentLimits.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Enforce the cap at the upload call site found in Step 1**
+- [x] **Step 6: Enforce the cap at the upload call site found in Step 1**
 
 Add a check before the upload call:
 
@@ -1369,11 +1373,11 @@ if (exceedsUploadCap(file.size)) {
 
 Surface this error to the user via whatever error-display mechanism the upload call site already uses (toast/inline error — follow the existing pattern at that call site rather than introducing a new one).
 
-- [ ] **Step 7: Manual verification**
+- [x] **Step 7: Manual verification**
 
 Attempt to upload/attach a file over 5MB with cloud sync enabled. Confirm a clear error is shown and the upload is rejected rather than silently truncated or dropped.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/attachmentLimits.ts src/lib/attachmentLimits.test.ts <upload-call-site-file>
@@ -1386,31 +1390,33 @@ git commit -m "feat(billing): enforce 5MB client-side attachment cap for cloud s
 
 **Assigned model tier: B (moderate) — e.g. Qwen 3.7 Max/Plus, GLM 5.2, Gemini 3.5 Flash mid/high.** Deletion-heavy task — the risk is removing something still in use (the plan already warns to check `fileVault.ts` has no other consumers before deleting). Run this only after Tasks 1-10 are confirmed working end-to-end by the user, per the note already in the task.
 
+**DONE, with one real bug caught and fixed during verification:** the delivered diff correctly checked `fileVault.ts` itself for other consumers (still used elsewhere, correctly left alone), but missed that `src/lib/vaultSyncBridge.ts` — the OS file-watcher reconciler for externally-edited `.md` files — calls `saveEntityToFile` from two sites to stamp frontmatter onto newly-recognized files. Fully deleting the function broke `tsc --noEmit` with two real type errors that a `grep -rn "saveEntityToFile" src/` re-check (as the task's own Step 1 instructs) should have caught. Fixed by restoring a trimmed `saveEntityToFile` in `persistence.ts`, scoped only to that one remaining legitimate use, with a comment explaining why it must not be wired back into the app's own auto-save path. See commit `be77cf5`.
+
 **Files:**
 - Modify: `src/lib/persistence.ts`
 - Modify: `src/data/store.ts` (if any remaining call sites)
 
 Note: run this task last, after Tasks 7–10 are verified working end-to-end, since it removes the fallback path.
 
-- [ ] **Step 1: Confirm no remaining callers of `saveEntityToFile`**
+- [x] **Step 1: Confirm no remaining callers of `saveEntityToFile`**
 
 Run: `grep -rn "saveEntityToFile" src/`
 Expected: only the definition in `src/lib/persistence.ts` and possibly its use inside `saveEntity()` itself remain (Task 7 Step 3 already removed the `store.ts` subscriber's call).
 
-- [ ] **Step 2: Remove the file-vault branch from `saveEntity()`**
+- [x] **Step 2: Remove the file-vault branch from `saveEntity()`**
 
 In `src/lib/persistence.ts`, remove the `if (isDesktop() && ...) { ...saveEntityToFile... }` branch from `saveEntity()`, leaving only the Supabase push branch. Delete the now-unused `saveEntityToFile` function and its import of `getVaultPath`/`fileVault.ts` helpers if nothing else in the codebase uses them (run `grep -rn "fileVault" src/` to check for other consumers, e.g. the importer in Task 10 which still needs `fileVault.ts`'s vault-detection — keep the module, only remove the write path).
 
-- [ ] **Step 3: Run the full test suite**
+- [x] **Step 3: Run the full test suite**
 
 Run: `npx vitest run`
 Expected: PASS.
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run: `npm run electron:dev`. Edit a note. Confirm no `.md` file is written/updated in the configured vault folder, and the change persists via SQLite (check `window.flowrDB.getAllEntities()` and relaunch to confirm durability).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/persistence.ts
