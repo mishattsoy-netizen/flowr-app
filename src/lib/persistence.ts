@@ -1,14 +1,28 @@
 import { Entity } from '@/data/store.types';
 import { isDesktop } from './env';
-import { getVaultPath, sanitizeFileName, getEntityPath } from './fileVault';
+import { getVaultPath, getEntityPath } from './fileVault';
 import { serializeFrontmatter, needsBlockBackup } from './editor/frontmatter';
 import { blocksToMarkdown } from './editor/markdownBlocks';
 
+export async function saveEntity(entity: Entity): Promise<void> {
+  if (entity.syncMode === 'cloud-only' || entity.syncMode === 'full-sync') {
+     const { upsertEntity } = await import('@/lib/sync'); // Avoid circular dep
+     await upsertEntity(entity);
+  }
+}
+
+// Retained solely for src/lib/vaultSyncBridge.ts's OS file-watcher reconciler:
+// when a user manually edits/creates a .md file in the vault folder outside
+// the app, that reconciler needs to write the recognized frontmatter (id,
+// syncMode, etc.) back into the file so it isn't re-imported as a duplicate
+// on the next scan. This is a distinct feature from the app's own
+// auto-save-on-edit path, which Task 14 correctly removed (SQLite write-
+// through, via the store's isDesktop() subscriber, replaced it). Do not wire
+// this back into the store's own save paths — the desktop write-through
+// subscriber in store.ts already handles those via flowrDB directly.
 export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<void> {
   if (!isDesktop() || !(window as any).flowrFS) return;
-  
-  // Folders and workspaces are represented by directories in the file system.
-  // Do not create empty .md files for them.
+
   if (entity.type === 'folder' || entity.type === 'workspace') return;
 
   const vault = await getVaultPath();
@@ -18,16 +32,6 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
   const state = useStore.getState();
   const relPath = getEntityPath(entity, state.entities, state.spaces);
   const filePath = `${vault}/${relPath}`;
-
-  const { findLocalFileForEntity, deleteVaultFile } = await import('./syncFileScan');
-  const oldPath = await findLocalFileForEntity(vault, entity);
-  if (oldPath && oldPath !== filePath) {
-    try {
-      await deleteVaultFile(oldPath);
-    } catch (e) {
-      console.warn('Failed to delete old file path:', oldPath, e);
-    }
-  }
 
   let content = '';
   if (entity.type === 'canvas') {
@@ -51,19 +55,4 @@ export async function saveEntityToFile(entity: Entity, blocks: any[]): Promise<v
   recordLocalWrite(filePath);
 
   await (window as any).flowrFS.writeFile(filePath, content);
-}
-
-export async function saveEntity(entity: Entity): Promise<void> {
-  if (entity.syncMode === 'cloud-only' || entity.syncMode === 'full-sync') {
-     const { upsertEntity } = await import('@/lib/sync'); // Avoid circular dep
-     await upsertEntity(entity);
-  }
-  if (isDesktop() && (entity.syncMode === 'local-only' || entity.syncMode === 'full-sync')) {
-     let blocks: any[] = entity.content || [];
-     if (entity.type === 'canvas') {
-       const { useStore } = await import('@/data/store');
-       blocks = useStore.getState().blocks.filter(b => b.canvasId === entity.id);
-     }
-     await saveEntityToFile(entity, blocks);
-  }
 }

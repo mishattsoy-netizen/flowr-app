@@ -10,6 +10,7 @@ import WelcomeTransition from "@/components/WelcomeTransition";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerRegistrar from "@/components/pwa/ServiceWorkerRegistrar";
+import { DowngradeBanner } from "@/components/DowngradeBanner";
 
 const literata = Literata({
   variable: "--font-display",
@@ -96,6 +97,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <DowngradeBanner />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
             <SupabaseProvider>

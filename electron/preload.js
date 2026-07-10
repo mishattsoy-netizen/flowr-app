@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('flowrDB', {
   upsertSpace: (row) => ipcRenderer.invoke('db:upsertSpace', row),
   deleteSpace: (id) => ipcRenderer.invoke('db:deleteSpace', id),
   getAllSpaces: () => ipcRenderer.invoke('db:getAllSpaces'),
+  isLegacyImportDone: () => ipcRenderer.invoke('db:isLegacyImportDone'),
+  markLegacyImportDone: () => ipcRenderer.invoke('db:markLegacyImportDone'),
 });
 
 contextBridge.exposeInMainWorld('flowrPdf', {

@@ -440,6 +440,13 @@ app.whenReady().then(() => {
   ipcMain.handle('db:deleteSpace', async (_, id) => flowrDb.deleteSpace(app, id));
   ipcMain.handle('db:getAllSpaces', async () => flowrDb.getAllSpaces(app));
 
+  const LEGACY_IMPORT_FLAG = path.join(app.getPath('userData'), 'legacy-import-done.flag');
+  ipcMain.handle('db:isLegacyImportDone', async () => fs.existsSync(LEGACY_IMPORT_FLAG));
+  ipcMain.handle('db:markLegacyImportDone', async () => {
+    fs.writeFileSync(LEGACY_IMPORT_FLAG, String(Date.now()), 'utf-8');
+    return true;
+  });
+
   ipcMain.handle('fs:readFile', async (_, filePath) => fsp.readFile(filePath, 'utf-8'));
   ipcMain.handle('fs:writeFile', async (_, filePath, content) => {
     const dir = path.dirname(filePath);

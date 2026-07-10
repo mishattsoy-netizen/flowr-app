@@ -404,6 +404,7 @@ export interface AppState {
   entities: Entity[];
   tasks: AppTask[];
   blocks: EditorBlock[];
+  gracePeriodEndsAt: number | null;
 
   spaces: Space[];
   activeSpaceId: string | null;
@@ -434,6 +435,7 @@ export interface AppState {
   sidebarWidth: number;
   aiSidebarWidth: number;
   isToolbarVisible: boolean;
+  isChatNewNoteButtonVisible: boolean;
   toolbarPosition: { x: number; y: number } | null;
   splitViewActive: boolean;
   splitViewLeftId: string | null;
@@ -494,6 +496,7 @@ export interface AppState {
 
   setManualTimezone: (tz: string | null) => void;
   chatMessagesMap: Record<string, AIMessage[]>;
+  applyInstantDowngradeLock: () => void;
   sessionContextsMap: Record<string, any>;
   shortcuts: Record<string, Shortcut[]>;
   cachedDisplayName: string;
@@ -530,6 +533,7 @@ export interface AppState {
   setAiSidebarWidth: (width: number) => void;
   toggleToolbar: () => void;
   setToolbarVisible: (visible: boolean) => void;
+  setChatNewNoteButtonVisible: (visible: boolean) => void;
   setToolbarPosition: (pos: { x: number; y: number } | null) => void;
   toggleSplitView: () => void;
   setColumnEntity: (column: 'left' | 'right', entityId: string | null) => void;

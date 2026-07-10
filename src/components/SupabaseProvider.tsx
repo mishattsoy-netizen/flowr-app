@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useStore, Entity, AppTask, Space } from '@/data/store';
 import { loadFromSupabase, subscribeRealtime, upsertSpace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
+import { parseLegacyLocalStorageSnapshot, entityToSQLiteRow, taskToSQLiteRow, spaceToSQLiteRow } from '@/lib/legacyImport';
 import { loadFromSQLite } from '@/lib/loadFromSQLite';
 import { isDesktop } from '@/lib/env';
 
@@ -186,13 +187,28 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
     //    always layers on top of a fully-hydrated local base instead of
     //    racing it.
     const sqliteHydration = isDesktop()
-      ? loadFromSQLite().then((localData) => {
-          const s = useStore.getState();
-          s.setEntities(localData.entities);
-          s.setTasks(localData.tasks);
-          s.setSpaces(localData.spaces);
-        }).catch(err => {
-          console.error('[Flowr sync] SQLite hydration failed:', err);
+      ? (async () => {
+          if ((window as any).flowrDB) {
+            const alreadyImported = await (window as any).flowrDB.isLegacyImportDone();
+            if (!alreadyImported) {
+              const raw = localStorage.getItem('flowr-storage');
+              if (raw) {
+                const { entities, tasks, spaces } = parseLegacyLocalStorageSnapshot(raw);
+                for (const e of entities) await (window as any).flowrDB.upsertEntity(entityToSQLiteRow(e));
+                for (const t of tasks) await (window as any).flowrDB.upsertTask(taskToSQLiteRow(t));
+                for (const s of spaces) await (window as any).flowrDB.upsertSpace(spaceToSQLiteRow(s));
+              }
+              await (window as any).flowrDB.markLegacyImportDone();
+            }
+          }
+          return loadFromSQLite().then((localData) => {
+            const s = useStore.getState();
+            s.setEntities(localData.entities);
+            s.setTasks(localData.tasks);
+            s.setSpaces(localData.spaces);
+          });
+        })().catch(err => {
+          console.error('[Flowr sync] SQLite hydration/import failed:', err);
         })
       : Promise.resolve();
 
