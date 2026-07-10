@@ -41,7 +41,8 @@ export const PATCHES: Patch[] = [
         items: [
           'Rebuilt the chat text streaming engine: AI responses now flow onto the screen at a steady, human-readable pace instead of bursting in uneven chunks.',
           'Markdown rendering in the chat is smarter: it now defers rendering unfinished markdown blocks (like half-written bold tags or tables) to prevent layout flickering while the AI is typing.',
-          'Optimized cloud syncing logic to gracefully merge your offline and online changes, drastically reducing network jitter and sync conflicts.'
+          'Optimized cloud syncing logic to gracefully merge your offline and online changes, drastically reducing network jitter and sync conflicts.',
+          'Removed a slight delay when starting a chat, making interactions feel even more instantaneous.'
         ]
       },
       {
@@ -51,7 +52,8 @@ export const PATCHES: Patch[] = [
           'Prevented temporary network interruptions from permanently caching an empty memory state for your session.',
           'Fixed a bug where the AI chat window would sometimes falsely replay or retype the most recent message when reopening the panel.',
           'Fixed an issue where shortcuts, recent widgets, and UI settings would occasionally reset on app restart due to local storage limits being exceeded.',
-          'Polished the Task Context Menu: unified "Overdue" logic across all task views so red deadline colors perfectly sync, and refined submenu alignments, dot colors, and text styles to exactly mirror the main popups.'
+          'Polished the Task Context Menu: unified "Overdue" logic across all task views so red deadline colors perfectly sync, and refined submenu alignments, dot colors, and text styles to exactly mirror the main popups.',
+          'Resolved an issue preventing the desktop app from correctly bundling the local database module.'
         ]
       }
     ]

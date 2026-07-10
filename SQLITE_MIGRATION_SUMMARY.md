@@ -38,9 +38,17 @@ Replaced desktop-local Markdown file-vault persistence with a local, unencrypted
 - Tasks 12 and 13 need real product surfaces (client-side subscription-tier tracking, an actual attachment-upload feature) before their logic does anything. Worth a follow-up spec.
 - Per-block sync granularity, CRDT merging, dynamic storage-cap detection — all explicitly out of scope per the original spec.
 
+## Post-implementation build fix
+
+After the code was done, the packaged Windows build (`Flowr-Setup.exe`) threw `Cannot find module 'better-sqlite3'` on launch. Root cause: this project's `electron-builder` config uses a curated `files` allowlist that excludes `node_modules` by default and only re-includes a hand-picked list of packages — `better-sqlite3` (and its two runtime deps, `bindings` and `file-uri-to-path`) were never added to that list, so the packaged app silently shipped without it. It worked in `electron:dev` because that runs straight against the on-disk `node_modules`, masking the gap.
+
+Fixed in `package.json`'s `build` config: added the three packages to `files`, and added `better-sqlite3` to `asarUnpack` (required separately — native `.node` binaries can't load from inside an asar archive, even once the package itself is bundled).
+
+Verified with a full production build, not just a config read-through: confirmed the packaged output's unpacked tree actually contains the compiled binary, and ran a smoketest requiring `better-sqlite3` from that exact packaged location under Electron's own bundled Node runtime (`ELECTRON_RUN_AS_NODE=1` — plain system `node` has a different ABI than Electron and can't load a binary rebuilt for it, so this was necessary for a real test, not optional) — it opened a database, wrote, and read back correctly.
+
 ## Verification
 
-258 tests passing, `tsc --noEmit` clean, as of the last commit (`e04aa4d`). Full commit list:
+258 tests passing, `tsc --noEmit` clean. Full commit list:
 
 ```
 18839d9 fix(sync): set lastModified on all remaining space mutations
@@ -49,4 +57,5 @@ Replaced desktop-local Markdown file-vault persistence with a local, unencrypted
 2a17f2e chore(db): verify Tasks 7-8, remove dead saveEntityToFile import, add subscriber tests
 0e1f1b1 feat(db): load and merge local SQLite data on app boot
 be77cf5 feat(db,billing): Tasks 10-14 - legacy import, downgrade banner/lock, attachment cap, file-vault cleanup
+ce9e3ca fix(build): bundle better-sqlite3 into the packaged Electron app
 ```
