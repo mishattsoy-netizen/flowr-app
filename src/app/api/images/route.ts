@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const SUPABASE_PROJECT_URL = 'https://qmufalwubepttjxehvit.supabase.co'
 
-// Matches exactly the filenames this app generates: ai-<timestamp>-<uuid>.<ext>
-// (see src/app/api/ai/chat/route.ts). Rejects path traversal, absolute paths,
-// and any attempt to reach outside the generated_images bucket.
-const SAFE_FILENAME = /^ai-\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpe?g|gif|webp)$/i
+// Matches exactly the filenames this app generates: (ai|upload)-<timestamp>-<uuid>.<ext>
+// (see src/app/api/ai/chat/route.ts and src/app/api/ai/upload/route.ts).
+const SAFE_FILENAME = /^(ai|upload)-\d+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpe?g|gif|webp)$/i
 
 const ALLOWED_CONTENT_TYPES: Record<string, string> = {
   png: 'image/png',
@@ -27,7 +26,8 @@ export async function GET(req: NextRequest) {
   const ext = filename.split('.').pop()!.toLowerCase()
   const contentType = ALLOWED_CONTENT_TYPES[ext] || 'application/octet-stream'
 
-  const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/public/generated_images/${encodeURIComponent(filename)}`
+  const bucketName = filename.startsWith('upload-') ? 'user_uploads' : 'generated_images'
+  const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/public/${bucketName}/${encodeURIComponent(filename)}`
   try {
     const res = await fetch(url)
     if (!res.ok) {

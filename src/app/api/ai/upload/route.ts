@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { supabaseAdmin, isSupabaseEnabled } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,16 +32,47 @@ export async function POST(req: NextRequest) {
     const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '')
     const filename = `upload-${Date.now()}-${crypto.randomUUID()}.${safeExt}`
 
-    const publicDir = path.join(process.cwd(), 'public', 'user_uploads')
-    if (!fs.existsSync(publicDir)) {
-      fs.mkdirSync(publicDir, { recursive: true })
+    if (isSupabaseEnabled && supabaseAdmin) {
+      // Ensure bucket exists
+      const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+      const hasBucket = buckets?.some((b: any) => b.name === 'user_uploads');
+      if (!hasBucket) {
+        await supabaseAdmin.storage.createBucket('user_uploads', {
+          public: true,
+          fileSizeLimit: 10485760,
+        }).catch(() => {});
+      }
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('user_uploads')
+        .upload(filename, buffer, {
+          contentType: mimeType,
+          cacheControl: '31536000',
+          upsert: false,
+        });
+      
+      if (!uploadError) {
+        return NextResponse.json({ url: `/api/images?file=${filename}` })
+      } else {
+        console.error('[Upload API] Supabase upload error:', uploadError);
+      }
     }
 
-    const filePath = path.join(publicDir, filename)
-    fs.writeFileSync(filePath, buffer)
+    try {
+      const publicDir = path.join(process.cwd(), 'public', 'user_uploads')
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true })
+      }
 
-    const relativeUrl = `/user_uploads/${filename}`
-    return NextResponse.json({ url: relativeUrl })
+      const filePath = path.join(publicDir, filename)
+      fs.writeFileSync(filePath, buffer)
+
+      const relativeUrl = `/user_uploads/${filename}`
+      return NextResponse.json({ url: relativeUrl })
+    } catch (fsError) {
+      console.warn('[Upload API] Local write failed, falling back to data URL', fsError);
+      return NextResponse.json({ url: dataUrl });
+    }
+
   } catch (error: any) {
     console.error('[Upload API] Error saving file upload:', error)
     return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 })
