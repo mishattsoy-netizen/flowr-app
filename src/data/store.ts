@@ -31,25 +31,28 @@ export type {
   FlowRouterCategory, FlowRouterConfig, CloudModel, AIRequestLog, AppState,
   SpaceType, Space, SidebarSectionId, SidebarSectionSettings, SortMode,
   BotMode, ShapeKind, CanvasStyleExt, ArrowBinding, ArrowheadStyle, ArrowheadType,
+  PendingModeWrite,
 } from './store.types';
 
 // Re-export helpers needed by external consumers
 export { generateId, robustParseJSON, blocksToMarkdown } from './store.helpers';
+export { getSyncModeCascade } from './store.helpers';
 
 // Internal type imports (used within this file's store implementation)
 import type {
   Entity, EditorBlock, AIMessage,
-  AppState, Space, WidgetConfig, AppTask, TaskAttachment, BotMode,
+  AppState, Space, WidgetConfig, AppTask, TaskAttachment, BotMode, PendingModeWrite,
 } from './store.types';
 import { entityToSQLiteRow, taskToSQLiteRow, spaceToSQLiteRow } from '@/lib/legacyImport';
 
 
 import {
   generateId, getDescendantIds, getAllDescendants, findWorkspaceRoot, validateNoteContent,
-  robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime
+  robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime, getSyncModeCascade
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
 import { createDebouncedPush } from '@/lib/debouncedPush';
+import { markForPurge, clearPurge } from '@/lib/sync';
 
 // Debounces the ~20 per-mutation Supabase push call sites below by 1.5s per row id,
 // so rapid edits (typing) collapse into one network call instead of firing on every
@@ -166,6 +169,7 @@ export const useStore = create<AppState>()(
       syncMode: 'local-only',
       isInitialSync: true,
       defaultsSeeded: false,
+      pendingModeWrites: [],
 
       setInitialSync: (isInitialSync) => set({ isInitialSync }),
 
@@ -189,55 +193,55 @@ export const useStore = create<AppState>()(
       },
 
       setSyncMode: async (entityId, mode) => {
-        const cascadeIds = getDescendantIds(get().entities, entityId);
-
-        const prevEntitiesById = new Map(get().entities.map(e => [e.id, e]));
-        const targetIds = new Set([entityId, ...cascadeIds]);
-
-        const leavingLocalIds = Array.from(targetIds).filter(id => {
-          const prev = prevEntitiesById.get(id);
-          return mode === 'cloud-only' && prev && (prev.syncMode === 'local-only' || prev.syncMode === 'full-sync');
-        });
+        const { entityIds, taskIds } = getSyncModeCascade(get().entities, get().tasks, entityId);
+        const entitySet = new Set(entityIds);
+        const taskSet = new Set(taskIds);
+        const now = Date.now();
 
         set(s => ({
-          entities: s.entities.map(e => targetIds.has(e.id) ? { ...e, syncMode: mode, lastModified: Date.now() } : e),
-          spaces: s.spaces.map(w => w.id === entityId ? { ...w, syncMode: mode, lastModified: Date.now() } : w)
+          entities: s.entities.map(e => entitySet.has(e.id) ? { ...e, syncMode: mode, lastModified: now } : e),
+          tasks:    s.tasks.map(t => taskSet.has(t.id) ? { ...t, syncMode: mode, lastModified: now } : t),
+          spaces:   s.spaces.map(w => w.id === entityId ? { ...w, syncMode: mode, lastModified: now } : w)
         }));
 
-        const ws = get().spaces.find(w => w.id === entityId);
-        if (ws) {
-          debouncedPushSpace(ws);
-        }
+        const spaceIds = get().spaces.some(w => w.id === entityId) ? [entityId] : [];
 
-        const { saveEntity } = await import('@/lib/persistence');
-        const freshEntities = get().entities;
-        for (const id of targetIds) {
-          const entity = freshEntities.find(e => e.id === id);
-          if (entity) {
-            saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
-          }
-        }
+        if (mode === 'local-only') {
+          // Explicit one-shot cloud write: every normal push path is suppressed
+          // for local-only, so without this the cloud row would silently keep
+          // its old sync_mode and never get purged. This is the ONLY place
+          // allowed to write local-only state to Supabase.
+          const { error } = await markForPurge({ entityIds, taskIds, spaceIds });
+          if (error) get().queuePendingModeWrite({ entityIds, taskIds, spaceIds, action: 'purge', mode });
 
-        if (leavingLocalIds.length > 0 && isDesktop()) {
-          const { getVaultPath, findLocalFileForEntity, clearKeptFileForEntity } = await import('@/lib/syncFileScan');
-          const vault = await getVaultPath();
-          if (vault) {
-            const flaggedFiles: Array<{ path: string; entityId: string; entityTitle: string; recognized: boolean }> = [];
-            for (const id of leavingLocalIds) {
-              const entity = freshEntities.find(e => e.id === id);
-              if (!entity) continue;
-              clearKeptFileForEntity(entity.id);
-              const filePath = await findLocalFileForEntity(vault, entity);
-              if (filePath) {
-                flaggedFiles.push({ path: filePath, entityId: entity.id, entityTitle: entity.title, recognized: true });
-              }
-            }
-            if (flaggedFiles.length > 0) {
-              get().openModal({ kind: 'syncFileCleanup', files: flaggedFiles });
-            }
+          const { saveEntity } = await import('@/lib/persistence');
+          const freshEntities = get().entities;
+          for (const id of entityIds) {
+            const entity = freshEntities.find(e => e.id === id);
+            if (entity) saveEntity(entity).catch(err => console.error('[store] saveEntity failed:', err));
           }
+        } else {
+          // Cancels a pending purge if one exists (purge_at -> NULL). If the
+          // grace period already expired and the row is gone, the pushes below
+          // recreate it from local state (re-upload, not a no-op).
+          const { error } = await clearPurge({ entityIds, taskIds, spaceIds }, mode);
+          if (error) get().queuePendingModeWrite({ entityIds, taskIds, spaceIds, action: 'clear', mode });
+
+          const fresh = get();
+          for (const id of entityIds) {
+            const e = fresh.entities.find(x => x.id === id);
+            if (e) debouncedPushEntity(e);
+          }
+          for (const id of taskIds) {
+            const t = fresh.tasks.find(x => x.id === id);
+            if (t) debouncedPushTask(t);
+          }
+          const ws = fresh.spaces.find(w => w.id === entityId);
+          if (ws) debouncedPushSpace(ws);
         }
       },
+
+      queuePendingModeWrite: (write) => set(s => ({ pendingModeWrites: [...s.pendingModeWrites, write] })),
       setLastSaved: (time) => set({ lastSaved: time }),
 
       applyInstantDowngradeLock: () => {
@@ -3273,16 +3277,17 @@ export const useStore = create<AppState>()(
           }
 
           // delete_content: remove item from local store
-          if (tr.tool === 'delete_content' && tr.success && tr.id) {
-            if (tr.type === 'task') {
-              get().deleteTask(tr.id);
-            } else if (tr.type === 'canvas_block') {
-              get().deleteCanvasBlock(tr.id);
-            } else if (tr.cascade) {
-              // Folders cascade to descendants — deleteEntity handles this
-              get().deleteEntity(tr.id);
-            } else {
-              get().deleteEntity(tr.id);
+          if (tr.tool === 'delete_content' && tr.success && tr.items) {
+            for (const item of tr.items) {
+              if (!item.success) continue;
+              if (item.type === 'task') {
+                get().deleteTask(item.id);
+              } else if (item.type === 'canvas_block') {
+                get().deleteCanvasBlock(item.id);
+              } else {
+                // entity (note, folder, canvas)
+                get().deleteEntity(item.id);
+              }
             }
           }
         }
@@ -3568,6 +3573,7 @@ export const useStore = create<AppState>()(
           chatMessagesMap: state.chatMessagesMap,
         }),
         activeSpaceId: state.activeSpaceId,
+        pendingModeWrites: state.pendingModeWrites,
 
         favoriteIds: state.favoriteIds,
         collapsedIds: state.collapsedIds,
@@ -3612,6 +3618,26 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+// Retries any markForPurge/clearPurge cloud writes that failed (e.g. offline
+// when the user confirmed a sync-mode switch). Safe to call anytime — it's a
+// no-op when the queue is empty. Called after boot's Supabase load completes.
+export async function drainPendingModeWrites(fns?: {
+  markForPurge: typeof markForPurge;
+  clearPurge: typeof clearPurge;
+}): Promise<void> {
+  const pending = useStore.getState().pendingModeWrites;
+  if (pending.length === 0) return;
+  const impl = fns ?? { markForPurge, clearPurge };
+  const stillPending: PendingModeWrite[] = [];
+  for (const w of pending) {
+    const { error } = w.action === 'purge'
+      ? await impl.markForPurge({ entityIds: w.entityIds, taskIds: w.taskIds, spaceIds: w.spaceIds })
+      : await impl.clearPurge({ entityIds: w.entityIds, taskIds: w.taskIds, spaceIds: w.spaceIds }, w.mode as 'cloud-only' | 'full-sync');
+    if (error) stillPending.push(w);
+  }
+  useStore.setState({ pendingModeWrites: stillPending });
+}
 
 if (isDesktop()) {
   useStore.subscribe((state, prevState) => {

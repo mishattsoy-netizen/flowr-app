@@ -340,6 +340,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
 
       useStore.getState().setInitialSync(false);
       scanForStaleLocalFiles();
+      import('@/data/store').then(({ drainPendingModeWrites }) => drainPendingModeWrites());
     }).catch(err => {
       console.error('[Flowr sync] Initial load from Supabase failed, falling back to local state:', err);
       useStore.getState().setInitialSync(false);

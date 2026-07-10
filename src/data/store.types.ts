@@ -230,11 +230,20 @@ export interface AppTask {
 
 export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai' | 'general' | 'usage' | 'capabilities' | 'connectors';
 
+export interface PendingModeWrite {
+  entityIds: string[];
+  taskIds: string[];
+  spaceIds: string[];
+  action: 'purge' | 'clear';
+  mode: SyncMode;
+}
+
 export type ModalType =
   | null
   | { kind: 'newItem'; parentId?: string | null; initialType?: EntityType }
   | { kind: 'deleteConfirm'; entityId?: string; entityIds?: string[]; isChat?: boolean }
   | { kind: 'deleteSpaceConfirm'; spaceId: string }
+  | { kind: 'localOnlyConfirm'; workspaceId: string }
   | { kind: 'moveTo'; entityId: string }
   | { kind: 'rename'; entityId: string }
   | { kind: 'settings'; tab?: SettingsTab }
@@ -487,6 +496,7 @@ export interface AppState {
   showPaidModels: boolean;
   isInitialSync: boolean;
   defaultsSeeded: boolean;
+  pendingModeWrites: PendingModeWrite[];
   pendingCompaction: boolean;
   isCompacting: boolean;
   manualTimezone: string | null;
@@ -650,6 +660,7 @@ export interface AppState {
   setEntities: (entities: Entity[]) => void;
   setTasks: (tasks: AppTask[]) => void;
   setSyncMode: (entityId: string, mode: SyncMode) => Promise<void>;
+  queuePendingModeWrite: (write: PendingModeWrite) => void;
   setLastSaved: (time: number | null) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;
