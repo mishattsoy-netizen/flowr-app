@@ -35,7 +35,10 @@ describe('boot hydration ordering (Task 9 anti-data-loss invariant)', () => {
     expect(useStore.getState().entities).toEqual([]);
 
     // Step 0 equivalent: loadFromSQLite()'s result applied via the bulk setter
-    // directly — NOT through mergeCloudData.
+    // directly — NOT through mergeCloudData. (This suite runs in vitest's node
+    // environment with no `window`, so isDesktop() is false here — same as a
+    // real web tab. On real desktop this hydration step wouldn't run through
+    // this path at all; it's SQLite-sourced there.)
     const sqliteEntities = [
       { id: 'e-local', title: 'Local note', type: 'note', parentId: null, lastModified: 100, syncMode: 'local-only', pairedEntityId: null } as any,
     ];
@@ -43,7 +46,10 @@ describe('boot hydration ordering (Task 9 anti-data-loss invariant)', () => {
     expect(useStore.getState().entities.map(e => e.id)).toEqual(['e-local']);
 
     // Step 1 equivalent: mergeCloudData runs afterward with the real Supabase
-    // dataset, which includes a cloud-only entity.
+    // dataset, which includes a cloud-only entity. On web, mergeCloudData also
+    // drops any local-only entity it finds in local state — local-only is
+    // desktop-exclusive and must never survive on web, even leftover local
+    // state from before this feature shipped.
     mergeCloudData({
       entities: [
         { id: 'e-cloud', title: 'Cloud only note', type: 'note', parentId: null, lastModified: 500, syncMode: 'cloud-only', pairedEntityId: null } as any,
@@ -53,7 +59,7 @@ describe('boot hydration ordering (Task 9 anti-data-loss invariant)', () => {
     });
 
     const finalIds = useStore.getState().entities.map(e => e.id).sort();
-    expect(finalIds).toEqual(['e-cloud', 'e-local']);
+    expect(finalIds).toEqual(['e-cloud']);
   });
 
   it('demonstrates the bug this design avoids: piping the SQLite dataset through mergeCloudData directly (instead of setEntities) would drop entities absent from it', () => {

@@ -23,6 +23,7 @@ export function mergeCloudData(data: {
   settings?: Record<string, any>;
 }) {
   const store = useStore.getState;
+  const desktop = isDesktop();
 
   // ── Entities ──
   if (data.entities.length > 0) {
@@ -32,7 +33,12 @@ export function mergeCloudData(data: {
     for (const le of localEntities) {
       const ce = byId.get(le.id);
       if (!ce) {
-        if (le.syncMode !== 'local-only') continue; // deleted on another device — drop
+        // Web must never keep a local-only entity — local-only is desktop-
+        // exclusive and shouldn't survive here even if it somehow ended up in
+        // web's local state (defense in depth; loadFromSupabase already
+        // filters it out of `data`, so this only matters for stale local
+        // state absent from the cloud response).
+        if (le.syncMode !== 'local-only' || !desktop) continue; // deleted on another device — drop
         byId.set(le.id, le);
         continue;
       }
@@ -68,7 +74,7 @@ export function mergeCloudData(data: {
     for (const lw of localWorkspaces) {
       const cw = byId.get(lw.id);
       if (!cw) {
-        if (lw.syncMode !== 'local-only') continue; // deleted on another device — drop
+        if (lw.syncMode !== 'local-only' || !desktop) continue; // deleted on another device — drop
         byId.set(lw.id, lw);
         continue;
       }

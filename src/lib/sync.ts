@@ -14,6 +14,7 @@
  */
 
 import { supabase } from './supabase';
+import { isDesktop } from './env';
 import type { Entity, AppTask, Space, TaskAttachment } from '@/data/store';
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
@@ -236,6 +237,14 @@ function taskToRow(t: AppTask): Record<string, any> {
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
 
+// Web must never see local-only rows — they're a desktop-exclusive concept.
+// They can still physically exist in Supabase during the 48h purge grace
+// window (see markForPurge), so this filter is the safety net for that
+// window rather than something the read query alone can rely on.
+export function filterLocalOnlyForWeb<T extends { syncMode: string }>(rows: T[], desktop: boolean): T[] {
+  return desktop ? rows : rows.filter(r => r.syncMode !== 'local-only');
+}
+
 export async function loadFromSupabase(): Promise<{
   entities:   Entity[];
   tasks:      AppTask[];
@@ -267,10 +276,11 @@ export async function loadFromSupabase(): Promise<{
     settings[row.key] = row.value;
   });
 
+  const desktop = isDesktop();
   return {
-    entities:   (entityRows   ?? []).map(rowToEntity),
-    tasks:      (taskRows     ?? []).map(rowToTask),
-    spaces: (workspaceRows ?? []).map(rowToWorkspace),
+    entities:   filterLocalOnlyForWeb((entityRows     ?? []).map(rowToEntity), desktop),
+    tasks:      filterLocalOnlyForWeb((taskRows        ?? []).map(rowToTask), desktop),
+    spaces:     filterLocalOnlyForWeb((workspaceRows   ?? []).map(rowToWorkspace), desktop),
     settings,
   };
 }
@@ -533,6 +543,7 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'INSERT', schema: 'public', table: 'entities' },
       ({ new: row }: any) => {
         const entity = rowToEntity(row as Record<string, any>);
+        if (!isDesktop() && entity.syncMode === 'local-only') return;
         const current = store.getEntities();
         const existing = current.find(e => e.id === entity.id);
         if (!existing) {
@@ -546,6 +557,12 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'UPDATE', schema: 'public', table: 'entities' },
       ({ new: row }: any) => {
         const incoming = rowToEntity(row as Record<string, any>);
+        if (!isDesktop() && incoming.syncMode === 'local-only') {
+          // A workspace just went local-only from another device (or this one).
+          // Web must never show local-only — treat this update as a removal.
+          store.setEntities(store.getEntities().filter(e => e.id !== incoming.id));
+          return;
+        }
         store.setEntities(
           store.getEntities().map(e => {
             if (e.id !== incoming.id) return e;
@@ -574,6 +591,7 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'INSERT', schema: 'public', table: 'spaces' },
       ({ new: row }: any) => {
         const ws = rowToWorkspace(row as Record<string, any>);
+        if (!isDesktop() && ws.syncMode === 'local-only') return;
         const current = store.getWorkspaces();
         if (!current.find(w => w.id === ws.id)) {
           store.setSpaces([...current, ws]);
@@ -585,6 +603,10 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'UPDATE', schema: 'public', table: 'spaces' },
       ({ new: row }: any) => {
         const incoming = rowToWorkspace(row as Record<string, any>);
+        if (!isDesktop() && incoming.syncMode === 'local-only') {
+          store.setSpaces(store.getWorkspaces().filter(w => w.id !== incoming.id));
+          return;
+        }
         store.setSpaces(
           store.getWorkspaces().map(w => {
             if (w.id !== incoming.id) return w;
@@ -609,6 +631,7 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'INSERT', schema: 'public', table: 'tasks' },
       ({ new: row }: any) => {
         const task = rowToTask(row as Record<string, any>);
+        if (!isDesktop() && task.syncMode === 'local-only') return;
         const current = store.getTasks();
         if (!current.find(t => t.id === task.id)) {
           store.setTasks([...current, task]);
@@ -620,6 +643,10 @@ export function subscribeRealtime(store: StoreSetters) {
       { event: 'UPDATE', schema: 'public', table: 'tasks' },
       ({ new: row }: any) => {
         const updated = rowToTask(row as Record<string, any>);
+        if (!isDesktop() && updated.syncMode === 'local-only') {
+          store.setTasks(store.getTasks().filter(t => t.id !== updated.id));
+          return;
+        }
         store.setTasks(
           store.getTasks().map(t => {
             if (t.id !== updated.id) return t;
