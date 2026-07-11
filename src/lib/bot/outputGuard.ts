@@ -50,3 +50,29 @@ export function sanitizeOutput(content: string): string {
   // Trim leading/trailing whitespace
   return result.trim()
 }
+
+/** Removes "[Tools: ...]" bookkeeping blocks the model sometimes imitates from replayed history. */
+export function stripToolAnnotations(content: string): string {
+  return content
+    .replace(/\n?\s*\[Tools:[\s\S]*?\]\s*\n?/g, '\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+// Conservative: only past/perfect claims of completed content mutations.
+const ACTION_CLAIM_RE =
+  /\b(has been|have been|was|were|already)\s+(permanently\s+)?(deleted|created|updated|moved|renamed)\b|\b(successfully)\s+(deleted|created|updated|moved)\b|\bI (have|'ve) (deleted|created|updated|moved)\b/i
+
+// The claim must be about an app entity — prevents false positives on
+// ordinary prose ("the company was created in 2019" in a search answer).
+const APP_ENTITY_RE = /\b(note|notes|task|tasks|workspace|workspaces|folder|folders|canvas|item|items|memory|memories|reminder|reminders)\b/i
+
+/**
+ * True when the reply claims a completed create/update/delete/move of an app
+ * entity but no tool call ran this turn. Caller decides how to handle
+ * (P0: replace reply). Only call this on tool-enabled turns.
+ */
+export function hasUngroundedActionClaim(content: string, capturedToolCalls: any[] | undefined): boolean {
+  if (capturedToolCalls && capturedToolCalls.length > 0) return false
+  return ACTION_CLAIM_RE.test(content) && APP_ENTITY_RE.test(content)
+}

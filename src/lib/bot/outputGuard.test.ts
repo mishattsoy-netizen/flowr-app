@@ -101,3 +101,35 @@ describe('sanitizeOutput', () => {
     }
   })
 })
+
+import { stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
+
+describe('stripToolAnnotations', () => {
+  it('removes [Tools: ...] blocks anywhere in the message', () => {
+    const dirty = 'Created it.\n\n[Tools: create_content(title="x") → ok]\n\nAnything else?'
+    expect(stripToolAnnotations(dirty)).toBe('Created it.\n\nAnything else?')
+  })
+  it('leaves clean content untouched', () => {
+    expect(stripToolAnnotations('All done ✅')).toBe('All done ✅')
+  })
+})
+
+describe('hasUngroundedActionClaim', () => {
+  it('flags completed-action claims when no tools ran', () => {
+    expect(hasUngroundedActionClaim('The note has been permanently deleted.', [])).toBe(true)
+    expect(hasUngroundedActionClaim('I have already deleted those items for you.', undefined)).toBe(true)
+    expect(hasUngroundedActionClaim('✅ Task successfully created.', [])).toBe(true)
+  })
+  it('accepts claims when tools ran', () => {
+    expect(hasUngroundedActionClaim('The note has been deleted.', [{ tool: 'delete_content', success: true }])).toBe(false)
+  })
+  it('does not flag offers, questions, or future tense', () => {
+    expect(hasUngroundedActionClaim('I can delete it if you confirm.', [])).toBe(false)
+    expect(hasUngroundedActionClaim('Should I create the task?', [])).toBe(false)
+    expect(hasUngroundedActionClaim('Please confirm you want this deleted.', [])).toBe(false)
+  })
+  it('does not flag historical prose about non-app entities', () => {
+    expect(hasUngroundedActionClaim('The company was created in 2019 by two founders.', [])).toBe(false)
+    expect(hasUngroundedActionClaim('The file was moved to a new data center last year.', [])).toBe(false)
+  })
+})

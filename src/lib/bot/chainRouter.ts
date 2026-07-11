@@ -1,5 +1,5 @@
 import { classifyIntentWithModel } from './classifier'
-import { sanitizeOutput } from './outputGuard'
+import { sanitizeOutput, stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
 import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
 import type { BotMode } from '@/data/store.types'
@@ -1280,6 +1280,11 @@ IMAGE GENERATION:
 
             if (typeof finalContent === 'string') {
               finalContent = sanitizeOutput(finalContent)
+              finalContent = stripToolAnnotations(finalContent)
+              if (routeContext.useTools && hasUngroundedActionClaim(finalContent, capturedToolCalls)) {
+                logger.warn(`[GroundingGuard] Reply claims completed action but no tool ran — replacing. Claim: "${finalContent.slice(0, 120)}"`)
+                finalContent = "⚠️ I wasn't able to complete that action — nothing was changed. Please try again."
+              }
             }
 
             // If citations are missing or empty, extract them from the [SEARCH DATA] in system_prompt
