@@ -46,7 +46,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: mishattsoy-netizen/flowr-app-releases
-          # macOS: skip code signing (no Apple Developer account needed).
-          # The DMG will show "can't be verified" — right-click → Open works.
-          # To fully remove the warning, run: xattr -dr com.apple.quarantine /Applications/Flowr.app
+          # macOS: skip code signing (no Apple Developer account).
+          # Ships as a .pkg whose postinstall script (electron/pkg-scripts/postinstall)
+          # strips quarantine and fixes ownership automatically, so the only
+          # manual step left is one Gatekeeper "Open Anyway" click on the
+          # installer itself. Auto-updates are handled by electron/updater-mac.js
+          # (electron-updater's MacUpdater requires signing and won't work here).
           CSC_IDENTITY_AUTO_DISCOVERY: false

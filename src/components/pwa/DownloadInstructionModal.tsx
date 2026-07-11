@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, X, Check, Copy, ShieldAlert, Apple } from 'lucide-react';
+import { Download, X, Check, ShieldAlert, Apple } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -24,7 +24,6 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
   const platform = detectPlatform();
   const [elapsed, setElapsed] = useState(0);
   const [checked, setChecked] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(null);
   const [mounted, setMounted] = useState(false);
@@ -38,7 +37,6 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
     if (open) {
       setElapsed(0);
       setChecked(false);
-      setCopied(false);
       setVisible(true);
     } else {
       setVisible(false);
@@ -65,24 +63,6 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
 
   const minTimeElapsed = elapsed >= 5;
   const progressPct = Math.min((elapsed / 5) * 100, 100);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText('xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" && open "/Applications/Flowr Beta.app"');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-      const ta = document.createElement('textarea');
-      ta.value = 'xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" && open "/Applications/Flowr Beta.app"';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }, []);
 
   const handleClose = useCallback(() => {
     if (minTimeElapsed && visible) {
@@ -127,32 +107,15 @@ export default function DownloadInstructionModal({ open, onClose, onDownload }: 
       </div>
 
       <div className="space-y-5 mb-6">
-        <Step number={1} text="Click Download below to get Flowr.dmg" />
-        <Step number={2} text="Open the .dmg and drag Flowr to Applications" />
+        <Step number={1} text="Click Download below to get Flowr.pkg" />
+        <Step number={2} text="Open Flowr.pkg and follow the installer" />
         <Step number={3}>
-          <span>Open Terminal, paste and run:</span>
-          <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 text-[11px] bg-[var(--app-dark)] border border-[var(--bone-12)] rounded-lg px-3 py-2.5 font-mono text-[var(--bone-70)] select-all break-all whitespace-normal">
-              xattr -dr com.apple.quarantine "/Applications/Flowr Beta.app" {'&&'} open "/Applications/Flowr Beta.app"
-            </code>
-            <button
-              onClick={handleCopy}
-              className={cn(
-                "shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200",
-                copied
-                  ? "bg-[var(--bone-12)] text-[var(--foreground)]"
-                  : "bg-[var(--bone-6)] hover:bg-[var(--bone-12)] text-[var(--bone-70)] hover:text-[var(--foreground)]"
-              )}
-              title="Copy command"
-            >
-              {copied ? <Check strokeWidth={2} className="w-3.5 h-3.5" /> : <Copy strokeWidth={2} className="w-3.5 h-3.5" />}
-            </button>
-          </div>
+          <span>macOS may warn it can&apos;t verify the developer. Go to <strong>System Settings → Privacy &amp; Security</strong> and click <strong>&ldquo;Open Anyway&rdquo;</strong>.</span>
         </Step>
       </div>
 
       <WhyBox>
-        macOS blocks apps that aren&apos;t Apple-signed. The command removes the quarantine flag. Safe — we just skip the $99/yr fee.
+        macOS blocks apps that aren&apos;t Apple-signed. This one-time click is safe — we just skip the $99/yr developer fee. After install, Flowr updates itself automatically, no more steps needed.
       </WhyBox>
     </>
   );

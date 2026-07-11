@@ -23,7 +23,7 @@ export default function InstallButton({ collapsed }: { collapsed: boolean }) {
 
   const baseUrl = 'https://github.com/mishattsoy-netizen/flowr-app-releases/releases/latest/download';
   const getDownloadUrl = () => {
-    if (isMac) return `${baseUrl}/Flowr.dmg`;
+    if (isMac) return `${baseUrl}/Flowr.pkg`;
     if (isLinux) return `${baseUrl}/Flowr.AppImage`;
     return `${baseUrl}/Flowr-Setup.exe`;
   };

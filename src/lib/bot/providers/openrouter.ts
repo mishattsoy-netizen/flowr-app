@@ -5,6 +5,7 @@ import { parseSSEStream } from './stream-utils'
 import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { toOpenRouterReasoning } from '../reasoning'
+import { summarizeToolCalls } from '../services/toolSummary'
 
 export async function runOpenRouter(
   modelId: string,
@@ -228,7 +229,7 @@ export async function runOpenRouter(
 
             let finalContent = message.content || ''
             if (!finalContent && capturedToolCalls.length > 0) {
-              finalContent = `Successfully executed ${capturedToolCalls.length} tool action(s).`
+              finalContent = summarizeToolCalls(capturedToolCalls)
             }
 
             return {

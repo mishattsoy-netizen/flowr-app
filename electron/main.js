@@ -1,5 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const { autoUpdater } = require('electron-updater');
+// macOS ships unsigned (no Apple Developer account) and electron-updater's
+// MacUpdater refuses to apply updates to an unsigned app — it silently fails
+// every check. ./updater-mac.js is a from-scratch replacement for mac only,
+// exposing the same shape (checkForUpdatesAndNotify/quitAndInstall + events)
+// so the rest of this file doesn't need to branch beyond this require.
+const { autoUpdater } = process.platform === 'darwin'
+  ? require('./updater-mac')
+  : require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');

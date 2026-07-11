@@ -5,6 +5,7 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { toGeminiThinkingBudget } from '../reasoning'
+import { summarizeToolCalls } from '../services/toolSummary'
 
 
 // Per-key concurrency semaphore: serializes API calls per key to avoid rate-limit storms
@@ -269,7 +270,7 @@ export async function runGoogle(
             responseContent = ''
           }
           if (!responseContent && capturedToolCalls.length > 0) {
-            responseContent = `Successfully executed ${capturedToolCalls.length} tool action(s).`
+            responseContent = summarizeToolCalls(capturedToolCalls)
           }
           usage = extractUsage(currentResponse)
           reasoning = extractReasoning(currentResponse)

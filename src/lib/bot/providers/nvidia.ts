@@ -4,6 +4,7 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { streamOpenAICompatible } from './stream-utils'
+import { summarizeToolCalls } from '../services/toolSummary'
 
 const NVIDIA_API = 'https://integrate.api.nvidia.com/v1/chat/completions'
 
@@ -165,7 +166,7 @@ export async function runNvidia(
 
           let finalContent = message.content || ''
           if (!finalContent && capturedToolCalls.length > 0) {
-            finalContent = `Successfully executed ${capturedToolCalls.length} tool action(s).`
+            finalContent = summarizeToolCalls(capturedToolCalls)
           }
 
           return {
