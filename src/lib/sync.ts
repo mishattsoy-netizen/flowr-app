@@ -238,7 +238,7 @@ function taskToRow(t: AppTask): Record<string, any> {
 // ─── Initial load ─────────────────────────────────────────────────────────────
 
 // Web must never see local-only rows — they're a desktop-exclusive concept.
-// They can still physically exist in Supabase during the 48h purge grace
+// They can still physically exist in Supabase during the 24h purge grace
 // window (see markForPurge), so this filter is the safety net for that
 // window rather than something the read query alone can rely on.
 export function filterLocalOnlyForWeb<T extends { syncMode: string }>(rows: T[], desktop: boolean): T[] {
@@ -446,7 +446,7 @@ export async function deleteTaskFromDB(id: string): Promise<{ error: any }> {
 // markForPurge/clearPurge are the only functions allowed to write local-only
 // state to Supabase. They bypass the debounced push path on purpose.
 
-export const PURGE_GRACE_MS = 48 * 60 * 60 * 1000;
+export const PURGE_GRACE_MS = 24 * 60 * 60 * 1000;
 
 export interface PurgeTargets {
   entityIds: string[];

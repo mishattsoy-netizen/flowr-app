@@ -6,7 +6,7 @@ import { getSyncModeCascade } from '@/data/store.helpers';
 import { HardDrive } from 'lucide-react';
 
 export function buildLocalOnlyConfirmText(entityCount: number, taskCount: number): string {
-  return `This workspace and everything in it (${entityCount} item${entityCount === 1 ? '' : 's'}, ${taskCount} task${taskCount === 1 ? '' : 's'}) will be removed from the cloud in 48 hours and will only exist on this device. You can undo this by switching back to a cloud mode within 48 hours.`;
+  return `This workspace and everything in it (${entityCount} item${entityCount === 1 ? '' : 's'}, ${taskCount} task${taskCount === 1 ? '' : 's'}) will be removed from the cloud in 24 hours and will only exist on this device. You can undo this by switching back to a cloud mode within 24 hours.`;
 }
 
 export function LocalOnlyConfirmModal() {
