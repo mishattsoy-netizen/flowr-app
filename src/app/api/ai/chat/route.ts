@@ -299,8 +299,12 @@ export async function POST(req: NextRequest) {
         let messageLogId: number | undefined = undefined
         if (!isTempChat) {
           logWebInteraction(logUserId, prompt, 'user', usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => {})
-          const loggedId = await logModelWebMessage(logUserId, loggedContent, usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => null)
-          if (loggedId) messageLogId = loggedId
+          // Error replies (e.g. "*System Overload*") must NOT enter replayable
+          // history — the model imitates/absorbs them on later turns.
+          if (finalStatus !== 'error') {
+            const loggedId = await logModelWebMessage(logUserId, loggedContent, usageType as any, finalStatus, modelChain, requestId, contextMessages, result.image_description, activeChatId ?? null).catch(() => null)
+            if (loggedId) messageLogId = loggedId
+          }
         }
 
         send({
