@@ -19,6 +19,21 @@ export function stripToolSummary(content: string): string {
 }
 
 /**
+ * Twin lookup for a user message. The twin (image description) is stored on
+ * the user row itself at log time; older rows only have it on the following
+ * assistant row. Never borrow from a following USER row — that attached
+ * other people's images to unrelated messages (bug: transcript 14-47-19).
+ */
+export function resolveTwinForUserMessage(msg: any, nextMsg: any): string | null {
+  const own = msg?.context_messages?.image_description
+  if (own) return own
+  if (nextMsg?.role === 'model' && nextMsg?.context_messages?.image_description) {
+    return nextMsg.context_messages.image_description
+  }
+  return null
+}
+
+/**
  * Fetches the last N messages for a Telegram chat to provide context.
  */
 export async function getConversationMemory(telegramId: number, limit: number = 100): Promise<MemoryItem[]> {
@@ -39,11 +54,9 @@ export async function getConversationMemory(telegramId: number, limit: number = 
         const description = msg.context_messages?.image_description;
         cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, description ? `[Image: ${description}]` : '[Image: (visual content generated)]');
       }
-      // Inject digital twin from the following assistant message into user message text
-      // so non-vision chains have full image context in history
+      // Inject digital twin so non-vision chains have full image context in history.
       if (msg.role !== 'model') {
-        const nextMsg = reversed[i + 1]
-        const twin = nextMsg?.context_messages?.image_description
+        const twin = resolveTwinForUserMessage(msg, reversed[i + 1])
         if (twin) cleanContent = `${cleanContent}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${twin}`.trim()
       }
       return {
@@ -116,11 +129,9 @@ export async function getWebConversationMemory(authUserId: string, limit: number
         const description = msg.context_messages?.image_description;
         cleanContent = cleanContent.replace(/!\[.*?\]\s*\(\s*data:image\/.*?;base64,[\s\S]*?\)/g, description ? `[Image: ${description}]` : '[Image: (visual content generated)]');
       }
-      // Inject digital twin from the following assistant message into user message text
-      // so non-vision chains have full image context in history
+      // Inject digital twin so non-vision chains have full image context in history.
       if (msg.role !== 'model') {
-        const nextMsg = reversed[i + 1]
-        const twin = nextMsg?.context_messages?.image_description
+        const twin = resolveTwinForUserMessage(msg, reversed[i + 1])
         if (twin) cleanContent = `${cleanContent}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${twin}`.trim()
       }
       return {

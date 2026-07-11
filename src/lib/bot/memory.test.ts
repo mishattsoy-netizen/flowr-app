@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stripToolSummary } from './memory'
+import { stripToolSummary, resolveTwinForUserMessage } from './memory'
 
 // Regression for the imitation-loop bug: buildToolSummary() (route.ts /
 // webhook/route.ts) appends "\n\n[Tools: name(args) → result]" to the
@@ -28,5 +28,31 @@ describe('stripToolSummary', () => {
   it('does not touch bracketed text that is not a trailing tool summary', () => {
     const input = 'Check out [Tools: for the job] at the hardware store.'
     expect(stripToolSummary(input)).toBe(input)
+  })
+})
+
+// Regression: the twin (image description) was previously always pulled from
+// the FOLLOWING row regardless of role, which attached other people's images
+// to unrelated messages (transcript 2026-07-10T14-47-19 — "generate image of
+// michael jackson" carried a twin describing an unrelated portrait, and an
+// empty message got answered with a description of a Dubai skyline).
+describe('resolveTwinForUserMessage', () => {
+  it('prefers the twin stored on the user row itself', () => {
+    const msg = { role: 'user', context_messages: { image_description: 'own twin' } }
+    const next = { role: 'model', context_messages: { image_description: 'other twin' } }
+    expect(resolveTwinForUserMessage(msg, next)).toBe('own twin')
+  })
+  it('falls back to the following model row when own row has none', () => {
+    const msg = { role: 'user', context_messages: null }
+    const next = { role: 'model', context_messages: { image_description: 'legacy twin' } }
+    expect(resolveTwinForUserMessage(msg, next)).toBe('legacy twin')
+  })
+  it('never borrows a twin from a following USER row', () => {
+    const msg = { role: 'user', context_messages: null }
+    const next = { role: 'user', context_messages: { image_description: 'someone elses' } }
+    expect(resolveTwinForUserMessage(msg, next)).toBe(null)
+  })
+  it('returns null when no twin exists anywhere', () => {
+    expect(resolveTwinForUserMessage({ role: 'user' }, { role: 'model' })).toBe(null)
   })
 })
