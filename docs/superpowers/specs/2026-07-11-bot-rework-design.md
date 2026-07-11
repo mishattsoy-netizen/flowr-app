@@ -72,6 +72,18 @@ Selection rule (router, not prompt): `action || hard || extended → Smart; else
 
 One PRIMARY prompt replaces `regular.txt` + `complex.txt`.
 
+Tier applies within each existing bot mode (default/pro → "Regular"/"Max"). Default model lists (admin-editable):
+
+| Mode | Light | Smart |
+|---|---|---|
+| Regular | gemini-3.1-flash-lite → gpt-4o-mini | claude-haiku-4.5 → gemini-3-flash-preview → gpt-5.6-luna-pro |
+| Max | claude-haiku-4.5 → gemini-3-flash-preview | claude-sonnet-5 → gemini-3.5-flash |
+| SYSTEM (§7) | gemini-3.1-flash-lite → gpt-4o-mini | — |
+
+Prompt-prefix stability is preserved (static/dynamic split) so Anthropic/OpenAI prompt caching keeps Smart-tier tool turns near cached pricing.
+
+Mode UI: each mode selector gets an ⓘ info button with a short popup (benefits, trade-offs, relative cost) — including a note that local-only workspaces get no background runs.
+
 ## 5. Context pack (injected user state)
 
 Every tool-enabled turn receives a compact server-computed block:
@@ -139,6 +151,8 @@ Three layers:
 
 **Scheduling & scale**:
 
+- Scheduling infrastructure: Supabase `pg_cron` (same mechanism as the existing purge crons) triggers the sweeper and weekly endpoints. Local-only workspaces get no background runs (bot memory already requires cloud).
+- Telegram sessions have real boundaries via `/new` (creates a new session in the app UI) and behave identically to web sessions; a never-`/new` chat simply gets its description refreshed at each idle gap.
 - Idle runs are picked up by a **sweeper** (every ~10 min) that selects sessions idle >60 min with uncaptured messages, processed via a queue with a concurrency cap (3–5). Nothing user-facing waits on background jobs.
 - **Incremental capture**: capture keeps its own watermark (`last_captured_message_id`); a resumed session's next run reads only new messages plus the existing description/title. No new messages → no run.
 - **Skip threshold**: capture runs only for sessions with ≥3 user messages or at least one action (tool write); smaller sessions keep title v1 and get no description/memory pass.
