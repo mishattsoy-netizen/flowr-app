@@ -43,7 +43,6 @@ export function TaskCardUI({
   const isSelected = useStore(s => s.selectedTaskIds.includes(task.id));
   const toggleTaskSelection = useStore(s => s.toggleTaskSelection);
   const openTaskContextMenu = useStore(s => s.openTaskContextMenu);
-  const trackerFilterTag = useStore(s => s.trackerFilterTag);
 
   const handleToggleSubtask = (subId: string) => {
     if (!task.subtasks) return;
@@ -83,7 +82,7 @@ export function TaskCardUI({
         openTaskContextMenu(task.id, columnId ?? '', e.clientX, e.clientY);
       }}
       className={cn(
-        "group relative p-3 rounded-[10px] border border-[var(--bone-10)] shrink-0 touch-none select-none flex flex-col gap-2 transition-colors duration-200 ease-in-out",
+        "group relative p-3 rounded-[12px] border border-[var(--bone-10)] shrink-0 touch-none select-none flex flex-col gap-2 transition-colors duration-200 ease-in-out",
         isDragging
           // Dragging = same look as hover: just a bg change, no border. Dark mode
           // is the default (the app adds `.light` for light mode), so drop the
@@ -392,7 +391,7 @@ function TaskCardInner({
                 return tilts.slice(0, behindCount).map((deg, i) => (
                   <div
                     key={i}
-                    className="absolute inset-0 rounded-[10px] border border-[var(--bone-10)] bg-[var(--app-dark)]"
+                    className="absolute inset-0 rounded-[12px] border border-[var(--bone-10)] bg-[var(--app-dark)]"
                     style={{
                       boxShadow: '0 6px 16px var(--popup-shadow-color)',
                       transform: `rotate(${deg}deg) translateY(4px)`,
@@ -406,7 +405,7 @@ function TaskCardInner({
                   inner TaskCardUI already draws its own 1px border; adding one on
                   this wrapper too made the front card's edge look doubled/thick. */}
               <div
-                className="relative rounded-[10px] bg-[var(--app-panel)]"
+                className="relative rounded-[12px] bg-[var(--app-panel)]"
                 style={{ boxShadow: '0 6px 16px var(--popup-shadow-color)' }}
               >
                 <TaskCardUI task={task} isDragging />

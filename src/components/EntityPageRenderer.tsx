@@ -12,8 +12,9 @@ import { SettingsPage } from './settings/SettingsPage';
 import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
 import { ChatMainSkeleton } from './chat/ChatSkeleton';
 import { TrackerSkeleton } from './tracker/TrackerSkeleton';
+import { NoteSkeleton } from './editor/NoteSkeleton';
 
-import { useEffect, useState } from 'react';
+import { useAppReady } from '@/hooks/useAppReady';
 
 /**
  * Renders the appropriate page component for a given entity ID.
@@ -21,50 +22,35 @@ import { useEffect, useState } from 'react';
  */
 export function EntityPageRenderer({ entityId }: { entityId: string }) {
   const entities = useStore(state => state.entities);
-  const [isMounted, setIsMounted] = useState(false);
-  const [storeHydrated, setStoreHydrated] = useState(false);
+  const { isReady, storeHydrated } = useAppReady();
 
-  useEffect(() => {
-    setIsMounted(true);
-
-    if (useStore.persist.hasHydrated()) {
-      setStoreHydrated(true);
-    } else {
-      const unsub = useStore.persist.onFinishHydration(() => {
-        setStoreHydrated(true);
-        unsub();
-      });
-      return unsub;
-    }
-  }, []);
-
-  const hasHydrated = isMounted && storeHydrated;
-
-  if (!hasHydrated) {
-    if (entityId === 'chat') return <ChatMainSkeleton />;
-    if (entityId === 'tracker') return <TrackerSkeleton />;
-    return <DashboardSkeleton />;
-  }
+  // Determine entity based on either state or persist data if possible
+  const entity = storeHydrated ? entities.find(e => e.id === entityId) : undefined;
+  
+  const isLoading = !isReady;
 
   if (entityId === 'dashboard') {
-    return <Dashboard />;
+    return <Dashboard isLoading={isLoading} />;
   }
 
   if (entityId === 'tracker') {
-    return <TrackerPage />;
+    return <TrackerPage isLoading={isLoading} />;
   }
 
   if (entityId === 'chat') {
-    return <ChatPage />;
+    return <ChatPage isLoading={isLoading} />;
   }
 
   if (entityId === 'settings') {
     return <SettingsPage />;
   }
 
-  const entity = entities.find(e => e.id === entityId);
-
   if (!entity) {
+    if (isLoading) {
+      // If we don't even know the entity type yet, we can't render the exact page.
+      // We will fallback to DashboardSkeleton to avoid empty screen
+      return <DashboardSkeleton />;
+    }
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         Select an item from the sidebar.
@@ -74,13 +60,13 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
 
   switch (entity.type) {
     case 'note':
-      return <NotePage entity={entity} />;
+      return <NotePage entity={entity} />; // TODO pass isLoading
     case 'canvas':
       return <CanvasPage entity={entity} />;
     case 'workspace':
-      return <SpacePage entity={entity} />;
+      return <SpacePage entity={entity} isLoading={isLoading} />;
     case 'folder':
-      return <FolderView entity={entity} />;
+      return <FolderView entity={entity} isLoading={isLoading} />;
     default:
       return (
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">

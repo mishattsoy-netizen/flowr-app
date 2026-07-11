@@ -109,11 +109,10 @@ function buildColumns(
   };
 }
 
-export function TrackerPage() {
+export function TrackerPage({ isLoading }: { isLoading?: boolean }) {
   const activeSpaceId = useStore(s => s.activeSpaceId);
-  const trackerFilterTag = useStore(s => s.trackerFilterTag);
-  const setTrackerFilterTag = useStore(s => s.setTrackerFilterTag);
-  const trackerFilterEntityId = useStore(s => s.trackerFilterEntityId);
+  const trackerFilterTags = useStore(s => s.trackerFilterTags);
+  const trackerFilterEntityIds = useStore(s => s.trackerFilterEntityIds);
   const spaces = useStore(s => s.spaces);
   const allTasks = useStore(s => s.tasks);
   const tasks = useMemo(() => {
@@ -124,14 +123,14 @@ export function TrackerPage() {
       return t.spaceId === activeSpaceId;
     });
 
-    // 2. Filter by Workspace Entity (trackerFilterEntityId)
-    if (trackerFilterEntityId !== null) {
-      rawTasks = rawTasks.filter(t => t.entityId === trackerFilterEntityId);
+    // 2. Filter by Workspace Entity (trackerFilterEntityIds)
+    if (trackerFilterEntityIds.length > 0) {
+      rawTasks = rawTasks.filter(t => t.entityId && trackerFilterEntityIds.includes(t.entityId));
     }
 
-    // 3. Filter by Tag
-    if (trackerFilterTag !== null) {
-      rawTasks = rawTasks.filter(t => t.tag === trackerFilterTag);
+    // 3. Filter by Tags
+    if (trackerFilterTags.length > 0) {
+      rawTasks = rawTasks.filter(t => t.tag && trackerFilterTags.includes(t.tag));
     }
 
     // Defensive check: filter out null/undefined, tasks without a valid ID, and duplicates by ID
@@ -143,7 +142,7 @@ export function TrackerPage() {
       seen.add(t.id);
       return true;
     });
-  }, [allTasks, activeSpaceId, trackerFilterEntityId, trackerFilterTag]);
+  }, [allTasks, activeSpaceId, trackerFilterEntityIds, trackerFilterTags]);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const trackerColumnSortModes = useStore(s => s.trackerColumnSortModes);
@@ -671,6 +670,7 @@ export function TrackerPage() {
                   gap={gap}
                   activeDragId={drag?.taskId ?? null}
                   justDropped={justDropped}
+                  isLoading={isLoading}
                 />
               );
             })}

@@ -1306,11 +1306,11 @@ body.is-dragging-widget [data-widget-id] * {
 }
 
 .scroll-fade[data-fade-top="true"] {
-  --fade-top: 20px;
+  --fade-top: 40px;
 }
 
 .scroll-fade[data-fade-bottom="true"] {
-  --fade-bottom: 20px;
+  --fade-bottom: 28px;
 }
 
 @utility horizontal-scroll-fade {
@@ -1676,4 +1676,15 @@ a:focus:not(:focus-visible),
 .snap-guide-line {
   stroke-dasharray: 4 3;
   animation: guide-dash-crawl 0.8s linear infinite;
+}
+
+/* Hide native scrollbars for custom OverlayScrollbar component */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }

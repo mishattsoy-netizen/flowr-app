@@ -1632,13 +1632,10 @@ export const ChatMessage = memo(({
 
   if (isInterrupted) {
     return (
-      <div className="flex flex-col gap-2 mb-2 items-start w-full">
-        <div className="flex gap-3 w-full items-start">
+      <div className="flex flex-col group items-start mb-3">
+        <div className="flex gap-3 w-full items-start flex-row">
           <div className="flex flex-col min-w-0 items-start max-w-full flex-1">
-            <div className="w-5 h-5 shrink-0 flex items-center justify-center select-none mb-1 -ml-1">
-              <AIAvatar isTyping={false} className="w-3.5 h-3.5" />
-            </div>
-            <div className="prose prose-invert max-w-none w-full" style={{ fontFamily: '"Literata"', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
+            <div className="prose prose-invert max-w-none w-full opacity-60 italic" style={{ fontFamily: '"Literata"', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
               <span>Interrupted</span>
             </div>
           </div>

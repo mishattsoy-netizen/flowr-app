@@ -11,6 +11,7 @@ import { Plus, MoreHorizontal, Trash2, ArrowUpDown, Check } from 'lucide-react';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { shouldShowEmptyState } from './dragLogic';
 import { Tooltip } from '@/components/layout/Tooltip';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const DOT_COLORS: Record<string, string> = {
   todo: '#3B82F6',       // Blue
@@ -61,9 +62,10 @@ interface KanbanColumnProps {
   // The cards that just landed + a nonce that bumps each drop, so the settle
   // animation restarts every time (even on a rapid re-drop of the same card).
   justDropped: { taskIds: string[]; nonce: number } | null;
+  isLoading?: boolean;
 }
 
-function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }: KanbanColumnProps) {
+function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, isLoading }: KanbanColumnProps) {
   const { resolvedTheme } = useTheme();
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -109,14 +111,20 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
             className="w-2 h-2 rounded-full shrink-0" 
             style={{ backgroundColor: DOT_COLORS[id] || 'var(--bone-20)' }} 
           />
-          {/* Title */}
-          <span className="text-[13px] font-sans font-semibold text-[var(--bone-90)] tracking-wide leading-none select-none">
-            {title}
-          </span>
-          {/* Count Badge */}
-          <span className="flex items-center justify-center w-[22px] h-[22px] rounded-[4px] text-[12px] font-ui font-medium bg-[var(--bone-6)] text-[var(--bone-70)] shrink-0 select-none">
-            {tasks.length}
-          </span>
+          {isLoading ? (
+            <Skeleton className="h-5 w-24 rounded-md bg-[var(--bone-5)]" />
+          ) : (
+            <>
+              {/* Title */}
+              <span className="text-[13px] font-sans font-semibold text-[var(--bone-90)] tracking-wide leading-none select-none">
+                {title}
+              </span>
+              {/* Count Badge */}
+              <span className="flex items-center justify-center w-[22px] h-[22px] rounded-[4px] text-[12px] font-ui font-medium bg-[var(--bone-6)] text-[var(--bone-70)] shrink-0 select-none">
+                {tasks.length}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -229,7 +237,8 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
             <Tooltip content="New task" position="bottom" delay={400}>
               <button
                 onClick={() => {
-                  const presets: any = { entityId: useStore.getState().trackerFilterEntityId || undefined };
+                  const state = useStore.getState();
+                  const presets: any = { entityId: state.trackerFilterEntityIds[0] || undefined };
                   if (id === 'todo') {
                     presets.status = 'todo';
                   } else if (id === 'inProgress') {
@@ -255,8 +264,8 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
       </div>
 
       <OverlayScrollbar
-        className="flex-1"
-        scrollClassName="flex flex-col"
+        className="flex-1 -mr-4"
+        scrollClassName="flex flex-col pr-4"
         scrollRef={(node) => { dropRef.current = node; }}
         scrollProps={{ 'data-kanban-column': id } as Record<string, unknown>}
       >
@@ -264,6 +273,25 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped }:
           const gapBox = gap ? (
             <GapBox columnId={id} afterTaskId={gap.afterTaskId} height={gap.height} />
           ) : null;
+
+          if (isLoading) {
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+              hash = id.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const count = (Math.abs(hash) % 4) + 2;
+            const heights = [];
+            for (let i = 0; i < count; i++) {
+              heights.push(80 + (Math.abs(hash + i * 123) % 80));
+            }
+            return (
+              <div className="flex flex-col gap-3 min-h-0">
+                {heights.map((h, i) => (
+                  <Skeleton key={i} className="w-full rounded-[var(--radius-medium)] bg-[var(--bone-5)]" style={{ height: h }} />
+                ))}
+              </div>
+            );
+          }
 
           // Empty-state must NOT show while this column still owns the dragged
           // card — the hidden dragged card carries its follower-preview portal,

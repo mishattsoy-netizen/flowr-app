@@ -7,6 +7,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import gsap from 'gsap';
 import { widgetRegistry } from './registry';
 import type { BentoLayoutItem } from './types';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface BentoWidgetProps {
   item: BentoLayoutItem;
@@ -38,6 +39,20 @@ export function BentoWidget({ item, contextId, editMode, isLoading, onRemove, on
     }, delay);
     return () => clearTimeout(t1);
   }, [editMode, staggerIndex]);
+
+  if (isLoading) {
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'h-full relative transition-all duration-300 rounded-[var(--radius-big)]',
+          'overflow-hidden'
+        )}
+      >
+        <Skeleton className="h-full w-full rounded-[var(--radius-big)] bg-[var(--bone-5)]" />
+      </div>
+    );
+  }
 
   if (!entry) {
     return (

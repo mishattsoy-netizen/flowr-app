@@ -9,6 +9,7 @@ import { StatusTyping } from '@/components/assistant/components/StatusTyping';
 import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { useAuth } from '@/components/AuthProvider';
 import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
+import { ChatMainSkeleton } from './ChatSkeleton';
 
 const QUICK_ACCESS_PILLS = [
   { id: 'image', label: 'Generate Image', prefix: '/image ', icon: ImageIcon },
@@ -17,9 +18,10 @@ const QUICK_ACCESS_PILLS = [
   { id: 'task', label: 'New Task', prefix: '/task ', icon: CheckSquare },
 ];
 
-export function ChatConversation() {
+export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
   const aiMessages = useStore(s => s.aiMessages);
   const isAILoading = useStore(s => s.isAILoading);
+  const isChatMessagesLoading = useStore(s => s.isChatMessagesLoading);
   const isTempChat = useStore(s => s.isTempChat);
   const tempChatGreeting = useStore(s => s.tempChatGreeting);
   const sendAIMessage = useStore(s => s.sendAIMessage);
@@ -30,6 +32,7 @@ export function ChatConversation() {
   const aiSessionContext = useStore(s => s.aiSessionContext);
   const isCompacting = useStore(s => s.isCompacting);
   const { user } = useAuth();
+
 
   const messages = aiMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -69,6 +72,10 @@ export function ChatConversation() {
   const handleAddImageToWorkspace = () => { };
 
   const displayMessages = messages.filter(m => (m.role === 'user' || m.role === 'assistant') && !m.isHidden);
+
+  if (isLoading || isChatMessagesLoading) {
+    return <ChatMainSkeleton />;
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">

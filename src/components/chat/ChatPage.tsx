@@ -6,7 +6,7 @@ import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { Eraser, Trash2, Bookmark } from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
 
-export default function ChatPage() {
+export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
   const activeChatId = useStore(s => s.activeChatId);
   const chatConversations = useStore(s => s.chatConversations);
   const isTempChat = useStore(s => s.isTempChat);
@@ -37,7 +37,7 @@ export default function ChatPage() {
         )}
 
         {/* Scroll area fills entire parent — bar floats over it */}
-        <ChatConversation />
+        <ChatConversation isLoading={isLoading} />
 
         {/* Top fade + title */}
         <div

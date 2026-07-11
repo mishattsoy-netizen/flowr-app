@@ -131,7 +131,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "delete_content",
-    description: "Permanently delete one or more items by ID. Supports notes, folders, canvases, canvas blocks, and tasks.\n\nCRITICAL SAFETY RULES — you MUST follow these exactly:\n1. Get PERMISSION FIRST: Before calling this tool, list EVERY item you intend to delete in your chat response using TITLES only (never show internal IDs to the user).\n2. AWAIT EXPLICIT CONFIRMATION: Do NOT call this tool until the user has explicitly confirmed they want those exact items deleted.\n3. ONLY the listed items: Delete only what you listed. If the user wants to keep some items from the list, loop back to step 1 with the adjusted list.\n4. Folders cascade: When a folder is deleted, ALL its children (notes, sub-folders, etc.) are also permanently deleted — note this in your list.\n\nIf the user corrects or adjusts the list, present the new list for re-confirmation before deleting.",
+    description: "Permanently delete one or more items by ID. Supports notes, folders, canvases, canvas blocks, and tasks.\n\nCRITICAL SAFETY RULES — you MUST follow these exactly:\n1. Get PERMISSION FIRST: Before calling this tool with `is_confirmed_by_user: true`, you MUST first call it with `is_confirmed_by_user: false`. This will return a dry-run list of what will be deleted.\n2. You must show this list to the user and AWAIT EXPLICIT CONFIRMATION.\n3. ONLY when the user explicitly confirms (e.g., 'yes', 'delete', 'proceed') to your exact list, call this tool again with `is_confirmed_by_user: true`.\n4. Folders cascade: When a folder is deleted, ALL its children (notes, sub-folders, etc.) are also permanently deleted — note this in your list.\n\nIf the user corrects or adjusts the list, present the new list (by calling with false again) for re-confirmation before deleting.",
     parameters: {
       type: "object",
       properties: {
@@ -144,9 +144,13 @@ export const FLOWR_TOOLS = [
           type: "string",
           enum: ["note", "task", "folder", "canvas"],
           description: "Optional type hint for display in the confirmation list."
+        },
+        is_confirmed_by_user: {
+          type: "boolean",
+          description: "Set to false initially to get a dry-run list of items. Set to true ONLY if the user's PREVIOUS message explicitly confirmed the exact list (e.g., 'yes', 'delete', 'remove it', 'proceed')."
         }
       },
-      required: ["ids"]
+      required: ["ids", "is_confirmed_by_user"]
     }
   },
 

@@ -416,8 +416,8 @@ export interface AppState {
 
   spaces: Space[];
   activeSpaceId: string | null;
-  trackerFilterTag: string | null;
-  trackerFilterEntityId: string | null;
+  trackerFilterTags: string[];
+  trackerFilterEntityIds: string[];
 
 
   activeEntityId: string | null;
@@ -519,6 +519,8 @@ export interface AppState {
   tempChatMessages: AIMessage[];
   chatHistoryOpen: boolean;
   chatConversations: ChatConversation[];
+  isChatHistoryLoading: boolean;
+  isChatMessagesLoading: boolean;
   tempChatGreeting: string | null;
   setShowTempNotice: (show: boolean) => void;
 
@@ -556,8 +558,13 @@ export interface AppState {
   setSpaces: (spaces: Space[]) => void;
   setRecentEntityIds: (ids: string[]) => void;
   setActiveSpaceId: (id: string | null) => void;
-  setTrackerFilterTag: (tag: string | null) => void;
-  setTrackerFilterEntityId: (id: string | null) => void;
+  setTrackerFilterTags: (tags: string[]) => void;
+  setTrackerFilterEntityIds: (ids: string[]) => void;
+  toggleTrackerFilterTag: (tag: string) => void;
+  toggleTrackerFilterEntityId: (id: string) => void;
+  clearTrackerFilters: () => void;
+  clearTrackerFilterTags: () => void;
+  clearTrackerFilterEntityIds: () => void;
   createSpace: (input: Partial<Space>) => string;
   updateSpace: (id: string, patch: Partial<Space>) => void;
   deleteSpace: (id: string) => void;

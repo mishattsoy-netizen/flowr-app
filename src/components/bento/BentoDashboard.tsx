@@ -10,7 +10,7 @@ import { WidgetPicker } from './WidgetPicker';
 import type { BentoLayoutItem } from '@/components/bento/types';
 import { computeGridPositions, resizeDivider } from '@/lib/bento-engine';
 import { useStore } from '@/data/store';
-import { DashboardSkeleton } from '../dashboard/DashboardSkeleton';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const MAX_ROWS = 4;
 const GAP = 12; // Matches gap-3 (0.75rem)
@@ -436,9 +436,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
     };
   }
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
+  // Allow component to render the real layout with Skeletons if loading
 
   return (
     <div className="flex-1 flex flex-row overflow-hidden h-full">
@@ -450,13 +448,26 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
             className="group/header flex items-end justify-between mb-3 px-[6px]"
           >
             <div className="flex-1">
-              {typeof title === 'function' ? title(editMode, isHeaderHovered) : title}
+              {(isLoading || reallyLoading) ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-9 w-48 rounded-md bg-[var(--bone-5)]" />
+                  <Skeleton className="h-4 w-32 rounded-md bg-[var(--bone-5)]" />
+                </div>
+              ) : (
+                typeof title === 'function' ? title(editMode, isHeaderHovered) : title
+              )}
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="hidden md:flex items-center gap-2 mr-1">
-                {editMode && (
-                  <>
+              {(isLoading || reallyLoading) ? (
+                <div className="flex gap-2">
+                  <Skeleton className="h-7 w-20 rounded-[var(--radius-medium)] bg-[var(--bone-5)]" />
+                  <Skeleton className="h-7 w-20 rounded-[var(--radius-medium)] bg-[var(--bone-5)]" />
+                </div>
+              ) : (
+                <div className="hidden md:flex items-center gap-2 mr-1">
+                  {editMode && (
+                    <>
                     <label className="flex items-center gap-2 mr-3 cursor-pointer select-none text-xs text-bone-70">
                       <div className="relative">
                         <input
@@ -508,8 +519,12 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                   )}
                 </button>
               </div>
-
-              {actions}
+              )}
+              {actions && (
+                <div className="flex items-center">
+                  {actions}
+                </div>
+              )}
             </div>
           </header>
 
@@ -559,7 +574,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                       item={item}
                       contextId={contextId}
                       editMode={editMode && !isMobile}
-                      isLoading={isLoading}
+                      isLoading={isLoading || reallyLoading}
                       onUpdateData={(newData) => updateWidgetData(item.i, newData)}
                       onRemove={() => removeWidget(item.i)}
                       isSwapTarget={isSwapTarget}

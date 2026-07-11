@@ -123,7 +123,7 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     try {
       const { data: memories } = await supabaseAdmin
         .from('bot_memories')
-        .select('id, content')
+        .select('id, title, content')
         .eq('user_id', context.userId)
         .order('created_at', { ascending: true })
 

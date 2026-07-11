@@ -27,7 +27,10 @@ export function ThemeProvider({
   const [theme, setThemeState] = useState<Theme>(defaultTheme);
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
 
-  useEffect(() => {
+  // Suppress useLayoutEffect warning on server by safely falling back to useEffect
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : useEffect;
+
+  useIsomorphicLayoutEffect(() => {
     // Initial load from localStorage
     const saved = localStorage.getItem("theme") as Theme | null;
     if (saved) {
@@ -35,7 +38,7 @@ export function ThemeProvider({
     }
   }, []);
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const isDarkOS = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolved = theme === "system" ? (isDarkOS ? "dark" : "light") : theme;
     setResolvedTheme(resolved as "dark" | "light");

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { isDesktop } from '@/lib/env';
 
 /**
  * A scroll container with a custom OVERLAY scrollbar rendered as a real DOM
@@ -20,19 +21,28 @@ export function OverlayScrollbar({
   scrollClassName,
   scrollRef,
   scrollProps,
+  thumbOffsetRight,
+  thumbRightClass,
 }: {
   children: React.ReactNode;
   className?: string;
   scrollClassName?: string;
   scrollRef?: (node: HTMLDivElement | null) => void;
   scrollProps?: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>;
+  thumbOffsetRight?: number;
+  thumbRightClass?: string;
 }) {
+  const isDesktopEnv = isDesktop();
   const elRef = useRef<HTMLDivElement | null>(null);
-  const [thumb, setThumb] = useState<{ height: number; top: number } | null>(null);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
+  const [hasThumb, setHasThumb] = useState(false);
+  const [debugData, setDebugData] = useState({ clientX: 0, right: 0, isHovered: false });
   const [visible, setVisible] = useState(false);
-  const [hovering, setHovering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimer = useRef<NodeJS.Timeout | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragState = useRef<{ startY: number; startScroll: number } | null>(null);
   // Coalesce scroll work to one measurement per animation frame: scroll events
   // can fire several times per frame, and each sync() does layout reads + a
@@ -69,7 +79,7 @@ export function OverlayScrollbar({
     if (!el) return;
     const { scrollHeight, clientHeight, scrollTop } = el;
     if (scrollHeight <= clientHeight) {
-      setThumb(null); // nothing to scroll → no thumb
+      setHasThumb(prev => (prev ? false : prev)); // nothing to scroll → no thumb
       setFade(el, false, false);
       return;
     }
@@ -78,9 +88,13 @@ export function OverlayScrollbar({
     const height = Math.max(minThumb, (clientHeight / scrollHeight) * trackH);
     const maxTop = trackH - height;
     const top = maxTop * (scrollTop / (scrollHeight - clientHeight));
-    setThumb(prev =>
-      prev && prev.height === height && prev.top === top ? prev : { height, top }
-    );
+    
+    if (thumbRef.current) {
+      thumbRef.current.style.height = `${height}px`;
+      thumbRef.current.style.transform = `translateY(${top}px)`;
+    }
+    setHasThumb(prev => (!prev ? true : prev));
+    
     // Fade the top edge once any content has scrolled under it, and the bottom
     // edge until the end is reached. A few px of slack avoids flicker right at
     // the extremes.
@@ -90,7 +104,7 @@ export function OverlayScrollbar({
   const reveal = useCallback(() => {
     setVisible(prev => (prev ? prev : true));
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setVisible(false), 1000);
+    idleTimer.current = setTimeout(() => setVisible(false), 500);
   }, []);
 
   // Scroll events can fire multiple times per frame; do the layout read +
@@ -135,6 +149,7 @@ export function OverlayScrollbar({
 
   useEffect(() => () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
   }, []);
 
   // Drag the thumb to scroll.
@@ -149,10 +164,11 @@ export function OverlayScrollbar({
   };
   const onThumbPointerMove = (e: React.PointerEvent) => {
     const el = elRef.current;
+    const thumbEl = thumbRef.current;
     const drag = dragState.current;
-    if (!el || !drag || !thumb) return;
+    if (!el || !thumbEl || !drag) return;
     const trackH = el.clientHeight;
-    const maxTop = trackH - thumb.height;
+    const maxTop = trackH - thumbEl.clientHeight;
     const deltaY = e.clientY - drag.startY;
     const scrollRange = el.scrollHeight - el.clientHeight;
     el.scrollTop = drag.startScroll + (deltaY / maxTop) * scrollRange;
@@ -167,7 +183,33 @@ export function OverlayScrollbar({
   const onScrollProp = scrollProps?.onScroll as ((e: React.UIEvent<HTMLDivElement>) => void) | undefined;
 
   return (
-    <div className={cn('relative min-h-0', className)}>
+    <div 
+      className={cn('relative min-h-0 overflow-hidden', className)}
+      onPointerMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isNearEdge = e.clientX >= rect.right - 30;
+        if (isNearEdge && !isHovered) {
+          if (!hoverTimer.current) {
+            hoverTimer.current = setTimeout(() => {
+              setIsHovered(true);
+            }, 150);
+          }
+        } else if (!isNearEdge) {
+          if (hoverTimer.current) {
+            clearTimeout(hoverTimer.current);
+            hoverTimer.current = null;
+          }
+          if (isHovered) setIsHovered(false);
+        }
+      }}
+      onPointerLeave={() => {
+        if (hoverTimer.current) {
+          clearTimeout(hoverTimer.current);
+          hoverTimer.current = null;
+        }
+        setIsHovered(false);
+      }}
+    >
       <div
         {...scrollProps}
         ref={setRef}
@@ -176,26 +218,28 @@ export function OverlayScrollbar({
       >
         {children}
       </div>
-      {thumb && (
+      {hasThumb && (
         <div
-          className={cn("absolute top-0 bottom-0 w-[20px] bg-transparent z-10", isDragging ? "cursor-grabbing" : "cursor-default")}
-          style={{ right: -15 }}
-          onMouseEnter={() => { setHovering(true); reveal(); }}
-          onMouseLeave={() => setHovering(false)}
-        >
-          <div
-            onPointerDown={onThumbPointerDown}
-            onPointerMove={onThumbPointerMove}
-            onPointerUp={onThumbPointerUp}
-            className={cn(
-              'absolute w-[5px] rounded-full bg-[var(--bone-15)] hover:bg-[var(--bone-30)]',
-              'transition-opacity duration-300 ease-out',
-              isDragging ? 'cursor-grabbing' : 'cursor-pointer',
-              (visible || hovering || isDragging) ? 'opacity-100' : 'opacity-0'
-            )}
-            style={{ height: thumb.height, top: thumb.top, right: 6 }}
-          />
-        </div>
+          ref={thumbRef}
+          onPointerDown={onThumbPointerDown}
+          onPointerMove={onThumbPointerMove}
+          onPointerUp={onThumbPointerUp}
+          className={cn(
+            'absolute rounded-full z-10',
+            'before:absolute before:-inset-x-3 before:inset-y-0 before:content-[""]',
+            thumbRightClass ?? 'right-1.5',
+            isDragging 
+              ? 'cursor-grabbing bg-[var(--bone-30)] w-[5px]'
+              : 'cursor-default w-[5px] bg-[var(--bone-15)] hover:bg-[var(--bone-30)]'
+          )}
+          style={{ 
+            top: 0,
+            opacity: (visible || isDragging || isHovered) ? 1 : 0,
+            transitionProperty: 'opacity, background-color',
+            transitionDuration: '100ms',
+            transitionTimingFunction: 'ease-out'
+          }}
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@
 import { useStore } from '@/data/store';
 import { Sidebar } from './Sidebar';
 import { isDesktop } from '@/lib/env';
+import { useAppReady } from '@/hooks/useAppReady';
 import { HeaderBar } from './HeaderBar';
 import { ContextMenu } from './ContextMenu';
 import { NewSpaceModal } from '../modals/NewSpaceModal';
@@ -68,23 +69,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   }, []);
 
   // 1. Initial Hydration
-  useEffect(() => {
-    setIsMounted(true);
-    // Zustand hydration check
-    const checkHydration = () => {
-      if (useStore.persist.hasHydrated()) {
-        setStoreHydrated(true);
-      } else {
-        const unsub = useStore.persist.onFinishHydration(() => {
-          setStoreHydrated(true);
-          unsub();
-        });
-      }
-    };
-    checkHydration();
-  }, []);
-
-  const hasHydrated = isMounted && storeHydrated;
+  const { isReady: hasHydrated } = useAppReady();
   const [allowTransitions, setAllowTransitions] = useState(false);
 
   useEffect(() => {
@@ -120,17 +105,20 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   // Global Keyboard Shortcuts for Navigation
   useEffect(() => {
     const handleNavigationShortcuts = (e: KeyboardEvent) => {
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        window.history.back();
-      } else if (e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault();
-        window.history.forward();
-      } else if (e.shiftKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        toggleCommandPalette();
-      }
-    };
+        if (e.altKey && e.key === 'ArrowLeft') {
+          e.preventDefault();
+          window.history.back();
+        } else if (e.altKey && e.key === 'ArrowRight') {
+          e.preventDefault();
+          window.history.forward();
+        } else if (e.shiftKey && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          toggleCommandPalette();
+        } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+          e.preventDefault();
+          window.location.reload();
+        }
+      };
     window.addEventListener('keydown', handleNavigationShortcuts);
     return () => window.removeEventListener('keydown', handleNavigationShortcuts);
   }, []);
@@ -153,13 +141,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
     if (!hasHydrated) return;
 
     const state = window.history.state;
-    if (state && state.entityId) {
-      setActiveEntityId(state.entityId);
-    } else if (!activeEntityId || activeEntityId === 'dashboard') {
-      // Default to dashboard if nothing is set
-      setActiveEntityId('dashboard');
-      window.history.replaceState({ entityId: 'dashboard', index: 0 }, '');
+    // Ensure the current active entity is pushed to history state so popstate works,
+    // but do NOT read from it to override activeEntityId because Next.js might mess with it,
+    // and we want to preserve the exact tab the user was on (from localStorage).
+    if (!state || state.entityId !== activeEntityId) {
+      window.history.replaceState({ ...state, entityId: activeEntityId, index: Date.now() }, '');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated]);
 
   // 3. Browser Back/Forward (popstate)
@@ -236,6 +224,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const rafRef = useRef<number | null>(null);
   const [isResizingLeft, setIsResizingLeft] = useState(false);
   const [isResizingRight, setIsResizingRight] = useState(false);
+  const [isLeftHovered, setIsLeftHovered] = useState(false);
+  const [isRightHovered, setIsRightHovered] = useState(false);
+  const leftHoverTimer = useRef<NodeJS.Timeout | null>(null);
+  const rightHoverTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Hot-edge detection: expand unpinned collapsed sidebar when mouse approaches left edge
   const edgeTriggeredRef = useRef(false);
@@ -288,6 +280,8 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', stopResize);
       window.removeEventListener('mouseleave', stopResize);
+      if (leftHoverTimer.current) clearTimeout(leftHoverTimer.current);
+      if (rightHoverTimer.current) clearTimeout(rightHoverTimer.current);
     };
   }, [setSidebarWidth, setAiSidebarWidth]);
 
@@ -368,12 +362,12 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               (!currentSidebarCollapsed || !isTabsHeaderVisible) && !isDesktop() && "border-r border-[var(--bone-10)]",
               isMobile
                 ? (currentSidebarCollapsed ? "hidden" : "fixed inset-y-0 left-0 z-50")
-                : "flex overflow-hidden"
+                : "flex"
             )}
             style={isMobile ? undefined : {
               width: 'var(--sidebar-w, 280px)',
               maxWidth: currentSidebarCollapsed ? (isTabsHeaderVisible ? '0px' : '64px') : 'var(--sidebar-w, 280px)',
-              transition: isResizingLeft ? 'none' : 'max-width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: isResizingLeft ? 'none' : 'none',
             }}
           >
             <div className={cn(
@@ -394,14 +388,23 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
                   document.body.style.cursor = 'col-resize';
                   document.body.style.userSelect = 'none';
                 }}
+                onPointerEnter={() => {
+                  leftHoverTimer.current = setTimeout(() => setIsLeftHovered(true), 150);
+                }}
+                onPointerLeave={() => {
+                  if (leftHoverTimer.current) clearTimeout(leftHoverTimer.current);
+                  setIsLeftHovered(false);
+                }}
                 className={cn(
-                  "hidden md:block w-2 h-full cursor-col-resize absolute -right-1 top-0 z-50 transition-colors duration-200 group",
-                  isResizingLeft ? "bg-[var(--bone-15)]" : ""
+                  "hidden md:block w-2 h-full absolute -right-1 top-0 z-50 transition-colors duration-200",
+                  (isLeftHovered || isResizingLeft) && "cursor-col-resize"
                 )}
               >
                 <div className={cn(
-                  "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
-                  isResizingLeft ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
+                  "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full",
+                  isResizingLeft 
+                    ? "w-[3px] bg-[var(--card-bg)] opacity-100" 
+                    : "w-[1px] opacity-0"
                 )} />
               </div>
             )}
@@ -443,9 +446,16 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
                   document.body.style.cursor = 'col-resize';
                   document.body.style.userSelect = 'none';
                 }}
+                onPointerEnter={() => {
+                  rightHoverTimer.current = setTimeout(() => setIsRightHovered(true), 150);
+                }}
+                onPointerLeave={() => {
+                  if (rightHoverTimer.current) clearTimeout(rightHoverTimer.current);
+                  setIsRightHovered(false);
+                }}
                 className={cn(
-                  "w-2 h-full cursor-col-resize absolute left-0 z-50 transition-colors duration-200 group",
-                  isResizingRight ? "bg-[var(--bone-15)]" : "bg-transparent"
+                  "w-2 h-full absolute left-0 z-50 transition-colors duration-200",
+                  (isRightHovered || isResizingRight) && "cursor-col-resize"
                 )}
                 style={{
                   left: `calc(100% - ${currentRightPanelWidth}px - 4px)`,
@@ -453,8 +463,10 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
                 }}
               >
                 <div className={cn(
-                  "absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] transition-all duration-200",
-                  isResizingRight ? "bg-[var(--bone-70)] opacity-100" : "bg-[var(--bone-30)] opacity-0 group-hover:opacity-100"
+                  "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full",
+                  isResizingRight 
+                    ? "w-[3px] bg-[var(--card-bg)] opacity-100" 
+                    : "w-[1px] opacity-0"
                 )} />
               </div>
             )}

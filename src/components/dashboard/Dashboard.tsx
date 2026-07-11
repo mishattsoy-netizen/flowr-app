@@ -11,6 +11,7 @@ import { ShortcutsWidget } from '@/components/workspace/widgets/ShortcutsWidget'
 import { loadBentoLayout, saveBentoLayout, loadBentoLayoutSync } from '@/lib/bento-sync';
 import { HorizontalOverlayScrollbar } from '@/components/tracker/HorizontalOverlayScrollbar';
 import type { BentoLayoutItem } from '@/components/bento/types';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 function formatAge(ts: number) {
   if (!ts) return '';
@@ -272,7 +273,7 @@ function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ isLoading }: { isLoading?: boolean }) {
   const { user } = useAuth();
   const cachedDisplayName = useStore(state => state.cachedDisplayName);
   const setCachedDisplayName = useStore(state => state.setCachedDisplayName);
@@ -403,34 +404,51 @@ export function Dashboard() {
         {/* Header */}
         <header className="flex items-center justify-between py-2 select-none h-16 shrink-0">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-display font-medium text-foreground mb-0.5">
-              Welcome back{displayName ? `, ${displayName}` : ''}
-            </h1>
-            <p className="text-muted-foreground text-xs font-medium">
-              {new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(now)}
-            </p>
+            {isLoading ? (
+              <div className="space-y-2 mb-1">
+                <Skeleton className="h-8 w-64 rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-40 rounded-md bg-[var(--bone-5)]" />
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-display font-medium text-foreground mb-0.5">
+                  Welcome back{displayName ? `, ${displayName}` : ''}
+                </h1>
+                <p className="text-muted-foreground text-xs font-medium">
+                  {new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(now)}
+                </p>
+              </>
+            )}
           </div>
 
           {/* Search bar in header */}
           <div className="flex-1 max-w-[280px] mx-4 relative">
-            <button
-              onClick={() => setCommandPaletteOpen(true)}
-              className="group w-full flex items-center gap-2 px-3 h-9 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] text-[var(--bone-100)] text-xs text-left transition-all duration-200"
-            >
-              <Search className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-              <span className="opacity-60 group-hover:opacity-100 transition-opacity">Search...</span>
-            </button>
+            {isLoading ? (
+              <Skeleton className="w-full h-9 rounded-full bg-[var(--bone-5)]" />
+            ) : (
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="group w-full flex items-center gap-2 px-3 h-9 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] text-[var(--bone-100)] text-xs text-left transition-all duration-200"
+              >
+                <Search className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                <span className="opacity-60 group-hover:opacity-100 transition-opacity">Search...</span>
+              </button>
+            )}
           </div>
 
           {/* Action on the right side: round plus button */}
           <div className="relative">
-            <button
-              ref={plusButtonRef}
-              onClick={() => setShowPlusPopup(!showPlusPopup)}
-              className="group w-9 h-9 flex items-center justify-center rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 shadow-none"
-            >
-              <Plus className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={2} />
-            </button>
+            {isLoading ? (
+              <Skeleton className="w-9 h-9 rounded-full bg-[var(--bone-5)]" />
+            ) : (
+              <>
+                <button
+                  ref={plusButtonRef}
+                  onClick={() => setShowPlusPopup(!showPlusPopup)}
+                  className="group w-9 h-9 flex items-center justify-center rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-100)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 shadow-none"
+                >
+                  <Plus className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" strokeWidth={2} />
+                </button>
 
             {/* Quick add popup */}
             {showPlusPopup && (
@@ -464,14 +482,23 @@ export function Dashboard() {
                 ))}
               </div>
             )}
+            </>
+            )}
           </div>
         </header>
 
         {/* Recents Widget */}
         <section
-          className="bg-panel relative rounded-[var(--radius-big)] overflow-hidden widget-shadow px-5 pb-5 pt-4 flex flex-col min-h-[180px] max-h-[365px] basis-0"
+          className={cn(
+            "relative rounded-[var(--radius-big)] overflow-hidden px-5 pb-5 pt-4 flex flex-col min-h-[180px] max-h-[365px] basis-0",
+            !isLoading && "bg-panel widget-shadow"
+          )}
           style={{ flexGrow: 261 }}
         >
+          {isLoading ? (
+            <Skeleton className="absolute inset-0 w-full h-full bg-[var(--bone-5)]" />
+          ) : (
+            <>
           <div className="flex items-center justify-between mb-4 shrink-0">
             <h2 className="text-[15px] font-widget-header font-semibold text-muted-foreground">Recents</h2>
             <div className="flex items-center gap-1.5 no-drag select-none">
@@ -521,8 +548,9 @@ export function Dashboard() {
             </div>
           </div>
 
-          {recentEntities.length > 0 ? (
-            <HorizontalOverlayScrollbar
+
+              {recentEntities.length > 0 ? (
+                <HorizontalOverlayScrollbar
               scrollRef={node => { sliderRef.current = node; }}
               scrollClassName="flex gap-4 pb-1.5 pr-10"
             >
@@ -578,7 +606,9 @@ export function Dashboard() {
                 <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
                 <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases will appear here.</p>
               </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
           <div
             className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
@@ -594,7 +624,11 @@ export function Dashboard() {
           {/* Tasks (2/3 width) */}
           <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
-              <SmartTaskStackWidget contextId="dashboard" />
+              {isLoading ? (
+                <Skeleton className="h-full w-full bg-[var(--bone-5)]" />
+              ) : (
+                <SmartTaskStackWidget contextId="dashboard" />
+              )}
             </div>
             <div
               className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
@@ -605,7 +639,11 @@ export function Dashboard() {
           {/* Shortcuts (1/3 width) */}
           <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
             <div className="flex-1 min-h-0">
-              <ShortcutsWidget contextId="dashboard" />
+              {isLoading ? (
+                <Skeleton className="h-full w-full bg-[var(--bone-5)]" />
+              ) : (
+                <ShortcutsWidget contextId="dashboard" />
+              )}
             </div>
             <div
               className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"

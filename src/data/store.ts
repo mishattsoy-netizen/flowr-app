@@ -147,6 +147,8 @@ export const useStore = create<AppState>()(
       entities: [],
       tasks: [],
       blocks: [],
+      isChatHistoryLoading: false,
+      isChatMessagesLoading: false,
       gracePeriodEndsAt: null,
 
       spaces: [
@@ -161,8 +163,8 @@ export const useStore = create<AppState>()(
         },
       ],
       activeSpaceId: 'ws-personal',
-      trackerFilterTag: null,
-      trackerFilterEntityId: null,
+      trackerFilterTags: [],
+      trackerFilterEntityIds: [],
       shortcuts: {},
       cachedDisplayName: '',
       lastSaved: null,
@@ -433,6 +435,8 @@ export const useStore = create<AppState>()(
             selectedSidebarIds: [],
           });
         } else {
+          if (state.activeTabId === 'chat') return; // Chat cannot be in split view
+
           // Enter split
           let leftId: string;
           let rightId: string | null;
@@ -465,8 +469,8 @@ export const useStore = create<AppState>()(
             isPinned = !!(leftEntity?.pairedEntityId);
           }
 
-          const leftIsReal = leftId && state.entities.some(e => e.id === leftId);
-          const rightIsReal = rightId && state.entities.some(e => e.id === rightId);
+          const leftIsReal = leftId && (leftId === 'dashboard' || leftId === 'tracker' || state.entities.some(e => e.id === leftId));
+          const rightIsReal = rightId && (rightId === 'dashboard' || rightId === 'tracker' || state.entities.some(e => e.id === rightId));
           if (!leftIsReal && !rightIsReal) {
             return; // Prevent entering split view with two empty columns
           }
@@ -586,11 +590,40 @@ export const useStore = create<AppState>()(
         loadChatConversations();
       },
 
-      setTrackerFilterTag: (tag) => {
-        set({ trackerFilterTag: tag });
+      setTrackerFilterTags: (tags: string[]) => {
+        set({ trackerFilterTags: tags });
       },
-      setTrackerFilterEntityId: (id) => {
-        set({ trackerFilterEntityId: id });
+      setTrackerFilterEntityIds: (ids: string[]) => {
+        set({ trackerFilterEntityIds: ids });
+      },
+      toggleTrackerFilterTag: (tag: string) => {
+        set((state) => {
+          const current = state.trackerFilterTags;
+          if (current.includes(tag)) {
+            return { trackerFilterTags: current.filter(t => t !== tag) };
+          } else {
+            return { trackerFilterTags: [...current, tag] };
+          }
+        });
+      },
+      toggleTrackerFilterEntityId: (id: string) => {
+        set((state) => {
+          const current = state.trackerFilterEntityIds;
+          if (current.includes(id)) {
+            return { trackerFilterEntityIds: current.filter(i => i !== id) };
+          } else {
+            return { trackerFilterEntityIds: [...current, id] };
+          }
+        });
+      },
+      clearTrackerFilters: () => {
+        set({ trackerFilterTags: [], trackerFilterEntityIds: [] });
+      },
+      clearTrackerFilterTags: () => {
+        set({ trackerFilterTags: [] });
+      },
+      clearTrackerFilterEntityIds: () => {
+        set({ trackerFilterEntityIds: [] });
       },
 
       createSpace: (input) => {
@@ -916,6 +949,7 @@ export const useStore = create<AppState>()(
         }
 
         try {
+          set({ isChatMessagesLoading: true });
           const msgs = await fetchMessages(id);
           const aiMsgs = msgs.map(m => ({
             id: m.id,
@@ -943,11 +977,13 @@ export const useStore = create<AppState>()(
             pendingAdvisorState: null,
             assistantInput: s.chatInputs[id] || '',
             isAILoading: false,
+            isChatMessagesLoading: false,
             aiAbortController: null,
           }));
           get().fetchAISessionContext(sid);
         } catch (e) {
           console.error('Failed to load conversation', e);
+          set({ isChatMessagesLoading: false });
           const localMsgs = get().chatMessagesMap[id] || [];
           set({
             activeChatId: id,
@@ -994,8 +1030,12 @@ export const useStore = create<AppState>()(
       },
 
       loadChatConversations: async () => {
-        if (!isSupabaseEnabled) return;
+        if (!isSupabaseEnabled) {
+          set({ isChatHistoryLoading: false });
+          return;
+        }
         try {
+          set({ isChatHistoryLoading: true });
           const { activeSpaceId } = get();
           const convs = await fetchConversations(activeSpaceId || undefined);
           const { activeChatId } = get();
@@ -1012,7 +1052,7 @@ export const useStore = create<AppState>()(
           });
 
           const cleanConvs = filtered.map(({ messages, ...rest }) => rest);
-          set({ chatConversations: cleanConvs });
+          set({ chatConversations: cleanConvs, isChatHistoryLoading: false });
 
           if (toDelete.length > 0) {
             console.log(`[Store] Background cleaning up ${toDelete.length} empty conversations:`, toDelete);
@@ -1022,6 +1062,7 @@ export const useStore = create<AppState>()(
           }
         } catch (e) {
           console.error('Failed to load conversations', e);
+          set({ isChatHistoryLoading: false });
         }
       },
 
@@ -2204,31 +2245,53 @@ export const useStore = create<AppState>()(
           }
         }
 
-        // When split view is active and the user clicks an entity not in either
-        // column, exit split view and navigate to that entity normally.
+        // When split view is active and the user navigates, replace the current active column
+        // rather than exiting split view.
         if (state.splitViewActive && id && id !== state.splitViewLeftId && id !== state.splitViewRightId) {
-          if (state.splitViewLeftId && !nextTabs.includes(state.splitViewLeftId)) {
-            nextTabs.push(state.splitViewLeftId);
+          if (id === 'chat') {
+            // Chat forces exit of split view
+            if (!nextTabs.includes(id)) {
+              nextTabs.push(id);
+            }
+            set({
+              openTabIds: nextTabs,
+              activeTabId: id,
+              activeEntityId: id,
+              splitViewActive: false,
+              splitViewLeftId: null,
+              splitViewRightId: null,
+              splitViewPinned: false,
+              recentEntityIds: nextRecent,
+            });
+            const newHistory = state.navigationHistory.slice(0, state.historyIndex + 1);
+            newHistory.push(id);
+            set({
+              navigationHistory: newHistory,
+              historyIndex: newHistory.length - 1,
+            });
+            return;
           }
-          if (state.splitViewRightId && !nextTabs.includes(state.splitViewRightId)) {
-            nextTabs.push(state.splitViewRightId);
+
+          const isLeftActive = state.activeEntityId === state.splitViewLeftId;
+          const newLeftId = isLeftActive ? id : state.splitViewLeftId;
+          const newRightId = !isLeftActive ? id : state.splitViewRightId;
+          
+          if (!nextTabs.includes(id)) {
+            nextTabs.push(id);
           }
           
-          const existingIndex = nextTabs.indexOf(id);
-          if (existingIndex !== -1) {
-            // Already in tabs, just jump
-            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
-          } else {
-            nextTabs.push(id);
-            set({ openTabIds: nextTabs, activeTabId: id, activeEntityId: id, recentEntityIds: nextRecent });
-          }
+          set({
+            openTabIds: nextTabs,
+            activeTabId: id,
+            activeEntityId: id,
+            splitViewLeftId: newLeftId,
+            splitViewRightId: newRightId,
+            splitViewPinned: false,
+            recentEntityIds: nextRecent,
+          });
           const newHistory = state.navigationHistory.slice(0, state.historyIndex + 1);
           newHistory.push(id);
           set({
-            splitViewActive: false,
-            splitViewLeftId: null,
-            splitViewRightId: null,
-            splitViewPinned: false,
             navigationHistory: newHistory,
             historyIndex: newHistory.length - 1,
           });
@@ -3574,6 +3637,10 @@ export const useStore = create<AppState>()(
         }),
         activeSpaceId: state.activeSpaceId,
         pendingModeWrites: state.pendingModeWrites,
+
+        activeEntityId: state.activeEntityId,
+        activeTabId: state.activeTabId,
+        openTabIds: state.openTabIds,
 
         favoriteIds: state.favoriteIds,
         collapsedIds: state.collapsedIds,

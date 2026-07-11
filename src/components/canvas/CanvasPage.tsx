@@ -37,7 +37,7 @@ import { classifyBindingAt, findBindableBlockAt, sideCenterBinding, nearestBindD
 import { getBoundText } from '@/lib/canvas/boundText';
 import type { ArrowBinding } from '@/data/store.types';
 
-export function CanvasPage({ entity }: { entity: Entity }) {
+export function CanvasPage({ entity, isLoading }: { entity: Entity; isLoading?: boolean }) {
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
   const [showLayers, setShowLayers] = useState(true);
   const [showStylePanel, setShowStylePanel] = useState(true);
@@ -1098,12 +1098,12 @@ export function CanvasPage({ entity }: { entity: Entity }) {
     const minY = Math.min(...ys), maxBottom = Math.max(...bottoms);
     sel.forEach(b => {
       switch (axis) {
-        case 'left':    updateCanvasBlock(b.id, { x: minX }); break;
+        case 'left': updateCanvasBlock(b.id, { x: minX }); break;
         case 'centerH': updateCanvasBlock(b.id, { x: (minX + maxRight) / 2 - (b.width ?? 0) / 2 }); break;
-        case 'right':   updateCanvasBlock(b.id, { x: maxRight - (b.width ?? 0) }); break;
-        case 'top':     updateCanvasBlock(b.id, { y: minY }); break;
+        case 'right': updateCanvasBlock(b.id, { x: maxRight - (b.width ?? 0) }); break;
+        case 'top': updateCanvasBlock(b.id, { y: minY }); break;
         case 'centerV': updateCanvasBlock(b.id, { y: (minY + maxBottom) / 2 - (b.height ?? 0) / 2 }); break;
-        case 'bottom':  updateCanvasBlock(b.id, { y: maxBottom - (b.height ?? 0) }); break;
+        case 'bottom': updateCanvasBlock(b.id, { y: maxBottom - (b.height ?? 0) }); break;
       }
     });
     history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
@@ -1258,14 +1258,14 @@ export function CanvasPage({ entity }: { entity: Entity }) {
 
       const onUp = (ev: PointerEvent) => {
         const { x: cx, y: cy } = screenToCanvas(ev.clientX, ev.clientY);
-        
+
         let finalW = currentShape.w;
         let finalH = currentShape.h;
         let finalX = currentShape.x;
         let finalY = currentShape.y;
 
         const isLineish = kind === 'line' || kind === 'arrow' || kind === 'freedraw';
-        
+
         if (!isLineish && ev.shiftKey) {
           let dx = cx - currentShape.startX;
           let dy = cy - currentShape.startY;
@@ -1332,7 +1332,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
           setSelectedIds(new Set([newBlockId]));
           history.push(useStore.getState().blocks.filter(b => b.canvasId === entity.id));
         }
-        
+
         setDrawingShape(null);
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
@@ -1530,8 +1530,8 @@ export function CanvasPage({ entity }: { entity: Entity }) {
             backgroundImage: canvasPattern === 'grid'
               ? `linear-gradient(to right, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1px, transparent 1px)`
               : canvasPattern === 'dots'
-              ? `radial-gradient(circle, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1.2px, transparent 1.2px)`
-              : 'none',
+                ? `radial-gradient(circle, color-mix(in srgb, ${canvasPatternColor === 'default' ? 'var(--bone-100)' : canvasPatternColor} ${canvasPatternOpacity * 100}%, transparent) 1.2px, transparent 1.2px)`
+                : 'none',
             backgroundSize: `${20 * viewport.scale}px ${20 * viewport.scale}px`,
             backgroundPosition: `${viewport.x}px ${viewport.y}px`,
           }}
@@ -1614,21 +1614,21 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                         rx={drawingShape.kind === 'frame' ? 0 : getCornerRadius(activeStyle.roundCorners, drawingShape.w, drawingShape.h)} />
                     )}
                     {(drawingShape.kind === 'ellipse') && (
-                      <ellipse cx={drawingShape.x + drawingShape.w/2} cy={drawingShape.y + drawingShape.h/2}
-                        rx={drawingShape.w/2} ry={drawingShape.h/2}
+                      <ellipse cx={drawingShape.x + drawingShape.w / 2} cy={drawingShape.y + drawingShape.h / 2}
+                        rx={drawingShape.w / 2} ry={drawingShape.h / 2}
                         fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
                         stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
                         strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} />
                     )}
                     {(drawingShape.kind === 'diamond') && (() => {
-                      const {x, y, w, h} = drawingShape;
-                      return <polygon points={`${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`}
+                      const { x, y, w, h } = drawingShape;
+                      return <polygon points={`${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`}
                         fill={activeStyle.fill || '#ffffff'} fillOpacity={activeStyle.fillOpacity ?? 1}
                         stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
                         strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} />;
                     })()}
-                    {(['line','arrow','freedraw'].includes(drawingShape.kind)) && drawingShape.points.length > 1 && (
-                      <path d={drawingShape.points.map((p,i) => `${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ')}
+                    {(['line', 'arrow', 'freedraw'].includes(drawingShape.kind)) && drawingShape.points.length > 1 && (
+                      <path d={drawingShape.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ')}
                         fill="none" stroke={activeStyle.stroke || '#ffffff'} strokeWidth={activeStyle.strokeWidth ?? 2}
                         strokeDasharray={activeStyle.strokeStyle === 'dashed' ? '4 3' : activeStyle.strokeStyle === 'dotted' ? '1 2' : undefined} strokeLinecap="round" />
                     )}
@@ -1728,7 +1728,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                   onRotateStart={handleGroupRotateStart}
                 />
 
-                 {selectionBoundingBox && activeTool === 'select' && showFloatingToolbar && (
+                {selectionBoundingBox && activeTool === 'select' && showFloatingToolbar && (
                   <div
                     className="absolute pointer-events-none z-[5001] flex justify-center"
                     style={{
@@ -1738,7 +1738,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
                       transformOrigin: 'bottom center',
                     }}
                   >
-                    <div 
+                    <div
                       className="flex items-center gap-1.5 bg-panel/95 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.3)] rounded-full px-2.5 py-1.5 pointer-events-auto select-none"
                       onPointerDown={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
@@ -1846,7 +1846,7 @@ export function CanvasPage({ entity }: { entity: Entity }) {
         </div>
 
         {/* Floating Toolbar above the Right Sidebar */}
-        <div 
+        <div
           className="absolute right-4 top-3 z-[1500] w-[250px] h-[40px] flex items-center bg-panel border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[11px] p-[5px] gap-[4px] select-none canvas-floating-panel"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}

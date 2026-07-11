@@ -1,39 +1,42 @@
-# Handoff Document
+# Handoff for Fable 5: Finish Split Headers
 
-## What was accomplished
-1. **Fixed Vercel image upload bug:** Images dragged/pasted into the chat were failing to upload in the live Vercel environment because it was trying to write to the local read-only filesystem (`fs.writeFileSync`). I rewrote `/api/ai/upload/route.ts` to upload to a `user_uploads` bucket in Supabase, falling back to a `dataUrl` safely. The user confirmed this works!
+## Current State & Problem Description
+The split view headers (`ColumnHeader.tsx`) are currently broken in layout and styling compared to the main `HeaderBar.tsx`. 
 
-## The current unresolved issue
-The user reported: **"shortcuts and recents are still sometimes clearing"**. 
+Based on the latest user feedback and screenshots, here is exactly what the user is seeing and requesting to be fixed:
 
-## Investigation & Root Cause Analysis
-I have heavily investigated this and found the exact architectural flaws causing `shortcuts` and `recentEntityIds` to randomly clear across devices. They both stem from dangerous boot-time logic in `src/components/SupabaseProvider.tsx`.
+1. **Vertical Alignment is Broken (Buttons Shifted Up)**
+   - The left-side controls (More Vertical, Pencil), the active tab text ("Home"), the new "+" button, and the right-side controls (Pin, Swap, Close Split) are not vertically aligned. 
+   - The controls and buttons appear shifted *upwards* relative to the tab itself, making the header look completely misaligned.
 
-### 1. The Shortcuts Boot-Loop Race Condition
-In `SupabaseProvider.tsx` (`mergeCloudData`), when it processes shortcuts, it does this:
-```typescript
-useStore.getState().setShortcutsState(cleaned);
-// Push cleaned shortcuts back to Supabase so unscoped keys don't come back
-import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', cleaned));
-```
-**The Problem:** Every time the app loads and fetches data from Supabase, it immediately pushes the exact same shortcuts BACK to Supabase! This triggers a realtime `postgres_changes` UPDATE event. If the user had added a shortcut locally during the initial load time, this incoming broadcast (of their old shortcuts) blindly overwrites their local state, causing the new shortcut to "disappear".
-**Solution:** Remove that `upsertSetting` call from boot. The "legacy unscoped keys" migration was weeks ago, so there's no reason to aggressively push back to Supabase on every app load. Furthermore, local shortcuts and cloud shortcuts should be merged gracefully rather than blindly overwriting `setShortcutsState(cleaned)`.
+2. **Missing Bottom Borders**
+   - The horizontal segmented bottom border (the `color-mix` line) only exists inside the `Spacer` div. Because the `Spacer` sits *before* the right-side controls, the line completely stops early, leaving the right side of the header (under the buttons) with no bottom border at all.
+   - In the "Empty Column" state (when no tab is open in a split column), there is absolutely no bottom border rendered at all.
 
-### 2. The Recents Aggressive Purge
-In `SupabaseProvider.tsx` (`mergeCloudData`), there is a "VITAL FIX: PURGE DEAD ENTITIES FROM RECENTS" block:
-```typescript
-const currentEntities = useStore.getState().entities;
-const validEntityIds = new Set([...currentEntities.map(e => e.id), ...spaces]);
-const validRecent = merged.filter(id => validEntityIds.has(id)).slice(0, 15);
-// Push cleaned recent back to Supabase
-if (validRecent.length !== cloudRecent.length) {
-  import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', validRecent));
-}
-```
-**The Problem:** It relies on `useStore.getState().entities` being 100% complete. If the user is on the live Vercel app (where SQLite doesn't pre-hydrate entities) and they have >1000 entities, or if the entities query failed/timed out, `currentEntities` will be missing valid items. This script then mistakenly assumes they are "dead" and purges them from `recentEntityIds`, and IMMEDIATELY pushes this blanked-out array to Supabase!
-**Solution:** Remove this aggressive boot-time purge. If an entity is deleted on another device, the realtime `DELETE` event handler in `src/lib/sync.ts` should be updated to also filter the ID out of `recentEntityIds` (currently it only removes it from `entities`). 
+3. **Plus Button Sizing and Spacing (Pending Request)**
+   - The user previously requested that the new "+" button (New Entity) in the single-column mode must be the exact same size as it is in the split headers.
+   - It must also have the exact same gap to the tab as the left buttons do.
 
 ## Next Agent Instructions
-1. Go into `src/components/SupabaseProvider.tsx` and strip out the aggressive boot-time `upsertSetting` writes for both `shortcuts` and `recentEntityIds`.
-2. Update the realtime `DELETE` entity listener in `src/lib/sync.ts` to manually clean up `recentEntityIds` if that entity is deleted.
-3. Consider improving how `shortcuts` merge across devices if one device was offline.
+1. **Fix Vertical Alignment (`ColumnHeader.tsx`)**
+   - Inspect the flex containers inside `ColumnHeader.tsx`. Ensure that the `items-center` alignment is perfectly matching the tab text's visual baseline. 
+   - Note that tabs might have specific top/bottom padding or absolute positioning that is misaligning them from standard flex items.
+
+2. **Fix Missing Horizontal Borders (`ColumnHeader.tsx`)**
+   - Refactor how the bottom horizontal border is rendered in `ColumnHeader.tsx`. Instead of attaching it to the `Spacer`, it should probably be a single absolute full-width line at the bottom of the entire `ColumnHeader` container, and then properly masked out *only* where the active tab sits (similar to how `HeaderBar.tsx` might handle its continuous borders).
+   - Ensure the empty column state *also* renders the continuous bottom border.
+
+3. **Standardize the Plus Button**
+   - Ensure the "+" button shares the exact same CSS classes, dimensions (`w-7 h-7` or similar), and spacing (`gap` or `ml`) across both `HeaderBar.tsx` and `ColumnHeader.tsx`.
+   - Match the spacing to the left buttons as requested.
+
+4. **Flawless Tab Corners at All Zooms**
+   - Ensure the concave corner borders perfectly connect with the tab borders (no sub-pixel gaps, detachments, or double lines) in *both* `HeaderBar.tsx` and `ColumnHeader.tsx`.
+   - This must be thoroughly tested across all Chrome zoom levels (from 67% up to 250%+).
+   - Use identical `color-mix` values for the straight vertical tab borders and the corner borders so that a 1px structural overlap mathematically bridges any fractional gaps without creating dark overlapping artifacts.
+
+5. **Column Header Side Paddings**
+   - Keep in mind the original side paddings for the ColumnHeader container: `paddingLeft: (entityId === 'dashboard' || entityId === 'tracker') ? 16 : 8, paddingRight: 12`.
+   - Ensure these paddings are preserved when refactoring the flex alignment.
+
+Please completely resolve the `ColumnHeader.tsx` layout to be visually identical to the polished `HeaderBar.tsx` design.

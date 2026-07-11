@@ -258,12 +258,12 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (reminder !== undefined) updates.reminder = reminder || null;
         if (subtasks !== undefined) updates.subtasks = processSubtasks(subtasks);
 
-        const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId).select('id')
+        const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId).select('id, title')
         if (error) throw error
         if (!data || data.length === 0) {
           throw new Error(`Task with ID '${id}' not found or you do not have permission to edit it.`)
         }
-        return { success: true, id }
+        return { success: true, id, title: data[0].title, type: 'task' }
       } else {
         // --- UPDATE NOTE / CANVAS ---
         const updates: any = {}
@@ -271,12 +271,12 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (content !== undefined) updates.content = parseMarkdownToBlocks(content)
         else if (blocks !== undefined) updates.content = blocks
 
-        const { data, error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId).select('id')
+        const { data, error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId).select('id, title, type')
         if (error) throw error
         if (!data || data.length === 0) {
           throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
         }
-        return { success: true, id }
+        return { success: true, id, title: data[0].title, type: data[0].type }
       }
     } catch (e: any) {
       logger.error('update_content failed:', e.message)
@@ -298,7 +298,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     try {
       const { data, error: fetchError } = await supabaseAdmin
         .from('entities')
-        .select('content')
+        .select('content, title, type')
         .eq('id', id)
         .eq('owner_id', context.userId)
         .single()
@@ -325,7 +325,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         .eq('owner_id', context.userId)
 
       if (updateError) throw updateError
-      return { success: true, id, appendedCount: newBlocks.length }
+      return { success: true, id, title: data.title, type: data.type, appendedCount: newBlocks.length }
     } catch (e: any) {
       logger.error('append_to_note failed:', e.message)
       return { error: e.message }
@@ -364,13 +364,36 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage content.' }
     }
 
-    const { ids } = args
+    const { ids, is_confirmed_by_user } = args
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return { error: "'ids' array is required" }
     }
 
     try {
       const results: any[] = []
+      
+      // If not explicitly confirmed, do a dry run and fetch titles
+      if (is_confirmed_by_user !== true) {
+        for (const id of ids) {
+          if (id.startsWith('task-')) {
+            const { data } = await supabaseAdmin.from('tasks').select('id, title').eq('id', id).eq('owner_id', context.userId).single()
+            if (data) results.push({ id, title: data.title, type: 'task' })
+          } else {
+            const { data: entity } = await supabaseAdmin.from('entities').select('id, title, type').eq('id', id).eq('owner_id', context.userId).maybeSingle()
+            if (entity) {
+              results.push({ id, title: entity.title, type: entity.type })
+            } else {
+              // canvas block fallback, no title
+              results.push({ id, title: 'Canvas Block', type: 'canvas_block' })
+            }
+          }
+        }
+        return { 
+          status: 'pending_confirmation', 
+          message: 'DRY RUN ONLY. You must present the following items to the user and ask for their EXPLICIT confirmation before deleting. Call this tool again with is_confirmed_by_user: true ONLY if they reply yes.',
+          items_to_delete: results 
+        }
+      }
 
       for (const id of ids) {
         if (id.startsWith('task-')) {

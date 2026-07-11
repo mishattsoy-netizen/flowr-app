@@ -6,12 +6,13 @@ import { useStore } from '@/data/store';
 import { EntityPageRenderer } from '@/components/EntityPageRenderer';
 import { ColumnHeader } from './ColumnHeader';
 import { ColumnPlaceholder } from './ColumnPlaceholder';
+import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { isDesktop } from '@/lib/env';
 
 const COLLAPSE_THRESHOLD_PX = 180;
-const MIN_COLUMN_PCT = 30;
-const MAX_COLUMN_PCT = 70;
+const MIN_COLUMN_PCT = 33.33;
+const MAX_COLUMN_PCT = 66.67;
 
 export function SplitViewLayout() {
   const splitViewLeftId = useStore(s => s.splitViewLeftId);
@@ -29,6 +30,8 @@ export function SplitViewLayout() {
   const isResizingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [isDividerHovered, setIsDividerHovered] = useState(false);
+  const dividerHoverTimer = useRef<NodeJS.Timeout | null>(null);
   const [dragOverLeft, setDragOverLeft] = useState(false);
   const [dragOverRight, setDragOverRight] = useState(false);
 
@@ -43,7 +46,9 @@ export function SplitViewLayout() {
       getData: () => ({ column: 'left' as const }),
       canDrop: ({ source }) => {
         const entityType = source.data.entityType as string | undefined;
-        return entityType === 'note' || entityType === 'canvas';
+        const id = source.data.id as string | undefined;
+        if (id === 'chat') return false;
+        return entityType === 'note' || entityType === 'canvas' || entityType === 'workspace' || entityType === 'folder' || entityType === 'main_page';
       },
       onDragEnter: () => setDragOverLeft(true),
       onDragLeave: () => setDragOverLeft(false),
@@ -59,7 +64,9 @@ export function SplitViewLayout() {
       getData: () => ({ column: 'right' as const }),
       canDrop: ({ source }) => {
         const entityType = source.data.entityType as string | undefined;
-        return entityType === 'note' || entityType === 'canvas';
+        const id = source.data.id as string | undefined;
+        if (id === 'chat') return false;
+        return entityType === 'note' || entityType === 'canvas' || entityType === 'workspace' || entityType === 'folder' || entityType === 'main_page';
       },
       onDragEnter: () => setDragOverRight(true),
       onDragLeave: () => setDragOverRight(false),
@@ -163,9 +170,9 @@ export function SplitViewLayout() {
       >
         {!isDesktopEnv && <ColumnHeader column="left" entityId={splitViewLeftId} />}
         {splitViewLeftId ? (
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewLeftId} />
-          </div>
+          </OverlayScrollbar>
         ) : (
           <ColumnPlaceholder
             column="left"
@@ -177,19 +184,30 @@ export function SplitViewLayout() {
       {/* ── Divider ── */}
       <div
         onMouseDown={handleMouseDown}
+        onPointerEnter={() => {
+          dividerHoverTimer.current = setTimeout(() => setIsDividerHovered(true), 150);
+        }}
+        onPointerLeave={() => {
+          if (dividerHoverTimer.current) clearTimeout(dividerHoverTimer.current);
+          setIsDividerHovered(false);
+        }}
         className={cn(
-          "h-full cursor-col-resize shrink-0 z-50 flex items-center justify-center transition-colors duration-200 group",
-          isDesktopEnv ? "w-2 bg-transparent" : "w-[6px] bg-transparent hover:bg-[var(--bone-6)]",
-          isResizing && !isDesktopEnv && "bg-[var(--bone-15)]"
+          "z-50 flex items-center justify-center transition-colors duration-200",
+          (isDividerHovered || isResizing) && "cursor-col-resize",
+          isDesktopEnv 
+            ? "relative shrink-0 h-full w-2 bg-transparent" 
+            : "absolute h-[calc(100%-42px)] bottom-0 w-[6px] bg-transparent"
         )}
+        style={!isDesktopEnv ? { left: `calc(${clampedPosition}% - 3px)` } : undefined}
       >
         <div
           className={cn(
-            "h-full w-[2px] rounded-full transition-all duration-200",
-            isResizing
-              ? "bg-[var(--bone-70)]"
-              : "bg-[var(--bone-30)] group-hover:bg-[var(--bone-50)] group-hover:w-[3px]",
-            isDesktopEnv && "opacity-0" // Hide visual line on desktop, gap handles it
+            "h-full rounded-full",
+            isResizing 
+              ? "w-[3px] bg-[var(--card-bg)] opacity-100"
+              : isDesktopEnv 
+                ? "w-[1px] opacity-0"
+                : "w-[1px] bg-[var(--bone-12)] opacity-100"
           )}
         />
       </div>
@@ -205,9 +223,9 @@ export function SplitViewLayout() {
       >
         {!isDesktopEnv && <ColumnHeader column="right" entityId={splitViewRightId} />}
         {splitViewRightId ? (
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewRightId} />
-          </div>
+          </OverlayScrollbar>
         ) : (
           <ColumnPlaceholder
             column="right"

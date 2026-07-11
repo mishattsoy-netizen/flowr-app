@@ -6,7 +6,7 @@ import type { EntityType, Entity, SidebarSectionId } from '@/data/store';
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
 
-import { Search, Home, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag } from 'lucide-react';
+import { Search, Home, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { useDeferredLoading } from '@/hooks/use-deferred-loading';
 import { TreeItem } from './TreeItem';
 import { ScrollArea } from './ScrollArea';
 import { Tooltip } from './Tooltip';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useTooltipSuppression } from './TooltipOverlayContext';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import InstallButton from '@/components/pwa/InstallButton';
@@ -24,7 +25,7 @@ import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
-import { monitorForElements, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { draggable, monitorForElements, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
@@ -45,11 +46,45 @@ function DroppableZone({ id, children, className }: { id: string, children: Reac
   return <div ref={ref} className={className}>{children}</div>;
 }
 
+function SidebarMainTab({ tab, isActive, onClick }: { tab: any, isActive: boolean, onClick: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return draggable({
+      element: el,
+      getInitialData: () => ({ id: tab.id, entityType: 'main_page' }),
+    });
+  }, [tab.id]);
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      className={cn(
+        "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide",
+        isActive
+          ? "text-[var(--bone-100)]"
+          : "text-[var(--bone-60)] hover:text-[var(--bone-100)]"
+      )}
+    >
+      <tab.icon className="w-3.5 h-3.5" strokeWidth={2} />
+      <span>{tab.label}</span>
+    </button>
+  );
+}
+
 export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId }: { forceFull?: boolean, initialEntityId?: string }) {
   const entities = useStore(state => state.entities);
   const [collapsedTrackerWorkspaces, setCollapsedTrackerWorkspaces] = useState<Record<string, boolean>>({});
-  const trackerFilterTag = useStore(state => state.trackerFilterTag);
-  const setTrackerFilterTag = useStore(state => state.setTrackerFilterTag);
+  const trackerFilterTags = useStore(state => state.trackerFilterTags);
+  const setTrackerFilterTags = useStore(state => state.setTrackerFilterTags);
+  const toggleTrackerFilterTag = useStore(state => state.toggleTrackerFilterTag);
+  const trackerFilterEntityIds = useStore(state => state.trackerFilterEntityIds);
+  const setTrackerFilterEntityIds = useStore(state => state.setTrackerFilterEntityIds);
+  const toggleTrackerFilterEntityId = useStore(state => state.toggleTrackerFilterEntityId);
+  const clearTrackerFilterTags = useStore(state => state.clearTrackerFilterTags);
+  const clearTrackerFilterEntityIds = useStore(state => state.clearTrackerFilterEntityIds);
   const activeEntityId = useStore(state => state.activeEntityId);
   const favoriteIds = useStore(state => state.favoriteIds);
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
@@ -58,7 +93,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const openContextMenu = useStore(state => state.openContextMenu);
   const isSidebarCollapsed = useStore(state => state.isSidebarCollapsed);
   const isSidebarPinned = useStore(state => state.isSidebarPinned);
-  const trackerFilterEntityId = useStore(state => state.trackerFilterEntityId);
+  const sidebarWidth = useStore(state => state.sidebarWidth);
+  const isDesktopEnv = isDesktop();
+  const splitViewActive = useStore(state => state.splitViewActive);
+  const splitViewLeftId = useStore(state => state.splitViewLeftId);
+  const splitViewRightId = useStore(state => state.splitViewRightId);
   const toggleSidebar = useStore(state => state.toggleSidebar);
   const toggleSidebarPinned = useStore(state => state.toggleSidebarPinned);
   const toggleCommandPalette = useStore(state => state.toggleCommandPalette);
@@ -70,8 +109,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const toggleFavorite = useStore(state => state.toggleFavorite);
   const storeWorkspaces = useStore(state => state.spaces);
   const allTasks = useStore(state => state.tasks);
-  const spaces = useStore(state => state.spaces);
   const activeSpaceId = useStore(state => state.activeSpaceId);
+  const isChatHistoryLoading = useStore(state => state.isChatHistoryLoading);
   const reorderEntities = useStore(state => state.reorderEntities);
   const sidebarSectionSettings = useStore(state => state.sidebarSectionSettings);
   const hiddenEntityIds = useStore(state => state.hiddenEntityIds);
@@ -234,12 +273,12 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
     const entitySpaceId = e.spaceId || 'ws-personal';
     // Legacy entities with 'ws-personal' spaceId are visible in the default space
     if (entitySpaceId === 'ws-personal') {
-      const defaultSpace = spaces.find(s => s.isDefault);
+      const defaultSpace = storeWorkspaces.find(s => s.isDefault);
       if (defaultSpace) return effectiveSpaceId === defaultSpace.id && !hiddenEntityIds.includes(e.id);
       return !hiddenEntityIds.includes(e.id); // no spaces configured — show it
     }
     return entitySpaceId === effectiveSpaceId && !hiddenEntityIds.includes(e.id);
-  }, [activeSpaceId, hiddenEntityIds, spaces]);
+  }, [activeSpaceId, hiddenEntityIds, storeWorkspaces]);
 
   const sortEntities = (entities: Entity[], sectionId: SidebarSectionId) => {
     const mode = (sidebarSectionSettings as any)[sectionId]?.sortMode || 'lastModified';
@@ -685,18 +724,23 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
   return (
     <aside
-      ref={sidebarRef}
-      onMouseEnter={() => {
-        if (!isSidebarPinned && effectiveCollapsed) toggleSidebar();
-      }}
-      onMouseLeave={() => {
-        if (!isSidebarPinned && !effectiveCollapsed) toggleSidebar();
-      }}
-      className={cn(
-        "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
-        activeDragId && "is-dragging"
-      )}
-    >
+        ref={sidebarRef}
+        onMouseEnter={() => {
+          if (!isSidebarPinned && effectiveCollapsed) toggleSidebar();
+        }}
+        onMouseLeave={() => {
+          if (!isSidebarPinned && !effectiveCollapsed) toggleSidebar();
+        }}
+        className={cn(
+          "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
+          activeDragId && "is-dragging"
+        )}
+        style={{
+          width: effectiveCollapsed ? 60 : sidebarWidth,
+        }}
+      >
+        {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 20 }} />}
+        
         <div
           className={cn(
             "flex items-center px-[10px] pt-4 pb-2 shrink-0",
@@ -708,32 +752,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               Flowr
             </span>
           )}
-
-          <div className={cn("flex items-center", effectiveCollapsed ? "" : "gap-0.5 mr-[3px]")}>
-            <Tooltip content="Toggle Sidebar">
-              <button
-                onClick={toggleSidebar}
-                className={cn(
-                  "flex items-center justify-center text-[var(--bone-100)] opacity-70 hover:opacity-100 transition-colors border border-transparent",
-                  effectiveCollapsed
-                    ? "w-10 h-10 rounded-[var(--radius-8)] hover:bg-[var(--app-dark)]"
-                    : "w-[26px] h-[26px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)]"
-                )}
-              >
-                <PanelLeft strokeWidth={2} className="w-4 h-4" />
-              </button>
-            </Tooltip>
-            {!effectiveCollapsed && (
-              <Tooltip content="Search">
-                <button
-                  onClick={toggleCommandPalette}
-                  className="w-[26px] h-[26px] flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)]"
-                >
-                  <Search strokeWidth={2} className="w-4 h-4" />
-                </button>
-              </Tooltip>
-            )}
-          </div>
         </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -793,51 +811,110 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           <div className={cn("px-[10px] mb-0 flex-none", isTabsHeaderVisible ? "pt-3" : "pt-1")}>
             <div className="relative flex items-center p-[4px] rounded-[10px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
               {/* Sliding Pill */}
-              <div
-                className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
-                style={{
-                  width: 'calc((100% - 8px) / 3)',
-                  left: `calc(4px + (${(activeEntityId === 'tracker' ? 1 : activeEntityId === 'chat' ? 2 : 0)
-                    } * (100% - 8px) / 3))`,
-                  boxShadow: 'var(--slider-pill-shadow)'
-                }}
-              />
+              {(() => {
+                const getTabForId = (id: string | null) => id === 'tracker' ? 1 : id === 'chat' ? 2 : 0;
+                
+                const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
+                const activeTabs = new Set<number>();
+                
+                if (splitViewActive) {
+                  activeTabs.add(getTabForId(splitViewLeftId));
+                  activeTabs.add(getTabForId(splitViewRightId));
+                } else {
+                  activeTabs.add(getTabForId(effectiveEntityId));
+                }
+                
+                const tabsArray = Array.from(activeTabs).sort();
+                
+                if (tabsArray.length === 2 && tabsArray[1] - tabsArray[0] === 1) {
+                  // Neighbors: unify in one wide background tab, and slide active pill inside
+                  return (
+                    <>
+                      {/* Wide background container */}
+                      <div
+                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
+                        style={{
+                          width: 'calc((100% - 8px) * 2 / 3)',
+                          left: `calc(4px + (${tabsArray[0]} * (100% - 8px) / 3))`,
+                        }}
+                      />
+                      {/* Active sliding pill */}
+                      <div
+                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
+                        style={{
+                          width: 'calc((100% - 8px) / 3)',
+                          left: `calc(4px + (${getTabForId(effectiveEntityId)} * (100% - 8px) / 3))`,
+                          boxShadow: 'var(--slider-pill-shadow)'
+                        }}
+                      />
+                    </>
+                  );
+                } else {
+                  // Single or not neighbors: individual pills
+                  return (
+                    <>
+                      {/* Background pills for all open tabs if there is more than 1 open (non-neighbor) */}
+                      {tabsArray.length > 1 && tabsArray.map(tabIndex => (
+                        <div
+                          key={`bg-${tabIndex}`}
+                          className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
+                          style={{
+                            width: 'calc((100% - 8px) / 3)',
+                            left: `calc(4px + (${tabIndex} * (100% - 8px) / 3))`,
+                          }}
+                        />
+                      ))}
+                      {/* Active sliding pill */}
+                      <div
+                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
+                        style={{
+                          width: 'calc((100% - 8px) / 3)',
+                          left: `calc(4px + (${getTabForId(effectiveEntityId)} * (100% - 8px) / 3))`,
+                          boxShadow: 'var(--slider-pill-shadow)'
+                        }}
+                      />
+                    </>
+                  );
+                }
+              })()}
               {[
                 { id: 'dashboard', label: 'Home', icon: Home },
                 { id: 'tracker', label: 'Tasks', icon: ListTodo },
                 { id: 'chat', label: 'Chat', icon: MessageCircle }
               ].map(tab => {
-                const isActive = (tab.id === 'dashboard')
-                  ? (activeEntityId !== 'tracker' && activeEntityId !== 'chat')
-                  : (activeEntityId === tab.id);
+                const isActive = (() => {
+                  const tabIndex = tab.id === 'tracker' ? 1 : tab.id === 'chat' ? 2 : 0;
+                  const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
+                  
+                  if (splitViewActive) {
+                     return (splitViewLeftId === 'tracker' ? 1 : splitViewLeftId === 'chat' ? 2 : 0) === tabIndex ||
+                            (splitViewRightId === 'tracker' ? 1 : splitViewRightId === 'chat' ? 2 : 0) === tabIndex;
+                  }
+                  
+                  const activeIndex = effectiveEntityId === 'tracker' ? 1 : effectiveEntityId === 'chat' ? 2 : 0;
+                  return activeIndex === tabIndex;
+                })();
                 return (
-                  <button
+                  <SidebarMainTab
                     key={tab.id}
+                    tab={tab}
+                    isActive={isActive}
                     onClick={() => {
                       setActiveEntityId(tab.id as any);
                       clearSelectedSidebarIds();
                     }}
-                    className={cn(
-                      "relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] transition-colors duration-300 font-semibold text-[11px] tracking-wide",
-                      isActive
-                        ? "text-[var(--bone-100)]"
-                        : "text-[var(--bone-60)] hover:text-[var(--bone-100)]"
-                    )}
-                  >
-                    <tab.icon className="w-3.5 h-3.5" strokeWidth={2} />
-                    <span>{tab.label}</span>
-                  </button>
+                  />
                 );
               })}
             </div>
           </div>
         )}
 
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 relative">
           {(!isMounted || !storeHydrated) ? (
             (inferredEntityId === 'chat' && !effectiveCollapsed)
               ? <ChatHistorySkeleton />
-              : <SidebarSkeleton collapsed={effectiveCollapsed} />
+              : <SidebarSkeleton collapsed={effectiveCollapsed} inferredEntityId={inferredEntityId} />
           ) : effectiveCollapsed ? (
             <div className="flex-1 min-h-0 overflow-y-auto px-[10px] pb-1 flex flex-col items-center gap-[1px] w-full scrollbar-none">
               <Tooltip content="Pinned items">
@@ -997,7 +1074,17 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                           </div>
                         );
                       })}
-                      {chatConversations.length === 0 && (
+                      {isChatHistoryLoading ? (
+                        <div className="space-y-2 mt-2">
+                          <Skeleton className="h-2 w-12 rounded-sm bg-[var(--bone-5)] mb-4 ml-3" />
+                          {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="flex items-center gap-3 py-1 px-2">
+                              <Skeleton className="h-4 flex-1 rounded-md bg-[var(--bone-5)]" />
+                              <Skeleton className="w-4 h-4 rounded-md bg-[var(--bone-5)] shrink-0" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : chatConversations.length === 0 && (
                         <p className="text-xs text-muted-foreground/60 text-center pt-8">No conversations yet</p>
                       )}
                     </div>
@@ -1007,7 +1094,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
-                      onClick={() => openTaskPanel(generateId(), { entityId: trackerFilterEntityId || undefined })}
+                      onClick={() => openTaskPanel(generateId(), { entityId: trackerFilterEntityIds[0] || undefined })}
                       className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
@@ -1016,14 +1103,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">New Task</span>
                     </button>
                     <button
-                      onClick={() => {
-                        useStore.getState().setTrackerFilterEntityId(null);
-                        setTrackerFilterTag(null);
-                      }}
-                      className={cn(
-                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
-                        trackerFilterEntityId === null && trackerFilterTag === null && "!bg-dark !text-[var(--bone-100)]"
-                      )}
+onClick={() => {
+                          clearTrackerFilterEntityIds();
+                          clearTrackerFilterTags();
+                        }}
+                        className={cn(
+                          "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
+                          trackerFilterEntityIds.length === 0 && trackerFilterTags.length === 0 && "!bg-dark !text-[var(--bone-100)]"
+                        )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
                         <ListTodo strokeWidth={2} className="w-3.5 h-3.5" />
@@ -1048,15 +1135,21 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         )).sort();
                         const hasTags = wsTags.length > 0;
                         const isCollapsed = collapsedTrackerWorkspaces[ws.id] ?? false;
-                        const isActive = trackerFilterEntityId === ws.id && trackerFilterTag === null;
+                        const isActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.length === 0;
 
                         return (
                           <div key={ws.id} className="relative group/treeitem flex flex-col gap-[1px]">
                             {/* Space Row */}
                             <div
-                              onClick={() => {
-                                useStore.getState().setTrackerFilterEntityId(ws.id);
-                                setTrackerFilterTag(null);
+                              onClick={(e) => {
+                                if (e.shiftKey) {
+                                  e.preventDefault();
+                                  toggleTrackerFilterEntityId(ws.id);
+                                } else {
+                                  clearTrackerFilterEntityIds();
+                                  clearTrackerFilterTags();
+                                  setTrackerFilterEntityIds([ws.id]);
+                                }
                               }}
                               className={cn(
                                 "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
@@ -1118,17 +1211,33 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                               >
                                 <div className="overflow-hidden">
                                   <div className="flex flex-col gap-[1px]">
-                                    {wsTags.map(tag => {
-                                      const isTagActive = trackerFilterEntityId === ws.id && trackerFilterTag === tag;
-                                      const tagCount = allTasks.filter(t => t.entityId === ws.id && t.tag?.trim() === tag && !t.completed && (t.spaceId || activeSpaceId) === activeSpaceId).length;
-                                      return (
-                                        <div
-                                          key={tag}
-                                          onClick={() => {
-                                            useStore.getState().setTrackerFilterEntityId(ws.id);
-                                            setTrackerFilterTag(tag);
-                                          }}
-                                          className={cn(
+{wsTags.map(tag => {
+                                        const isTagActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.includes(tag);
+                                        const tagCount = allTasks.filter(t => t.entityId === ws.id && t.tag?.trim() === tag && !t.completed && (t.spaceId || activeSpaceId) === activeSpaceId).length;
+                                        return (
+                                          <div
+                                            key={tag}
+                                            onClick={(e) => {
+                                              if (e.shiftKey) {
+                                                e.preventDefault();
+                                                // Toggle just the tag if workspace is already selected
+                                                if (trackerFilterEntityIds.includes(ws.id)) {
+                                                  toggleTrackerFilterTag(tag);
+                                                } else {
+                                                  // If workspace not selected, add workspace and tag
+                                                  clearTrackerFilterEntityIds();
+                                                  clearTrackerFilterTags();
+                                                  setTrackerFilterEntityIds([ws.id]);
+                                                  setTrackerFilterTags([tag]);
+                                                }
+                                              } else {
+                                                clearTrackerFilterEntityIds();
+                                                clearTrackerFilterTags();
+                                                setTrackerFilterEntityIds([ws.id]);
+                                                setTrackerFilterTags([tag]);
+                                              }
+                                            }}
+                                            className={cn(
                                             "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
                                             isTagActive
                                               ? "!bg-dark text-[var(--bone-100)] font-normal"
@@ -1194,7 +1303,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
-                        <Home strokeWidth={2} className="w-3.5 h-3.5" />
+                        <LayoutDashboard strokeWidth={2} className="w-3.5 h-3.5" />
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Dashboard</span>
                     </button>

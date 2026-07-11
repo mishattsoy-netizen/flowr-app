@@ -11,6 +11,8 @@ import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { Portal } from '../layout/Portal';
 import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -25,6 +27,7 @@ function arrayMove<T>(array: T[], from: number, to: number): T[] {
 interface NoteEditorProps {
   entity: Entity;
   isMixed?: boolean;
+  isLoading?: boolean;
 }
 
 function createBlock(type: BlockType = 'text', extra?: Record<string, unknown>): EditorBlock {
@@ -343,7 +346,28 @@ function TagItem({
   );
 }
 
-export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
+const ScrollWrapper = ({ children, isSplit }: { children: React.ReactNode, isSplit: boolean }) => {
+  if (isSplit) {
+    return (
+      <div id="note-editor-container" className="flex-1 note-editor-bg overflow-hidden min-h-0">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <OverlayScrollbar
+      thumbOffsetRight={0}
+      thumbRightClass="right-0"
+      scrollProps={{ id: "note-editor-container" } as any}
+      className="flex-1 note-editor-bg min-h-0"
+      scrollClassName="flex-1 note-editor-bg"
+    >
+      {children}
+    </OverlayScrollbar>
+  );
+};
+
+export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorProps) {
   const updateEntityContent = useStore(s => s.updateEntityContent);
   const removeTagFromEntity = useStore(s => s.removeTagFromEntity);
   const updateTagInEntity = useStore(s => s.updateTagInEntity);
@@ -1244,13 +1268,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
         </div>
       )}
 
-      <div 
-        id="note-editor-container"
-        className={cn(
-          "flex-1 custom-scrollbar note-editor-bg",
-          !splitViewActive && "overflow-y-auto"
-        )}
-      >
+      <ScrollWrapper isSplit={splitViewActive}>
         <div
             className={cn(
               "mx-auto py-8 editor-content-container note-editor-bg",
@@ -1272,32 +1290,36 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                   style={{ paddingLeft: '44px' }}
                 >
                   <div className="flex items-start justify-between w-full">
-                  <h1
-                    ref={titleRef}
-                    contentEditable={isEditingTitle}
-                    suppressContentEditableWarning
-                    onDoubleClick={(e) => { e.stopPropagation(); setEditingEntityId(entity.id, 'view'); }}
-                    onBlur={handleTitleBlur}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && isEditingTitle) {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                      if (e.key === 'Escape' && isEditingTitle) {
-                        e.currentTarget.textContent = entity.title;
-                        setEditingEntityId(null);
-                      }
-                    }}
-                    className="text-5xl font-display font-medium outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none"
-                  >
-                    {entity.title}
-                  </h1>
-                  {!isReadMode && (
+                  {isLoading ? (
+                    <Skeleton className="h-14 w-3/4 rounded-lg bg-[var(--bone-5)]" />
+                  ) : (
+                    <h1
+                      ref={titleRef}
+                      contentEditable={isEditingTitle}
+                      suppressContentEditableWarning
+                      onDoubleClick={(e) => { e.stopPropagation(); setEditingEntityId(entity.id, 'view'); }}
+                      onBlur={handleTitleBlur}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && isEditingTitle) {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
+                        if (e.key === 'Escape' && isEditingTitle) {
+                          e.currentTarget.textContent = entity.title;
+                          setEditingEntityId(null);
+                        }
+                      }}
+                      className="text-5xl font-display font-medium outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none"
+                    >
+                      {entity.title}
+                    </h1>
+                  )}
+                  {!isReadMode && !isLoading && (
                     <button
                       onClick={() => setEditingEntityId(entity.id, 'view')}
                       className="opacity-0 group-hover:opacity-40 hover:!opacity-100 p-2 rounded-md hover:bg-hover text-[var(--bone-100)] transition-all mt-4"
                     >
-                      <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                      <Pencil className="w-5 h-5" />
                     </button>
                   )}
                 </div>
@@ -1385,7 +1407,20 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
                 className="space-y-2 min-h-[50vh] note-editor-bg"
               >
                 <div className="flex flex-col note-editor-bg">
-                  {blocks.length === 0 ? (
+                  {isLoading ? (
+                    <div className="flex flex-col gap-4 py-4">
+                      {[...Array(8)].map((_, i) => (
+                        <Skeleton 
+                          key={i} 
+                          className={cn(
+                            "h-5 rounded bg-[var(--bone-5)]",
+                            i % 3 === 0 ? "w-full" : i % 3 === 1 ? "w-3/4" : "w-5/6",
+                            i === 0 && "h-8 w-1/3 mb-4"
+                          )} 
+                        />
+                      ))}
+                    </div>
+                  ) : blocks.length === 0 ? (
                     <div 
                       className="py-20 text-center cursor-text  group opacity-0 "
                       onClick={() => persistBlocks([createBlock('text')])}
@@ -1430,7 +1465,7 @@ export function NoteEditor({ entity, isMixed = false }: NoteEditorProps) {
             }}
           />
         </div>
-      </div>
+      </ScrollWrapper>
 
 
 
