@@ -131,7 +131,7 @@
       "icon": "icons/icon.png"
     },
     "pkg": {
-      "scripts": "build/pkg-scripts"
+      "scripts": "../electron/pkg-scripts"
     },
     "linux": {
       "target": "AppImage",

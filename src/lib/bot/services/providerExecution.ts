@@ -13,6 +13,7 @@ import { runWebSearchChain } from '../providers/tavily'
 import { runDuckDuckGoSearchChain } from '../providers/duckduckgo'
 import { runExaSearchChain } from '../providers/exa'
 import type { IntentCategory } from '../../router-config'
+import { sanitizeImagePrompt } from './imagePromptGuard'
 
 export function logCost(cost: {
   model_id: string; provider: string; prompt_cost: number; completion_cost: number;
@@ -140,13 +141,16 @@ export async function executeProvider(
       break
     case 'huggingface':
       if (category === 'IMAGE_GEN') {
-        response = await runHuggingFace(modelConfig.id, activePromptForGen, activeKey || context?.aiApiKey)
+        response = await runHuggingFace(modelConfig.id, sanitizeImagePrompt(activePromptForGen), activeKey || context?.aiApiKey)
       } else {
         response = await runHuggingFaceText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || context?.aiApiKey, routeContext)
       }
       break
     case 'cloudflare':
-      response = await runCloudflare(modelConfig.id, activePromptForGen, activeKey || context?.aiApiKey, system_prompt, historyForChain, category, routeContext)
+      response = await runCloudflare(
+        modelConfig.id,
+        category === 'IMAGE_GEN' ? sanitizeImagePrompt(activePromptForGen) : activePromptForGen,
+        activeKey || context?.aiApiKey, system_prompt, historyForChain, category, routeContext)
       break
     case 'core':
     case 'exa':
@@ -219,7 +223,7 @@ export async function executeProvider(
     }
     case 'pollinations':
       if (category === 'IMAGE_GEN') {
-        response = await runPollinations(activePromptForGen, modelConfig.id)
+        response = await runPollinations(sanitizeImagePrompt(activePromptForGen), modelConfig.id)
       } else {
         response = await runPollinationsText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
       }
@@ -235,7 +239,7 @@ export async function executeProvider(
       break
     case 'siliconflow':
       if (category === 'IMAGE_GEN') {
-        response = await runSiliconFlow(modelConfig.id, activePromptForGen, activeKey || providerKeys[0])
+        response = await runSiliconFlow(modelConfig.id, sanitizeImagePrompt(activePromptForGen), activeKey || providerKeys[0])
       } else {
         response = await runSiliconFlowText(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
       }

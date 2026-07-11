@@ -1,1 +1,1 @@
-build/pkg-scripts/* text eol=lf
+electron/pkg-scripts/* text eol=lf
