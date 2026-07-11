@@ -179,12 +179,37 @@ New design (watermark compaction):
 - Single pre-request trigger with a per-session lock (skip if already compacting).
 - Admin compaction config becomes real (writes persist); context limits configurable per tier; provider-reported token usage preferred over estimates.
 
+## 7c. Tool rework
+
+Toolset drops from 7 to 6: `create_content, edit_content, move_content, delete_content, list_content, manage_memory`.
+
+**`edit_content` (new)** replaces both `update_content` and `append_to_note`:
+
+```
+edit_content({ id, mode: "replace" | "patch" | "append",
+               content?, find?, replace?,
+               title?, status?, priority?, dueDate?, ...,
+               target? })
+```
+
+- `replace` = full body replacement (old update_content); `append` = old append_to_note; `patch` = targeted find-and-replace (new — avoids full rewrites of long notes, the main cause of content corruption/truncation).
+- Metadata-only edits pass fields with no mode.
+- `target` is reserved for canvas wiring later (`target: { blockId }` scopes patch/replace to one canvas block); `create_content`'s type enum will gain `"canvas"` at that point. Canvas tools are otherwise **out of scope** for this rework — designed so wiring them in later is additive (no renames, no prompt rework).
+
+**Other tool changes:**
+
+- `delete_content`: `is_confirmed_by_user` flag removed — the server owns pending confirmations (§6). Model calls delete → server returns dry-run list and stores the pending action → user's "yes" executes deterministically.
+- `list_content`: gains `session` type (§7) and date-range task filters `taskFilters.dueDate: { from, to }` alongside `today`/`overdue`.
+- `create_content`: server-side duplicate guard — returns a soft warning when a same-titled item exists in the same location, instead of relying on a prompt rule; `reminder` field wired to the notifications scheduler (§8).
+- MAX_TOOL_HOPS: 8 on Smart tier, 4 on Light (currently hardcoded 4 everywhere).
+
 ## 8. Notifications v1
 
 Today `reminder` is a stored string that nothing fires. New:
 
 - **Scheduler**: periodic job scans upcoming task reminders/due dates and dispatches due notifications. Table designed so scheduled actions can later reuse it.
 - **Provider abstraction**: `NotificationProvider` interface; v1 implementations: **Telegram** (bot message) and **in-app**. Email/Apple later.
+- **In-app surface**: notification bell replaces the Download Desktop button next to the profile card; Download Desktop moves into the profile popup under Settings. Toast when the app is open at fire time.
 - Telegram flow target: attach images + "create a note from this and set a reminder to review it" → vision → note created → task created in the right workspace with tags/priority from context pack + memory → reminder wired to scheduler.
 
 ## 9. P0 fixes (locked)
@@ -219,7 +244,8 @@ Today `reminder` is a stored string that nothing fires. New:
 ## 13. Build order (implementation plan input)
 
 1. P0 fixes (§9) — independent, ship first.
-2. Category collapse + classifier simplification (§2) + thinking values (§3) + PRIMARY tiers (§4).
+2. Category collapse + classifier simplification (§2) + thinking values (§3) + PRIMARY tiers (§4) — behind a `router_v2` flag; golden set runs against old and new until v2 holds, then old categories are deleted. Classifier model choice deferred pending user testing (candidates: gpt-oss-20b vs llama-3.1-8b).
+2b. Tool rework (§7c).
 3. Context pack + workspace descriptions (§5).
 4. Action state + grounding guard (§6).
 5. Compaction rework (§7b) + native attachments (§5b).
