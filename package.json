@@ -124,11 +124,14 @@
     },
     "mac": {
       "target": [
-        "dmg",
+        "pkg",
         "zip"
       ],
       "artifactName": "Flowr.${ext}",
       "icon": "icons/icon.png"
+    },
+    "pkg": {
+      "scripts": "build/pkg-scripts"
     },
     "linux": {
       "target": "AppImage",
