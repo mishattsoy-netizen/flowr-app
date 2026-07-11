@@ -41,11 +41,13 @@ describe('markForPurge', () => {
     expect(updateCalls).toHaveLength(0);
   });
 
-  it('stamps spaceIds when provided', async () => {
+  it('stamps purge_at on spaceIds when provided, but never sync_mode (spaces has no such column)', async () => {
     await markForPurge({ entityIds: [], taskIds: [], spaceIds: ['ws1'] });
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0].table).toBe('spaces');
     expect(updateCalls[0].ids).toEqual(['ws1']);
+    expect(updateCalls[0].values).not.toHaveProperty('sync_mode');
+    expect(updateCalls[0].values.purge_at).toBeTruthy();
   });
 });
 
@@ -62,5 +64,13 @@ describe('clearPurge', () => {
   it('supports cloud-only as the target mode', async () => {
     await clearPurge({ entityIds: ['e1'], taskIds: [] }, 'cloud-only');
     expect(updateCalls[0].values.sync_mode).toBe('cloud-only');
+  });
+
+  it('nulls purge_at on spaceIds but never writes sync_mode (spaces has no such column)', async () => {
+    await clearPurge({ entityIds: [], taskIds: [], spaceIds: ['ws1'] }, 'full-sync');
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].table).toBe('spaces');
+    expect(updateCalls[0].values).not.toHaveProperty('sync_mode');
+    expect(updateCalls[0].values.purge_at).toBeNull();
   });
 });

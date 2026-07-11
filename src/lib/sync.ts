@@ -461,7 +461,8 @@ export async function markForPurge(targets: PurgeTargets): Promise<{ error: any 
   const ops: Promise<{ error: any }>[] = [];
   if (targets.entityIds.length) ops.push(supabase.from('entities').update(values).in('id', targets.entityIds));
   if (targets.taskIds.length)   ops.push(supabase.from('tasks').update(values).in('id', targets.taskIds));
-  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update(values).in('id', targets.spaceIds));
+  // spaces has no sync_mode column (see workspaceToRow) — only purge_at applies.
+  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update({ purge_at: purgeAt }).in('id', targets.spaceIds));
   const results = await Promise.all(ops);
   const firstError = results.find(r => r.error)?.error ?? null;
   if (firstError) console.error('[Flowr sync] markForPurge:', firstError.message);
@@ -474,7 +475,8 @@ export async function clearPurge(targets: PurgeTargets, newMode: 'cloud-only' | 
   const ops: Promise<{ error: any }>[] = [];
   if (targets.entityIds.length) ops.push(supabase.from('entities').update(values).in('id', targets.entityIds));
   if (targets.taskIds.length)   ops.push(supabase.from('tasks').update(values).in('id', targets.taskIds));
-  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update(values).in('id', targets.spaceIds));
+  // spaces has no sync_mode column (see workspaceToRow) — only purge_at applies.
+  if (targets.spaceIds?.length) ops.push(supabase.from('spaces').update({ purge_at: null }).in('id', targets.spaceIds));
   const results = await Promise.all(ops);
   const firstError = results.find(r => r.error)?.error ?? null;
   if (firstError) console.error('[Flowr sync] clearPurge:', firstError.message);
