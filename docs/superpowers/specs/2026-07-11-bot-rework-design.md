@@ -118,7 +118,7 @@ Grounding guard: after each turn, if the reply text claims a create/update/delet
 Three layers:
 
 1. **Profile cards** (exists): ~20 cards, always injected. Unchanged. The `manage_memory` tool stays available on every Smart-tier turn for explicit live capture.
-2. **Auto-capture** (new): when a session goes idle (~30–60 min without messages) or the user starts a new chat, one background job reads that session's transcript and extracts durable typed facts — `profile`, `preference`, `project`, `pattern` (schedule/habits) — as JSON add/update/delete operations the server applies to the **same visible memory cards**. No hidden store; the user sees and can edit everything it learned. Transient conversational content is discarded. Model: cheap-smart tier (COMPACTION-class). Cost: fractions of a cent per session.
+2. **Auto-capture** (new): when a session goes idle (~30–60 min without messages) or the user starts a new chat, one background job reads that session's transcript and extracts durable typed facts — `profile`, `preference`, `project`, `pattern` (schedule/habits) — as JSON add/update/delete operations the server applies to the **same visible memory cards**. No hidden store; the user sees and can edit everything it learned. Transient conversational content is discarded. Model: SYSTEM chain (see below). Cost: fractions of a cent per session.
 3. **Smart injection** (new): always inject profile; add only project/preference memories relevant to the current request (matched by workspace, keywords, recency) instead of dumping everything.
 
 **Session descriptions** (from `session-descriptions-idea.md`): the same auto-capture run emits a second output — a ≤150-char (target ~100) one-sentence description of what the session covered and its outcome, stored on the session row, deleted with the session, refreshed only if the session resumes and goes idle again. The title carries the topic; the description carries outcome/state. No per-turn update overhead.
@@ -126,6 +126,24 @@ Three layers:
 **Smart session titles**: two-stage. (1) After the first full exchange (user message + assistant reply), a cheap model generates a 3–6 word noun-phrase title — never the raw first message. (2) The idle-time auto-capture run refreshes the title if the conversation drifted from its starting topic. The idle run therefore emits three outputs in one call: memory operations, description, and (optionally) a corrected title.
 
 **Browsable sessions**: `list_content` gains a `session` type returning id, title, description, updated_at — so "what did we discuss in the last 2 sessions?" resolves without loading transcripts; the bot loads a session's messages only when the user asks for specifics.
+
+**SYSTEM chain**: the COMPACTION router category is renamed **SYSTEM** and serves every background job (compaction, title v1, idle run, weekly consolidation, workspace description drafting). One model list in the admin. Jobs are registered as `{ prompt, input builder, output schema }` entries pointing at the SYSTEM chain; none of them use tools — each is a single call returning strict JSON that the server applies.
+
+| Job | Input | Output (JSON) |
+|---|---|---|
+| Compaction | old summary + messages since compaction watermark | new summary |
+| Title v1 | first exchange | 3–6 word title |
+| Idle run (auto-capture) | messages since capture watermark + existing cards/description | memory ops + description + corrected title |
+| Weekly consolidation | memory cards only | merge/update/delete ops |
+| Workspace description draft | workspace contents digest | one-line description |
+
+**Scheduling & scale**:
+
+- Idle runs are picked up by a **sweeper** (every ~10 min) that selects sessions idle >60 min with uncaptured messages, processed via a queue with a concurrency cap (3–5). Nothing user-facing waits on background jobs.
+- **Incremental capture**: capture keeps its own watermark (`last_captured_message_id`); a resumed session's next run reads only new messages plus the existing description/title. No new messages → no run.
+- **Skip threshold**: capture runs only for sessions with ≥3 user messages or at least one action (tool write); smaller sessions keep title v1 and get no description/memory pass.
+- **Weekly runs are staggered** per user (hash of user id → day + hour of week).
+- Compaction remains the only in-request job (per-session lock, fires only past the token threshold).
 
 **Weekly consolidation**: a weekly background pass whose input is the memory cards only (never transcripts). It emits merge/update/delete operations via strict JSON: merges near-duplicates, rewrites facts superseded by newer ones, expires dated short-term facts. Model: cheap-smart tier. The run is silent; its results are visible in the memory cards UI and its operations are logged to the admin trace. Cost: <$0.01/user/week. Default ON with an opt-out toggle in bot settings.
 
