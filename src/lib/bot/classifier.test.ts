@@ -88,3 +88,26 @@ describe('resolveImageContext', () => {
   })
 
 })
+
+import { isRetryMessage } from './classifier'
+
+describe('isRetryMessage', () => {
+  it.each(['try again', 'retry', 'redo', 'one more', 'again', 'one more time', 'Try Again!'])(
+    'treats explicit retry phrase "%s" as retry', (msg) => {
+      expect(isRetryMessage(msg)).toBe(true)
+    })
+
+  it.each(['yes', 'no', 'ok', 'yep', 'sure', 'cancel', 'confirm'])(
+    'never treats confirmation "%s" as retry', (msg) => {
+      expect(isRetryMessage(msg)).toBe(false)
+    })
+
+  it.each(['delete this note', 'list my tasks', 'what about pricing', 'create a task'])(
+    'does not treat short normal messages as retries', (msg) => {
+      expect(isRetryMessage(msg)).toBe(false)
+    })
+
+  it('still catches lazy references', () => {
+    expect(isRetryMessage('same as last time please')).toBe(true)
+  })
+})

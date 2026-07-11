@@ -49,7 +49,7 @@ function augmentSearchQuery(originalQuery: string, history: any[]): string {
   if (lastUserMsgs.length === 0) return originalQuery
 
   // If the current query is very short or ambiguous, append context
-  const queryWords = originalQuery.split(/s+/).length
+  const queryWords = originalQuery.split(/\s+/).length
   if (queryWords <= 5) {
     // Find the most distinct entity from recent history not in the current query
     const queryLower = originalQuery.toLowerCase()

@@ -127,6 +127,21 @@ export async function classifyIntent(message: string, aiApiKey?: string, modelId
   return result.category
 }
 
+// Retry fast-path: ONLY explicit retry phrasing inherits the previous
+// message's category. The old "<10 words = follow-up" heuristic misrouted
+// most short messages (incl. "yes" after a delete dry-run → WEB_SEARCH).
+const RETRY_PHRASES = ['try again', 'retry', 'redo', 'one more', 'one more time', 'again', 'do it again']
+const LAZY_REFERENCES = ['same as last', 'repeat last', 'duplicate last', 'like previous']
+
+export function isRetryMessage(message: string): boolean {
+  const clean = message.trim().toLowerCase().replace(/[.!?]+$/, '').trim()
+  if (!clean) return false
+  if (RETRY_PHRASES.includes(clean)) return true
+  const wordCount = clean.split(/\s+/).length
+  if (wordCount < 40 && LAZY_REFERENCES.some(ref => clean.includes(ref))) return true
+  return false
+}
+
 export async function classifyIntentWithModel(
   message: string,
   aiApiKey?: string,
@@ -150,24 +165,7 @@ export async function classifyIntentWithModel(
     }
   }
 
-  // Retry and brief continuation intent fast-path: short follow-ups like "try again", "again", "one more", "another"
-  // inherit the category of the last user message in history instead of being classified standalone.
-  const RETRY_PREFIXES = [
-    'try again', 'retry', 'again', 'one more time', 'redo', 'do it again', 
-    'try once more', 'please retry', 'last one', 'one more', 'another', 
-    'more', 'short one', 'longer', 'bigger', 'what about', 'how about',
-    'and', 'also', 'but', 'instead', 'actually', 'shorter', 'smaller', 'make it'
-  ]
-  const LAZY_REFERENCES = [
-    'same as last', 'repeat last', 'duplicate last', 'like previous'
-  ]
-  const cleanMsg = lowerMsg.replace(/[.!?]+$/, '').trim()
-  const wordCount = cleanMsg.split(/\s+/).length
-  // A message is a follow-up if it's extremely short (< 10 words), or if it's medium (< 40 words) and starts with a prefix, or contains a lazy reference
-  const isRetry = (wordCount < 10) || 
-                  (wordCount < 40 && RETRY_PREFIXES.some(prefix => cleanMsg.startsWith(prefix))) ||
-                  (wordCount < 40 && LAZY_REFERENCES.some(ref => cleanMsg.includes(ref)))
-  if (isRetry && history.length > 0) {
+  if (isRetryMessage(message) && history.length > 0) {
     const lastUserMsg = [...history].reverse().find(h => h.role === 'user')
     if (lastUserMsg) {
       const lastText = (lastUserMsg.parts?.[0]?.text || lastUserMsg.content || '').trim()
