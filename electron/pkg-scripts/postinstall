@@ -1,0 +1,23 @@
+#!/bin/bash
+# Runs as root after the .pkg installs Flowr Beta.app into /Applications.
+#
+# Two things need fixing here, both because the app is unsigned (no Apple
+# Developer account):
+#   1. Strip the quarantine flag so the app opens without a Gatekeeper
+#      "can't be verified" warning on first launch.
+#   2. chown the bundle to the actual logged-in user, not root. The .pkg
+#      installs as root:wheel, but the app's own self-updater later runs as
+#      the logged-in user and needs write access to replace this bundle —
+#      without this it fails with a permissions error on the *second* update.
+#      $USER is root here (postinstall scripts run as root), so the real
+#      console user has to be read from /dev/console instead.
+
+APP="/Applications/Flowr Beta.app"
+CONSOLE_USER=$(stat -f '%Su' /dev/console)
+
+if [ -d "$APP" ]; then
+  xattr -cr "$APP"
+  chown -R "$CONSOLE_USER" "$APP"
+fi
+
+exit 0
