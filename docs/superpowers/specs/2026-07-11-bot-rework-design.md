@@ -78,7 +78,9 @@ Tier applies within each existing bot mode (default/pro → "Regular"/"Max"). De
 |---|---|---|
 | Regular | gemini-3.1-flash-lite → gpt-4o-mini | claude-haiku-4.5 → gemini-3-flash-preview → gpt-5.6-luna-pro |
 | Max | claude-haiku-4.5 → gemini-3-flash-preview | claude-sonnet-5 → gemini-3.5-flash |
-| SYSTEM (§7) | gemini-3.1-flash-lite → gpt-4o-mini | — |
+| SYSTEM (§7) | deepseek-v4-flash → gpt-oss-120b (Groq) → gemini-2.5-flash-lite | — |
+
+SYSTEM is text-only: background jobs never receive raw images — stored history carries cached text descriptions alongside images (§5b), which is what the jobs read.
 
 Prompt-prefix stability is preserved (static/dynamic split) so Anthropic/OpenAI prompt caching keeps Smart-tier tool turns near cached pricing.
 
