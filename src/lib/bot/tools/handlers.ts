@@ -544,6 +544,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
               query = query.eq('due_date', tf.dueDate)
             }
           }
+          if (tf.dueAfter) query = query.gte('due_date', tf.dueAfter)
+          if (tf.dueBefore) query = query.lte('due_date', tf.dueBefore)
         }
 
         const { data: taskData, error: tError } = await query

@@ -202,6 +202,8 @@ export const FLOWR_TOOLS = [
             status: { type: "string", description: "'todo' | 'in-progress' | 'done'" },
             priority: { type: "string", enum: ["low", "medium", "high"] },
             dueDate: { type: "string", description: "Date string or 'today' / 'overdue'." },
+            dueAfter: { type: "string", description: "Only tasks with due_date on or after this ISO date (inclusive). Use for ranges like 'this week'." },
+            dueBefore: { type: "string", description: "Only tasks with due_date on or before this ISO date (inclusive)." },
             tag: { type: "string", description: "Custom tag to filter by." }
           }
         }
