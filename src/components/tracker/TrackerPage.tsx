@@ -125,7 +125,17 @@ export function TrackerPage({ isLoading }: { isLoading?: boolean }) {
 
     // 2. Filter by Workspace Entity (trackerFilterEntityIds)
     if (trackerFilterEntityIds.length > 0) {
-      rawTasks = rawTasks.filter(t => t.entityId && trackerFilterEntityIds.includes(t.entityId));
+      if (trackerFilterEntityIds.includes('__unsorted__')) {
+        const state = useStore.getState();
+        const entities = state.entities;
+        const hiddenEntityIds = state.hiddenEntityIds;
+        const spacesBaseIds = entities
+          .filter(e => e.type === 'workspace' && (e.spaceId || 'ws-personal') === activeSpaceId && !hiddenEntityIds.includes(e.id))
+          .map(e => e.id);
+        rawTasks = rawTasks.filter(t => !t.entityId || !spacesBaseIds.includes(t.entityId));
+      } else {
+        rawTasks = rawTasks.filter(t => t.entityId && trackerFilterEntityIds.includes(t.entityId));
+      }
     }
 
     // 3. Filter by Tags

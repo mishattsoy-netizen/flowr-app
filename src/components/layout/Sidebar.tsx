@@ -2,11 +2,11 @@
 
 import { useStore, generateId } from '@/data/store';
 import { useAuth } from '@/components/AuthProvider';
-import type { EntityType, Entity, SidebarSectionId } from '@/data/store';
+import type { EntityType, Entity, SidebarSectionId, AppTask } from '@/data/store';
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
 
-import { Search, Home, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag } from 'lucide-react';
+import { Search, Home, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag, Inbox } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,9 @@ import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
+import { createPortal } from 'react-dom';
 import { draggable, monitorForElements, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { disableNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview';
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
@@ -71,6 +73,287 @@ function SidebarMainTab({ tab, isActive, onClick }: { tab: any, isActive: boolea
       <tab.icon className="w-3.5 h-3.5" strokeWidth={2} />
       <span>{tab.label}</span>
     </button>
+  );
+}
+
+function TrackerWorkspaceItem({
+  ws,
+  allTasks,
+  activeSpaceId,
+  collapsedTrackerWorkspaces,
+  setCollapsedTrackerWorkspaces,
+  trackerFilterEntityIds,
+  trackerFilterTags,
+  toggleTrackerFilterEntityId,
+  toggleTrackerFilterTag,
+  clearTrackerFilterEntityIds,
+  clearTrackerFilterTags,
+  setTrackerFilterEntityIds,
+  setTrackerFilterTags,
+}: {
+  ws: Entity;
+  allTasks: AppTask[];
+  activeSpaceId: string | null;
+  collapsedTrackerWorkspaces: Record<string, boolean>;
+  setCollapsedTrackerWorkspaces: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  trackerFilterEntityIds: string[];
+  trackerFilterTags: string[];
+  toggleTrackerFilterEntityId: (id: string) => void;
+  toggleTrackerFilterTag: (tag: string) => void;
+  clearTrackerFilterEntityIds: () => void;
+  clearTrackerFilterTags: () => void;
+  setTrackerFilterEntityIds: (ids: string[]) => void;
+  setTrackerFilterTags: (tags: string[]) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<'top' | 'bottom' | null>(null);
+  const [preview, setPreview] = useState<boolean>(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+
+    const handleDragStart = (e: DragEvent) => {
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.dropEffect = 'move';
+      document.body.style.cursor = 'grabbing';
+    };
+    el.addEventListener('dragstart', handleDragStart, { capture: true });
+
+    const cleanup = draggable({
+      element: el,
+      getInitialData: () => ({ id: ws.id, entityType: 'workspace', type: 'tree-item' }),
+      onGenerateDragPreview: ({ nativeSetDragImage }) => {
+        disableNativeDragPreview({ nativeSetDragImage });
+        setPreview(true);
+      },
+      onDrag: ({ location }) => {
+        const node = previewRef.current;
+        if (!node) return;
+        node.style.transform = `translate(${location.current.input.clientX}px, ${location.current.input.clientY}px)`;
+      },
+      onDragStart: () => {
+        setIsDragging(true);
+        setPreview(true);
+      },
+      onDrop: () => {
+        setIsDragging(false);
+        setPreview(false);
+      },
+    });
+
+    return () => {
+      el.removeEventListener('dragstart', handleDragStart, { capture: true } as EventListenerOptions);
+      cleanup();
+    };
+  }, [ws.id]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || isDragging) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => {
+        if (source.data.type !== 'tree-item') return false;
+        if (source.data.entityType !== 'workspace') return false;
+        if (source.data.id === ws.id) return false;
+        return true;
+      },
+      getData: ({ input, element }) => {
+        const rect = element.getBoundingClientRect();
+        // Fallback for missing input.clientY if pragmatic-dnd is acting up
+        const clientY = input?.clientY || (typeof window !== 'undefined' ? (window as any)._dragCursorY || 0 : 0);
+        const edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+        return {
+          type: 'tree-item',
+          id: ws.id,
+          edge,
+          isAfterFolder: false,
+          isInsertInsideBottom: false,
+          visualEdge: edge,
+          visualDepth: 0
+        };
+      },
+      onDragEnter: ({ self }) => setClosestEdge(self.data.visualEdge as 'top' | 'bottom'),
+      onDrag: ({ self }) => setClosestEdge(self.data.visualEdge as 'top' | 'bottom'),
+      onDragLeave: () => setClosestEdge(null),
+      onDrop: () => setClosestEdge(null),
+    });
+  }, [ws.id, isDragging]);
+
+  const count = allTasks.filter(t => t.entityId === ws.id && !t.completed && t.spaceId === activeSpaceId).length;
+  const wsTags = Array.from(new Set(
+    allTasks
+      .filter(t => t.entityId === ws.id && t.tag && t.tag.trim() && t.spaceId === activeSpaceId)
+      .map(t => t.tag!.trim())
+  )).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const hasTags = wsTags.length > 0;
+  const isCollapsed = collapsedTrackerWorkspaces[ws.id] ?? false;
+  const isActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.length === 0;
+
+  return (
+    <div ref={ref} className={cn("relative group/treeitem flex flex-col gap-[1px]", isDragging && "opacity-50")}>
+      {/* Space Row */}
+      <div
+        ref={rowRef}
+        onClick={(e) => {
+          if (e.shiftKey) {
+            e.preventDefault();
+            toggleTrackerFilterEntityId(ws.id);
+          } else {
+            clearTrackerFilterEntityIds();
+            clearTrackerFilterTags();
+            setTrackerFilterEntityIds([ws.id]);
+          }
+        }}
+        className={cn(
+          "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
+          isActive
+            ? "!bg-dark text-[var(--bone-100)] font-normal"
+            : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+          "text-[14px]"
+        )}
+        style={{ paddingLeft: '8px', paddingRight: '3px' }}
+      >
+        {/* Icon & Hover Chevron Overlay */}
+        <div className="relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-[var(--bone-100)]">
+          <div className={cn(
+            "flex items-center justify-center w-full h-full",
+            hasTags && "group-hover:opacity-0"
+          )}>
+            {(() => {
+              const WorkspaceIcon = getEntityIcon(ws.icon);
+              return <WorkspaceIcon strokeWidth={2} className="w-3.5 h-3.5" />;
+            })()}
+          </div>
+
+          {hasTags && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCollapsedTrackerWorkspaces(prev => ({ ...prev, [ws.id]: !isCollapsed }));
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="sidebar-actions absolute btn-sidebar-utility opacity-0 group-hover:opacity-100"
+              style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+            >
+              {isCollapsed ? (
+                <ChevronRight strokeWidth={2} className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown strokeWidth={2} className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
+        </div>
+
+        <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{ws.title}</span>
+        {count > 0 && (
+          <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+            {count}
+          </span>
+        )}
+
+      </div>
+
+      {closestEdge && (
+        <div
+          className={cn(
+            "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
+            closestEdge === 'top' ? '-top-px' : '-bottom-px'
+          )}
+          style={{ left: '8px', right: '3px' }}
+        />
+      )}
+
+      {/* Tags list (depth 1) */}
+      {hasTags && (
+        <div
+          className={cn(
+            "grid transition-all duration-100 ease-out",
+            !isCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          )}
+        >
+          <div className="overflow-hidden relative">
+            <div className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-6)] pointer-events-none" style={{ left: '14px' }} />
+            <div className="flex flex-col gap-[1px]">
+              {wsTags.map(tag => {
+                const isTagActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.includes(tag);
+                const tagCount = allTasks.filter(t => t.entityId === ws.id && t.tag?.trim() === tag && !t.completed && (t.spaceId || activeSpaceId) === activeSpaceId).length;
+                return (
+                  <div
+                    key={tag}
+                    onClick={(e) => {
+                      if (e.shiftKey) {
+                        e.preventDefault();
+                        if (trackerFilterEntityIds.includes(ws.id)) {
+                          toggleTrackerFilterTag(tag);
+                        } else {
+                          clearTrackerFilterEntityIds();
+                          clearTrackerFilterTags();
+                          setTrackerFilterEntityIds([ws.id]);
+                          setTrackerFilterTags([tag]);
+                        }
+                      } else {
+                        clearTrackerFilterEntityIds();
+                        clearTrackerFilterTags();
+                        setTrackerFilterEntityIds([ws.id]);
+                        setTrackerFilterTags([tag]);
+                      }
+                    }}
+                    className={cn(
+                      "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
+                      isTagActive
+                        ? "!bg-dark text-[var(--bone-100)] font-normal"
+                        : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+                      "text-[14px]"
+                    )}
+                    style={{ paddingLeft: '26px', paddingRight: '3px' }}
+                  >
+                    <div className={cn(
+                      "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
+                      isTagActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
+                    )}>
+                      <Tag strokeWidth={2} className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{tag}</span>
+                    {tagCount > 0 && (
+                      <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+                        {tagCount}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {preview &&
+        createPortal(
+          <div
+            ref={previewRef}
+            className="fixed top-0 left-0 z-[10000] pointer-events-none"
+            style={{ transform: 'translate(-9999px, -9999px)' }}
+          >
+            <div className="-translate-x-1/2 -translate-y-1/2">
+              <div className="w-[240px] bg-sidebar rounded-[var(--radius-small)] opacity-85 shadow-lg border border-[var(--bone-10)]">
+                <TreeItem
+                  entity={ws}
+                  depth={0}
+                  isDragOverlay
+                  disableNesting
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      }
+    </div>
   );
 }
 
@@ -736,14 +1019,15 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           activeDragId && "is-dragging"
         )}
       >
-        {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 20 }} />}
+        {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 12 }} />}
         
-        <div
-          className={cn(
-            "flex items-center px-[10px] pt-4 pb-2 shrink-0",
-            effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
-          )}
-        >
+        {!isDesktopEnv && (
+          <div
+            className={cn(
+              "flex items-center px-[10px] pt-4 pb-2 shrink-0",
+              effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
+            )}
+          >
           {effectiveCollapsed ? null : (
             <>
               <span className="font-serif font-normal text-[24px] text-bone-100 tracking-tight leading-none select-none pl-[8px]">
@@ -767,7 +1051,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               )}
             </>
           )}
-        </div>
+          </div>
+        )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
 
@@ -976,7 +1261,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <MessageCircleDashed strokeWidth={2} className="w-3.5 h-3.5" />
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Temp Chat</span>
                     </button>
-                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
+                    <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
                   {chatConfirmDeleteId && (
@@ -992,7 +1277,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     </div>
                   )}
 
-                  <ScrollArea innerRef={chatScrollRef} onScroll={onScroll} className="px-[10px] pt-3 pb-4 flex flex-col gap-[1px]">
+                  <ScrollArea innerRef={chatScrollRef} onScroll={onScroll} className="px-[10px] pt-2 pb-4 flex flex-col gap-[1px]">
                     <div
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {
@@ -1137,152 +1422,154 @@ onClick={() => {
                         </span>
                       )}
                     </button>
-                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
+                    {(() => {
+                      const unsortedTasks = allTasks.filter(t => !t.completed && (t.spaceId || 'ws-personal') === activeSpaceId && (!t.entityId || !spacesBase.some(ws => ws.id === t.entityId)));
+                      const unsortedCount = unsortedTasks.length;
+                      if (unsortedCount === 0) return null;
+                      return (
+                        <button
+                          onClick={() => {
+                            clearTrackerFilterEntityIds();
+                            clearTrackerFilterTags();
+                            setTrackerFilterEntityIds(['__unsorted__']);
+                          }}
+                          className={cn(
+                            "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
+                            trackerFilterEntityIds[0] === '__unsorted__' && trackerFilterTags.length === 0 && "!bg-dark !text-[var(--bone-100)]"
+                          )}
+                        >
+                          <div className="w-[14px] shrink-0 flex items-center justify-center">
+                            <Inbox strokeWidth={2} className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Unsorted</span>
+                          {unsortedCount > 0 && (
+                            <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+                              {unsortedCount}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })()}
+                    <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] py-2">
+                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] pt-2 pb-4">
                     <div className="flex flex-col gap-[1px]">
-                      {spacesBase.map(ws => {
-                        const count = allTasks.filter(t => t.entityId === ws.id && !t.completed && t.spaceId === activeSpaceId).length;
-                        const wsTags = Array.from(new Set(
-                          allTasks
-                            .filter(t => t.entityId === ws.id && t.tag && t.tag.trim() && t.spaceId === activeSpaceId)
-                            .map(t => t.tag!.trim())
-                        )).sort();
-                        const hasTags = wsTags.length > 0;
-                        const isCollapsed = collapsedTrackerWorkspaces[ws.id] ?? false;
-                        const isActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.length === 0;
-
+                      {(() => {
+                        const unsortedTasks = allTasks.filter(t => !t.completed && (t.spaceId || 'ws-personal') === activeSpaceId && (!t.entityId || !spacesBase.some(ws => ws.id === t.entityId)));
+                        const unsortedTags = Array.from(new Set(unsortedTasks.filter(t => t.tag && t.tag.trim()).map(t => t.tag!.trim()))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+                        const hasUnsortedTags = unsortedTags.length > 0;
+                        if (!hasUnsortedTags) return null;
+                        
                         return (
-                          <div key={ws.id} className="relative group/treeitem flex flex-col gap-[1px]">
-                            {/* Space Row */}
-                            <div
-                              onClick={(e) => {
-                                if (e.shiftKey) {
-                                  e.preventDefault();
-                                  toggleTrackerFilterEntityId(ws.id);
-                                } else {
-                                  clearTrackerFilterEntityIds();
-                                  clearTrackerFilterTags();
-                                  setTrackerFilterEntityIds([ws.id]);
-                                }
-                              }}
-                              className={cn(
-                                "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
-                                isActive
-                                  ? "!bg-dark text-[var(--bone-100)] font-normal"
-                                  : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
-                                "text-[14px]"
-                              )}
-                              style={{ paddingLeft: '8px', paddingRight: '3px' }}
-                            >
-                              {/* Icon & Hover Chevron Overlay */}
-                              <div className="relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-[var(--bone-100)]">
-                                {/* The main icon, which hides on hover if collapsible */}
-                                <div className={cn(
-                                  "flex items-center justify-center w-full h-full",
-                                  hasTags && "group-hover:opacity-0"
-                                )}>
-                                  {(() => {
-                                    const WorkspaceIcon = getEntityIcon(ws.icon);
-                                    return <WorkspaceIcon strokeWidth={2} className="w-3.5 h-3.5" />;
-                                  })()}
-                                </div>
-
-                                {/* Hover collapse/expand chevron button */}
-                                {hasTags && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCollapsedTrackerWorkspaces(prev => ({ ...prev, [ws.id]: !isCollapsed }));
-                                    }}
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    className="sidebar-actions absolute btn-sidebar-utility opacity-0 group-hover:opacity-100"
-                                    style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                                  >
-                                    {isCollapsed ? (
-                                      <ChevronRight strokeWidth={2} className="w-3.5 h-3.5" />
-                                    ) : (
-                                      <ChevronDown strokeWidth={2} className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                )}
+                          <div className="mb-4 flex flex-col gap-[1px]">
+                            <div className="pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-default select-none rounded-[var(--radius-small)] text-[var(--bone-30)]">
+                              <div className="flex items-center gap-1 group/header-label">
+                                <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Unsorted</span>
                               </div>
-
-                              <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{ws.title}</span>
-                              {count > 0 && (
-                                <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
-                                  {count}
-                                </span>
-                              )}
                             </div>
-
-                            {/* Tags list (depth 1) */}
-                            {hasTags && (
-                              <div
-                                className={cn(
-                                  "grid transition-all duration-100 ease-out",
-                                  !isCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                                )}
-                              >
-                                <div className="overflow-hidden">
-                                  <div className="flex flex-col gap-[1px]">
-{wsTags.map(tag => {
-                                        const isTagActive = trackerFilterEntityIds.includes(ws.id) && trackerFilterTags.includes(tag);
-                                        const tagCount = allTasks.filter(t => t.entityId === ws.id && t.tag?.trim() === tag && !t.completed && (t.spaceId || activeSpaceId) === activeSpaceId).length;
-                                        return (
-                                          <div
-                                            key={tag}
-                                            onClick={(e) => {
-                                              if (e.shiftKey) {
-                                                e.preventDefault();
-                                                // Toggle just the tag if workspace is already selected
-                                                if (trackerFilterEntityIds.includes(ws.id)) {
-                                                  toggleTrackerFilterTag(tag);
-                                                } else {
-                                                  // If workspace not selected, add workspace and tag
-                                                  clearTrackerFilterEntityIds();
-                                                  clearTrackerFilterTags();
-                                                  setTrackerFilterEntityIds([ws.id]);
-                                                  setTrackerFilterTags([tag]);
-                                                }
-                                              } else {
-                                                clearTrackerFilterEntityIds();
-                                                clearTrackerFilterTags();
-                                                setTrackerFilterEntityIds([ws.id]);
-                                                setTrackerFilterTags([tag]);
-                                              }
-                                            }}
-                                            className={cn(
-                                            "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
-                                            isTagActive
-                                              ? "!bg-dark text-[var(--bone-100)] font-normal"
-                                              : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
-                                            "text-[14px]"
-                                          )}
-                                          style={{ paddingLeft: '26px', paddingRight: '3px' }}
-                                        >
-                                          <div className={cn(
-                                            "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
-                                            isTagActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
-                                          )}>
-                                            <Tag strokeWidth={2} className="w-3.5 h-3.5" />
-                                          </div>
-                                          <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{tag}</span>
-                                          {tagCount > 0 && (
-                                            <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
-                                              {tagCount}
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+                            
+                            <div className="relative">
+                              <div className="flex flex-col gap-[1px]">
+                                {unsortedTags.map((tag: string) => {
+                                  const isTagActive = trackerFilterEntityIds.includes('__unsorted__') && trackerFilterTags.includes(tag);
+                                  const tagCount = unsortedTasks.filter(t => t.tag?.trim() === tag).length;
+                                  return (
+                                    <div
+                                      key={tag}
+                                      onClick={(e) => {
+                                        if (e.shiftKey) {
+                                          e.preventDefault();
+                                          if (trackerFilterEntityIds.includes('__unsorted__')) {
+                                            toggleTrackerFilterTag(tag);
+                                          } else {
+                                            clearTrackerFilterEntityIds();
+                                            clearTrackerFilterTags();
+                                            setTrackerFilterEntityIds(['__unsorted__']);
+                                            setTrackerFilterTags([tag]);
+                                          }
+                                        } else {
+                                          clearTrackerFilterEntityIds();
+                                          clearTrackerFilterTags();
+                                          setTrackerFilterEntityIds(['__unsorted__']);
+                                          setTrackerFilterTags([tag]);
+                                        }
+                                      }}
+                                      className={cn(
+                                        "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)] border border-transparent cursor-pointer",
+                                        isTagActive
+                                          ? "!bg-dark text-[var(--bone-100)] font-normal"
+                                          : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+                                        "text-[14px]"
+                                      )}
+                                      style={{ paddingLeft: '8px', paddingRight: '3px' }}
+                                    >
+                                      <div className={cn(
+                                        "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
+                                        isTagActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
+                                      )}>
+                                        <Tag strokeWidth={2} className="w-3.5 h-3.5" />
+                                      </div>
+                                      <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide truncate">{tag}</span>
+                                      {tagCount > 0 && (
+                                        <span className="shrink-0 w-[22px] h-[22px] flex items-center justify-center rounded-[4px] bg-[var(--bone-6)] text-[12px] font-ui font-medium text-[var(--bone-70)]">
+                                          {tagCount}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            )}
+                            </div>
                           </div>
                         );
-                      })}
+                      })()}
+                      <div
+                        className={cn(
+                          "pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-default select-none rounded-[var(--radius-small)] ",
+                          contextMenu?.entityId === 'spaces'
+                            ? "text-[var(--bone-100)]"
+                            : "text-[var(--bone-30)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-1 group/header-label">
+                          <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Workspaces</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              openContextMenu('spaces', rect.right, rect.top, 'sidebar-section');
+                            }}
+                            className={cn(
+                              "btn-sidebar-utility opacity-30 hover:opacity-100",
+                              contextMenu?.entityId === 'spaces' && "!bg-dark !text-[var(--bone-100)] !opacity-100"
+                            )}
+                          >
+                            <Settings2 strokeWidth={2} className="w-3.5 h-3.5 rotate-90" />
+                          </button>
+                        </div>
+                      </div>
+                      <DroppableZone id="tracker-spaces-container" className="flex flex-col gap-[1px]">
+                        {spacesBase.map(ws => (
+                          <TrackerWorkspaceItem
+                            key={ws.id}
+                            ws={ws}
+                            allTasks={allTasks}
+                            activeSpaceId={activeSpaceId}
+                            collapsedTrackerWorkspaces={collapsedTrackerWorkspaces}
+                            setCollapsedTrackerWorkspaces={setCollapsedTrackerWorkspaces}
+                            trackerFilterEntityIds={trackerFilterEntityIds}
+                            trackerFilterTags={trackerFilterTags}
+                            toggleTrackerFilterEntityId={toggleTrackerFilterEntityId}
+                            toggleTrackerFilterTag={toggleTrackerFilterTag}
+                            clearTrackerFilterEntityIds={clearTrackerFilterEntityIds}
+                            clearTrackerFilterTags={clearTrackerFilterTags}
+                            setTrackerFilterEntityIds={setTrackerFilterEntityIds}
+                            setTrackerFilterTags={setTrackerFilterTags}
+                          />
+                        ))}
+                      </DroppableZone>
                     </div>
                   </div>
                 </div>
@@ -1322,13 +1609,13 @@ onClick={() => {
                       </div>
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Dashboard</span>
                     </button>
-                    <div className="h-px bg-[var(--bone-6)] -mx-[10px] mt-[10px] mb-0" />
+                    <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
                   <ScrollArea
                     innerRef={mainScrollRef}
                     onScroll={onScroll}
-                    className="pl-[10px] pr-[10px] pt-3"
+                    className="px-[10px] pt-2 pb-4"
                   >
                     <div onClick={(e) => {
                       if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {

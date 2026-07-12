@@ -1127,6 +1127,11 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         >
           <div className="overflow-hidden">
             <div className="relative flex flex-col gap-[1px]">
+              {/* Hierarchy Line */}
+              <div
+                className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-6)] pointer-events-none"
+                style={{ left: `${8 + depth * 18 + 6}px` }}
+              />
               {children.map((child) => (
                 <TreeItem
                   key={idOverride ? `${idOverride.split('-')[0]}-${child.id}` : child.id}
@@ -1136,11 +1141,6 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
                   onShiftClick={onShiftClick}
                 />
               ))}
-              {/* Hierarchy Line */}
-              <div
-                className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-15)] pointer-events-none"
-                style={{ left: `${8 + depth * 18 + 6}px` }}
-              />
             </div>
           </div>
         </div>
