@@ -18,6 +18,7 @@ function getChainInstructions(category: IntentCategory): string {
     REGULAR: 'regular',
     COMPLEX: 'complex',
     ADVISOR: 'complex',
+    PRIMARY: 'primary',
     WEB_SEARCH: 'web_search',
     RESEARCH: 'research',
     CODING: 'coding',
@@ -107,7 +108,7 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     finalSysPrompt += "\n\n" + chainInstructions
   }
 
-  if (['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH'].includes(category)) {
+  if (['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'PRIMARY'].includes(category)) {
     finalSysPrompt += "\n\n" + getToolInstructions()
   }
 
