@@ -6,6 +6,7 @@ import { checkUserAndLimits, incrementUsage } from '@/lib/bot/usageGuard'
 import { logInteraction, logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import { parseCommand } from '@/lib/bot/telegram-commands'
 import { createTelegramLinkToken } from '@/lib/bot/telegramLinkToken'
+import { getClientTime } from '@/data/store.helpers'
 
 const AUTH_BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://www.flowr.website'
@@ -575,6 +576,20 @@ Here's what I can do for you:
       logWebInteraction(linkedAuthUserId, activePrompt, 'user', usageType, 'success', undefined, requestId, undefined, undefined, activeChatId)
         .catch(e => logger.error('User web log failed', e))
 
+      // The user's saved timezone (set on the web Settings page, persisted in
+      // user_settings) — without this, date/time math falls back to the
+      // server's own clock (UTC on Vercel), so "tomorrow 6pm" and
+      // today/overdue task filters land in the wrong timezone on Telegram.
+      let telegramClientTime: string | undefined
+      if (linkedAuthUserId && supabaseAdmin) {
+        const { data: settings } = await supabaseAdmin
+          .from('user_settings')
+          .select('timezone')
+          .eq('user_id', linkedAuthUserId)
+          .maybeSingle()
+        if (settings?.timezone) telegramClientTime = getClientTime(settings.timezone)
+      }
+
       const { runChain } = await import('@/lib/bot/chainRouter')
       result = await runChain(activePrompt, photoBuffer, {
         chatId,
@@ -583,6 +598,7 @@ Here's what I can do for you:
         isTempChat,
         mode: botMode as 'default' | 'pro',
         _triggerType: 'telegram',
+        clientTime: telegramClientTime,
       })
 
       // ── Send Response & track message_id ──

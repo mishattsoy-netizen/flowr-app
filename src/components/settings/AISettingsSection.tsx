@@ -5,6 +5,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/data/store';
 import { ChevronDown, Check } from 'lucide-react';
+import { saveTimezone } from '@/app/settings/actions';
 
 function TimezoneSelect({ value, onChange, timezones }: { value: string | null; onChange: (v: string | null) => void; timezones: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -77,6 +78,27 @@ export default function AISettingsSection() {
     }
   }, []);
 
+  // manualTimezone lives only in browser Zustand state and isn't persisted to
+  // localStorage — load the durable value from user_settings on mount so it
+  // survives reloads/logins, and so Telegram (which reads the same row) sees
+  // the same timezone the user picked here.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase.from('user_settings').select('timezone').eq('user_id', user.id).maybeSingle();
+      if (data?.timezone) setManualTimezone(data.timezone);
+    })();
+  }, [user, setManualTimezone]);
+
+  const handleTimezoneChange = useCallback(async (tz: string | null) => {
+    setManualTimezone(tz);
+    if (!user) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+    await saveTimezone(token, tz);
+  }, [user, setManualTimezone]);
+
 
 
   return (
@@ -91,10 +113,10 @@ export default function AISettingsSection() {
           </p>
         </div>
         
-        <TimezoneSelect 
-          value={manualTimezone} 
-          onChange={setManualTimezone} 
-          timezones={timezones} 
+        <TimezoneSelect
+          value={manualTimezone}
+          onChange={handleTimezoneChange}
+          timezones={timezones}
         />
       </div>
     </div>

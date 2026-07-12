@@ -34,6 +34,23 @@ export async function redeemPromoCode(code: string, accessToken: string): Promis
   return { success: true }
 }
 
+export async function saveTimezone(accessToken: string, timezone: string | null): Promise<{ success: boolean }> {
+  const supabase = createClient(
+    supabaseUrl!,
+    supabaseAnonKey!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  )
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData.user
+  if (!user) return { success: false }
+
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ user_id: user.id, timezone, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+
+  return { success: !error }
+}
+
 export async function downgradeToFree(accessToken: string): Promise<{ success: boolean }> {
   const supabase = createClient(
     supabaseUrl!,
