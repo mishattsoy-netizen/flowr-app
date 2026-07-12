@@ -8,6 +8,7 @@ const DEFAULT_TEMPERATURE = 0.7
 export const DEFAULT_STATUS_MESSAGES: Record<string, string> = {
   REGULAR: 'Writing...',
   COMPLEX: 'Writing...',
+  PRIMARY: 'Writing...',
   VISION: 'Looking...',
   WEB_SEARCH: 'Searching...',
   RESEARCH: 'Researching...',
@@ -47,6 +48,9 @@ export type IntentCategory =
   | 'ADVISOR'
   | 'THINKING'
   | 'COMPACTION'
+  | 'PRIMARY'
+  | 'PRIMARY_SMART'
+  | 'PRIMARY_LIGHT'
 
 export type RouterMode = 'default' | 'pro'
 
@@ -61,7 +65,7 @@ export function resolveChainWithFallback(
 async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode): Promise<{ chain: RouterModel[], temperature?: number; thinking_budget?: string | number }> {
   if (!supabase) {
     const offlineMode = mode === 'pro' ? 'pro' : 'default'
-    const offlineCategory = offlineChains[offlineMode]?.[category]
+    const offlineCategory = (offlineChains[offlineMode] as Record<string, { chain: RouterModel[]; temperature?: number }> | undefined)?.[category]
     if (offlineCategory) {
       return {
         chain: offlineCategory.chain as RouterModel[],
@@ -97,7 +101,8 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
       if (chainResult.error) throw new Error(chainResult.error.message)
       if (!chainResult.data) {
         // Self-healing: if the category is missing, attempt to create a default entry
-        if (category === 'VISION' || category === 'CODING' || category === 'IMAGE_GEN') {
+        if (category === 'VISION' || category === 'CODING' || category === 'IMAGE_GEN'
+          || category === 'PRIMARY_SMART' || category === 'PRIMARY_LIGHT') {
           try {
             await supabase.from('router_chains').insert({
               category,
@@ -219,6 +224,7 @@ export interface PipelineSettings {
   inputTokenLimit: number
   outputTokenLimit: number
   tokenLimitEnabledCategories?: IntentCategory[]
+  routerV2Enabled: boolean
 }
 
 // ─── Hardcoded Pipeline Settings ────────────────────────────────────────────
@@ -234,11 +240,12 @@ const HARDCODED_PIPELINE_SETTINGS: PipelineSettings = {
   thinkingSummaryVisible: 'collapsible',
   inputTokenLimit: 0,   // 0 = unlimited
   outputTokenLimit: 0,  // 0 = unlimited
+  routerV2Enabled: false,
   // Only inject global prompt (personality + memories) into final output chains.
   // Utility chains (CLASSIFIER, COMPACTION, THINKING) don't need personal context.
-  globalPromptEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'AUDIO', 'VISION', 'ADVISOR'],
+  globalPromptEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'AUDIO', 'VISION', 'ADVISOR', 'PRIMARY'],
   // Inject conversation history into all chains that benefit from it.
-  historyEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'AUDIO', 'VISION', 'ADVISOR', 'THINKING'],
+  historyEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'AUDIO', 'VISION', 'ADVISOR', 'THINKING', 'PRIMARY'],
 }
 
 export async function getPipelineSettings(): Promise<PipelineSettings> {
