@@ -1,8 +1,35 @@
 # Flowr AI Bot Rework — Design
 
-Date: 2026-07-11
-Status: Approved pending final review
+Date: 2026-07-11 · Last updated: 2026-07-13
+Status: **In progress — this is the living plan.** New findings and bugs are folded
+into the relevant section here rather than spawned as separate plan documents.
 Scope: Bot pipeline (`src/lib/bot/**`), Telegram webhook, chat API route, Router admin, notifications.
+
+## 0. Progress (source of truth — update as steps land)
+
+Build order and status. Step numbers refer to §13.
+
+| Step | Section | Status |
+|---|---|---|
+| 1 | P0 fixes (§9) | ✅ **Done** — shipped v1.3.4 |
+| 2 | Category collapse + classifier + thinking + PRIMARY tiers (§2, §3, §4) | ✅ **Done & verified live** — router v2 enabled |
+| 2b | Tool rework (§7c) | ✅ **Done** |
+| 4a | Grounding guard + tool-loop guard (part of §6) | ✅ **Done** — pulled forward, see §6 |
+| 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
+| 5 | **Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d)** | ⬅️ **NEXT** — reordered ahead of §5/§6 because it fixes live broken behavior |
+| 7b | Compaction rework | ⬜ Not started |
+| 3 | Context pack (§5) | ⬜ Not started |
+| 4b | Server-side action state (§6) | ⬜ Not started |
+| 6 | Memory v2 (§7) | ⬜ Not started |
+| 7 | Notifications v1 (§8) | ⬜ Not started |
+
+**Verified in step 2 (live testing, 2026-07-12):** 5/5 novel requests routed
+correctly (3× Light single-op, 1× Smart multi-step, 1× Smart via `hard`); prompt
+cache hit ~79-85% on Smart tier; "hi" latency ~10s → ~2-3s.
+
+**Deferred from step 2:** classifier model swap (llama-3.1-8b → gpt-oss). The
+few-shot "count the operations" prompt stabilized llama-8b; revisit only if the
+`action` flag drifts again.
 
 ## 1. Goals
 
@@ -103,6 +130,13 @@ This is what makes low-context requests ("create a note from this and set a remi
 
 ## 5b. Native vision & attachment pipeline
 
+> **Status: NEXT.** Root causes below verified in code 2026-07-13.
+
+**Root causes found in the live code (why image turns are broken today):**
+
+- **Images never reach PRIMARY.** `chainRouter.ts` passes image buffers **only** to the VISION chain (~line 368). `executeProvider` — which runs PRIMARY — takes **no image argument at all**. PRIMARY only ever sees a lossy *text description*. The providers (`runOpenRouter`, `runGoogle`) already accept an `imageBuffers` param; the gap is purely that chainRouter never passes them past VISION.
+- **Image + action is structurally impossible.** The VISION pre-pass has a `FAST_SIMPLE` branch (`chainRouter.ts` ~450-470) that **returns the vision model's prose directly** — the classifier and PRIMARY never run, so `create_content` is unreachable. Separately `useTools` (~line 970) omits `VISION`. Symptom: "create a note from this" makes the bot *type the note into chat* instead of creating it. This is exactly the legacy path this section deletes.
+
 The digital-twin architecture is deleted: VISION chain/category, `[VISION_CONTEXT]` parsing, vision-first orchestration handoff (`logic_nature`/`FAST_SIMPLE`), and twin injection in `memory.ts`. All chain models are multimodal; images are passed natively.
 
 Unified attachment pipeline (same code path for Telegram and web):
@@ -118,14 +152,64 @@ Routing: any turn with attachments goes to the Smart tier (all Smart models mult
 
 History cost policy: images stay native for the recent turns of the current session; when an image ages past the recency window (or on compaction), it is replaced in history by a one-time cached description stored on its own message — same idea as the twin, but generated once and never attached to the wrong turn. Generated images keep the existing narration step.
 
+**Acceptance:** image + "create a note from this" → note created with the image's content. Image + "what is this?" → clean description, no spurious note. Multi-image + PDF in one message → one coherent answer.
+
+## 5c. Durable attachment storage (NEW — 2026-07-13)
+
+> Not in the original spec. Found while investigating §5b. Ships with step 5.
+
+**Bug:** an image attached on one device is invisible on the user's other devices, in both chat and tasks.
+
+**Root cause:** `src/app/api/ai/upload/route.ts` uploads to Supabase Storage **only if `supabaseAdmin` exists**. `supabaseAdmin` (`src/lib/supabase.ts:61`) requires `SUPABASE_SERVICE_ROLE_KEY`. The Electron app loads env from a `.env` at runtime (`electron/main.js:174-198`), but **`.env` is not in electron-builder's `files` list** (`package.json` ~96), so it never ships. On desktop `supabaseAdmin` is therefore always null → the route **always** falls through to writing `public/user_uploads/<file>` on **that machine's local disk** and returns a machine-local URL. The URL syncs via the DB; the file does not. Each device renders only its own images.
+
+**Decision (owner, 2026-07-13): Option A — upload from the client using the user's own authenticated Supabase session.** The renderer already holds a session (that's how DB sync works). Upload directly to the `user_uploads` bucket under RLS and store the resulting public Supabase URL on the attachment. `/api/ai/upload` remains only as the server-side path (Telegram). Requires a storage RLS policy allowing authenticated users to insert into `user_uploads`.
+
+**Rejected — Option B:** shipping `.env` (with the service-role key) inside the desktop build. One-line change, but it places an **RLS-bypassing secret on every user's disk**. Not acceptable.
+
+**Also in scope:** `src/app/api/images/route.ts` `SAFE_FILENAME` only permits `png|jpe?g|gif|webp`, so any **PDF or other non-image** stored in Supabase gets a `/api/images?file=…pdf` URL that this route rejects with 400. Widen it or route non-images separately.
+
+**Migration:** existing attachments point at dead local paths. Decide with the owner whether to backfill from whichever machine still holds the file, or accept that historical images stay broken.
+
+**Acceptance:** attach an image on device A → it renders on device B, and vice-versa. (Needs two machines to verify.)
+
+## 5d. Telegram parity (NEW — 2026-07-13)
+
+> Not in the original spec. Telegram shares `runChain` (and therefore router v2, tiers, memory, tools) but its webhook is under-wired. Ships with step 5, on top of the §5b unified pipeline.
+
+**Bug 1 — an album produces one reply per image.** `media_group_id` appears nowhere in `src/app/api/telegram/webhook/route.ts`. Telegram delivers an album as N separate updates sharing that id; each is processed as an independent message. `photoBuffer` is also a single `Buffer`. (`runChain` already accepts `Buffer[]` — `chainRouter.ts:159` — so only the webhook is single-image.)
+
+**The naive fix is wrong:** album items arrive as **separate serverless invocations with no shared memory**, so an in-memory map/debounce works locally and silently breaks on Vercel. Batching state must live in the DB:
+
+1. Migration: `telegram_media_groups(media_group_id text primary key, chat_id text, file_ids jsonb, caption text, processed boolean default false, created_at timestamptz default now())`.
+2. On a message with `media_group_id`, append its `file_id` (and the caption — Telegram puts it on only one item of the album).
+3. After a short settle window (~1.5-2s), **claim atomically**: `UPDATE … SET processed = true WHERE media_group_id = $1 AND processed = false RETURNING *`. Only the claiming invocation runs `runChain`; the others return 200 and do nothing.
+4. The claimer downloads all `file_ids` and calls `runChain` once with the full attachment set (via the §5b pipeline).
+5. Clean up rows older than ~10 minutes.
+
+**Bug 2 — Telegram images show as empty bubbles in the web chat.** The webhook **never persists attachments**: it downloads each photo to a Buffer, hands it to `runChain`, and writes no `attachments` array on the message row. Fix: upload each file to the §5c durable store and write the URLs into the message's `attachments` (shape: `AIAttachment`, `src/data/store.types.ts:266`).
+
+**Bug 3 — wrong timezone on Telegram.** The webhook's `runChain` call (`webhook/route.ts:579`) passes **no `clientTime`**, unlike the web route (`api/ai/chat/route.ts:190`). The server falls back to its own clock (UTC on Vercel), so "remind me tomorrow at 6pm" and the today/overdue task filters compute in the wrong timezone. Fix: persist the user's timezone on the linked user record and pass `clientTime` through. *Small and standalone — can ship first.*
+
+**Also missing vs. the web route** (lower priority, decide case by case): `clientHistory`, `thinkingEnabled`, `replyContext`, `intentTag`, `advisorEnabled`.
+
+**Acceptance:** a 4-image album → exactly ONE reply referencing all four, images render in the web chat, and "remind me tomorrow 6pm" lands at 6pm **local**.
+
 ## 6. Server-side action state (pending confirmations & multi-step ops)
+
+### 6a. Grounding guard + tool-loop guard — ✅ DONE (2026-07-12, pulled forward)
+
+Grounding guard: after each turn, if the reply text claims a create/update/delete but no matching successful tool call happened this turn, the reply is regenerated or replaced with an honest error. Error sentinels (`*System Overload*`) are never written into replayable history.
+
+**Shipped.** `hasUngroundedActionClaim` previously returned "fine" as soon as **any** tool call was captured, regardless of outcome — so a *failed* `create_content` still let the bot say "Done. Created your note." It now requires a **mutating** tool (create/update/append/move/delete/manage_memory) to have actually **succeeded**; a successful *read* never grounds a mutation claim. Fails safe (a mutation with no success flag counts as succeeded, so the bot is never falsely accused).
+
+**Also shipped (not originally specced):** a **repeat-call guard**. Nothing stopped a model re-issuing an identical tool call that had just failed, burning every remaining hop — worse since Smart tier moved to 8 hops. `checkRepeatedFailure`/`recordToolFailure` live in the shared `toolLoopConfig.ts` (deliberately shared, not inlined per-provider — that duplication is exactly how `MAX_TOOL_HOPS` drifted). On an exact repeat of an already-failed call the handler is skipped and the model gets a synthetic result naming the prior error. It is a **nudge, not a loop-kill**: different args, different tools, and repeated successful reads all still run, so legitimate retries survive.
+
+### 6b. Action state — ⬜ NOT STARTED
 
 New session-scoped state object (stored with session state) tracking:
 
 - **Pending confirmation**: e.g. delete dry-run issued → list of ids awaiting yes/no. A following "yes" executes deterministically; "no"/anything else clears it. No re-classification of "yes".
 - **Multi-step operations**: e.g. create workspace → create note inside; step list with produced ids, so step 2 survives model failures and swaps.
-
-Grounding guard: after each turn, if the reply text claims a create/update/delete but no matching successful tool call happened this turn, the reply is regenerated or replaced with an honest error. Error sentinels (`*System Overload*`) are never written into replayable history.
 
 ## 7. Memory v2
 
@@ -243,12 +327,29 @@ Today `reminder` is a stored string that nothing fires. New:
 
 ## 13. Build order (implementation plan input)
 
-1. P0 fixes (§9) — independent, ship first.
-2. Category collapse + classifier simplification (§2) + thinking values (§3) + PRIMARY tiers (§4) — behind a `router_v2` flag; golden set runs against old and new until v2 holds, then old categories are deleted. Classifier model choice deferred pending user testing (candidates: gpt-oss-20b vs llama-3.1-8b).
-2b. Tool rework (§7c).
+Live status lives in **§0**. This is the sequence; it has been reordered once (see
+note below). Work is folded into this spec — no separate plan documents.
+
+1. ✅ P0 fixes (§9) — independent, shipped first.
+2. ✅ Category collapse + classifier simplification (§2) + thinking values (§3) + PRIMARY tiers (§4) — behind a `router_v2` flag; verified live, flag enabled. Classifier model swap (gpt-oss-20b vs llama-3.1-8b) **deferred**: the few-shot "count the operations" prompt stabilized llama-8b.
+2b. ✅ Tool rework (§7c).
+4a. ✅ Grounding guard + tool-loop guard (§6a) — pulled forward out of step 4.
+8. ✅ Prompt diet (§10) — substantially done alongside step 2 (~9k→~4k tokens, prompt caching fixed).
+
+**⬅️ NEXT — 5. Attachments (§5b native pipeline + §5c durable storage + §5d Telegram parity).**
+
+> **Reorder note (2026-07-13):** step 5 was moved ahead of steps 3 and 4b. The
+> original order was written before live testing surfaced four broken behaviours:
+> images invisible across devices (§5c), Telegram albums split into N replies and
+> images not persisted (§5d), and image+action turns being structurally impossible
+> (§5b). Those are broken functionality; steps 3 and 4b are quality improvements.
+> Broken beats better.
+
+Remaining, in order:
+
+5. **Attachments** — §5b (native pipeline, delete the twin) + §5c (durable storage, Option A) + §5d (Telegram parity). Suggested internal order: §5d bug 3 (`clientTime`, quick + standalone) → §5c (unblocks §5d bug 2) → §5b (core) → §5d bugs 1-2.
+7b. Compaction rework (§7b) — pairs naturally with §5b's history cost policy.
 3. Context pack + workspace descriptions (§5).
-4. Action state + grounding guard (§6).
-5. Compaction rework (§7b) + native attachments (§5b).
+4b. Action state (§6b).
 6. Memory v2 incl. session descriptions (§7).
 7. Notifications v1 (§8).
-8. Prompt diet finalization (§10) — iterates alongside 2–6.
