@@ -6,7 +6,7 @@ import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { toGeminiThinkingBudget } from '../reasoning'
 import { summarizeToolCalls } from '../services/toolSummary'
-import { resolveMaxToolHops } from '../toolLoopConfig'
+import { resolveMaxToolHops, checkRepeatedFailure, recordToolFailure } from '../toolLoopConfig'
 
 
 // Per-key concurrency semaphore: serializes API calls per key to avoid rate-limit storms
@@ -240,6 +240,8 @@ export async function runGoogle(
           let currentResponse = rslt.response
           const MAX_TOOL_HOPS = resolveMaxToolHops(context)
           let hops = 0
+          // Persists across hops: key -> error of a call that already failed.
+          const failedToolCalls = new Map<string, string>()
 
           while (currentResponse.functionCalls() && currentResponse.functionCalls().length > 0 && hops < MAX_TOOL_HOPS) {
             hops++
@@ -248,13 +250,18 @@ export async function runGoogle(
             for (const call of toolCalls) {
               const handler = toolHandlers[call.name]
               if (handler) {
-                const output = await (handler as any)(call.args, context)
-                toolResults.push({ functionResponse: { name: call.name, response: output } })
-                if (([] as string[]).includes(call.name)) {
-                  capturedToolCalls.push({ ...call.args, ...output, tool: call.name })
-                } else {
-                  capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error })
+                const repeat = checkRepeatedFailure(call.name, call.args, failedToolCalls)
+                if (repeat) {
+                  // Identical call already failed — don't re-run the handler.
+                  toolResults.push({ functionResponse: { name: call.name, response: repeat } })
+                  continue
                 }
+                const output = await (handler as any)(call.args, context)
+                if (output?.error) {
+                  recordToolFailure(call.name, call.args, String(output.error), failedToolCalls)
+                }
+                toolResults.push({ functionResponse: { name: call.name, response: output } })
+                capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error })
               }
             }
             if ((context as any)?.onEvent) {

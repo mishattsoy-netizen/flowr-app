@@ -6,7 +6,7 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { toOpenRouterReasoning } from '../reasoning'
 import { summarizeToolCalls } from '../services/toolSummary'
-import { resolveMaxToolHops } from '../toolLoopConfig'
+import { resolveMaxToolHops, checkRepeatedFailure, recordToolFailure } from '../toolLoopConfig'
 
 export async function runOpenRouter(
   modelId: string,
@@ -118,6 +118,8 @@ export async function runOpenRouter(
         const MAX_TOOL_HOPS = resolveMaxToolHops(normContext)
         let hops = 0
         const capturedToolCalls: any[] = []
+        // Persists across hops: key -> error of a call that already failed.
+        const failedToolCalls = new Map<string, string>()
 
         while (hops < MAX_TOOL_HOPS) {
           const toolRequestBody: any = {
@@ -201,15 +203,20 @@ export async function runOpenRouter(
             hops++
             for (const call of message.tool_calls) {
               const handler = toolHandlers[call.function.name]
-              let output = { error: 'Tool not found' }
+              let output: any = { error: 'Tool not found' }
 
               if (handler) {
                 try {
                   const args = JSON.parse(call.function.arguments)
-                  output = await handler(args, normContext)
-                  if (([] as string[]).includes(call.function.name)) {
-                    capturedToolCalls.push({ ...args, ...output, tool: call.function.name })
+                  const repeat = checkRepeatedFailure(call.function.name, args, failedToolCalls)
+                  if (repeat) {
+                    // Identical call already failed — don't re-run the handler.
+                    output = repeat
                   } else {
+                    output = await handler(args, normContext)
+                    if (output?.error) {
+                      recordToolFailure(call.function.name, args, String(output.error), failedToolCalls)
+                    }
                     capturedToolCalls.push({ ...args, ...output, tool: call.function.name, success: !output?.error })
                   }
                 } catch (e: any) {

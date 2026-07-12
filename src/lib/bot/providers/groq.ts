@@ -5,7 +5,7 @@ import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { streamOpenAICompatible } from './stream-utils'
 import { summarizeToolCalls } from '../services/toolSummary'
-import { resolveMaxToolHops } from '../toolLoopConfig'
+import { resolveMaxToolHops, checkRepeatedFailure, recordToolFailure } from '../toolLoopConfig'
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions'
 
@@ -90,6 +90,8 @@ export async function runGroq(
       const MAX_TOOL_HOPS = resolveMaxToolHops(context)
       let hops = 0
       const capturedToolCalls: any[] = []
+      // Persists across hops: key -> error of a call that already failed.
+      const failedToolCalls = new Map<string, string>()
 
       while (hops < MAX_TOOL_HOPS) {
         const response = await fetch(GROQ_API, {
@@ -127,15 +129,20 @@ export async function runGroq(
           hops++
           for (const call of message.tool_calls) {
             const handler = toolHandlers[call.function.name]
-            let output = { error: 'Tool not found' }
+            let output: any = { error: 'Tool not found' }
 
             if (handler) {
               try {
                 const args = JSON.parse(call.function.arguments)
-                output = await handler(args, context)
-                if (([] as string[]).includes(call.function.name)) {
-                  capturedToolCalls.push({ ...args, ...output, tool: call.function.name })
+                const repeat = checkRepeatedFailure(call.function.name, args, failedToolCalls)
+                if (repeat) {
+                  // Identical call already failed — don't re-run the handler.
+                  output = repeat
                 } else {
+                  output = await handler(args, context)
+                  if (output?.error) {
+                    recordToolFailure(call.function.name, args, String(output.error), failedToolCalls)
+                  }
                   capturedToolCalls.push({ ...args, ...output, tool: call.function.name, success: !output?.error })
                 }
               } catch (e: any) {
