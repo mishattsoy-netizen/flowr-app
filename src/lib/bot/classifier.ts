@@ -6,6 +6,7 @@ import { supabaseAdmin } from '../supabase'
 import type { BotMode } from '@/data/store.types'
 import { isModelFailed, markModelFailed } from './chainRouter'
 import { TraceCollector } from './tracing'
+import { parseClassifierV2Output, type V2Classification } from './routerV2'
 
 function trackModelUsage(modelId: string, provider: string) {
   supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
@@ -140,6 +141,119 @@ export function isRetryMessage(message: string): boolean {
   const wordCount = clean.split(/\s+/).length
   if (wordCount < 40 && LAZY_REFERENCES.some(ref => clean.includes(ref))) return true
   return false
+}
+
+export const TAG_CATEGORY_MAP_V2: Record<string, V2Classification> = {
+  '/search':   { category: 'WEB_SEARCH', complexity: 'normal', action: false },
+  '/research': { category: 'RESEARCH',   complexity: 'normal', action: false },
+  '/image':    { category: 'IMAGE_GEN',  complexity: 'normal', action: false },
+  '/tool':     { category: 'PRIMARY',    complexity: 'normal', action: true },
+  '/code':     { category: 'PRIMARY',    complexity: 'hard',   action: false },
+}
+
+export interface ClassifyV2Result {
+  classification: V2Classification | null
+  classifierModel: string
+  trace: ClassifyTrace[]
+  trigger_type?: 'keyword' | 'tag' | 'ai' | 'vision' | 'history_retry'
+  trigger_value?: string
+  error?: string
+}
+
+/**
+ * v2 classifier: outputs {category, complexity, action} as JSON instead of a
+ * single category word. No keyword fast-path (those regexes caused misroutes
+ * — see resolveImageContext's bug history above); relies on tags + the model.
+ */
+export async function classifyIntentV2(
+  message: string,
+  aiApiKey?: string,
+  modelId?: string,
+  mode: BotMode = 'default',
+  intentTag?: string | null,
+  history: any[] = [],
+  replyContext?: { attentionBlock?: string } | null,
+  tracer?: TraceCollector
+): Promise<ClassifyV2Result> {
+  if (intentTag && TAG_CATEGORY_MAP_V2[intentTag]) {
+    return { classification: TAG_CATEGORY_MAP_V2[intentTag], classifierModel: 'Intent Tag', trace: [], trigger_type: 'tag', trigger_value: intentTag }
+  }
+
+  if (isRetryMessage(message) && history.length > 0) {
+    const lastUserMsg = [...history].reverse().find(h => h.role === 'user')
+    const lastText = (lastUserMsg?.parts?.[0]?.text || lastUserMsg?.content || '').trim()
+    if (lastText && lastText.toLowerCase() !== message.trim().toLowerCase()) {
+      return classifyIntentV2(lastText, aiApiKey, modelId, mode, intentTag, [], replyContext, tracer)
+    }
+  }
+
+  let activePrompt = ''
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    activePrompt = fs.readFileSync(path.join(process.cwd(), 'src/lib/bot/prompts/chains/classifier_v2.txt'), 'utf8')
+  } catch {
+    logger.warn('Failed to read classifier_v2.txt — v2 classification unavailable.')
+    return { classification: null, classifierModel: 'Error', trace: [], error: 'classifier_v2.txt missing' }
+  }
+
+  const { hasVisionContext, refersToPriorImage, mixedIntent, contextHint } = resolveImageContext(message, history)
+  const replyPrefix = replyContext?.attentionBlock ? replyContext.attentionBlock + '\n\n' : ''
+  const finalUserPrompt = `${replyPrefix}${contextHint}\nUser: "${message}"`
+
+  const { chain } = await getRouterChain('CLASSIFIER', 'default')
+  let activeChain = chain && chain.length > 0 ? chain : [{ id: 'openai/gpt-4o-mini', provider: 'openrouter', openrouter_provider: 'openai', is_enabled: true } as any]
+  if (modelId) {
+    const selected = chain.find(m => m.id === modelId)
+    activeChain = selected ? [selected] : [{ id: modelId, provider: 'google', is_enabled: true } as any]
+  }
+
+  const trace: ClassifyTrace[] = []
+  for (const modelConfig of activeChain) {
+    if (!modelConfig.is_enabled) continue
+    if (isModelFailed(modelConfig.id)) { trace.push({ model: modelConfig.id, key: 'SKIPPED', success: false }); continue }
+
+    const provider = modelConfig.provider.toLowerCase()
+    let key = (provider === 'google' || provider === 'gemini') ? 'GEMINI' : modelConfig.provider.toUpperCase()
+    const t0 = Date.now()
+    const traceMeta = { chain: 'CLASSIFIER', model: modelConfig.id, provider: modelConfig.provider, key: `${key} 1`, input_system: activePrompt, input_user: finalUserPrompt, input_history_count: history.length }
+
+    try {
+      let rawResponse: any = null
+      if (provider === 'google' || provider === 'gemini') {
+        rawResponse = await runGoogle(modelConfig.id, finalUserPrompt, activePrompt, undefined, { aiApiKey }, history)
+      } else if (provider === 'groq') {
+        rawResponse = await runGroq(modelConfig.id, finalUserPrompt, activePrompt, aiApiKey, { aiApiKey }, history)
+      } else if (provider === 'openrouter') {
+        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, finalUserPrompt, activePrompt, history, aiApiKey, modelConfig.openrouter_provider || undefined)
+        rawResponse = typeof orRes === 'string' ? orRes : (orRes as any)?.content || null
+      }
+
+      const content = typeof rawResponse === 'object' && rawResponse ? rawResponse.content : rawResponse
+      const parsed = content ? parseClassifierV2Output(content) : null
+      if (parsed) {
+        let final = parsed
+        // Prior-image guard: explicit reference to an uploaded image never routes to the web
+        if ((parsed.category === 'WEB_SEARCH' || parsed.category === 'RESEARCH') && hasVisionContext && refersToPriorImage && !mixedIntent) {
+          final = { ...parsed, category: 'PRIMARY' }
+        }
+        trace.push({ model: modelConfig.id, key: `${key} 1`, success: true })
+        tracer?.recordSuccess({ ...traceMeta, output: JSON.stringify(final) }, Date.now() - t0)
+        trackModelUsage(modelConfig.id, modelConfig.provider)
+        return { classification: final, classifierModel: modelConfig.id, trace, trigger_type: 'ai', trigger_value: modelConfig.id }
+      }
+      trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
+      tracer?.recordFailed({ ...traceMeta, error: 'no parsable v2 classification' }, Date.now() - t0)
+    } catch (error: any) {
+      markModelFailed(modelConfig.id)
+      trace.push({ model: modelConfig.id, key: `${key} 1`, success: false })
+      tracer?.recordFailed({ ...traceMeta, error: error.message }, Date.now() - t0)
+    }
+  }
+
+  const errMsg = 'Classifier v2: all models exhausted.'
+  logger.error(errMsg)
+  return { classification: null, classifierModel: 'Error', trace, error: errMsg }
 }
 
 export async function classifyIntentWithModel(

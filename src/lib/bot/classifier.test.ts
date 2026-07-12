@@ -111,3 +111,15 @@ describe('isRetryMessage', () => {
     expect(isRetryMessage('same as last time please')).toBe(true)
   })
 })
+
+import { TAG_CATEGORY_MAP_V2 } from './classifier'
+
+describe('TAG_CATEGORY_MAP_V2', () => {
+  it('maps tags to v2 classifications', () => {
+    expect(TAG_CATEGORY_MAP_V2['/search']).toEqual({ category: 'WEB_SEARCH', complexity: 'normal', action: false })
+    expect(TAG_CATEGORY_MAP_V2['/research']).toEqual({ category: 'RESEARCH', complexity: 'normal', action: false })
+    expect(TAG_CATEGORY_MAP_V2['/image']).toEqual({ category: 'IMAGE_GEN', complexity: 'normal', action: false })
+    expect(TAG_CATEGORY_MAP_V2['/tool']).toEqual({ category: 'PRIMARY', complexity: 'normal', action: true })
+    expect(TAG_CATEGORY_MAP_V2['/code']).toEqual({ category: 'PRIMARY', complexity: 'hard', action: false })
+  })
+})
