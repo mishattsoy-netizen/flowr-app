@@ -735,9 +735,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
           activeDragId && "is-dragging"
         )}
-        style={{
-          width: effectiveCollapsed ? 60 : sidebarWidth,
-        }}
       >
         {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 20 }} />}
         
@@ -748,9 +745,27 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           )}
         >
           {effectiveCollapsed ? null : (
-            <span className="font-serif font-normal text-[24px] text-bone-100 tracking-tight leading-none select-none pl-[8px]">
-              Flowr
-            </span>
+            <>
+              <span className="font-serif font-normal text-[24px] text-bone-100 tracking-tight leading-none select-none pl-[8px]">
+                Flowr
+              </span>
+              {!isDesktopEnv && (
+                <div className="flex items-center gap-1 pr-[2px]">
+                  <button
+                    onClick={() => toggleCommandPalette()}
+                    className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-all"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={toggleSidebar}
+                    className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)] transition-all"
+                  >
+                    <PanelLeft className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
