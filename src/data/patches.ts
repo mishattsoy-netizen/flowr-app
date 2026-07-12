@@ -22,11 +22,47 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.4',
+    build: '1304',
+    date: '2026-07-12',
+    title: 'AI Reliability Overhaul, Local-Only Workspaces & Interface Polish',
+    featured: true,
+    sections: [
+      {
+        type: 'fixed',
+        items: [
+          'The AI no longer claims it finished something it never actually did. If a note, task, or deletion fails behind the scenes, it now tells you honestly instead of confidently reporting success.',
+          'When the AI creates or updates something, it now tells you exactly what it did (for example: "Created \'Buy groceries\'"), replacing the vague "Successfully executed 4 tool actions" message.',
+          'Fixed a privacy issue where personal details the AI remembered about you could be included in requests sent to the image-generation service. Image prompts now contain only your visual request.',
+          'Short replies like "yes" are no longer misread as a brand-new question. Confirming a delete now does what you expect instead of triggering an unrelated web search.',
+          'Fixed image descriptions being attached to the wrong message, which caused the AI to answer about a completely different picture than the one you sent.',
+          'Internal error messages and behind-the-scenes tool notes no longer leak into your chat history or Telegram messages.'
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          'Workspaces can now be set to local-only on desktop: their content stays on your machine and is never uploaded to the cloud, with a clear confirmation step before you switch.',
+          'The web sidebar header now has quick search and collapse buttons right where you need them.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Split-view headers are properly aligned at last: buttons, tabs, and controls all sit on the same line, and the divider line now runs cleanly across the full width of the header.',
+          'Tab corners now render crisply at every zoom level, with no more hairline gaps or doubled lines where the rounded corners meet.',
+          'Loading skeletons across the dashboard, sidebar, notes, chat, and tasks now match the real layout, so the app no longer visibly jumps as content appears.',
+          'Removed the legacy local file-watcher system on desktop; the local database is now the single source of truth, making startup and saving more reliable.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.3',
     build: '1303',
     date: '2026-07-10',
     title: 'Desktop Local-First Architecture, AI Deletions & Chat Polish',
-    featured: true,
+    featured: false,
     sections: [
       {
         type: 'added',
