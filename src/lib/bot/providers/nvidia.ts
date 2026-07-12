@@ -5,6 +5,7 @@ import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { streamOpenAICompatible } from './stream-utils'
 import { summarizeToolCalls } from '../services/toolSummary'
+import { resolveMaxToolHops } from '../toolLoopConfig'
 
 const NVIDIA_API = 'https://integrate.api.nvidia.com/v1/chat/completions'
 
@@ -87,7 +88,7 @@ export async function runNvidia(
       }
 
       // Tool-calling path: non-streaming
-      const MAX_TOOL_HOPS = 4
+      const MAX_TOOL_HOPS = resolveMaxToolHops(context)
       let hops = 0
       const capturedToolCalls: any[] = []
 

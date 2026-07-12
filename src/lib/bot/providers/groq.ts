@@ -5,6 +5,7 @@ import { toolHandlers } from '../tools/handlers'
 import { detectMimeType } from '../image-utils'
 import { streamOpenAICompatible } from './stream-utils'
 import { summarizeToolCalls } from '../services/toolSummary'
+import { resolveMaxToolHops } from '../toolLoopConfig'
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions'
 
@@ -86,7 +87,7 @@ export async function runGroq(
       }
 
       // Tool-calling path: non-streaming due to tool loop
-      const MAX_TOOL_HOPS = 4
+      const MAX_TOOL_HOPS = resolveMaxToolHops(context)
       let hops = 0
       const capturedToolCalls: any[] = []
 

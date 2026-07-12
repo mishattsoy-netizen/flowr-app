@@ -6,6 +6,7 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { toOpenRouterReasoning } from '../reasoning'
 import { summarizeToolCalls } from '../services/toolSummary'
+import { resolveMaxToolHops } from '../toolLoopConfig'
 
 export async function runOpenRouter(
   modelId: string,
@@ -114,7 +115,7 @@ export async function runOpenRouter(
 
       // Tool-calling path: non-streaming due to tool loop
       if (normContext.useTools) {
-        const MAX_TOOL_HOPS = 4
+        const MAX_TOOL_HOPS = resolveMaxToolHops(normContext)
         let hops = 0
         const capturedToolCalls: any[] = []
 

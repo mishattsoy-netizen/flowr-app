@@ -1,5 +1,6 @@
 import { classifyIntentWithModel, classifyIntentV2 } from './classifier'
 import { selectTier, resolveThinkingLevel } from './routerV2'
+import { resolveMaxToolHops as _resolveMaxToolHops } from './toolLoopConfig'
 import { sanitizeOutput, stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
 import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
@@ -677,6 +678,8 @@ export async function runChain(
     category = 'COMPLEX'
   }
 
+  // Hoist tier so it's accessible when building routeContext below.
+  let primaryTier: 'smart' | 'light' | undefined
   let { chain, temperature, thinking_budget } = await (async () => {
     if (routerV2 && category === 'PRIMARY') {
       const routerMode = (context?.mode === 'pro' ? 'pro' : 'default') as 'pro' | 'default'
@@ -685,6 +688,7 @@ export async function runChain(
         complexity: v2Flags?.complexity ?? 'normal',
         extendedThinking: thinkingEnabled,
       })
+      primaryTier = tier
       const [smart, light] = await Promise.all([
         getRouterChain('PRIMARY_SMART', routerMode),
         getRouterChain('PRIMARY_LIGHT', routerMode),
@@ -977,6 +981,10 @@ IMAGE GENERATION:
             usedKeyIndex: k + 1,
             temperature: typeof temperature === 'number' ? temperature : undefined,
             thinkingBudget: thinking_budget,
+            // toolTier drives resolveMaxToolHops() in each provider.
+            // PRIMARY paths carry the real tier; all others default to 'smart'
+            // which resolves to MAX_TOOL_HOPS_LIGHT (4) — same as today's hardcoded value.
+            toolTier: (routerV2 && category === 'PRIMARY') ? (primaryTier ?? 'smart') : 'smart',
             setSynthesisModel: (m: string) => { usedSynthesisModel = m }
           }
 
