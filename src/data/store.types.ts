@@ -178,7 +178,7 @@ export interface Entity {
   lastModified: number;
   icon?: string;
   tags?: string[];
-  content?: EditorBlock[];
+  content?: any; // EditorBlock[] (legacy) or JSONContent (tiptap)
   widgetLayout?: WidgetConfig[];
   spaceId?: string | null;
 
@@ -624,7 +624,7 @@ export interface AppState {
   insertSidebarDivider: (parentId: string | null) => void;
   toggleCommandPalette: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  updateEntityContent: (id: string, content: EditorBlock[]) => void;
+  updateEntityContent: (id: string, content: any) => void;
   addTagToEntity: (id: string, tag: string) => void;
   removeTagFromEntity: (id: string, tag: string) => void;
   updateTagInEntity: (id: string, oldTag: string, newTag: string) => void;

@@ -476,7 +476,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   };
 
   const btnCls = (ok: boolean) =>
-    `flex items-center justify-center rounded-[var(--radius-small)] [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-7 h-7' : 'w-6 h-6'} ${ok ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer' : 'text-border opacity-30 cursor-default'}`;
+    `flex items-center justify-center rounded-[var(--radius-medium)] [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'} ${ok ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer transition-opacity' : 'text-border opacity-30 cursor-default'}`;
 
   if (!isTabsHeaderVisible && !isDesktopEnv) return null;
 
@@ -518,6 +518,8 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           <Tooltip content="Go Back">   <button onClick={goBack}               className={btnCls(true)}><ArrowLeft  strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
           <Tooltip content="Go Forward"><button onClick={goForward}             className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
           <Tooltip content="Refresh">    <button onClick={() => window.location.reload()}              className={btnCls(true)}><RotateCw   strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
+          <Tooltip content="Search">     <button onClick={toggleCommandPalette}            className={btnCls(true)}><Search     strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
+          <Tooltip content="Toggle Sidebar"><button onClick={toggleSidebar}                 className={btnCls(true)}><PanelLeft  strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
         </div>
       )}
 
@@ -533,7 +535,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
       <div
         ref={tabsRef}
         className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
-        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 12 : (isDesktopEnv ? 32 : 8), paddingRight: splitViewActive ? 0 : 8 }}
+        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 12 : (isDesktopEnv ? 16 : 8), paddingRight: splitViewActive ? 0 : 8 }}
       >
         {!hasHydrated && !splitViewActive && (
           <div className="flex gap-[6px] items-end h-full">
@@ -594,7 +596,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
               {/* ——— Visual tab background (swaps per state; content layer never moves) ——— */}
               {isActive ? (
                 <div
-                  className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-2px]' : 'bottom-0'}`}
+                  className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'}`}
                 >
                   <div 
                     className="absolute inset-0 bg-[var(--app-background)]"
@@ -618,16 +620,18 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                     className="absolute inset-x-0 top-[6px] bottom-[6px] group-hover:bg-[var(--bone-6)] group-hover:backdrop-blur-sm"
                     style={{ borderRadius: R_INACTIVE }}
                   />
-                  <div 
-                    className="absolute bottom-0 inset-x-0 h-[1px] pointer-events-none"
-                    style={{
-                      backgroundColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
-                      maskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
-                                 isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none',
-                      WebkitMaskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
-                                       isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none'
-                    }}
-                  />
+                  {!isDesktopEnv && (
+                    <div 
+                      className="absolute bottom-0 inset-x-0 h-[1px] pointer-events-none"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
+                        maskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
+                                   isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none',
+                        WebkitMaskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
+                                         isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none'
+                      }}
+                    />
+                  )}
                 </>
               )}
 
@@ -698,8 +702,8 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
             <button
               onClick={e => { e.stopPropagation(); if (newItemPopup) { setNewItemPopup(null); return; } const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setNewItemPopup({ x: r.right + 4, y: r.top }); }}
               className={cn(
-                "flex items-center justify-center w-7 h-7 ml-[6px] rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 [-webkit-app-region:no-drag]",
-                newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-opacity shrink-0 [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`,
+                newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
               <Plus strokeWidth={2.5} className="w-4 h-4"/>

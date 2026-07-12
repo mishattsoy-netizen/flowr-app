@@ -1684,6 +1684,7 @@ a:focus:not(:focus-visible),
   width: 0;
   height: 0;
 }
+
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;

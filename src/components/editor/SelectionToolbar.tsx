@@ -224,7 +224,7 @@ export function SelectionToolbar({ editorRef, isReadOnly = false }: { editorRef:
     const range = sel.getRangeAt(0);
     const span = document.createElement('span');
     span.className = colorClass;
-    try { range.surroundContents(span); } catch {}
+    try { range.surroundContents(span); } catch { }
     setShowHighlightPicker(false);
   };
 

@@ -22,6 +22,28 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.5',
+    build: '1305',
+    date: '2026-07-12',
+    title: 'Note Editor Polish & Unified UI Consistency',
+    featured: false,
+    sections: [
+      {
+        type: 'improved',
+        items: [
+          'Polished the Note Editor: improved the selection toolbar, refined list block styles, and upgraded overall typography for a cleaner reading experience.',
+          'Enhanced UI Consistency: aligned header paddings, button sizes, and hover effects perfectly across both the Web and Desktop app versions.'
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          'Removed the ability to open Chat inside split view — Chat now exclusively opens in full single view mode to preserve screen space and maintain focus.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.4',
     build: '1304',
     date: '2026-07-12',

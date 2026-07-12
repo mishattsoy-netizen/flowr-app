@@ -240,7 +240,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
               }}
               className={cn(
-                "flex items-center justify-center w-7 h-7 ml-[6px] rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
+                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
@@ -312,7 +312,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
               }}
               className={cn(
-                "flex items-center justify-center w-7 h-7 ml-[6px] rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
+                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >

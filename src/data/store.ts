@@ -3425,7 +3425,7 @@ export const useStore = create<AppState>()(
         if (!entity || !entity.content) return;
 
         const newBlock = { ...copiedBlock, id: generateId() };
-        const currentIndex = entity.content.findIndex(b => b.id === afterBlockId);
+        const currentIndex = entity.content.findIndex((b: any) => b.id === afterBlockId);
 
         const newContent = [...entity.content];
         if (currentIndex === -1) {

@@ -38,13 +38,13 @@ function createBlock(type: BlockType = 'text', extra?: Record<string, unknown>):
     style: (extra?.style as BlockStyle) ?? (type === 'text' ? 'body' : undefined),
     checked: type === 'checklist' ? false : undefined,
     columnCount: type === 'columns' ? Math.min((extra?.columnCount as number) ?? 2, 4) : undefined,
-    children: type === 'columns' 
+    children: type === 'columns'
       ? Array.from({ length: Math.min((extra?.columnCount as number) ?? 2, 4) }, () => ({
-          id: generateId(),
-          type: 'column' as const,
-          content: '',
-          children: []
-        }))
+        id: generateId(),
+        type: 'column' as const,
+        content: '',
+        children: []
+      }))
       : (type === 'column' ? [] : undefined),
     tableData: type === 'table' ? [['Header 1', 'Header 2', 'Header 3'], ['', '', ''], ['', '', '']] : undefined,
     mediaUrl: (extra?.mediaUrl as string) || (type === 'image' ? 'https://images.unsplash.com/photo-1544391496-1ca7c97651a2?q=80&w=2000&auto=format&fit=crop' : type === 'video' ? 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' : undefined),
@@ -88,7 +88,7 @@ const findAndRemoveBlock = (list: EditorBlock[], id: string): { list: EditorBloc
       removed = b;
       return [];
     }
-    
+
     if (b.children) {
       const res = findAndRemoveBlock(b.children, id);
       if (res.removed) removed = res.removed;
@@ -101,7 +101,7 @@ const findAndRemoveBlock = (list: EditorBlock[], id: string): { list: EditorBloc
       }
 
       if (b.type === 'column' && res.list.length === 0) {
-          return [{ ...b, children: res.list }];
+        return [{ ...b, children: res.list }];
       }
 
       return [{ ...b, children: res.list }];
@@ -119,7 +119,7 @@ const moveBlocksRecursive = (
   edge: 'top' | 'bottom' | 'left' | 'right'
 ): EditorBlock[] => {
   let removedBlocks: EditorBlock[] = [];
-  
+
   const removeBlocks = (blocks: EditorBlock[]): EditorBlock[] => {
     return blocks.flatMap(b => {
       if (activeIds.includes(b.id)) {
@@ -283,8 +283,8 @@ function TagItem({
           "px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-1 transition-all border",
           (!isEditing && !disabled) ? "cursor-pointer hover:brightness-110" : "cursor-default"
         )}
-        style={{ 
-          backgroundColor: colors.bg, 
+        style={{
+          backgroundColor: colors.bg,
           color: colors.text,
           borderColor: colors.border
         }}
@@ -398,49 +398,49 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   const isFirstMount = useRef<boolean>(true);
   const isUserModified = useRef<boolean>(false);
   const blocksRef = useRef<EditorBlock[]>(blocks);
-  
+
   useEffect(() => {
     blocksRef.current = blocks;
   }, [blocks]);
 
   // Debounced Store Sync
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const debouncedSyncToStore = useCallback((id: string, content: EditorBlock[]) => {
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(() => {
-       updateEntityContent(id, content);
-       lastSyncedVersion.current = JSON.stringify(content || []);
-       isUserModified.current = false; // Reset after sync
+      updateEntityContent(id, content);
+      lastSyncedVersion.current = JSON.stringify(content || []);
+      isUserModified.current = false; // Reset after sync
     }, 1000); // 1s debounce for store persistence
   }, [updateEntityContent]);
 
   useEffect(() => {
     // 1. Entity Switch Protection
     if (entity.id !== lastEntityId.current) {
-       // Flush any pending debounced save for the previous entity before switching
-       if (isUserModified.current) {
-         if (syncTimeoutRef.current) {
-           clearTimeout(syncTimeoutRef.current);
-           syncTimeoutRef.current = null;
-         }
-         updateEntityContent(lastEntityId.current, blocksRef.current);
-       }
+      // Flush any pending debounced save for the previous entity before switching
+      if (isUserModified.current) {
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+          syncTimeoutRef.current = null;
+        }
+        updateEntityContent(lastEntityId.current, blocksRef.current);
+      }
 
-       const newContent = Array.isArray(entity.content) && entity.content.length > 0
+      const newContent = Array.isArray(entity.content) && entity.content.length > 0
         ? entity.content
         : [createBlock('text', { style: 'body' })];
-       setBlocks(newContent);
-       lastSyncedVersion.current = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
-       lastEntityId.current = entity.id;
-       isFirstMount.current = true;
-       isUserModified.current = false;
-       return;
-     }
+      setBlocks(newContent);
+      lastSyncedVersion.current = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
+      lastEntityId.current = entity.id;
+      isFirstMount.current = true;
+      isUserModified.current = false;
+      return;
+    }
 
     const isAiWritingThis = aiCursor?.id === entity.id;
     const storeJson = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
-    
+
     // CASE A: External update (AI or another tab/component)
     if (storeJson !== lastSyncedVersion.current) {
       const localJson = JSON.stringify(blocks);
@@ -449,7 +449,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       }
       lastSyncedVersion.current = storeJson;
       isFirstMount.current = false;
-    } 
+    }
     // CASE B: Local user update
     else if (isUserModified.current && !isAiWritingThis) {
       const localJson = JSON.stringify(blocks);
@@ -560,7 +560,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     // Only handle if clicking on the container background or an empty space
     const target = e.target as HTMLElement;
     const isEditorBg = target === editorRef.current || target.classList.contains('note-editor-bg');
-    
+
     if (isEditorBg) {
       // Clear selection unless Shift is held
       if (!e.shiftKey) {
@@ -577,12 +577,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     // Only trigger if clicking on the background container or empty space
     const target = e.target as HTMLElement;
     const isEditorBg = target.closest('.note-editor-bg') && !target.closest('[data-block-id]');
-    
+
     if (isEditorBg) {
       const newBlock = createBlock('text', { style: 'body' });
       const newBlocks = [...blocks, newBlock];
       persistBlocks(newBlocks);
-      
+
       // Auto-focus the new block
       setTimeout(() => {
         const newEl = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
@@ -603,13 +603,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   useEffect(() => {
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      
+
       // Determine if we clicked inside a block container
       const clickedInsideBlock = !!target.closest('[data-block-id]');
-      
+
       // Determine if we clicked inside an active popup menu (like block options, slash command, or toolbar)
       const clickedInsidePopup = !!target.closest('.popup-glass-small') || !!target.closest('.popup-glass');
-      
+
       // If clicking entirely outside any block and any popup menu (e.g. empty space), reset state
       if (!clickedInsideBlock && !clickedInsidePopup) {
         setSelectedBlockIds(new Set());
@@ -785,10 +785,10 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
           const target = { ...newList[idx] };
           const prevSibling = { ...newList[idx - 1] };
           if (prevSibling.type !== 'divider' && prevSibling.type !== 'columns') {
-             newList.splice(idx, 1);
-             prevSibling.children = [...(prevSibling.children || []), target];
-             newList[idx - 1] = prevSibling;
-             return { newList, found: true };
+            newList.splice(idx, 1);
+            prevSibling.children = [...(prevSibling.children || []), target];
+            newList[idx - 1] = prevSibling;
+            return { newList, found: true };
           }
         }
         let found = false;
@@ -889,7 +889,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               range.deleteContents();
             }
           }
-          
+
           const a = document.createElement('a');
           const url = 'https://flowr.website';
           const label = 'flowr.website';
@@ -898,23 +898,23 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
           a.setAttribute('contenteditable', 'false');
           a.setAttribute('data-url', url);
           a.setAttribute('data-label', label);
-          
+
           const faviconUrl = `https://www.google.com/s2/favicons?domain=flowr.website&sz=32`;
           a.innerHTML = `<span class="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none"><img src="${faviconUrl}" class="w-3 h-3 object-contain select-none opacity-80" alt="" /></span><span class="font-medium pointer-events-none">${label}</span>`;
-          
+
           range.insertNode(a);
-          
+
           const space = document.createTextNode('\u00A0');
           range.setStartAfter(a);
           range.collapse(true);
           range.insertNode(space);
-          
+
           range.setStartAfter(space);
           range.collapse(true);
           sel.removeAllRanges();
           sel.addRange(range);
         }
-        
+
         // Save the updated HTML block content
         updateBlock(blockId, { content: el.innerHTML });
       }
@@ -1016,13 +1016,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const text = e.clipboardData.getData('text');
     const isImageLink = text.match(/\.(jpeg|jpg|gif|png|webp)$/i);
     const isVideoLink = text.match(/(youtube\.com|youtu\.be|vimeo\.com|mp4|webm|ogg)/i);
-    
+
     if (isImageLink || isVideoLink) {
       const type = isImageLink ? 'image' : 'video';
       const focusedEl = document.activeElement as HTMLElement;
       const blockEl = focusedEl.closest('[data-block-id]');
       const afterId = blockEl?.getAttribute('data-block-id');
-      
+
       if (afterId) {
         const block = blocks.find(b => b.id === afterId);
         if (block && block.type === 'text' && !block.content.trim()) {
@@ -1092,13 +1092,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             style: isList ? 'body' : ((extra?.style as BlockStyle) ?? (type === 'text' ? 'body' : b.style)),
             content: (extra?.content as string) ?? b.content,
             columnCount: type === 'columns' ? ((extra?.columnCount as number) ?? 2) : undefined,
-            children: type === 'columns' 
+            children: type === 'columns'
               ? Array.from({ length: (extra?.columnCount as number) ?? 2 }, () => ({
-                  id: generateId(),
-                  type: 'column' as const,
-                  content: '',
-                  children: []
-                })) 
+                id: generateId(),
+                type: 'column' as const,
+                content: '',
+                children: []
+              }))
               : undefined,
             checked: type === 'checklist' ? false : undefined,
           };
@@ -1151,7 +1151,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   const handleTitleBlur = () => {
     const value = (titleRef.current?.textContent ?? '').trim();
     if (value !== entity.title) {
-       renameEntity(entity.id, value || "Untitled");
+      renameEntity(entity.id, value || "Untitled");
     }
     setEditingEntityId(null);
   };
@@ -1223,7 +1223,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   };
 
   return (
-    <div 
+    <div
       ref={editorRef}
       className={cn(
         "flex-1 flex flex-col relative note-editor-bg",
@@ -1252,7 +1252,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               )}
             </button>
           </Tooltip>
-          
+
           <Tooltip content="More Options">
             <button
               onClick={(e) => {
@@ -1270,26 +1270,26 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
       <ScrollWrapper isSplit={splitViewActive}>
         <div
-            className={cn(
-              "mx-auto py-8 editor-content-container note-editor-bg",
-              "max-w-[850px]",
-              splitViewActive ? "pl-[80px] pr-10" : "px-4",
-              isDragging && "dragging-active-content"
-            )}
-            dir="ltr"
-            style={{ direction: 'ltr' }}
-            data-dragging={isDragging}
-          >
+          className={cn(
+            "mx-auto py-8 editor-content-container note-editor-bg",
+            "max-w-[850px]",
+            splitViewActive ? "pl-[80px] pr-10" : "px-4",
+            isDragging && "dragging-active-content"
+          )}
+          dir="ltr"
+          style={{ direction: 'ltr' }}
+          data-dragging={isDragging}
+        >
           <div className="flex flex-col items-center gap-4 mb-4">
-              <div 
-                onDoubleClick={(e) => e.stopPropagation()}
-                className="flex flex-col w-full bg-panel border border-border rounded-3xl widget-shadow overflow-hidden transition-none"
+            <div
+              onDoubleClick={(e) => e.stopPropagation()}
+              className="flex flex-col w-full bg-panel border border-border rounded-3xl widget-shadow overflow-hidden transition-none"
+            >
+              <div
+                className="pr-9 py-6 group relative transition-none duration-0"
+                style={{ paddingLeft: '44px' }}
               >
-                <div 
-                  className="pr-9 py-6 group relative transition-none duration-0"
-                  style={{ paddingLeft: '44px' }}
-                >
-                  <div className="flex items-start justify-between w-full">
+                <div className="flex items-start justify-between w-full">
                   {isLoading ? (
                     <Skeleton className="h-14 w-3/4 rounded-lg bg-[var(--bone-5)]" />
                   ) : (
@@ -1323,12 +1323,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                     </button>
                   )}
                 </div>
-                </div>
+              </div>
 
-                <div 
-                  className="pr-9 py-5 bg-panel flex items-start justify-between"
-                  style={{ paddingLeft: '44px' }}
-                >
+              <div
+                className="pr-9 py-5 bg-panel flex items-start justify-between"
+                style={{ paddingLeft: '44px' }}
+              >
                 <div className="flex items-start gap-x-12 gap-y-4 flex-wrap">
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase opacity-50 leading-none">Last Modified</span>
@@ -1388,17 +1388,17 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             let currentFoldLevel = Infinity;
             const renderedBlocks = blocks.filter((block) => {
               const level = getLevel(block);
-              
+
               if (level <= currentFoldLevel) {
                 currentFoldLevel = Infinity;
               }
-              
+
               const isVisible = currentFoldLevel === Infinity;
-              
+
               if (block.isFolded && currentFoldLevel === Infinity) {
                 currentFoldLevel = level;
               }
-              
+
               return isVisible;
             });
 
@@ -1410,18 +1410,18 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                   {isLoading ? (
                     <div className="flex flex-col gap-4 py-4">
                       {[...Array(8)].map((_, i) => (
-                        <Skeleton 
-                          key={i} 
+                        <Skeleton
+                          key={i}
                           className={cn(
                             "h-5 rounded bg-[var(--bone-5)]",
                             i % 3 === 0 ? "w-full" : i % 3 === 1 ? "w-3/4" : "w-5/6",
                             i === 0 && "h-8 w-1/3 mb-4"
-                          )} 
+                          )}
                         />
                       ))}
                     </div>
                   ) : blocks.length === 0 ? (
-                    <div 
+                    <div
                       className="py-20 text-center cursor-text  group opacity-0 "
                       onClick={() => persistBlocks([createBlock('text')])}
                     >
@@ -1437,7 +1437,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               </div>
             );
           })()}
-          <div 
+          <div
             className={cn("h-32 note-editor-bg", !isReadMode ? "cursor-text" : "cursor-default")}
             onClick={() => {
               if (isReadMode) return;
@@ -1498,20 +1498,20 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       )}
       {optionsMenuPos && (
         <Portal>
-          <div 
+          <div
             className="fixed inset-0 z-[9998]"
             onClick={() => setOptionsMenuPos(null)}
           />
-          <div 
+          <div
             className="fixed z-[9999] popup-glass-small backdrop-blur-xl p-1 min-w-[180px] flex flex-col gap-[2px]"
-            style={{ 
+            style={{
               top: optionsMenuPos.y,
               left: optionsMenuPos.x
             }}
             onClick={(e) => e.stopPropagation()}
             onMouseLeave={() => setShowExportMenu(false)}
           >
-            <button 
+            <button
               onClick={() => {
                 toggleFavorite(entity.id);
                 setOptionsMenuPos(null);
@@ -1521,8 +1521,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               <Star className={cn("w-3.5 h-3.5", favoriteIds.includes(entity.id) ? "fill-accent text-accent" : "text-[var(--bone-40)]")} />
               <span>{favoriteIds.includes(entity.id) ? "Unpin from sidebar" : "Pin to sidebar"}</span>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => {
                 setEditingEntityId(entity.id, 'view');
                 setOptionsMenuPos(null);
@@ -1532,8 +1532,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               <Pencil className="w-3.5 h-3.5 text-[var(--bone-40)]" />
               <span>Rename</span>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => {
                 navigator.clipboard.writeText(window.location.href);
                 setOptionsMenuPos(null);
@@ -1543,8 +1543,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               <Link className="w-3.5 h-3.5 text-[var(--bone-40)]" />
               <span>Copy link</span>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => {
                 duplicateEntity(entity.id);
                 setOptionsMenuPos(null);
@@ -1554,12 +1554,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               <Copy className="w-3.5 h-3.5 text-[var(--bone-40)]" />
               <span>Duplicate</span>
             </button>
-            
-            <div 
+
+            <div
               className="relative"
               onMouseEnter={() => setShowExportMenu(true)}
             >
-              <button 
+              <button
                 className="popup-item flex items-center justify-between w-full text-left"
                 onClick={() => setShowExportMenu(true)}
               >
@@ -1569,21 +1569,21 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                 </div>
                 <ChevronRight className="w-3 h-3 text-[var(--bone-40)]" />
               </button>
-              
+
               {showExportMenu && (
                 <div className="absolute right-[calc(100%+4px)] top-0 z-[10000] popup-glass-small backdrop-blur-xl p-1 min-w-[140px] flex flex-col gap-[2px]">
-                  <button 
+                  <button
                     onClick={() => {
                       openModal({ kind: 'pdfExport', entityId: entity.id, entityTitle: entity.title, blocks });
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>PDF (.pdf)</span>
+                    <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>PDF (.pdf)</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       const mdContent = blocksToMarkdown(blocks);
                       const blob = new Blob([mdContent], { type: 'text/markdown' });
@@ -1595,16 +1595,16 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       URL.revokeObjectURL(url);
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <FileCode className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>Markdown (.md)</span>
+                    <FileCode className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>Markdown (.md)</span>
                   </button>
-                  
+
                   <div className="popup-divider" />
-                  
-                  <button 
+
+                  <button
                     onClick={() => {
                       // Remove markdown styling for a cleaner plain text file, but keep structural newlines
                       const txtContent = blocksToMarkdown(blocks)
@@ -1613,7 +1613,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                         .replace(/`(.*?)`/g, '$1') // remove code
                         .replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)') // clean links
                         .replace(/\[pill:(.*?)\]\((.*?)\)/g, '$1 ($2)'); // clean pill links
-                      
+
                       const blob = new Blob([txtContent], { type: 'text/plain' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
@@ -1623,13 +1623,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       URL.revokeObjectURL(url);
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>Text (.txt)</span>
+                    <FileText className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>Text (.txt)</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       // We will need to implement actual image export, for now just basic handler
                       import('html-to-image').then((htmlToImage) => {
@@ -1645,13 +1645,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       });
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <ImageIcon className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>Image (.png)</span>
+                    <ImageIcon className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>Image (.png)</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       const jsonContent = JSON.stringify({ title: entity.title, blocks }, null, 2);
                       const blob = new Blob([jsonContent], { type: 'application/json' });
@@ -1663,13 +1663,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       URL.revokeObjectURL(url);
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <FileJson className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>JSON (.json)</span>
+                    <FileJson className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>JSON (.json)</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       const htmlContent = `<html><head><title>${entity.title}</title></head><body>` + blocks.map(b => `<p>${b.content}</p>`).join('') + `</body></html>`;
                       const blob = new Blob([htmlContent], { type: 'text/html' });
@@ -1681,19 +1681,19 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       URL.revokeObjectURL(url);
                       setOptionsMenuPos(null);
                       setShowExportMenu(false);
-                    }} 
+                    }}
                     className="popup-item flex items-center gap-2 w-full text-left"
                   >
-                     <Globe className="w-3.5 h-3.5 text-[var(--bone-40)]" />
-                     <span>HTML (.html)</span>
+                    <Globe className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                    <span>HTML (.html)</span>
                   </button>
                 </div>
               )}
             </div>
-            
+
             <div className="popup-divider" />
-            
-            <button 
+
+            <button
               onClick={() => {
                 openModal({ kind: 'deleteConfirm', entityId: entity.id });
                 setOptionsMenuPos(null);

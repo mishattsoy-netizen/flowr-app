@@ -159,11 +159,11 @@ function RowEl({
 
   return (
     <div className="flex items-start w-full py-0.5" style={{ paddingLeft: `${row.depth * 24}px` }}>
-      <div 
-        className="shrink-0 flex items-start justify-center mr-2.5 h-[1.7em]" 
-        style={{ 
-          width: '16px', 
-          paddingTop: blockType === 'checklist' ? '5px' : (blockType === 'numberedList' ? '0px' : '11px') 
+      <div
+        className="shrink-0 flex items-start justify-center mr-2.5 h-[1.7em]"
+        style={{
+          width: '16px',
+          paddingTop: blockType === 'checklist' ? '5px' : (blockType === 'numberedList' ? '0px' : '11px')
         }}
       >
         {blockType === 'checklist' ? (
