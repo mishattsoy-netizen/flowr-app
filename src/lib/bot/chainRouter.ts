@@ -982,9 +982,10 @@ IMAGE GENERATION:
             temperature: typeof temperature === 'number' ? temperature : undefined,
             thinkingBudget: thinking_budget,
             // toolTier drives resolveMaxToolHops() in each provider.
-            // PRIMARY paths carry the real tier; all others default to 'smart'
+            // PRIMARY paths carry the real tier; all others default to 'light'
             // which resolves to MAX_TOOL_HOPS_LIGHT (4) — same as today's hardcoded value.
-            toolTier: (routerV2 && category === 'PRIMARY') ? (primaryTier ?? 'smart') : 'smart',
+            // (resolveMaxToolHops only returns SMART for an explicit 'smart' tier.)
+            toolTier: (routerV2 && category === 'PRIMARY') ? (primaryTier ?? 'light') : 'light',
             setSynthesisModel: (m: string) => { usedSynthesisModel = m }
           }
 
