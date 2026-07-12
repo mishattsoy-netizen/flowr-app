@@ -60,6 +60,12 @@ export async function runOpenRouter(
           ...(isAnthropic ? { cache_control: { type: 'ephemeral' } } : {})
         })
       }
+      // Anthropic prefix caching: breakpoint on the last history message caches
+      // all prior turns (history is append-only, so the prefix stays stable).
+      // Max 4 breakpoints per request; we use 2 (system + history tail).
+      if (isAnthropic && historyMessages.length > 0) {
+        ;(historyMessages[historyMessages.length - 1] as any).cache_control = { type: 'ephemeral' }
+      }
       messages.push(...historyMessages)
       let hasPdf = false
       if (imageBuffers) {

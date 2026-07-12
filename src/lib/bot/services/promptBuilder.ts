@@ -45,7 +45,7 @@ export async function buildSystemPrompt(
       now = clientDate
       localTimeString = context.clientTime.match(/\d{2}:\d{2}:\d{2}/)?.[0] || now.toLocaleTimeString()
       localDateString = now.toDateString()
-      
+
       const tzMatch = context.clientTime.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
       if (tzMatch) {
         const sign = tzMatch[1] === '+' ? -1 : 1;
@@ -60,25 +60,22 @@ export async function buildSystemPrompt(
   const utcOffsetHours = -tzOffset / 60;
   const utcLabel = utcOffsetHours >= 0 ? `UTC+${utcOffsetHours}` : `UTC${utcOffsetHours}`;
 
-  let dateContext = `[CURRENT CONTEXT]
+  // Round displayed times to the minute — a per-second timestamp needlessly
+  // differentiates otherwise-identical prompts.
+  const localTimeMinute = localTimeString.replace(/^(\d{1,2}:\d{2}):\d{2}/, '$1')
+  const isoMinute = now.toISOString().slice(0, 16) + 'Z'
+
+  // dateContext is DYNAMIC (changes every request) — it must NOT enter the
+  // static system prompt, or it busts provider prefix caching on every turn.
+  // It travels in dynamicContext (prepended to the user message) instead.
+  const dateContext = `[CURRENT CONTEXT]
 Date: ${localDateString}
-Local Time: ${localTimeString}
-User Timezone: ${utcLabel}
-ISO Time (UTC): ${now.toISOString()}
-Timezone Offset (mins): ${tzOffset}
+Local Time: ${localTimeMinute} (${utcLabel})
+ISO Time (UTC): ${isoMinute}
 
-CRITICAL — DATE/TIME CONVERSION RULES FOR TOOL CALLS:
-All dueDate and endDate values in tool calls MUST be UTC ISO strings (ending in Z).
-The user speaks in LOCAL time (${utcLabel}). You must convert:
-  Formula: UTC hour = Local hour - (${utcOffsetHours})
-  Example: User says "6 PM" → 18:00 local → 18 - (${utcOffsetHours}) = ${18 - utcOffsetHours}:00 UTC → use "${new Date().toISOString().split('T')[0]}T${String(18 - utcOffsetHours).padStart(2, '0')}:00:00.000Z"
-
-CRITICAL — START DATE vs END DATE:
-When the user provides TWO dates (e.g. "start now, end tomorrow at 6pm"):
-  - dueDate = the START date/time (converted to UTC ISO)
-  - endDate = the END date/time (converted to UTC ISO)
-  - includeTime = true (when any time is mentioned)
-You MUST set BOTH dueDate AND endDate. Never omit endDate when the user explicitly mentions an end date or a date range.
+DATE/TIME RULES FOR TOOL CALLS (CRITICAL):
+All dueDate/endDate values MUST be UTC ISO strings (ending in Z). The user speaks in LOCAL time (${utcLabel}): UTC hour = local hour - (${utcOffsetHours}). Example: "6 PM" local → ${String(18 - utcOffsetHours).padStart(2, '0')}:00 UTC.
+When the user gives TWO dates ("start now, end tomorrow 6pm"): dueDate = START, endDate = END, includeTime = true when any time is mentioned. Never omit endDate when the user states an end date or range.
 `
 
   const chainInstructions = getChainInstructions(category)
@@ -112,14 +109,9 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     finalSysPrompt += "\n\n" + getToolInstructions()
   }
 
-  // Inject dynamic date context after the static rules to preserve prefix caching!
-  if (finalSysPrompt) {
-    finalSysPrompt += "\n\n" + dateContext
-  } else {
-    finalSysPrompt = dateContext
-  }
-
-  // Fetch and inject memory fact sheet BEFORE page context
+  // Memory fact sheet stays in the STATIC system prompt: it changes rarely
+  // (only when manage_memory fires), so the whole prefix — global + app +
+  // chain + tools + memory — is byte-stable across turns and cacheable.
   if (context.isGlobalPromptEnabled && context.userId && supabaseAdmin) {
     try {
       const { data: memories } = await supabaseAdmin
@@ -140,17 +132,20 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
     }
   }
 
+  let system_prompt = finalSysPrompt
+
+  // Everything below changes per request/page — it rides in dynamicContext
+  // (prepended to the user message) so the system prompt stays cache-stable.
+  let dynamicContext = dateContext + '\n'
+
   if (context.pageContext && context.pageContext !== 'null') {
     const limit = 15000
     let contextStr = context.pageContext
     if (contextStr.length > limit) {
       contextStr = contextStr.slice(0, limit) + '\n... [TRUNCATED DUE TO LENGTH LIMIT]'
     }
-    finalSysPrompt += `\n\n[PAGE CONTEXT]\n${contextStr}\n`
+    dynamicContext += `[PAGE CONTEXT]\n${contextStr}\n\n`
   }
-
-  let system_prompt = finalSysPrompt
-  let dynamicContext = ''
 
   if (context.vision_notes) {
     dynamicContext += `[VISION DATA]\n${context.vision_notes}\n\n`
