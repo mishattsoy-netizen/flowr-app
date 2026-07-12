@@ -132,4 +132,25 @@ describe('hasUngroundedActionClaim', () => {
     expect(hasUngroundedActionClaim('The company was created in 2019 by two founders.', [])).toBe(false)
     expect(hasUngroundedActionClaim('The file was moved to a new data center last year.', [])).toBe(false)
   })
+  it('flags a claim when the mutating tool RAN but FAILED', () => {
+    expect(hasUngroundedActionClaim('The note has been created.', [
+      { tool: 'create_content', success: false, error: 'permission denied' },
+    ])).toBe(true)
+  })
+  it('flags a claim when only a READ succeeded (reads do not ground mutations)', () => {
+    expect(hasUngroundedActionClaim('I have created the task.', [
+      { tool: 'list_content', success: true },
+    ])).toBe(true)
+  })
+  it('accepts a claim when one mutation succeeded even if another failed', () => {
+    expect(hasUngroundedActionClaim('The task has been created.', [
+      { tool: 'create_content', success: false },
+      { tool: 'create_content', success: true },
+    ])).toBe(false)
+  })
+  it('accepts when a mutation ran and the provider omitted the success flag', () => {
+    expect(hasUngroundedActionClaim('The note has been updated.', [
+      { tool: 'update_content' },
+    ])).toBe(false)
+  })
 })

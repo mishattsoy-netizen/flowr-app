@@ -1347,7 +1347,13 @@ IMAGE GENERATION:
               finalContent = sanitizeOutput(finalContent)
               finalContent = stripToolAnnotations(finalContent)
               if (routeContext.useTools && hasUngroundedActionClaim(finalContent, capturedToolCalls)) {
-                logger.warn(`[GroundingGuard] Reply claims completed action but no tool ran — replacing. Claim: "${finalContent.slice(0, 120)}"`)
+                const failedMutations = (capturedToolCalls ?? [])
+                  .filter((c: any) => c?.success === false && c?.error)
+                  .map((c: any) => `${c.tool}: ${c.error}`)
+                const why = failedMutations.length > 0
+                  ? `tool(s) failed — ${failedMutations.join('; ')}`
+                  : 'no mutating tool ran'
+                logger.warn(`[GroundingGuard] Reply claims completed action but ${why} — replacing. Claim: "${finalContent.slice(0, 120)}"`)
                 finalContent = "⚠️ I wasn't able to complete that action — nothing was changed. Please try again."
               }
             }

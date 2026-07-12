@@ -67,12 +67,33 @@ const ACTION_CLAIM_RE =
 // ordinary prose ("the company was created in 2019" in a search answer).
 const APP_ENTITY_RE = /\b(note|notes|task|tasks|workspace|workspaces|folder|folders|canvas|item|items|memory|memories|reminder|reminders)\b/i
 
+// Tools that actually mutate user content. A successful READ (list_content)
+// does not ground a claim like "I created your note" — only a successful
+// mutation does.
+const MUTATING_TOOLS = new Set([
+  'create_content',
+  'update_content',
+  'append_to_note',
+  'move_content',
+  'delete_content',
+  'manage_memory',
+])
+
 /**
  * True when the reply claims a completed create/update/delete/move of an app
- * entity but no tool call ran this turn. Caller decides how to handle
- * (P0: replace reply). Only call this on tool-enabled turns.
+ * entity but no mutating tool SUCCEEDED this turn. Covers both cases:
+ *   - no tool ran at all (model hallucinated the action outright), and
+ *   - a mutating tool ran but every one of them failed (model reports "Done"
+ *     off a failed create/update — the captured `success` flag catches this).
+ * A successful read (list_content) alone never grounds a mutation claim.
+ * Caller decides how to handle (replace reply). Only call on tool-enabled turns.
  */
 export function hasUngroundedActionClaim(content: string, capturedToolCalls: any[] | undefined): boolean {
-  if (capturedToolCalls && capturedToolCalls.length > 0) return false
-  return ACTION_CLAIM_RE.test(content) && APP_ENTITY_RE.test(content)
+  const claimsAction = ACTION_CLAIM_RE.test(content) && APP_ENTITY_RE.test(content)
+  if (!claimsAction) return false
+
+  const succeededMutation = (capturedToolCalls ?? []).some(
+    (c: any) => MUTATING_TOOLS.has(c?.tool) && c?.success !== false
+  )
+  return !succeededMutation
 }
