@@ -1,4 +1,5 @@
-import { classifyIntentWithModel } from './classifier'
+import { classifyIntentWithModel, classifyIntentV2 } from './classifier'
+import { selectTier, resolveThinkingLevel } from './routerV2'
 import { sanitizeOutput, stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
 import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
@@ -226,8 +227,9 @@ export async function runChain(
   // 1. Specialized Vision Flow (Buffer or URL)
   let activeBuffers = Array.isArray(inputBuffer) ? inputBuffer : (inputBuffer ? [inputBuffer] : [])
 
-  // Advisor pre-flight — runs before classification if enabled and no image attached
-  if (context?.advisorEnabled && activeBuffers.length === 0) {
+  // Advisor pre-flight — runs before classification if enabled and no image attached.
+  // Under router v2, advisor behavior is inline in the PRIMARY prompt instead of a separate gate.
+  if (context?.advisorEnabled && activeBuffers.length === 0 && !pipelineSettings.routerV2Enabled) {
     const availableTools = ['web_search', 'deep_research', 'image_gen', 'tool_calling']
     const historyForAdvisor = (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes('ADVISOR')) ? history : []
     const pendingState = context?.pendingAdvisorState ?? null
@@ -593,6 +595,9 @@ export async function runChain(
   let classifierModel: string | null = forcedCategory ? 'Vision Classifier' : null
   let classifyError: string | null = null
 
+  const routerV2 = pipelineSettings.routerV2Enabled === true
+  let v2Flags: { complexity: 'normal' | 'hard'; action: boolean } | null = null
+
   if (!forcedCategory) {
     onStatus({
       chain: 'CLASSIFIER',
@@ -601,28 +606,54 @@ export async function runChain(
       status: 'running'
     })
     const historyForClassifier = (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes('CLASSIFIER')) ? history.slice(-8) : []
-    const classifyRes = await classifyIntentWithModel(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer)
-    rawCategory = classifyRes.category
-    classifierModel = classifyRes.classifierModel
-    classificationTrace = classifyRes.trace
-    classifyError = classifyRes.error ?? null
-    if (classifyRes.trigger_type) {
-      triggerInfo = { type: classifyRes.trigger_type, value: classifyRes.trigger_value || '' }
-    }
 
-    if (!rawCategory) {
-      onStatus({ chain: 'CLASSIFIER', status: 'failed', goal: 'Classifying intent' })
-      logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
-      return {
-        type: 'text',
-        content: classifyError ? `*System Overload* (${classifyError})` : "*System Overload*",
-        usage_type: 'chat',
-        model_chain: 'classifier → (failed)',
-        status: 'error',
-        step_traces: tracer.all.length > 0 ? tracer.all : undefined,
-        classification_trace: classificationTrace,
-        total_cost_usd: totalCostUsd,
-      } as any
+    if (routerV2) {
+      const v2res = await classifyIntentV2(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer)
+      if (!v2res.classification) {
+        onStatus({ chain: 'CLASSIFIER', status: 'failed', goal: 'Classifying intent' })
+        logger.error(`Classification (v2) failed: ${v2res.error ?? 'unknown reason'}`)
+        return {
+          type: 'text',
+          content: v2res.error ? `*System Overload* (${v2res.error})` : "*System Overload*",
+          usage_type: 'chat',
+          model_chain: 'classifier_v2 → (failed)',
+          status: 'error',
+          step_traces: tracer.all.length > 0 ? tracer.all : undefined,
+          classification_trace: v2res.trace,
+          total_cost_usd: totalCostUsd,
+        } as any
+      }
+      rawCategory = v2res.classification.category
+      v2Flags = { complexity: v2res.classification.complexity, action: v2res.classification.action }
+      classifierModel = v2res.classifierModel
+      classificationTrace = v2res.trace
+      if (v2res.trigger_type) {
+        triggerInfo = { type: v2res.trigger_type, value: v2res.trigger_value || '' }
+      }
+    } else {
+      const classifyRes = await classifyIntentWithModel(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer)
+      rawCategory = classifyRes.category
+      classifierModel = classifyRes.classifierModel
+      classificationTrace = classifyRes.trace
+      classifyError = classifyRes.error ?? null
+      if (classifyRes.trigger_type) {
+        triggerInfo = { type: classifyRes.trigger_type, value: classifyRes.trigger_value || '' }
+      }
+
+      if (!rawCategory) {
+        onStatus({ chain: 'CLASSIFIER', status: 'failed', goal: 'Classifying intent' })
+        logger.error(`Classification failed: ${classifyError ?? 'unknown reason'}`)
+        return {
+          type: 'text',
+          content: classifyError ? `*System Overload* (${classifyError})` : "*System Overload*",
+          usage_type: 'chat',
+          model_chain: 'classifier → (failed)',
+          status: 'error',
+          step_traces: tracer.all.length > 0 ? tracer.all : undefined,
+          classification_trace: classificationTrace,
+          total_cost_usd: totalCostUsd,
+        } as any
+      }
     }
     onStatus({ chain: 'CLASSIFIER', status: 'done', goal: 'Classifying intent' })
   }
@@ -630,6 +661,10 @@ export async function runChain(
   // Normalize legacy / internal categories
   if (rawCategory === 'FAST_SIMPLE') rawCategory = 'REGULAR'
   if (rawCategory === 'MEDIUM_THINKING') rawCategory = 'COMPLEX'
+  // v2: vision-forced and legacy-shaped categories collapse onto PRIMARY
+  if (routerV2 && (rawCategory === 'REGULAR' || rawCategory === 'COMPLEX' || rawCategory === 'CODING' || rawCategory === 'ADVISOR')) {
+    rawCategory = 'PRIMARY'
+  }
 
 
   let category: IntentCategory = rawCategory
@@ -642,9 +677,30 @@ export async function runChain(
     category = 'COMPLEX'
   }
 
-  let { chain, temperature, thinking_budget } = await getRouterChain(category, (context?.mode === 'pro' ? 'pro' : 'default'))
+  let { chain, temperature, thinking_budget } = await (async () => {
+    if (routerV2 && category === 'PRIMARY') {
+      const routerMode = (context?.mode === 'pro' ? 'pro' : 'default') as 'pro' | 'default'
+      const tier = selectTier({
+        action: v2Flags?.action ?? true,
+        complexity: v2Flags?.complexity ?? 'normal',
+        extendedThinking: thinkingEnabled,
+      })
+      const [smart, light] = await Promise.all([
+        getRouterChain('PRIMARY_SMART', routerMode),
+        getRouterChain('PRIMARY_LIGHT', routerMode),
+      ])
+      // Light escalates UP into Smart on exhaustion; Smart never falls to Light.
+      const merged = tier === 'light' ? [...light.chain, ...smart.chain] : smart.chain
+      return { chain: merged, temperature: smart.temperature, thinking_budget: undefined as any }
+    }
+    return getRouterChain(category, (context?.mode === 'pro' ? 'pro' : 'default'))
+  })()
   if (!chain || chain.length === 0) {
     chain = [{ id: 'openai/gpt-4o-mini', provider: 'openrouter', openrouter_provider: 'openai', is_enabled: true } as any]
+  }
+
+  if (routerV2 && category === 'PRIMARY') {
+    thinking_budget = resolveThinkingLevel({ complexity: v2Flags?.complexity ?? 'normal', thinkingToggle: thinkingEnabled })
   }
 
   // Fetch internal pipeline prompt if available (from Admin > Bot > Global)
@@ -734,7 +790,7 @@ IMAGE GENERATION:
 
   // ── Think Chain (pre-pass) — runs before the model loop so THINKING appears first in trace ──
   let thinkPipelineStepsPrepass: import('./pipeline').PipelineStep[] = []
-  if (thinkingEnabled && category !== 'IMAGE_GEN') {
+  if (thinkingEnabled && category !== 'IMAGE_GEN' && !routerV2) {
     try {
       const thinkResult = await runThinkChain(prompt, '', history, currentSummary, context?.replyContext, context as any, onStatus, tracer)
       thinkPipelineStepsPrepass = thinkResult.steps
@@ -818,7 +874,7 @@ IMAGE GENERATION:
 
 
   // ── Status label for text-processing categories ──
-  const STATUS_CATEGORIES = ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'AUDIO', 'WEB_SEARCH']
+  const STATUS_CATEGORIES = ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'AUDIO', 'WEB_SEARCH', 'PRIMARY']
   if (STATUS_CATEGORIES.includes(category)) {
     onStatus({
       chain: category,
@@ -907,7 +963,7 @@ IMAGE GENERATION:
           const routeContext: any = {
             ...(context || {}),
             sessionId,
-            useTools: ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'WEB_SEARCH', 'RESEARCH'].includes(category),
+            useTools: ['REGULAR', 'COMPLEX', 'CODING', 'ADVISOR', 'WEB_SEARCH', 'RESEARCH', 'PRIMARY'].includes(category),
             // Ground a Gemini step only when no search engine has fed it data yet.
             // [SEARCH DATA] is injected once tavily/exa run, so a Gemini model placed
             // ABOVE the search engine self-grounds, while one BELOW it synthesizes the
@@ -928,7 +984,7 @@ IMAGE GENERATION:
           // (vision, search, image gen, tools, advisor, coding) buffer their full
           // response so post-processing (e.g. stripping [VISION_CONTEXT]) runs before
           // anything reaches the user.
-          const TEXT_STREAM_CATEGORIES = ['COMPLEX', 'REGULAR']
+          const TEXT_STREAM_CATEGORIES = ['COMPLEX', 'REGULAR', 'PRIMARY']
           if (!TEXT_STREAM_CATEGORIES.includes(category)) {
             routeContext.onChunk = undefined
           }
