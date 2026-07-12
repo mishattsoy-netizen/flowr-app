@@ -82,6 +82,18 @@ export const FLOWR_TOOLS = [
           items: blockItemSchema,
           description: "For notes: structured block array (alternative to content, also fully replaces)."
         },
+        patch: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              find: { type: "string", description: "Exact existing text to locate in the note's Markdown body." },
+              replace: { type: "string", description: "Text to replace it with." }
+            },
+            required: ["find", "replace"]
+          },
+          description: "For notes: surgical edit — array of {find, replace} ops applied to the CURRENT body instead of resending the whole note. Use this for small edits to large notes. Max 20 ops. All-or-nothing: if any 'find' text isn't found, nothing is changed and an error is returned. Ignored if 'content' or 'blocks' is also provided (those take priority as a full replace)."
+        },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: reassign task to a different workspace." },
         status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done' | 'today' | 'overdue'." },

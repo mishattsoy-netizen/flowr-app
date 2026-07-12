@@ -1,7 +1,32 @@
 import { logger } from '../../logger'
 import { supabaseAdmin } from '../../supabase'
-import { parseMarkdownToBlocks, normalizeBlocks } from '../../editor/markdownBlocks'
+import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../editor/markdownBlocks'
 import type { BlockInput } from '../../editor/markdownBlocks'
+
+/**
+ * Applies find/replace patch ops to Markdown, atomically. Returns the patched
+ * text, or throws with a message listing every `find` string that wasn't
+ * found (all-or-nothing — no partial writes).
+ */
+export function applyPatchOps(markdown: string, ops: { find: string; replace: string }[]): string {
+  let result = markdown
+  const missing: string[] = []
+  for (const op of ops) {
+    if (typeof op?.find !== 'string' || typeof op?.replace !== 'string') {
+      missing.push(String(op?.find ?? '(invalid op)'))
+      continue
+    }
+    if (!result.includes(op.find)) {
+      missing.push(op.find)
+      continue
+    }
+    result = result.replace(op.find, op.replace)
+  }
+  if (missing.length > 0) {
+    throw new Error(`Patch failed — these 'find' strings were not found in the note body: ${missing.map(m => JSON.stringify(m)).join(', ')}`)
+  }
+  return result
+}
 
 // Helper: resolve active space ID for a user
 async function resolveSpaceId(context: any): Promise<string | null> {
@@ -236,7 +261,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
     }
 
-    const { id, type, title, content, blocks, assignedWorkspaceId,
+    const { id, type, title, content, blocks, patch, assignedWorkspaceId,
             status, priority, tag, dueDate, endDate, includeTime, reminder, description, subtasks } = args
 
     if (!id) return { error: "'id' is required" }
@@ -286,8 +311,22 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         // --- UPDATE NOTE / CANVAS ---
         const updates: any = {}
         if (title !== undefined) updates.title = title
-        if (content !== undefined) updates.content = parseMarkdownToBlocks(content)
-        else if (blocks !== undefined) updates.content = blocks
+
+        if (content !== undefined) {
+          updates.content = parseMarkdownToBlocks(content)
+        } else if (blocks !== undefined) {
+          updates.content = blocks
+        } else if (Array.isArray(patch) && patch.length > 0) {
+          if (patch.length > 20) return { error: 'patch supports at most 20 operations per call.' }
+          const { data: existing, error: fetchErr } = await supabaseAdmin.from('entities')
+            .select('content').eq('id', id).eq('owner_id', context.userId).single()
+          if (fetchErr || !existing) {
+            throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
+          }
+          const currentMd = blocksToMarkdown(existing.content || [])
+          const patchedMd = applyPatchOps(currentMd, patch)
+          updates.content = parseMarkdownToBlocks(patchedMd)
+        }
 
         const { data, error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId).select('id, title, type')
         if (error) throw error
