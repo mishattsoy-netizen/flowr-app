@@ -28,21 +28,44 @@ contentEditable={(isFocused && !isReadOnly) ? true : undefined}
 
 `isFocused` is **per-block local state** (line 175). Each block independently decides whether it is editable, and is editable *only while focused*. Every unfocused block is an inert, non-editable div.
 
-This single conditional causes the whole cluster of reported problems:
+This conditional causes the focus problems directly:
 
-- **Text selection is trapped per block / per list row.** Dragging from outside a block, or from block A into block B, has no editable node to extend the selection into. The browser is not "preventing selection across contenteditable elements" — that claim is false. The blocks simply aren't editable at drag time.
 - **Focus is lost when Enter creates a new row.** The new block is not editable at the moment it is created, so focus has nowhere to land.
 - **Clicking the empty bottom area does not reliably start typing.** Same cause.
 
-**Non-goal: migration.** A previous attempt migrated to TipTap/ProseMirror on the false premise that the browser cannot select across contenteditable blocks. It destroyed the editor and was reverted. This design fixes the editor in place. TipTap deps remain in `package.json` and should be removed as cleanup.
+**Text selection has a second, deeper cause** — each block being its own **editing host**. See §1.1: a native selection cannot cross an editing-host boundary, so *no* amount of toggling `contentEditable` per block fixes it. The blocks must live inside one shared host.
+
+**Non-goal: migration.** A previous attempt migrated to TipTap/ProseMirror, destroyed the editor, and was reverted. Note the fix in §1.1 is emphatically **not** that migration in disguise: a single `contentEditable` wrapper around our own React components is not a new editor engine, and requires no library and no data migration. TipTap deps remain in `package.json` and should be removed as cleanup.
 
 ## Phase 1 — Feels like plain text
 
 Shipped **alone** and tested before anything else is stacked on top. This is the risky change; everything in Phase 2 is independent of it.
 
-### 1.1 Always-editable blocks
+**Scope honesty.** Phase 1 is not a one-line fix. Moving to a single editing host (§1.1) changes where input is handled and how the DOM syncs back to the store — the load-bearing parts of the editor. It is contained (no library, no data migration, no new engine) but it is real surgery. If it starts destabilizing the editor, stop and report rather than piling fixes on top; that is the failure mode that destroyed the previous attempt.
 
-All blocks are `contentEditable` at all times (when not read-only). This alone restores native, character-level, cross-block text selection. This is what Notion does.
+### 1.1 One editing host, blocks as plain divs inside it
+
+**The browser constraint (measured, not assumed).** Two sibling `contenteditable="true"` elements are two independent **editing hosts**, and a native `Selection` *cannot cross an editing-host boundary*. Verified in headless Chromium:
+
+| Model | Structure | Drag from block 1 → block 2 |
+|---|---|---|
+| **A** | each block its own `contenteditable` | selects `"t "` — anchor **and** focus both stay in block 1. **Selection never leaves the block.** |
+| **B** | one `contenteditable` wrapper, blocks are plain `<div>`s inside | selects `"t block text\nSecond"` — anchor in block 1, focus in block 2. **True character-level cross-block selection.** |
+
+Making every block always-editable (Model A) therefore **does not fix anything** — it reproduces the original complaint with every block editable and still trapped. This is why Notion snaps to whole-block selection, and why Obsidian gets character-level selection: Obsidian is *one* CodeMirror document, i.e. one host.
+
+**Therefore: Model B.** The blocks container becomes a single `contentEditable` host. Individual blocks are plain `<div>`s inside it — no longer editing hosts of their own. `isFocused` stops gating editability.
+
+The browser then implements our merge rule natively. Same probe, typing `X` over the cross-block selection:
+
+```
+before:  <div id="b1">First block text</div>   <div id="b2">Second block text</div>
+after :  <div id="b1">FirsX block text</div>
+```
+
+First block wins, keeps its identity, the fully-selected block is gone, cursor at the seam — exactly §1.3.
+
+**This is not a library migration.** Model B is a single wrapper around *our own* React components, blocks, and store. No TipTap, no ProseMirror, no data migration, no new editor engine. It is larger than flipping one conditional — `beforeinput`/`input` handling moves to the container, and DOM↔store sync changes — but it is a fix to the editor we have, not a replacement of it.
 
 ### 1.2 Intercept destructive cross-block operations
 
@@ -96,15 +119,32 @@ Native character-level text highlight, **plus** a subtle tint on each block the 
 
 ### Phase 1 acceptance criteria
 
-Verified by **driving the running app**, not by typecheck. A passing `tsc --noEmit` is not evidence that Enter puts the cursor in the right place.
+A passing `tsc --noEmit` is **not** evidence that Enter puts the cursor in the right place. Verification is split in two, to keep browser use (and the user's quota) to a minimum.
+
+**Machine-verified — pure logic, vitest, no browser.**
+
+The merge rule is extracted as a pure function: given the block list, a start block + offset, and an end block + offset, return the new block list and the cursor position. Exhaustively tested:
+
+- [ ] The worked example above produces exactly the stated result.
+- [ ] Selection dragged bottom-to-top produces the identical result (document order).
+- [ ] Partial first block only; partial last block only; both partial; neither partial.
+- [ ] Adjacent blocks; blocks with fully-selected blocks between them.
+- [ ] Select-all → one empty block of the first block's type.
+- [ ] Surviving block always keeps the **first** block's type.
+
+**Human-verified — wiring and feel, by the user in the running app.**
+
+Whether the browser's `Selection` maps to the right block IDs and offsets, whether focus lands correctly, and whether always-editable blocks broke anything else, is what a person notices in five seconds and a test suite struggles to see:
 
 - [ ] Drag-select a passage spanning four blocks → continuous native highlight, touched blocks tinted.
-- [ ] The worked example above produces exactly the stated result.
-- [ ] Backspace over a multi-block selection → same merge, no text loss.
-- [ ] Cut and Paste over a multi-block selection → same merge; clipboard correct.
-- [ ] Select-all + type → one empty block of the first block's type.
+- [ ] Type over a multi-block selection → merge is correct, no text loss.
+- [ ] Backspace over a multi-block selection → same.
+- [ ] Cut / Paste over a multi-block selection → same; clipboard correct.
 - [ ] `Ctrl+Z` restores the pre-merge state in one step.
 - [ ] Focus is never lost during any of the above.
+- [ ] Nothing else regressed — drag handle, click-to-focus, `/` menu, typing in a single block.
+
+**Reporting rule.** When handing a build over, state exactly what was verified and what was not. If the tests pass but the app has not been run, say so plainly: *"logic is tested, wiring is unverified — please try X, Y, Z."* Never report "it works" when the actual claim is "it compiles."
 
 **Phase 1 is a failure if the editor still feels like fighting boxes.** The success measure is not "cross-block selection works" — it is *"I can select a passage spanning four paragraphs, type over it, and it does what a text file would do."*
 
@@ -127,6 +167,12 @@ Only after the user has tested and accepted Phase 1. Every item here is independ
 ### Sizing note
 
 Item 9 (unified media block) is a **new block type, not a tweak** — the largest item in Phase 2 by a wide margin. If Phase 2 runs long, media is the natural split into its own phase.
+
+## Verifying the editing-host constraint
+
+The §1.1 table is a **measurement**, not a belief. Playwright is already a dependency; to re-check, render two sibling `contenteditable="true"` divs and one `contenteditable="true"` wrapper containing two plain divs, drag-select from the first block into the second in each, and read back `window.getSelection()`'s `anchorNode`/`focusNode`. Model A keeps both in block 1; Model B spans them.
+
+Do not re-derive this from memory. It is the single fact the entire design rests on, and the previous attempt's fatal error was asserting the opposite without checking.
 
 ## What already exists — do not rebuild
 
