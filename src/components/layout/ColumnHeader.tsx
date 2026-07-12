@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus } from 'lucide-react';
+import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus, Search, PanelLeft } from 'lucide-react';
 import { cn, stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -82,6 +82,10 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
   const isReadMode = useStore(s => !!s.readModeStates[entityId || '']);
   const setReadMode = useStore(s => s.setReadMode);
+  
+  const isSidebarCollapsed = useStore(s => s.isSidebarCollapsed);
+  const toggleCommandPalette = useStore(s => s.toggleCommandPalette);
+  const toggleSidebar = useStore(s => s.toggleSidebar);
 
   const [newItemPopup, setNewItemPopup] = useState<{ x: number; y: number } | null>(null);
 
@@ -110,6 +114,23 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
       {/* Row content — items-center so buttons + tab text share the bar's
           vertical center (y = BAR_H/2), identical to HeaderBar. */}
       <div className="flex items-center w-full relative z-10" style={{ height: BAR_H, gap: M }}>
+        {!isDesktopEnv && column === 'left' && isSidebarCollapsed && (
+          <>
+            <button
+              onClick={() => toggleCommandPalette()}
+              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              onClick={toggleSidebar}
+              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-[var(--bone-10)] shrink-0" />
+          </>
+        )}
       {entityId ? (
         <>
           {/* Options Menu Button */}

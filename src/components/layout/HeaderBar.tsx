@@ -494,9 +494,21 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
       {/* Web: collapsed sidebar buttons */}
       {!isDesktopEnv && isSidebarCollapsed && (
         <div className="flex items-center gap-1 shrink-0 mr-2 z-10">
-          <button onClick={toggleSidebar}        className={btnCls(true)}><PanelLeft  strokeWidth={2} className="w-4 h-4"/></button>
-          <button onClick={toggleCommandPalette} className={btnCls(true)}><Search     strokeWidth={2} className="w-4 h-4"/></button>
-          <div className="w-px h-4 bg-[var(--bone-6)] mx-1"/>
+          <button
+            onClick={toggleCommandPalette}
+            className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
+            style={{ width: 28, height: 28 }}
+          >
+            <Search strokeWidth={2} className="w-4 h-4"/>
+          </button>
+          <button
+            onClick={toggleSidebar}
+            className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
+            style={{ width: 28, height: 28 }}
+          >
+            <PanelLeft strokeWidth={2} className="w-4 h-4"/>
+          </button>
+          <div className="w-[1px] h-4 bg-[var(--bone-10)] ml-1 mr-0" />
         </div>
       )}
 
