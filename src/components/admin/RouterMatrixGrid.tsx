@@ -9,6 +9,7 @@ import type { RegistryModel } from './model-utils'
 const ALL_CATEGORIES = [
   'REGULAR', 'COMPLEX', 'VISION', 'CODING', 'WEB_SEARCH', 'RESEARCH',
   'IMAGE_GEN', 'AUDIO', 'CLASSIFIER', 'THINKING', 'ADVISOR', 'COMPACTION',
+  'PRIMARY_SMART', 'PRIMARY_LIGHT',
 ]
 
 export default function RouterMatrixGrid({
