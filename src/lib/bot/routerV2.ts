@@ -10,9 +10,12 @@ const V2_CATEGORIES: V2Category[] = ['PRIMARY', 'WEB_SEARCH', 'RESEARCH', 'IMAGE
 
 /**
  * Parses the v2 classifier's JSON output. Tolerant of fences/preamble; salvages
- * a bare category word. Flag defaults are SAFE-side: complexity 'normal'
- * (cheap), action true (a chat turn on Smart costs a little more, but an
- * action turn on Light fails — spec §2).
+ * a bare category word. `action` now means "needs multiple coordinated tool
+ * calls" (not "touches app content" — a single create/list/delete is false and
+ * can run on Light). The classifier prompt defaults `action` to false; here we
+ * trust a well-formed `action: false` from the model as-is. Only on a fully
+ * malformed/unparseable response (the salvage path below) do we fall back to
+ * action: true — a genuinely unknown case should not be under-provisioned.
  */
 export function parseClassifierV2Output(raw: string): V2Classification | null {
   if (!raw) return null
@@ -39,7 +42,13 @@ export function parseClassifierV2Output(raw: string): V2Classification | null {
   return null
 }
 
-/** Spec §4: `action || hard || extended → Smart; else → Light`. */
+/**
+ * `action` = needs multiple coordinated tool calls (spec §4, refined after
+ * v1 testing: single simple actions like "create task X" or "list my tasks"
+ * are false and route to Light; "create a task AND a note", "read this image
+ * and create a note from it" are true and route to Smart).
+ * Rule: `action || hard || extended → Smart; else → Light`.
+ */
 export function selectTier(input: { action: boolean; complexity: 'normal' | 'hard'; extendedThinking: boolean }): 'smart' | 'light' {
   return (input.action || input.complexity === 'hard' || input.extendedThinking) ? 'smart' : 'light'
 }

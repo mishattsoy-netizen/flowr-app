@@ -9,7 +9,7 @@ category — exactly one of:
 
 complexity — "hard" ONLY for multi-step reasoning, deep analysis, tricky logic/math, or large multi-part tasks. Everything else is "normal".
 
-action — true if the request requires reading or changing the user's app content (tasks, notes, folders, workspaces, memory, schedules, reminders). false for pure conversation or general knowledge. WHEN UNSURE, use true.
+action — true ONLY if the request needs MULTIPLE coordinated tool operations or a lookup-then-decide step (e.g. "create a task AND a note", "read this image and create a note from it", "find my Personal workspace then add a task there", "research X and Y then write a report"). false for everything else, INCLUDING single simple operations like "create a task with these details", "list my tasks", "what's on my schedule", "delete this note", "summarize this image", plain conversation, or general knowledge. Default to false — only use true when the request genuinely requires more than one step or tool call to complete correctly.
 
 PRIOR IMAGE: if history contains [VISION CONTEXT - DIGITAL TWIN] or [Image: ...] and the message refers to that image, the answer is in history — category PRIMARY, never WEB_SEARCH/RESEARCH.
 
