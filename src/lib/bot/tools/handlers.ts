@@ -139,6 +139,24 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
       // --- TASK ---
       if (type === 'task') {
+        // --- TASK DEDUPLICATION CHECK ---
+        // Prevent duplicate tasks from router retries or repeated user sends.
+        // Matches on same title + owner + workspace within a 30-second window.
+        {
+          const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
+          let dedupQuery = supabaseAdmin.from('tasks')
+            .select('id')
+            .eq('title', title)
+            .eq('owner_id', context.userId)
+            .gte('created_at', thirtySecondsAgo)
+          if (assignedWorkspaceId) dedupQuery = dedupQuery.eq('entity_id', assignedWorkspaceId)
+          else dedupQuery = dedupQuery.is('entity_id', null)
+          const { data: existingTask } = await dedupQuery
+          if (existingTask && existingTask.length > 0) {
+            return { success: true, id: existingTask[0].id, type: 'task', title, deduplicated: true }
+          }
+        }
+
         const { todayStr, yesterdayStr } = getClientDateStrings(context)
         let finalStatus = status || 'todo'
         let finalDueDate = dueDate || null
