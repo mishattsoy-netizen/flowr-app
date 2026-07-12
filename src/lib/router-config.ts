@@ -108,7 +108,6 @@ async function fetchRouterChainFromDb(category: IntentCategory, mode: RouterMode
               category,
               mode: 'default',
               model_list: [],
-              is_enabled: true,
             })
             logger.info(`Created missing router chain entry for: ${category}`)
           } catch (e) {
