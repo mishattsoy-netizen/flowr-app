@@ -239,7 +239,7 @@ const HARDCODED_PIPELINE_SETTINGS: PipelineSettings = {
   thinkingSummaryVisible: 'collapsible',
   inputTokenLimit: 0,   // 0 = unlimited
   outputTokenLimit: 0,  // 0 = unlimited
-  routerV2Enabled: false,
+  routerV2Enabled: true,
   // Only inject global prompt (personality + memories) into final output chains.
   // Utility chains (CLASSIFIER, COMPACTION, THINKING) don't need personal context.
   globalPromptEnabledCategories: ['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN', 'AUDIO', 'VISION', 'ADVISOR', 'PRIMARY'],
