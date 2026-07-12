@@ -802,6 +802,7 @@ export const useStore = create<AppState>()(
           tempChatMessages: [],
           aiSessionContext: null,
           activeMode: 'default',
+          thinkingEnabled: false,
           activeIntentTag: null,
           pendingAdvisorState: null,
           tempChatGreeting: s.isTempChat ? getRandomTempGreeting() : s.tempChatGreeting,
@@ -904,6 +905,8 @@ export const useStore = create<AppState>()(
           assistantInput: '',
           isAILoading: false,
           aiAbortController: null,
+          activeMode: 'default',
+          thinkingEnabled: false,
         });
       },
 
