@@ -186,7 +186,10 @@ const CATEGORY_ICONS: Record<string, any> = {
   VISION: Eye,
   ADVISOR: ShieldCheck,
   PROMPT_EXPANSION: ArrowUpRight,
-  IMAGE_NARRATION: Mic
+  IMAGE_NARRATION: Mic,
+  PRIMARY: Cpu,
+  PRIMARY_SMART: Sparkles,
+  PRIMARY_LIGHT: Zap,
 }
 
 export default function RouterManager({
@@ -216,6 +219,7 @@ export default function RouterManager({
     'REGULAR', 'COMPLEX', 'CLASSIFIER',
     'VISION', 'IMAGE_GEN', 'WEB_SEARCH', 'RESEARCH',
     'CODING', 'THINKING', 'ADVISOR',
+    'PRIMARY_SMART', 'PRIMARY_LIGHT',
   ]
   const [isSubchainView, setIsSubchainView] = useState(false)
   const [isPromptOpen, setIsPromptOpen] = useState(false)
