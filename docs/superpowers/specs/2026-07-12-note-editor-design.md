@@ -87,7 +87,9 @@ This is Word, Google Docs, Notion, and Obsidian behavior. It is also what a plai
 
 #### Worked example (the acceptance test)
 
-Given H1 / paragraph / H2, select from mid-H1, through the entire paragraph, to mid-H2, and type `X`:
+Given H1 `My Great Title` / paragraph / H2 `Another subheading`, select from offset 8 in the H1 (after `My Great`), through the entire paragraph, to offset 7 in the H2 (after `Another`), and type `X`.
+
+Offsets are exact and were verified by running the algorithm: `'Another subheading'.slice(7) === ' subheading'`, keeping the leading space so the merged result reads naturally.
 
 ```
 BEFORE                          AFTER
