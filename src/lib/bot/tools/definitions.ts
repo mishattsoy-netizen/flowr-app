@@ -55,7 +55,7 @@ export const FLOWR_TOOLS = [
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time. If a user asks for a 'start date', put it here." },
         endDate: { type: "string", description: "For tasks: end date/time. If a user asks for a 'start date' and an 'end date', put the end date here." },
-        includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
+        includeTime: { type: "boolean", description: "For tasks: true only if the user stated an actual time of day. False for a bare date (e.g. 'due Friday') — never invent a time like end-of-day." },
         reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
         description: { type: "string", description: "For tasks: longer description or notes." },
         subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: list of subtasks." }
@@ -105,7 +105,7 @@ export const FLOWR_TOOLS = [
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time." },
         endDate: { type: "string", description: "For tasks: end date/time." },
-        includeTime: { type: "boolean", description: "For tasks: whether the dates include a specific time." },
+        includeTime: { type: "boolean", description: "For tasks: true only if the user stated an actual time of day. False for a bare date (e.g. 'due Friday') — never invent a time like end-of-day." },
         reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
         description: { type: "string", description: "For tasks: longer description." },
         subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: updated subtasks list." }

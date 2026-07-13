@@ -17,7 +17,8 @@ Build order and status. Step numbers refer to §13.
 | 4a | Grounding guard + tool-loop guard (part of §6) | ✅ **Done** — pulled forward, see §6a. Dry-run-only gap (found 2026-07-13) fixed as part of §6b. |
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
 | 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | ✅ **Done** (not yet live-tested with actual telegram bot). |
-| 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d all shipped 2026-07-13. ⬅️ **NEXT: §7b** (Compaction rework). |
+| 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d shipped 2026-07-13; §6c fully removed 2026-07-14. |
+| 4c | Date/time correctness (§6e) | ⚠️ **Implemented, awaiting live retest** (2026-07-14). ⬅️ **NEXT: live-verify, then §7b** (Compaction rework). |
 | 7b | Compaction rework | ⬜ Not started |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 6 | Memory v2 (§7) | ⬜ Not started |
@@ -298,6 +299,22 @@ Verified: `npx tsc --noEmit` clean, 148/148 tests passing in `src/lib/bot` after
 2. **Server-side sanitization (the actual guarantee):** extract `imagePromptGuard.ts`'s `SYSTEM_BLOCK_HEADERS` stripping logic into a shared helper (or generalize `sanitizeImagePrompt` itself — it's already header-list-driven, just needs to stop being image-gen-only and gain the two new headers above), and call it on `create_content`/`update_content`'s `content`, `title`, and `description` fields before they reach `supabaseAdmin`. This guarantees the leak can't reach user-visible storage even if the model ignores the prompt rule.
 
 **Acceptance:** ask the bot to "save this conversation as a note" → the resulting note contains only actual conversational content, no `[CURRENT CONTEXT]`/`[CURRENT REQUEST]`/etc. markers, even under adversarial prompting that tries to get the model to reproduce them.
+
+### 6e. Date/time correctness for task creation — ⚠️ IMPLEMENTED, AWAITING LIVE RETEST (2026-07-14)
+
+**Root cause (from `transcripts/ai-transcript-2026-07-13T15-14-52.md`):** user (UTC+3, Monday Jul 13) asked to create a task "renew passport" due next Friday. Bot called `create_content` with `dueDate: "2026-07-24T23:59:00Z", includeTime: true`, and told the user "due Friday, July 24." Two things looked like separate bugs but are one causal chain:
+- `promptBuilder.ts`'s DATE/TIME RULES block had zero guidance for the no-explicit-time case, so the model invented an end-of-day `23:59:00Z` timestamp.
+- `23:59:00Z` at UTC+3 is **02:59 local the next day**. `TaskCard.tsx`'s `formatTaskDate` runs `date-fns/format` on `new Date(dateStr)`, which renders in local time with zero day-boundary protection — so the stored "Jul 24 end of day" silently displayed as **Saturday Jul 25, 2:59 AM**, contradicting the bot's own stated "Friday, July 24." This is what the user actually saw and reported (not a date-arithmetic error — the bot's weekday reasoning was internally consistent, just never surfaced correctly).
+- Confirmed via `task-overdue.ts`: `isDeadlinePassed` branches on whether the deadline string `includes('T')` — since the model always emits a full `...T...Z` ISO string per the DATE/TIME RULES, a bare-date task always takes the exact-timestamp comparison branch, never the date-only branch. So the encoded UTC instant, not just `includeTime`, controls both display and overdue behavior.
+
+**Fix (prompt-only, `src/lib/bot/services/promptBuilder.ts` DATE/TIME RULES block):**
+1. When the user does not state an explicit time, `includeTime` must be `false` and the date must be encoded at **local noon**, not local midnight or end-of-day (`UTC hour = 12 - utcOffsetHours`). Explicitly forbids `23:59`/`00:00` placeholders, since ±12h of tz conversion can never cross a day boundary from a noon anchor — this is a structural fix, not a hope-the-model-gets-it-right one.
+2. Relative weekday phrases ("next Friday" etc.) are left genuinely ambiguous on purpose — no hardcoded "which Friday" rule, since usage is split and the user's actual complaint was the day-shift, not the weekday interpretation. Instead the model is told to always state the resolved calendar date back in its reply, so a misread is immediately visible and correctable.
+3. Tightened `includeTime`'s description in `src/lib/bot/tools/definitions.ts` (both `create_content` and `update_content` schemas) to explicitly say "false for a bare date — never invent a time like end-of-day."
+
+**Known accepted consequence:** a bare-date task now flips "overdue" at local noon on its due day instead of ~3am the following day (since `isDeadlinePassed` still takes the exact-timestamp branch on the full `Z` string). This is the deliberate trade for the 12-hour safety margin against the model's tz arithmetic — chosen consciously, not a side effect discovered later.
+
+**Verified:** `tsc --noEmit` clean (string-only prompt/schema edit, no logic touched). **Not yet verified:** live retest against the actual bot — this fix's real test is whether the model actually emits noon-anchored `includeTime:false` for a bare-date request, not whether the prompt text reads correctly. Next step: re-run "create a task ... due next Friday" (or similar bare-date phrasing) live and confirm via transcript that the stored `dueDate` is noon-anchored and the task card renders the correct day.
 
 ## 7. Memory v2
 
