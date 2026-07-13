@@ -16,7 +16,7 @@ Build order and status. Step numbers refer to §13.
 | 2b | Tool rework (§7c) | ✅ **Done** |
 | 4a | Grounding guard + tool-loop guard (part of §6) | ✅ **Done** — pulled forward, see §6 |
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
-| 5 | **Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d)** | ⬅️ **NEXT** — reordered ahead of §5/§6 because it fixes live broken behavior |
+| 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | 🟡 **In progress.** §5d bug 3 (timezone) done. §5c (storage) done, code-complete, cross-device test pending. ⬅️ **NEXT: §5b** (native attachments, delete the twin). |
 | 7b | Compaction rework | ⬜ Not started |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 4b | Server-side action state (§6) | ⬜ Not started |
@@ -154,7 +154,7 @@ History cost policy: images stay native for the recent turns of the current sess
 
 **Acceptance:** image + "create a note from this" → note created with the image's content. Image + "what is this?" → clean description, no spurious note. Multi-image + PDF in one message → one coherent answer.
 
-## 5c. Durable attachment storage (NEW — 2026-07-13)
+## 5c. Durable attachment storage — ✅ DONE (2026-07-13)
 
 > Not in the original spec. Found while investigating §5b. Ships with step 5.
 
@@ -162,15 +162,21 @@ History cost policy: images stay native for the recent turns of the current sess
 
 **Root cause:** `src/app/api/ai/upload/route.ts` uploads to Supabase Storage **only if `supabaseAdmin` exists**. `supabaseAdmin` (`src/lib/supabase.ts:61`) requires `SUPABASE_SERVICE_ROLE_KEY`. The Electron app loads env from a `.env` at runtime (`electron/main.js:174-198`), but **`.env` is not in electron-builder's `files` list** (`package.json` ~96), so it never ships. On desktop `supabaseAdmin` is therefore always null → the route **always** falls through to writing `public/user_uploads/<file>` on **that machine's local disk** and returns a machine-local URL. The URL syncs via the DB; the file does not. Each device renders only its own images.
 
-**Decision (owner, 2026-07-13): Option A — upload from the client using the user's own authenticated Supabase session.** The renderer already holds a session (that's how DB sync works). Upload directly to the `user_uploads` bucket under RLS and store the resulting public Supabase URL on the attachment. `/api/ai/upload` remains only as the server-side path (Telegram). Requires a storage RLS policy allowing authenticated users to insert into `user_uploads`.
+**Shipped: Option A — upload from the client using the user's own authenticated Supabase session.** New migration (`20260713_user_uploads_bucket_rls.sql`) creates the `user_uploads` bucket + RLS policies (public read; insert/delete scoped to `<user_id>/…` paths matching `auth.uid()`) — previously the bucket existed only as a runtime side-effect of `supabaseAdmin.storage.createBucket`, so no RLS ever protected it. Both attachment surfaces named in the bug report were rewired to upload directly to Storage: `AIAssistant.tsx` (chat) and `TaskInspectorPanel.tsx` (tasks) — the latter used a *different* code path than chat and had to be found separately (grep every caller of `/api/ai/upload`, not just the obvious one). `/api/ai/upload` remains only as the Telegram server-side path (§5d).
 
 **Rejected — Option B:** shipping `.env` (with the service-role key) inside the desktop build. One-line change, but it places an **RLS-bypassing secret on every user's disk**. Not acceptable.
 
-**Also in scope:** `src/app/api/images/route.ts` `SAFE_FILENAME` only permits `png|jpe?g|gif|webp`, so any **PDF or other non-image** stored in Supabase gets a `/api/images?file=…pdf` URL that this route rejects with 400. Widen it or route non-images separately.
+**Verified before shipping (per-review, not assumed):** checked for an `img-src` CSP that could block cross-origin `*.supabase.co` URLs now that uploads return public Storage URLs directly instead of same-origin `/api/images?file=…` proxy URLs. None exists on web; Electron's CSP (`electron/main.js:343`) explicitly allow-lists `https://*.supabase.co`. Safe on both surfaces.
 
-**Migration:** existing attachments point at dead local paths. Decide with the owner whether to backfill from whichever machine still holds the file, or accept that historical images stay broken.
+**A second, wider bug was found and fixed as a side-effect, not by design:** `AIAssistant.tsx` and `TaskInspectorPanel.tsx` both imported the plain `@/lib/supabase` client (`export const supabase`) and called `.auth.getSession()` / `.storage.*` on it. That client is a **separate, unauthenticated instance** from the SSR-cookie-backed client `AuthProvider` actually uses (`@/utils/supabase/client`) — so `getSession()` silently always returned no session, no error surfaced. Fixed in both files by switching to the real client. This also incidentally repaired `AIAssistant.tsx`'s voice-transcription auth header, which was never being sent.
 
-**Acceptance:** attach an image on device A → it renders on device B, and vice-versa. (Needs two machines to verify.)
+**NOT yet fixed — same bug pattern, found but out of §5c's scope:** `UsagePanel.tsx` (promo code redemption, downgrade-to-free — 3 occurrences) and three admin subscription files (`src/app/admin/subscriptions/page.tsx`, `PromoCodeSection.tsx`, `SubscriptionsTable.tsx`) all call `.auth.getSession()` on the same wrong `@/lib/supabase` client. These may be silently broken the same way. Needs its own pass — grep `from '@/lib/supabase'` combined with `.auth.` or `.storage.` calls to find any more instances.
+
+**Still open:** `src/app/api/images/route.ts` `SAFE_FILENAME` only permits `png|jpe?g|gif|webp`, rejecting any non-image with a 400 — but new uploads bypass this route entirely now (they return raw public Storage URLs), so this only affects reading back **old** attachments still using `/api/images?file=…pdf`-style URLs. Low priority; only matters for historical PDF/non-image attachments.
+
+**Migration/backfill:** existing attachments point at dead local paths from before this fix. Not backfilled — accepted that historical images stay broken; only new uploads are durable.
+
+**Acceptance:** attach an image on device A → it renders on device B, and vice-versa. **Not yet verified on two devices** — code shipped, RLS/CSP reasoning checked, but needs an actual cross-device test before this is fully closed.
 
 ## 5d. Telegram parity (NEW — 2026-07-13)
 
