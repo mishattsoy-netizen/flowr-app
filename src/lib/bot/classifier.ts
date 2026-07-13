@@ -173,7 +173,8 @@ export async function classifyIntentV2(
   intentTag?: string | null,
   history: any[] = [],
   replyContext?: { attentionBlock?: string } | null,
-  tracer?: TraceCollector
+  tracer?: TraceCollector,
+  attachmentCount?: number
 ): Promise<ClassifyV2Result> {
   if (intentTag && TAG_CATEGORY_MAP_V2[intentTag]) {
     return { classification: TAG_CATEGORY_MAP_V2[intentTag], classifierModel: 'Intent Tag', trace: [], trigger_type: 'tag', trigger_value: intentTag }
@@ -199,7 +200,8 @@ export async function classifyIntentV2(
 
   const { hasVisionContext, refersToPriorImage, mixedIntent, contextHint } = resolveImageContext(message, history)
   const replyPrefix = replyContext?.attentionBlock ? replyContext.attentionBlock + '\n\n' : ''
-  const finalUserPrompt = `${replyPrefix}${contextHint}\nUser: "${message}"`
+  const attachmentHint = attachmentCount && attachmentCount > 0 ? `[${attachmentCount} image${attachmentCount > 1 ? 's' : ''} attached]\n` : ''
+  const finalUserPrompt = `${attachmentHint}${replyPrefix}${contextHint}\nUser: "${message}"`
 
   const { chain } = await getRouterChain('CLASSIFIER', 'default')
   let activeChain = chain && chain.length > 0 ? chain : [{ id: 'openai/gpt-4o-mini', provider: 'openrouter', openrouter_provider: 'openai', is_enabled: true } as any]

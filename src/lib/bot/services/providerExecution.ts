@@ -126,7 +126,8 @@ export async function executeProvider(
   routeContext: any,
   temperature: number | undefined,
   originalPrompt: string,
-  augmentSearchQuery: (query: string, history: any[]) => string
+  augmentSearchQuery: (query: string, history: any[]) => string,
+  imageBuffers?: Buffer[]
 ): Promise<{ response: any; searchResult?: string; searchFailed?: boolean; searchCostUsd: number }> {
   let response: any = null
   let searchCostUsd = 0
@@ -134,10 +135,10 @@ export async function executeProvider(
   switch (modelConfig.provider.toLowerCase()) {
     case 'google':
     case 'gemini':
-      response = await runGoogle(modelConfig.id, activePromptForGen, system_prompt, undefined, routeContext, historyForChain)
+      response = await runGoogle(modelConfig.id, activePromptForGen, system_prompt, imageBuffers, routeContext, historyForChain)
       break
     case 'groq':
-      response = await runGroq(modelConfig.id, activePromptForGen, system_prompt, activeKey || context?.aiApiKey, routeContext, historyForChain)
+      response = await runGroq(modelConfig.id, activePromptForGen, system_prompt, activeKey || context?.aiApiKey, routeContext, historyForChain, imageBuffers)
       break
     case 'huggingface':
       if (category === 'IMAGE_GEN') {
@@ -230,7 +231,7 @@ export async function executeProvider(
       break
     case 'openrouter':
       if (modelConfig.openrouter_provider) routeContext.openrouterProvider = modelConfig.openrouter_provider
-      response = await runOpenRouter(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || context?.aiApiKey || providerKeys[0], routeContext)
+      response = await runOpenRouter(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || context?.aiApiKey || providerKeys[0], routeContext, imageBuffers)
       break
     case 'local':
     case 'ollama':
@@ -245,7 +246,7 @@ export async function executeProvider(
       }
       break
     case 'nvidia':
-      response = await runNvidia(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext)
+      response = await runNvidia(modelConfig.id, activePromptForGen, system_prompt, historyForChain, activeKey || providerKeys[0], routeContext, imageBuffers)
       break
   }
 

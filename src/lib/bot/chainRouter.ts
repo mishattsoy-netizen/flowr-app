@@ -319,276 +319,33 @@ export async function runChain(
   if (activeBuffer) {
     onStatus({
       chain: 'VISION',
-      goal: 'Processing visual input',
+      goal: 'Describing visual input',
       label: getStatusLabel('VISION', 'Scanning Image'),
       status: 'running'
     })
 
-    // Look up VISION chain from DB — configure models via Router admin
-    const { chain: visionChain } = await getRouterChain('VISION', (context?.mode === 'pro' ? 'pro' : 'default'))
-    const visionTrace: any[] = []
-
-    // System Instructions = Persona + Date
-    const systemPromptCombined = [
-      getChainPrompt('vision'),
-      dateContext,
-    ].filter(Boolean).join("\n\n")
-
-    // User Prompt = User Message or Default Trigger
-    const activePrompt = prompt || "Analyze these images according to your instructions and provide a response."
-
-    if (!prompt) {
-      logger.info('Vision request received with no text, using default trigger.')
-    }
-
-    for (const modelConfig of visionChain) {
-      if (!modelConfig.is_enabled) continue
-      const visionT0 = Date.now()
-      const visionTraceMeta = {
-        chain: 'VISION',
-        model: modelConfig.id,
-        provider: modelConfig.provider,
-        input_system: systemPromptCombined,
-        input_user: activePrompt,
-        input_history_count: history.length,
-      }
-      try {
-        logger.info(`Routing vision to: ${modelConfig.id} (${modelConfig.provider}) — with ${activeBuffers.length} images`)
-
-        let visionRes: any = null
-
-        // Never stream the vision chain — its output contains the [VISION_CONTEXT]
-        // block that must be stripped server-side before reaching the user.
-        const visionContext = context ? { ...context, onChunk: undefined } : context
-
-        visionRes = await executeVisionProvider(
-          modelConfig,
-          activePrompt,
-          systemPromptCombined,
-          activeBuffers,
-          visionContext,
-          history,
-          sessionId
-        )
-
-        if (visionRes) {
-          const visionUsage = typeof visionRes === 'object' ? (visionRes as any).usage : undefined
-          const visionReasoning = typeof visionRes === 'object' ? (visionRes as any).reasoning : undefined
-          const outputContent = typeof visionRes === 'object' ? visionRes.content : visionRes
-          const visionCost = computeModelCost({
-            prompt_tokens: visionUsage?.prompt_tokens ?? 0,
-            completion_tokens: visionUsage?.completion_tokens ?? 0,
-            cache_read_tokens: visionUsage?.cache_read_input_tokens,
-            cache_creation_tokens: visionUsage?.cache_creation_input_tokens,
-            prompt_cost: modelConfig.prompt_cost,
-            completion_cost: modelConfig.completion_cost,
-            cache_read_cost: modelConfig.cache_read_cost,
-            cache_write_cost: modelConfig.cache_write_cost,
-          })
-          totalCostUsd += visionCost
-          tracer.recordSuccess({
-            ...visionTraceMeta,
-            output: outputContent,
-            prompt_tokens: visionUsage?.prompt_tokens,
-            completion_tokens: visionUsage?.completion_tokens,
-            total_tokens: visionUsage?.total_tokens,
-            cache_read_input_tokens: visionUsage?.cache_read_input_tokens,
-            cost: visionCost > 0 ? visionCost : undefined,
-            reasoning: visionReasoning,
-          }, Date.now() - visionT0)
-          await trackModelUsage(modelConfig.id, modelConfig.provider).catch(() => { })
-          logCost({
-            model_id: modelConfig.id,
-            provider: modelConfig.provider,
-            prompt_cost: (visionUsage?.prompt_tokens ?? 0) * (modelConfig.prompt_cost ?? 0),
-            completion_cost: (visionUsage?.completion_tokens ?? 0) * (modelConfig.completion_cost ?? 0),
-            total_cost: visionCost,
-            prompt_tokens: visionUsage?.prompt_tokens ?? 0,
-            completion_tokens: visionUsage?.completion_tokens ?? 0,
-            chain: 'VISION',
-            subprovider: (visionRes as any)?.provider ?? null,
-          } as any)
-          visionTrace.push({ model: modelConfig.id, provider: modelConfig.provider, status: 'success' })
-          let content = typeof visionRes === 'object' ? visionRes.content : visionRes
-
-          // Parse [VISION_CONTEXT] block emitted by vision model in ANSWER MODE
-          // This block contains the full digital twin and is stripped from user-facing output
-          let visionContextTwin: string | null = null
-          const vcMatch = content.match(/\[VISION_CONTEXT\]([\s\S]*?)\[\/VISION_CONTEXT\]/)
-          if (vcMatch) {
-            const raw = vcMatch[1].trim()
-            try {
-              const vcData = JSON.parse(raw)
-              if (vcData.digital_twin) visionContextTwin = vcData.digital_twin
-            } catch {
-              // Long verbatim twins often break strict JSON (unescaped newlines/quotes).
-              // Fall back to extracting the digital_twin value, then the whole block.
-              const dtMatch = raw.match(/"digital_twin"\s*:\s*"([\s\S]*)"\s*}?\s*$/)
-              if (dtMatch) {
-                visionContextTwin = dtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim()
-              } else {
-                visionContextTwin = raw.replace(/^\{?\s*"?digital_twin"?\s*:?\s*"?/, '').replace(/"?\s*\}?$/, '').trim() || null
-              }
-            }
-            content = content.replace(/\[VISION_CONTEXT\][\s\S]*?\[\/VISION_CONTEXT\]/, '').trim()
-          }
-
-          // Check for JSON metadata (The "Autonomous Brain" logic)
-          let metadata: any = null
-          try {
-            // Try to find JSON in the content (it might be wrapped in ```json ... ```)
-            const jsonMatch = content.match(/\{[\s\S]*\}/)
-            if (jsonMatch) {
-              metadata = JSON.parse(jsonMatch[0])
-            }
-          } catch (e) {
-            // Not a JSON handoff, treat as normal text
-          }
-
-          if (metadata && metadata.logic_nature) {
-            logger.info(`Vision-First Orchestration triggered: ${metadata.logic_nature}`)
-            triggerInfo = { type: 'vision', value: modelConfig.id }
-
-            // If vision model already produced the final answer, return it directly
-            if (metadata.logic_nature === 'FAST_SIMPLE' && metadata.next_instructions) {
-              const fastSimpleTwin = metadata.digital_twin ? String(metadata.digital_twin) : null
-              if (context && fastSimpleTwin) {
-                context.vision_notes = `[VISION DATA - DIGITAL TWIN]\n${fastSimpleTwin}`
-                context._visionImageDescription = fastSimpleTwin
-              }
-              const sanitizedInstructions = sanitizeOutput(metadata.next_instructions)
-              trackModelUsage(modelConfig.id, modelConfig.provider)
-              return {
-                type: 'text',
-                content: sanitizedInstructions,
-                usage_type: 'vision',
-                model: modelConfig.id,
-                model_chain: `vision → ${modelConfig.id}`,
-                status: 'success',
-                image_description: fastSimpleTwin ?? String(sanitizedInstructions).slice(0, 600),
-                total_cost_usd: totalCostUsd,
-                trace: visionTrace,
-                step_traces: tracer.all.length > 0 ? tracer.all : undefined,
-                transcript_md: buildTranscript({
-                  prompt: activePrompt,
-                  history,
-                  context,
-                  category: 'VISION',
-                  systemPrompt: systemPromptCombined,
-                  dateContext,
-                  currentSummary,
-                  replyContext: (context as any)?.replyContext,
-                  thinkingEnabled: (context as any)?.thinkingEnabled,
-                  advisorEnabled: (context as any)?.advisorEnabled,
-                  mode: (context as any)?.mode,
-                  stepTraces: tracer.all.length > 0 ? tracer.all : undefined,
-                  finalContent: sanitizedInstructions,
-                  finalModel: modelConfig.id,
-                  tokensUsed: (visionUsage as any)?.total_tokens,
-                  providerUsage: visionUsage as any,
-                  providerReasoning: visionReasoning as any,
-                  chainDuration: Date.now() - visionT0,
-                  usageType: 'vision',
-                  modelChain: `vision → ${modelConfig.id}`,
-                }),
-              } as any
-            }
-
-            if (context) {
-              context.vision_notes = `[VISION DATA - DIGITAL TWIN]\n${metadata.digital_twin || ''}\n\n[VISION INSTRUCTIONS]\n${metadata.next_instructions || ''}`
-              context._visionImageDescription = metadata.digital_twin || null
-            }
-            forcedCategory = metadata.logic_nature
-
-            trackModelUsage(modelConfig.id, modelConfig.provider)
-            classificationTrace.push({ model: modelConfig.id, provider: modelConfig.provider, chain: 'VISION', status: 'success' })
-            break // Exit vision loop and proceed to main routing
-          }
-
-          if (context && visionContextTwin) {
-            context.vision_notes = `[VISION DATA - DIGITAL TWIN]\n${visionContextTwin}`
-            context._visionImageDescription = visionContextTwin
-          }
-          const sanitizedContent = typeof content === 'string' ? sanitizeOutput(content) : content
-          trackModelUsage(modelConfig.id, modelConfig.provider)
-          return {
-            type: 'text',
-            content: sanitizedContent,
-            usage_type: 'vision',
-            model: modelConfig.id,
-            model_chain: `vision → ${modelConfig.id}`,
-            status: 'success',
-            image_description: visionContextTwin ?? undefined,
-            total_cost_usd: totalCostUsd,
-            trace: visionTrace,
-            step_traces: tracer.all.length > 0 ? tracer.all : undefined,
-            transcript_md: buildTranscript({
-              prompt: activePrompt,
-              history,
-              context,
-              category: 'VISION',
-              systemPrompt: systemPromptCombined,
-              dateContext,
-              currentSummary,
-              replyContext: (context as any)?.replyContext,
-              thinkingEnabled: (context as any)?.thinkingEnabled,
-              advisorEnabled: (context as any)?.advisorEnabled,
-              mode: (context as any)?.mode,
-              stepTraces: tracer.all.length > 0 ? tracer.all : undefined,
-              finalContent: sanitizedContent,
-              finalModel: modelConfig.id,
-              tokensUsed: (visionUsage as any)?.total_tokens,
-              providerUsage: visionUsage as any,
-              providerReasoning: visionReasoning as any,
-              chainDuration: Date.now() - visionT0,
-              usageType: 'vision',
-              modelChain: `vision → ${modelConfig.id}`,
-            }),
-          } as any
-        } else {
-          tracer.recordFailed({ ...visionTraceMeta, error: 'Empty response' }, Date.now() - visionT0)
-          visionTrace.push({ model: modelConfig.id, provider: modelConfig.provider, status: 'failed', error: 'Empty response' })
+    try {
+      const { narrateGeneratedImage } = await import('./image-narration')
+      const descriptions: string[] = []
+      for (let i = 0; i < activeBuffers.length; i++) {
+        const result = await narrateGeneratedImage(activeBuffers[i], context)
+        if (result?.description) {
+          descriptions.push(activeBuffers.length > 1 ? `Image ${i + 1}:\n${result.description}` : result.description)
         }
-      } catch (e: any) {
-        logger.warn(`Vision failure [${modelConfig.id}]: ${e.message}`)
-        tracer.recordFailed({ ...visionTraceMeta, error: e.message }, Date.now() - visionT0)
-        visionTrace.push({ model: modelConfig.id, provider: modelConfig.provider, status: 'failed', error: e.message })
       }
+      
+      if (descriptions.length > 0) {
+        const combined = descriptions.join('\n\n')
+        if (context) {
+          context.vision_notes = `[IMAGE DESCRIPTION]\n${combined}`
+          context._visionImageDescription = combined
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`Image description failed: ${e.message}`)
     }
 
-    // If we have a forced category from vision metadata, skip the return and continue to main router
-    if (!forcedCategory) {
-      if (visionChain.length === 0) {
-        logger.error('VISION chain is empty — add models via Admin > Router > VISION')
-      }
-      onStatus({ chain: 'VISION', status: 'failed', label: getStatusLabel('VISION', 'Vision Failed'), goal: 'Processing visual input' })
-      return {
-        type: 'text',
-        content: "⚡ *Vision Analysis Failed* — Check your model IDs and API keys in the Router.",
-        usage_type: 'vision',
-        model_chain: 'vision → (none)',
-        status: 'error',
-        total_cost_usd: totalCostUsd,
-        trace: visionTrace,
-        transcript_md: buildTranscript({
-          prompt: activePrompt,
-          history,
-          context,
-          category: 'VISION',
-          systemPrompt: systemPromptCombined,
-          dateContext,
-          currentSummary,
-          replyContext: (context as any)?.replyContext,
-          thinkingEnabled: (context as any)?.thinkingEnabled,
-          advisorEnabled: (context as any)?.advisorEnabled,
-          mode: (context as any)?.mode,
-          stepTraces: tracer.all.length > 0 ? tracer.all : undefined,
-          finalContent: "⚡ *Vision Analysis Failed* — Check your model IDs and API keys in the Router.",
-          usageType: 'vision',
-          modelChain: 'vision → (none)',
-        }),
-      }
-    }
+    onStatus({ chain: 'VISION', status: 'done', goal: 'Describing visual input' })
   }
 
   // 2. Standard Routing Flow
@@ -609,7 +366,7 @@ export async function runChain(
     const historyForClassifier = (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes('CLASSIFIER')) ? history.slice(-8) : []
 
     if (routerV2) {
-      const v2res = await classifyIntentV2(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer)
+      const v2res = await classifyIntentV2(prompt, context?.aiApiKey, context?.classificationModelId, context?.mode ?? 'default', context?.intentTag ?? null, historyForClassifier, context?.replyContext ?? null, tracer, activeBuffers.length)
       if (!v2res.classification) {
         onStatus({ chain: 'CLASSIFIER', status: 'failed', goal: 'Classifying intent' })
         logger.error(`Classification (v2) failed: ${v2res.error ?? 'unknown reason'}`)
@@ -683,11 +440,13 @@ export async function runChain(
   let { chain, temperature, thinking_budget } = await (async () => {
     if (routerV2 && category === 'PRIMARY') {
       const routerMode = (context?.mode === 'pro' ? 'pro' : 'default') as 'pro' | 'default'
-      const tier = selectTier({
-        action: v2Flags?.action ?? true,
-        complexity: v2Flags?.complexity ?? 'normal',
-        extendedThinking: thinkingEnabled,
-      })
+      const tier = activeBuffers.length > 0
+        ? 'smart'
+        : selectTier({
+            action: v2Flags?.action ?? true,
+            complexity: v2Flags?.complexity ?? 'normal',
+            extendedThinking: thinkingEnabled,
+          })
       primaryTier = tier
       const [smart, light] = await Promise.all([
         getRouterChain('PRIMARY_SMART', routerMode),
@@ -1080,7 +839,8 @@ IMAGE GENERATION:
               routeContext,
               temperature,
               prompt,
-              augmentSearchQuery
+              augmentSearchQuery,
+              category === 'PRIMARY' ? activeBuffers : undefined
             )
 
             totalCostUsd += result.searchCostUsd

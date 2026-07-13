@@ -20,8 +20,7 @@ action — true ONLY when completing the request needs TWO OR MORE tool operatio
 - "read this image and create a note from it" → 2 operations → true
 - "reorganize my notes into folders by topic" → many operations → true
 
-PRIOR IMAGE: if history contains [VISION CONTEXT - DIGITAL TWIN] or [Image: ...] and the message refers to that image, answer from history — category PRIMARY, never WEB_SEARCH/RESEARCH.
-
+ATTACHMENTS: if this message has an attachment hint like "[2 images attached]", the user is very likely asking about that attachment right now — bias toward PRIMARY unless they clearly reference an unrelated external topic.
 EXAMPLES (message → output):
 "hi" → {"category":"PRIMARY","complexity":"normal","action":false}
 "hello how are you?" → {"category":"PRIMARY","complexity":"normal","action":false}
