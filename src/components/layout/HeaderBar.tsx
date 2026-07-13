@@ -514,15 +514,13 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
         <div className="flex items-center gap-1 shrink-0 mr-2 z-10">
           <button
             onClick={toggleCommandPalette}
-            className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
-            style={{ width: 28, height: 28 }}
+            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
           >
             <Search strokeWidth={2} className="w-4 h-4"/>
           </button>
           <button
             onClick={toggleSidebar}
-            className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
-            style={{ width: 28, height: 28 }}
+            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
           >
             <PanelLeft strokeWidth={2} className="w-4 h-4"/>
           </button>
@@ -790,25 +788,25 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           <div className="flex items-center opacity-0 group-hover/splitctrls:opacity-100 transition-opacity">
             <Tooltip content="Reset ratio">
               <button onClick={() => setSplitViewPosition(50)} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-                 <RotateCcw strokeWidth={2} className="w-[18px] h-[18px]" />
+                 <RotateCcw strokeWidth={2} className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
           {splitViewLeftId && splitViewRightId && (
             <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
               <button onClick={togglePin} className={cn(`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`, splitViewPinned ? "bg-[var(--bone-10)] opacity-100 hover:bg-[var(--bone-12)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]")}>
-                 <Pin strokeWidth={2} className="w-[18px] h-[18px]" fill={splitViewPinned ? "currentColor" : "none"} />
+                 <Pin strokeWidth={2} className="w-4 h-4" fill={splitViewPinned ? "currentColor" : "none"} />
               </button>
             </Tooltip>
           )}
           <Tooltip content="Swap columns">
             <button onClick={swapColumns} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-               <ArrowLeftRight strokeWidth={2} className="w-[18px] h-[18px]" />
+               <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
           <Tooltip content="Exit split view">
             <button onClick={toggleSplitView} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 bg-[var(--bone-10)] opacity-100 hover:bg-[var(--bone-12)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-               <Columns2 strokeWidth={2} className="w-[18px] h-[18px]" />
+               <Columns2 strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
         </div>
