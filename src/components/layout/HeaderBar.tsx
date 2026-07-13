@@ -786,8 +786,8 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
       {/* Split View Toggle and Controls */}
       {splitViewActive ? (
-        <div className={cn("flex items-center gap-1 shrink-0 z-10 [-webkit-app-region:no-drag] pr-0", isDesktopEnv ? `absolute top-0 ${isMac ? 'right-[20px]' : 'right-[140px]'}` : "")} style={{ height: BAR_H }}>
-          <div className="flex items-center opacity-0 group-hover/header:opacity-100 transition-opacity">
+        <div className={cn("flex items-center gap-1 shrink-0 z-10 [-webkit-app-region:no-drag] pr-0 group/splitctrls", isDesktopEnv ? `absolute top-0 ${isMac ? 'right-[20px]' : 'right-[140px]'}` : "")} style={{ height: BAR_H }}>
+          <div className="flex items-center opacity-0 group-hover/splitctrls:opacity-100 transition-opacity">
             <Tooltip content="Reset ratio">
               <button onClick={() => setSplitViewPosition(50)} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
                  <RotateCcw strokeWidth={2} className="w-[18px] h-[18px]" />
