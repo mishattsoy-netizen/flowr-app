@@ -244,7 +244,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
-              <Plus strokeWidth={2.5} className="w-4 h-4" />
+              <Plus strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
 
@@ -313,7 +313,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-50 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
-              <Plus strokeWidth={2.5} className="w-4 h-4" />
+              <Plus strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
 

@@ -722,11 +722,11 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
-              <Plus strokeWidth={2.5} className="w-4 h-4"/>
+              <Plus strokeWidth={2} className="w-4 h-4"/>
             </button>
           </div>
         )}
-        
+
         {splitViewActive && (
           <div className="flex flex-1 h-full relative" style={{ gap: '8px' }}>
             {/* Mirrors SplitViewLayout: content area = 100vw - px-2(16) - sidebar - gap(8) - [right panel + gap(8)]; left column = pos% - 4px */}
