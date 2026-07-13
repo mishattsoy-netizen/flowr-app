@@ -171,21 +171,6 @@ export const FLOWR_TOOLS = [
   },
 
   {
-    name: "update_focus",
-    description: "Explicitly record what topic/task the conversation is currently focused on. Call this ONLY when the user explicitly asks to focus on something (e.g. 'let's focus on X', 'switch to X for now'). Do not infer topic shifts yourself and call this automatically.",
-    parameters: {
-      type: "object",
-      properties: {
-        focus: {
-          type: "string",
-          description: "A short description of the new current topic/task, e.g. 'renewing passport' or 'researching noise-cancelling headphones'."
-        }
-      },
-      required: ["focus"]
-    }
-  },
-
-  {
     name: "list_content",
     description: "Universal tool to fetch, search, and list any app content (entities and tasks). The ONLY reading tool.",
     parameters: {

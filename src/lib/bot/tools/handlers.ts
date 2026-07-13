@@ -18,8 +18,7 @@ const PENDING_ACTION_TTL_MS = 5 * 60 * 1000
 
 /**
  * A stored pending_action only backs a confirmed:true call if it's recent.
- * Without this, an abandoned dry-run (the user moved on without answering,
- * and update_focus never fired to clear it — see §6c reliability notes)
+ * Without this, an abandoned dry-run (the user moved on without answering)
  * stays matchable indefinitely, so an unrelated later "yes" can still pass
  * the id-match gate and execute a stale action.
  */
@@ -32,9 +31,8 @@ export function isPendingActionFresh(pending: { created_at?: string } | undefine
 /**
  * Deterministic version of "is this confirmation still valid": a pending_action
  * is only confirmable on the turn immediately after the dry-run that created it.
- * This doesn't depend on wall-clock time (the TTL above) or on update_focus firing
- * to clear stale state (shown unreliable — see §6c reliability notes) — it's a
- * hard, turn-count-based expiry. currentTurnSeq is the session's turn_seq AFTER
+ * This doesn't depend on wall-clock time (the TTL above) — it's a hard,
+ * turn-count-based expiry. currentTurnSeq is the session's turn_seq AFTER
  * this turn's increment (see chainRouter.ts), so a dry-run stamped at turn N is
  * only confirmable when currentTurnSeq === N + 1.
  */
@@ -386,8 +384,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           // Server-side confirmation gate — same reasoning as delete_content:
           // confirmed:true is only honored if it matches a dry-run this exact
           // session actually issued for this exact id, AND that confirmation
-          // lands on the very next turn (deterministic — doesn't depend on
-          // update_focus firing). See delete_content's comment for the
+          // lands on the very next turn. See delete_content's comment for the
           // observed live failure this closes.
           {
             const { getSessionState } = await import('../context')
@@ -518,11 +515,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     // Server-side confirmation gate: confirmed:true is only honored if it
     // matches a dry-run this exact session actually issued for these exact
     // ids, AND that confirmation lands on the very next turn (deterministic
-    // — doesn't depend on update_focus firing to clear stale state, shown
-    // unreliable in live testing). Without this, a model can skip the
-    // dry-run entirely and call delete_content({ ids, confirmed: true }) as
-    // its first and only call — observed live: the model re-derived a stale
-    // "yes" as "delete this" from raw history and executed with no dry-run
+    // — a turn-count expiry, not wall-clock). Without this, a model can skip
+    // the dry-run entirely and call delete_content({ ids, confirmed: true })
+    // as its first and only call — observed live: the model re-derived a
+    // stale "yes" as "delete this" from raw history and executed with no dry-run
     // in that confirmation cycle at all. Trusting confirmed:true alone was
     // not enough; the id-match check alone was not enough either (a stale
     // pending_action several turns old could still match by luck) — the
@@ -627,22 +623,6 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       logger.error('delete_content failed:', e.message)
       return { error: e.message }
     }
-  },
-
-  // ── UPDATE FOCUS ──────────────────────────────────────────────────────────────
-  async update_focus(args: any, context: any) {
-    const { focus } = args
-    if (!focus || typeof focus !== 'string') return { error: "'focus' is required" }
-    if (!context?.sessionId) return { success: true, note: 'no session to persist focus to' }
-
-    const { getSessionState, updateSessionState } = await import('../context')
-    const current = await getSessionState(context.sessionId)
-    await updateSessionState(context.sessionId, {
-      previous_focus: current?.current_focus ?? null,
-      current_focus: focus,
-      pending_action: null, // §6b/§6c interaction: an explicit topic shift drops any outstanding unconfirmed action
-    })
-    return { success: true, focus }
   },
 
   // ── LIST CONTENT ──────────────────────────────────────────────────────────────

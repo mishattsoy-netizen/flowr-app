@@ -58,18 +58,6 @@ describe('sanitizeBlocks', () => {
   })
 })
 
-describe('update_focus', () => {
-  it('requires a focus string', async () => {
-    const result = await toolHandlers.update_focus({}, { sessionId: 'chat:1' })
-    expect(result.error).toBeDefined()
-  })
-
-  it('no-ops without a session id, instead of throwing', async () => {
-    const result = await toolHandlers.update_focus({ focus: 'testing something' }, {})
-    expect(result.success).toBe(true)
-  })
-})
-
 describe('delete_content confirmed:true server-side gate', () => {
   // Regression test for a live bug (2026-07-13): the model called
   // delete_content({ ids, confirmed: true }) as its FIRST and ONLY call —
@@ -99,11 +87,10 @@ describe('update_content confirmed:true server-side gate', () => {
 })
 
 describe('isPendingActionFresh', () => {
-  // Regression test for a live gap (2026-07-13): update_focus only fires on
-  // ~1/3 of real topic shifts, and it's the only thing (besides a confirmed
-  // execution) that clears pending_action. Without a TTL, an abandoned
-  // dry-run from several turns ago stays matchable, so an unrelated later
-  // "yes" can still pass the ids/id-match gate and execute a stale action.
+  // Regression test for a live gap (2026-07-13): an abandoned dry-run from
+  // several turns ago stays matchable indefinitely without a TTL, so an
+  // unrelated later "yes" can still pass the ids/id-match gate and execute
+  // a stale action.
 
   it('rejects a missing pending action', () => {
     expect(isPendingActionFresh(null)).toBe(false)

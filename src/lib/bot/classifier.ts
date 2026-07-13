@@ -221,8 +221,8 @@ export async function classifyIntentV2(
     const traceMeta = { chain: 'CLASSIFIER', model: modelConfig.id, provider: modelConfig.provider, key: `${key} 1`, input_system: activePrompt, input_user: finalUserPrompt, input_history_count: history.length }
 
     // Classification is a routing decision, not conversation — low temperature keeps
-    // category/complexity/action/focus_shift stable across repeated identical inputs
-    // (default 0.7 was observed flip-flopping category on borderline WEB_SEARCH cases).
+    // category/complexity/action stable across repeated identical inputs (default
+    // 0.7 was observed flip-flopping category on borderline WEB_SEARCH cases).
     const CLASSIFIER_TEMPERATURE = 0.1
 
     try {

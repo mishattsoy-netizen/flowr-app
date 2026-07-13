@@ -10,8 +10,6 @@ export interface SessionState {
   compaction_threshold: number
   last_summarized_at: string
   pending_action: { tool: string; args: Record<string, any>; dry_run_result: any; created_at: string; turn_seq?: number } | null
-  current_focus: string | null
-  previous_focus: string | null
   turn_seq: number
 }
 
@@ -40,8 +38,6 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       compaction_threshold: config.compaction_threshold,
       last_summarized_at: new Date(0).toISOString(),
       pending_action: null,
-      current_focus: null,
-      previous_focus: null,
       turn_seq: 0
     }
   }
@@ -55,8 +51,6 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       compaction_threshold: config.compaction_threshold,
       last_summarized_at: new Date(0).toISOString(),
       pending_action: null,
-      current_focus: null,
-      previous_focus: null,
       turn_seq: 0
     }
   }
@@ -83,8 +77,6 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     token_usage_total: 0,
     last_summarized_at: new Date(0).toISOString(),
     pending_action: null,
-    current_focus: null,
-    previous_focus: null,
     turn_seq: 0
   }
 

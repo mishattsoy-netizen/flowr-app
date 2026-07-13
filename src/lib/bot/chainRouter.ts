@@ -491,9 +491,7 @@ export async function runChain(
     isGlobalPromptEnabled: isGlobalPromptEnabled ?? true,
     skipSummary: !!skipSummary,
     currentSummary,
-    pendingAction: sessionState?.pending_action,
-    currentFocus: sessionState?.current_focus,
-    previousFocus: sessionState?.previous_focus
+    pendingAction: sessionState?.pending_action
   })
 
   // ── Telegram awareness — inject formatting & brevity rules ──
