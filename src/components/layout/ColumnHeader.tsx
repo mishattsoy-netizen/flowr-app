@@ -91,7 +91,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
   const isDesktopEnv = isDesktop();
 
-  const BAR_H = 42;
+  const BAR_H = isDesktopEnv ? 50 : 42;
   const M = 6;
   const R_ACTIVE = 12;
   const R_INACTIVE = 8;
