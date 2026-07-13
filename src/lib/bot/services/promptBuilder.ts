@@ -75,7 +75,7 @@ Local Time: ${localTimeMinute} (${utcLabel})
 ISO Time (UTC): ${isoMinute}
 
 DATE/TIME RULES FOR TOOL CALLS (CRITICAL):
-All dueDate/endDate values MUST be UTC ISO strings (ending in Z). The user speaks in LOCAL time (${utcLabel}): UTC hour = local hour - (${utcOffsetHours}). Example: "6 PM" local → ${String(18 - utcOffsetHours).padStart(2, '0')}:00 UTC.
+All dueDate/endDate values MUST be UTC ISO strings (ending in Z). The user speaks in LOCAL time (${utcLabel}): UTC hour = local hour - (${utcOffsetHours}). Example: "6 PM" local → ${String(18 - utcOffsetHours).padStart(2, '0')}:00 UTC. This UTC conversion is for the tool call ONLY — when you tell the user the date/time in your reply, state the LOCAL time they gave you (e.g. "6:00 PM"), never the UTC value, and never mention "UTC"/"GMT"/an offset/"local time" at all.
 When the user gives TWO dates ("start now, end tomorrow 6pm"): dueDate = START, endDate = END, includeTime = true when any time is mentioned. Never omit endDate when the user states an end date or range.
 If the user did NOT state a specific time (a bare date or day name, e.g. "due Friday", "next Tuesday"): set includeTime = false, and encode the date at LOCAL NOON, not local midnight or end-of-day — i.e. UTC hour = 12 - (${utcOffsetHours}). Never use 23:59 or 00:00 as a placeholder time: converted to another timezone it can silently shift the date shown to the user by a day, which is worse than the time being wrong.
 Relative weekday phrases ("next Friday", "this Friday", etc.) are genuinely ambiguous — always state the resolved calendar date back to the user in your reply (e.g. "due Friday, July 17") so they can immediately catch and correct a misread.

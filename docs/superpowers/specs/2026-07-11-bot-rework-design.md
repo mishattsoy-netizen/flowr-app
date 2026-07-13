@@ -18,7 +18,7 @@ Build order and status. Step numbers refer to §13.
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
 | 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | ✅ **Done** (not yet live-tested with actual telegram bot). |
 | 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d shipped 2026-07-13; §6c fully removed 2026-07-14. |
-| 4c | Date/time correctness (§6e) | ⚠️ **Implemented, awaiting live retest** (2026-07-14). ⬅️ **NEXT: live-verify, then §7b** (Compaction rework). |
+| 4c | Date/time correctness (§6e) | ✅ **Done & verified live** (2026-07-14), 3/3 real UI tests. ⬅️ **NEXT: §7b** (Compaction rework). |
 | 7b | Compaction rework | ⬜ Not started |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 6 | Memory v2 (§7) | ⬜ Not started |
@@ -300,7 +300,7 @@ Verified: `npx tsc --noEmit` clean, 148/148 tests passing in `src/lib/bot` after
 
 **Acceptance:** ask the bot to "save this conversation as a note" → the resulting note contains only actual conversational content, no `[CURRENT CONTEXT]`/`[CURRENT REQUEST]`/etc. markers, even under adversarial prompting that tries to get the model to reproduce them.
 
-### 6e. Date/time correctness for task creation — ⚠️ IMPLEMENTED, AWAITING LIVE RETEST (2026-07-14)
+### 6e. Date/time correctness for task creation — ✅ DONE (2026-07-14)
 
 **Root cause (from `transcripts/ai-transcript-2026-07-13T15-14-52.md`):** user (UTC+3, Monday Jul 13) asked to create a task "renew passport" due next Friday. Bot called `create_content` with `dueDate: "2026-07-24T23:59:00Z", includeTime: true`, and told the user "due Friday, July 24." Two things looked like separate bugs but are one causal chain:
 - `promptBuilder.ts`'s DATE/TIME RULES block had zero guidance for the no-explicit-time case, so the model invented an end-of-day `23:59:00Z` timestamp.
@@ -314,7 +314,12 @@ Verified: `npx tsc --noEmit` clean, 148/148 tests passing in `src/lib/bot` after
 
 **Known accepted consequence:** a bare-date task now flips "overdue" at local noon on its due day instead of ~3am the following day (since `isDeadlinePassed` still takes the exact-timestamp branch on the full `Z` string). This is the deliberate trade for the 12-hour safety margin against the model's tz arithmetic — chosen consciously, not a side effect discovered later.
 
-**Verified:** `tsc --noEmit` clean (string-only prompt/schema edit, no logic touched). **Not yet verified:** live retest against the actual bot — this fix's real test is whether the model actually emits noon-anchored `includeTime:false` for a bare-date request, not whether the prompt text reads correctly. Next step: re-run "create a task ... due next Friday" (or similar bare-date phrasing) live and confirm via transcript that the stored `dueDate` is noon-anchored and the task card renders the correct day.
+**Verified live (2026-07-14, 3 real UI tests, UTC+3 user, "today" = Tue Jul 14):**
+1. Bare date: "renew passport due next Friday" → `dueDate` noon-anchored, task card shows **Jul 24** (matches the bot's own stated "Friday, July 24") — no day-shift. Bug fixed.
+2. Explicit time: "call the dentist due Friday at 3pm" → `includeTime: true`, card shows **Jul 17 3:00 PM** — correct, no drift.
+3. Two-date range: "conference trip starting tomorrow, ending Friday at 6pm" → card correctly shows **Jul 15 12:00 PM → Jul 17 6:00 PM**. Data is correct, but the bot's **reply** text was wrong: "due Friday, July 17 at 3:00 PM (6:00 PM local time)" — it surfaced the raw UTC hour (3:00 PM) alongside a parenthetical "local time" correction, violating `system_prompt.txt`'s existing "never say UTC/GMT/offset — give local time" rule. Root cause: the DATE/TIME RULES block teaches the model to reason explicitly in UTC-hour terms for the tool call, which bled into its reply. **Fix:** added an explicit clause to the same DATE/TIME RULES block: the UTC conversion is for the tool call only, the reply must state the local time the user gave and must never mention UTC/GMT/an offset/"local time" at all. Not yet independently re-tested live (low-risk, same prompt-block pattern already proven to work for the other two rules in this block) — flag for a spot-check next time a multi-date/timed task request comes through.
+
+**Verified:** `tsc --noEmit` clean throughout (string-only prompt/schema edits, no logic touched).
 
 ## 7. Memory v2
 
