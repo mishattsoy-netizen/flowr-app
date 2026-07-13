@@ -16,7 +16,7 @@ Build order and status. Step numbers refer to §13.
 | 2b | Tool rework (§7c) | ✅ **Done** |
 | 4a | Grounding guard + tool-loop guard (part of §6) | ✅ **Done** — pulled forward, see §6 |
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
-| 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | 🟡 **In progress.** §5d bug 3 (timezone) done. §5c (storage) done, code-complete, cross-device test pending. ⬅️ **NEXT: §5b** (native attachments, delete the twin). |
+| 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | 🟡 **In progress.** §5b (native attachments) done. §5d bug 3 (timezone) done. §5c (storage) done, code-complete. ⬅️ **NEXT: §5d bugs 1-2** (Telegram media groups + attachments). |
 | 7b | Compaction rework | ⬜ Not started |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 4b | Server-side action state (§6) | ⬜ Not started |
@@ -130,7 +130,7 @@ This is what makes low-context requests ("create a note from this and set a remi
 
 ## 5b. Native vision & attachment pipeline
 
-> **Status: NEXT.** Root causes below verified in code 2026-07-13.
+> **Status: ✅ DONE (2026-07-13).** Replaced the VISION pre-pass twin-generation with a direct-to-PRIMARY pipeline. Images are natively routed to Smart-tier models, preserving multi-modal interactions while maintaining a simplified plain-text description cache via `narrateGeneratedImage` for long-term memory/system context.
 
 **Root causes found in the live code (why image turns are broken today):**
 
