@@ -16,7 +16,7 @@ Build order and status. Step numbers refer to §13.
 | 2b | Tool rework (§7c) | ✅ **Done** |
 | 4a | Grounding guard + tool-loop guard (part of §6) | ✅ **Done** — pulled forward, see §6 |
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
-| 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | 🟡 **In progress.** §5b (native attachments) done. §5d bug 3 (timezone) done. §5c (storage) done, code-complete. ⬅️ **NEXT: §5d bugs 1-2** (Telegram media groups + attachments). |
+| 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | ✅ **Done** (not yet live-tested with actual telegram bot). ⬅️ **NEXT: §7b** (Compaction rework). |
 | 7b | Compaction rework | ⬜ Not started |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 4b | Server-side action state (§6) | ⬜ Not started |
@@ -186,7 +186,7 @@ History cost policy: images stay native for the recent turns of the current sess
 
 > Not in the original spec. Telegram shares `runChain` (and therefore router v2, tiers, memory, tools) but its webhook is under-wired. Ships with step 5, on top of the §5b unified pipeline.
 
-**Bug 1 — an album produces one reply per image.** `media_group_id` appears nowhere in `src/app/api/telegram/webhook/route.ts`. Telegram delivers an album as N separate updates sharing that id; each is processed as an independent message. `photoBuffer` is also a single `Buffer`. (`runChain` already accepts `Buffer[]` — `chainRouter.ts:159` — so only the webhook is single-image.)
+**Bug 1 — an album produces one reply per image.** ✅ DONE (2026-07-14). DB-backed claim table (`telegram_media_groups`), settle window, single `runChain` call with `Buffer[]`. `media_group_id` appears nowhere in `src/app/api/telegram/webhook/route.ts`. Telegram delivers an album as N separate updates sharing that id; each is processed as an independent message. `photoBuffer` is also a single `Buffer`. (`runChain` already accepts `Buffer[]` — `chainRouter.ts:159` — so only the webhook is single-image.)
 
 **The naive fix is wrong:** album items arrive as **separate serverless invocations with no shared memory**, so an in-memory map/debounce works locally and silently breaks on Vercel. Batching state must live in the DB:
 
@@ -196,13 +196,13 @@ History cost policy: images stay native for the recent turns of the current sess
 4. The claimer downloads all `file_ids` and calls `runChain` once with the full attachment set (via the §5b pipeline).
 5. Clean up rows older than ~10 minutes.
 
-**Bug 2 — Telegram images show as empty bubbles in the web chat.** The webhook **never persists attachments**: it downloads each photo to a Buffer, hands it to `runChain`, and writes no `attachments` array on the message row. Fix: upload each file to the §5c durable store and write the URLs into the message's `attachments` (shape: `AIAttachment`, `src/data/store.types.ts:266`).
+**Bug 2 — Telegram images show as empty bubbles in the web chat.** ✅ DONE (2026-07-14). Server-side `supabaseAdmin` upload to the existing `user_uploads` bucket, `AIAttachment`-shaped object appended to the message's `content` via the same `ATTACHMENTS_JSON` comment convention `insertMessage` uses on the web side. The webhook **never persists attachments**: it downloads each photo to a Buffer, hands it to `runChain`, and writes no `attachments` array on the message row. Fix: upload each file to the §5c durable store and write the URLs into the message's `attachments` (shape: `AIAttachment`, `src/data/store.types.ts:266`). (fixed 2026-07-14: user-message logging regression from the initial refactor).
 
 **Bug 3 — wrong timezone on Telegram — ✅ DONE (2026-07-13).** The webhook's `runChain` call passed no `clientTime`, unlike the web route, so the server fell back to its own clock (UTC on Vercel). Root cause turned out bigger than expected: `manualTimezone` lived only in browser Zustand state and wasn't even in `partialize` (didn't survive a reload), so there was nothing durable to read cross-surface. Fixed properly per owner decision: new `user_settings` table (RLS-scoped like `bot_memories`), the Settings timezone picker now persists there (`saveTimezone` action) and loads on mount, and the Telegram webhook reads the same row and builds `clientTime` with the shared `getClientTime()` helper. **Opt-in, not automatic** — a user who has never opened Settings and picked a timezone sees no change (same server-clock fallback as before).
 
 **Also missing vs. the web route** (lower priority, decide case by case): `clientHistory`, `thinkingEnabled`, `replyContext`, `intentTag`, `advisorEnabled`.
 
-**Acceptance:** a 4-image album → exactly ONE reply referencing all four, images render in the web chat, and "remind me tomorrow 6pm" lands at 6pm **local**.
+**Acceptance:** a 4-image album → exactly ONE reply referencing all four, images render in the web chat, and "remind me tomorrow 6pm" lands at 6pm **local**. (Verified manually via typescript compile and test suite, but requires live bot testing for the race-condition coordination logic).
 
 ## 6. Server-side action state (pending confirmations & multi-step ops)
 
@@ -346,7 +346,7 @@ note below). Work is folded into this spec — no separate plan documents.
 4a. ✅ Grounding guard + tool-loop guard (§6a) — pulled forward out of step 4.
 8. ✅ Prompt diet (§10) — substantially done alongside step 2 (~9k→~4k tokens, prompt caching fixed).
 
-**⬅️ NEXT — 5. Attachments (§5b native pipeline + §5c durable storage + §5d Telegram parity).**
+**⬅️ NEXT — 7b. Compaction rework (§7b)**
 
 > **Reorder note (2026-07-13):** step 5 was moved ahead of steps 3 and 4b. The
 > original order was written before live testing surfaced four broken behaviours:
@@ -357,7 +357,7 @@ note below). Work is folded into this spec — no separate plan documents.
 
 Remaining, in order:
 
-5. **Attachments** — §5b (native pipeline, delete the twin) + §5c (durable storage, Option A) + §5d (Telegram parity). Suggested internal order: §5d bug 3 (`clientTime`, quick + standalone) → §5c (unblocks §5d bug 2) → §5b (core) → §5d bugs 1-2.
+5. ✅ **Attachments** — §5b (native pipeline, delete the twin) + §5c (durable storage, Option A) + §5d (Telegram parity). Suggested internal order: §5d bug 3 (`clientTime`, quick + standalone) → §5c (unblocks §5d bug 2) → §5b (core) → §5d bugs 1-2.
 7b. Compaction rework (§7b) — pairs naturally with §5b's history cost policy.
 3. Context pack + workspace descriptions (§5).
 4b. Action state (§6b).

@@ -73,6 +73,20 @@ export function getRedirectedTarget(
     return { overId: targetEntity.id, edge, depth: targetDepth };
   }
 
+  const cleanDragId = (dragId && typeof dragId === 'string')
+    ? (dragId.startsWith('pinned-') ? dragId.replace('pinned-', '') : dragId)
+    : '';
+  const dragItem = cleanDragId ? entities.find(e => e.id === cleanDragId) : undefined;
+
+  // Fix for "highlighting instead of insert line" and "1px gap line disappears":
+  // When dragging a regular item to the top edge of ANY workspace, we ALWAYS want
+  // to show an insert line at depth 1 (which represents appending to the previous section).
+  // We NEVER want to highlight the previous workspace's deep folders, and we NEVER
+  // want to return depth 0 (which would trigger isBlockNesting and hide the line).
+  if (targetDepth === 0 && (!dragItem || dragItem.type !== 'workspace')) {
+    return { overId: targetEntity.id, edge: 'top' as Edge, depth: 1 };
+  }
+
   const idx = siblings.findIndex(e => e.id === targetEntity.id);
   if (idx <= 0) {
     return { overId: targetEntity.id, edge, depth: targetDepth };
@@ -87,11 +101,6 @@ export function getRedirectedTarget(
   // Find deepest expanded descendant container
   let current = prev;
   let currentDepth = targetDepth; // prev is at same level as targetEntity visually, which is targetDepth
-
-  const cleanDragId = (dragId && typeof dragId === 'string')
-    ? (dragId.startsWith('pinned-') ? dragId.replace('pinned-', '') : dragId)
-    : '';
-  const dragItem = cleanDragId ? entities.find(e => e.id === cleanDragId) : undefined;
 
   while (true) {
     if (dragItem && current.id === dragItem.parentId) {
@@ -119,12 +128,12 @@ export function getRedirectedTarget(
   const isNoOpNest = cleanDragId === current.id || (dragItem && dragItem.parentId === current.id);
 
   if (isNoOpNest) {
-    // If nesting is a no-op (item is already in this container), redirect to bottom edge of this container (outdent 1 level)
-    return {
-      overId: current.id,
-      edge: 'bottom',
-      depth: currentDepth
-    };
+    // The drag item is already a direct child of the deepest expanded folder above
+    // the target. Redirecting to that folder's bottom would be a no-op when the
+    // item is already the last child.
+    // Instead, fall back to the original target so the user can insert the item
+    // before targetEntity at targetDepth (moving it out of the folder).
+    return { overId: targetEntity.id, edge: 'top' as Edge, depth: targetDepth };
   } else {
     // Otherwise, nest inside
     return {
@@ -152,7 +161,7 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
     const safeClientX = clientX !== undefined ? clientX : (dragCursor.ready ? dragCursor.x : 0);
     const localX = safeClientX - rect.left;
     const minDepth = dragType === 'workspace' ? 0 : 1;
-    
+
     let targetDepth = depth + 1;
     while (targetDepth > minDepth) {
       const levelStart = 8 + targetDepth * 18;
@@ -290,7 +299,7 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
         const dragType = source.data.entityType as EntityType;
         const clientX = location.current.input?.clientX;
         const { targetDepth, isNoOp } = getTargetConfig(clientX, dragId, dragType);
-        
+
         setIsOver(!isNoOp);
         setActiveDepth(targetDepth);
       },
@@ -299,7 +308,7 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
         const dragType = source.data.entityType as EntityType;
         const clientX = location.current.input?.clientX;
         const { targetDepth, isNoOp } = getTargetConfig(clientX, dragId, dragType);
-        
+
         setIsOver(!isNoOp);
         setActiveDepth(targetDepth);
       },
@@ -374,7 +383,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
   const getSortedSiblings = useCallback((targetEntity: Entity) => {
     const isWorkspace = (type: EntityType) => type === 'workspace';
-    
+
     const getSectionId = (): 'spaces' | 'unsorted' | null => {
       if (targetEntity.parentId && entities.some(p => p.id === targetEntity.parentId)) return null;
       return isWorkspace(targetEntity.type) ? 'spaces' : 'unsorted';
@@ -383,15 +392,15 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     const getSectionSiblings = () => {
       const sectionId = getSectionId();
       if (sectionId === 'spaces') {
-        return entities.filter(e => 
-          e.type === 'workspace' && 
+        return entities.filter(e =>
+          e.type === 'workspace' &&
           (!e.parentId || !entities.some(p => p.id === e.parentId)) &&
           (e.spaceId || 'ws-personal') === (targetEntity.spaceId || 'ws-personal') &&
           !hiddenEntityIds.includes(e.id)
         );
       }
       if (sectionId === 'unsorted') {
-        return entities.filter(e => 
+        return entities.filter(e =>
           (e.type === 'note' || e.type === 'canvas') &&
           (!e.parentId || !entities.some(p => p.id === e.parentId)) &&
           (e.spaceId || 'ws-personal') === (targetEntity.spaceId || 'ws-personal') &&
@@ -574,10 +583,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         const isRegularOnWorkspace = isTargetWorkspace && !isDragWorkspace;
 
         if (isRegularOnWorkspace) {
-          const threshold = rect.height * 0.5;
-          const isTopHover = clientY < rect.top + threshold;
+          const topThreshold = rect.height * 0.3;
+          const bottomThreshold = rect.height * 0.7;
 
-          if (isTopHover) {
+          if (clientY < rect.top + topThreshold) {
             const siblings = getSortedSiblings(entity);
             const idx = siblings.findIndex(e => e.id === entity.id);
             if (idx > 0) {
@@ -592,6 +601,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             } else {
               edge = null;
             }
+          } else if (clientY > rect.top + bottomThreshold) {
+            edge = 'bottom';
           } else {
             edge = null;
           }
@@ -646,6 +657,24 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             redirectedDepth = depth + 1;
           } else {
             edge = null;
+          }
+        }
+
+        let isAfterFolder = false;
+        if (edge === 'bottom' && !isDraggingWorkspace) {
+          const parentId = redirectedEntity.parentId;
+          if (parentId) {
+            const siblingsList = getSortedSiblings(redirectedEntity);
+            if (siblingsList.length > 0 && siblingsList[siblingsList.length - 1].id === redirectedEntity.id) {
+              const parentEntity = entities.find(e => e.id === parentId);
+              if (parentEntity) {
+                redirectedId = parentId;
+                redirectedEntity = parentEntity;
+                redirectedDepth = depth - 1;
+                edge = 'bottom';
+                isAfterFolder = true;
+              }
+            }
           }
         }
 
@@ -705,14 +734,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             const isDragWS = isWorkspace(dragEntity.type);
             const isTargetWS = isWorkspace(redirectedEntity.type);
 
-            const siblings = getSortedSiblings(redirectedEntity);
-            const idx = siblings.findIndex(e => e.id === redirectedEntity.id);
-            const prev = idx > 0 ? siblings[idx - 1] : null;
-            const isPrevExpanded = prev && entities.some(e => e.parentId === prev.id) && !collapsedIds.includes(prev.id);
-            const isTopRedirect = edge === 'top' && isPrevExpanded;
-
-            if (isDragWS !== isTargetWS && !isTopRedirect) {
-              edge = null; // Cannot reorder spaces relative to regular items/folders
+            if (isDragWS && !isTargetWS) {
+              edge = null; // Cannot drop a workspace onto a regular item
+            } else if (!isDragWS && isTargetWS && edge !== 'top') {
+              edge = null; // Regular items can only be dropped at the top edge of a workspace
             } else if (isDragWS === isTargetWS && (dragEntity.parentId || null) === (redirectedEntity.parentId || null) && (dragEntity.spaceId || 'ws-personal') === (redirectedEntity.spaceId || 'ws-personal')) {
               const siblingsList = getSortedSiblings(redirectedEntity);
               const dragIdx = siblingsList.findIndex(e => e.id === dragEntityId);
@@ -729,7 +754,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             // Parent container check: if the target is the parent of the dragged item,
             // and we are inserting at the bottom (edge === 'bottom'), and the dragged item
             // is already the last child of this parent, it's a no-op.
-            if (edge === 'bottom' && dragEntity.parentId === redirectedEntity.id) {
+            if (edge === 'bottom' && dragEntity.parentId === redirectedEntity.id && !isAfterFolder) {
               const siblingsList = getSortedSiblings(dragEntity);
               const cleanDragId = dragId.replace('pinned-', '');
               if (siblingsList.length > 0 && siblingsList[siblingsList.length - 1].id === cleanDragId) {
@@ -742,8 +767,19 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         let isBlockNesting = false;
         if (isDraggingWorkspace) {
           isBlockNesting = true;
+        } else if (redirectedDepth === 0 && !isDraggingWorkspace) {
+          isBlockNesting = true; // Bug 3 fix: Regular items cannot be placed at depth 0
         } else if (dragEntityId === targetEntityId || isTargetDescendantResolved) {
           isBlockNesting = true;
+        } else if (edge === null) {
+          const isTargetWorkspace = redirectedEntity.type === 'workspace';
+          const dragParentId = dragEntity?.parentId;
+          const isChildOfWorkspace = isTargetWorkspace && !dragParentId && (dragEntity?.spaceId || 'ws-personal') === redirectedEntity.id;
+          const isChildOfFolder = dragParentId === redirectedEntity.id;
+
+          if (isChildOfWorkspace || isChildOfFolder) {
+            isBlockNesting = true; // Bug 2 fix: Cannot nest inside parent (or workspace) if already nested
+          }
         } else if (edge === null && dragDepth !== undefined && sameWs && sameFolderTree) {
           const isTargetFolder = redirectedEntity.type === 'folder' || redirectedEntity.type === 'workspace';
           if (!isTargetFolder || (redirectedDepth + 1 < dragDepth - 1)) {
@@ -758,6 +794,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           visualEdge: originalEdge,
           visualDepth: redirectedDepth,
           isBlockNesting,
+          isAfterFolder,
         };
       },
       onDragEnter: ({ self }) => {
@@ -881,9 +918,9 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
     if (e.button === 1) { // Middle click
       e.preventDefault();
       e.stopPropagation();
-      
+
       const state = useStore.getState();
-      
+
       if (state.splitViewActive && !state.splitViewRightId) {
         state.setColumnEntity('right', entity.id);
       } else {
@@ -982,6 +1019,17 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const isExpanded = isCollapsible && !isCollapsed;
   const blockActive = isActive || isChildActive;
 
+  const isLastChildExpandedFolderWithChildren = useStore(state => {
+    if (children.length === 0) return false;
+    const lastChild = children[children.length - 1];
+    const isFolder = lastChild.type === 'folder' || lastChild.type === 'workspace';
+    if (!isFolder) return false;
+    const isExpanded = !state.collapsedIds.includes(lastChild.id);
+    if (!isExpanded) return false;
+    const hasChildren = state.entities.some(e => e.parentId === lastChild.id && !state.hiddenEntityIds.includes(e.id));
+    return hasChildren;
+  });
+
   return (
     <div
       ref={elementRef}
@@ -989,7 +1037,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
         isWorkspace && isExpanded && "group/workspace",
-        "relative group/treeitem flex flex-col gap-[1px]"
+        "relative group/treeitem flex flex-col gap-[1px] pb-[1px]",
+        isOver && "z-20"
       )}
     >
       <div
@@ -1091,7 +1140,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           <div
             className={cn(
               "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
-              closestEdge === 'top' ? '-top-px' : '-bottom-px'
+              closestEdge === 'top' ? '-top-[2px]' : '-bottom-[2px]'
             )}
             style={{
               left: `${8 + dropDepth * 18}px`,
@@ -1125,8 +1174,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
           )}
         >
-          <div className="overflow-hidden">
-            <div className="relative flex flex-col gap-[1px]">
+          <div className="overflow-hidden pb-[2px] -mb-[2px]">
+            <div className="relative flex flex-col">
               {/* Hierarchy Line */}
               <div
                 className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-6)] pointer-events-none"
@@ -1145,7 +1194,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           </div>
         </div>
       )}
-      {isFolder && children.length > 0 && !!isExpanded && (
+      {isFolder && children.length > 0 && !!isExpanded && !isLastChildExpandedFolderWithChildren && (
         <AfterFolderSpacer folderId={entity.id} depth={depth} spaceId={entity.spaceId} />
       )}
       {plusPopupPos && (

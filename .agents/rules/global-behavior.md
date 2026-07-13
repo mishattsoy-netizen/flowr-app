@@ -134,3 +134,5 @@ Constantly evaluate:
 - "Would the user prefer a quick 80% solution now, or a perfect solution that takes longer?"
 
 When in doubt about scope → deliver the focused solution, then ask if they want more.
+### Git Operations
+- **NEVER use git checkout, git pull, or any destructive git command without EXPLICIT user permission.** Unstaged changes in the working tree are sacred and must not be wiped without confirmation.

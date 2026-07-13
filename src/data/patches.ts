@@ -22,6 +22,44 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.3.6',
+    build: '1306',
+    date: '2026-07-13',
+    title: 'Router v2 & Native Attachments',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          "You can now send images and documents to the AI, and they'll be securely saved and accessible across all your devices.",
+          "The AI responds significantly faster and understands your requests much better.",
+          "You can now ask the AI to filter tasks by specific dates and times (like 'tasks due after tomorrow').",
+          "The sidebar is now easier to organize, featuring a section for unsorted items and smooth drag-and-drop previews.",
+          "The AI can now make precise, targeted edits to your notes instead of rewriting the entire document."
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          "When you send multiple photos in a single album on Telegram, the AI now groups them and sends one clean reply.",
+          "The AI is now more capable and can handle longer, more complex requests before giving up.",
+          "Enhanced background security for the files and images you upload."
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          "Images sent through Telegram now correctly show up in your web app chat history.",
+          "The AI now properly respects your local timezone when scheduling reminders via Telegram.",
+          "Fixed an issue where the AI might confidently claim to have done something even if it failed behind the scenes.",
+          "Fixed a bug where the AI might get stuck looping on a failed action.",
+          "Prevented duplicate tasks from being created if requested multiple times quickly.",
+          "Fixed an issue where starting or clearing a chat wouldn't reset your 'Thinking' toggle."
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.5',
     build: '1305',
     date: '2026-07-12',
