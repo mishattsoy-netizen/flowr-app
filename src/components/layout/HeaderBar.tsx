@@ -712,7 +712,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
         {/* + New Tab (matches inactive hover container height for uniform spacing) */}
         {!splitViewActive && (
           <div
-            className="flex items-center justify-center shrink-0 ml-[3px]"
+            className="flex items-center justify-center shrink-0"
             style={{ height: BAR_H }}
           >
             <button
@@ -736,7 +736,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                    <EntityHeaderControls entityId={splitViewLeftId} />
                  </div>
                  {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
+                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag]">
                    <Tooltip content="New Entity">
                      <button
                        onClick={(e) => {
@@ -760,7 +760,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                    <EntityHeaderControls entityId={splitViewRightId} />
                  </div>
                  {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
+                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag]">
                    <Tooltip content="New Entity">
                      <button
                        onClick={(e) => {
