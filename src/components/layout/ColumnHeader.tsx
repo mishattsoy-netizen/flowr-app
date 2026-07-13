@@ -258,12 +258,11 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 <button
                   onClick={e => { e.stopPropagation(); togglePin(); }}
                   className={cn(
-                    "flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 z-10",
+                    "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 z-10 transition-colors",
                     splitViewPinned
                       ? "bg-[var(--bone-10)]"
                       : "hover:bg-[var(--bone-6)]"
                   )}
-                  style={{ width: 28, height: 28 }}
                 >
                   <Pin
                     strokeWidth={2}
@@ -277,8 +276,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               <Tooltip content="Swap columns">
                 <button
                   onClick={e => { e.stopPropagation(); swapColumns(); }}
-                  className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 hover:bg-[var(--bone-6)] z-10"
-                  style={{ width: 28, height: 28 }}
+                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 hover:bg-[var(--bone-6)] z-10 transition-colors"
                 >
                   <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
                 </button>
@@ -288,8 +286,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               <Tooltip content="Exit split view">
                 <button
                   onClick={e => { e.stopPropagation(); toggleSplitView(); }}
-                  className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)] z-10"
-                  style={{ width: 28, height: 28 }}
+                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)] z-10 transition-colors"
                 >
                   <Columns2 strokeWidth={2} className="w-4 h-4" />
                 </button>
@@ -329,8 +326,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               <Tooltip content="Exit split view">
                 <button
                   onClick={e => { e.stopPropagation(); toggleSplitView(); }}
-                  className="flex items-center justify-center text-[var(--bone-100)] rounded-[6px] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)]"
-                  style={{ width: 28, height: 28 }}
+                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)] transition-colors"
                 >
                   <Columns2 strokeWidth={2} className="w-4 h-4" />
                 </button>
