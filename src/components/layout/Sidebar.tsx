@@ -1054,7 +1054,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           </div>
         )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
         {effectiveCollapsed ? (
           <div className="flex flex-col items-center gap-[1px] w-full px-[10px] mt-2 mb-0.5 flex-none">
@@ -1210,7 +1210,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           </div>
         )}
 
-        <div className="flex-1 min-h-0 relative">
+        <div className="flex-1 min-h-0 relative flex flex-col">
           {(!isMounted || !storeHydrated) ? (
             (inferredEntityId === 'chat' && !effectiveCollapsed)
               ? <ChatHistorySkeleton />

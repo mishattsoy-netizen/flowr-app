@@ -20,8 +20,8 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
   const showBottomBar = displayMessages.length > 0 || isAILoading;
 
   return (
-    <div className="flex h-full w-full bg-background">
-      <div className="flex-1 min-w-0 relative h-full isolate">
+    <div className="flex-1 flex flex-col h-full w-full min-h-0 bg-background">
+      <div className="flex-1 min-w-0 min-h-0 relative h-full flex flex-col isolate">
 
         {/* Radial Glow — new chat: centered */}
         {displayMessages.length === 0 && (
