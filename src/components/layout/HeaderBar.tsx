@@ -6,7 +6,7 @@ import {
   ArrowLeft, ArrowRight, RotateCw, RotateCcw, Home, MessageCircle,
   ListTodo, Menu, X, ChevronRight, ChevronLeft, Plus, PanelLeft, Columns2,
   File, Frame, Folder, Search, Pin, ArrowLeftRight,
-  MoreVertical, BookOpen, Pencil, MoreHorizontal
+  MoreVertical, BookOpen, Pencil
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
@@ -80,7 +80,7 @@ const EntityHeaderControls = ({ entityId }: { entityId: string | null }) => {
             isOptionsOpen ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
           )}
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <MoreVertical className="w-4 h-4" />
         </button>
       </Tooltip>
       {isNote && (
