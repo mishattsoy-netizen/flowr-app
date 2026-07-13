@@ -22,7 +22,8 @@ import { ChatSkeleton } from './components/ChatSkeleton';
 import { StatusTyping } from './components/StatusTyping';
 import { useAuth } from '@/components/AuthProvider';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
-import { supabase, isSupabaseEnabled } from '@/lib/supabase';
+import { isSupabaseEnabled } from '@/lib/supabase';
+import { createClient as createSupabaseBrowserClient } from '@/utils/supabase/client';
 import { cn } from '@/lib/utils';
 import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -63,6 +64,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const { resolvedTheme } = useTheme();
   const pathname = usePathname();
   const { user } = useAuth();
+  // AuthProvider's session lives in the SSR-cookie-backed browser client.
+  // The plain `@/lib/supabase` export is a SEPARATE, unauthenticated client —
+  // calling .auth.getSession() on it always returns null, silently. Must use
+  // the same client AuthProvider uses for anything session-dependent.
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const isAIAssistantOpen = useStore(state => state.isAIAssistantOpen);
   const isAIAssistantExtended = useStore(state => state.isAIAssistantExtended);
   const splitViewActive = useStore(state => state.splitViewActive);
@@ -493,24 +499,26 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
         setAttachments(prev => [...prev, { type, url: base64Url, name: file.name, uploading: true, tempId }]);
 
         try {
-          const res = await fetch('/api/ai/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: file.name, type, dataUrl: base64Url }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.url) {
-              setAttachments(prev => prev.map(att =>
-                att.tempId === tempId
-                  ? { type, url: data.url, name: file.name }
-                  : att
-              ));
-            }
-          } else {
-            console.error('Failed to upload attachment');
-            setAttachments(prev => prev.filter(att => att.tempId !== tempId));
-          }
+          // Upload directly to Supabase Storage under the user's own session
+          // (RLS-protected — spec §5c). This is what makes attachments durable
+          // and cross-device: unlike a server route, the browser always has the
+          // user's real auth session regardless of platform (web/desktop), so
+          // there's no "does this machine have a service-role key" question.
+          if (!user) throw new Error('Not signed in — cannot upload attachment.')
+          const ext = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin'
+          const storagePath = `${user.id}/${Date.now()}-${tempId}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('user_uploads')
+            .upload(storagePath, file, { contentType: file.type || undefined, upsert: false })
+
+          if (uploadError) throw uploadError
+
+          const { data: pub } = supabase.storage.from('user_uploads').getPublicUrl(storagePath)
+          setAttachments(prev => prev.map(att =>
+            att.tempId === tempId
+              ? { type, url: pub.publicUrl, name: file.name }
+              : att
+          ));
         } catch (err) {
           console.error('Attachment upload error:', err);
           setAttachments(prev => prev.filter(att => att.tempId !== tempId));

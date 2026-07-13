@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/popover";
 import { Tooltip } from '@/components/layout/Tooltip';
 import { isDesktop } from '@/lib/env';
+import { useAuth } from '@/components/AuthProvider';
+import { createClient as createSupabaseBrowserClient } from '@/utils/supabase/client';
 
 const parseLocalDate = (dateStr: string) => {
   if (!dateStr) return undefined;
@@ -95,6 +97,8 @@ function SubtaskTextEditor({ sub, onEdit }: { sub: { id: string; text: string; c
 }
 
 function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { taskId: string; closePanel: () => void; isActive: boolean; setSyncState: (s: 'idle' | 'saving' | 'saved' | 'error') => void }) {
+  const { user } = useAuth();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const tasks = useStore(s => s.tasks);
   const entities = useStore(s => s.entities);
   const addTask = useStore(s => s.addTask);
@@ -282,25 +286,26 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
         setAttachments(prev => [...prev, { type, url: base64Url, name, uploading: true, tempId }]);
 
         try {
-          const res = await fetch('/api/ai/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, type, dataUrl: base64Url }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.url) {
-              setAttachments(prev => prev.map(att =>
-                att.tempId === tempId
-                  ? { type, url: data.url, name }
-                  : att
-              ));
-            }
-          } else {
-            const errText = await res.text();
-            console.error('Failed to upload attachment:', res.status, errText);
-            setAttachments(prev => prev.filter(att => att.tempId !== tempId));
-          }
+          // Upload directly to Supabase Storage under the user's own session
+          // (RLS-protected — spec §5c), same as the chat attachment path.
+          // A server route can't do this reliably: on desktop it has no
+          // service-role key and silently falls back to that machine's local
+          // disk, which is why task attachments were invisible cross-device.
+          if (!user) throw new Error('Not signed in — cannot upload attachment.')
+          const ext = name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin'
+          const storagePath = `${user.id}/${Date.now()}-${tempId}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('user_uploads')
+            .upload(storagePath, file, { contentType: file.type || undefined, upsert: false })
+
+          if (uploadError) throw uploadError
+
+          const { data: pub } = supabase.storage.from('user_uploads').getPublicUrl(storagePath)
+          setAttachments(prev => prev.map(att =>
+            att.tempId === tempId
+              ? { type, url: pub.publicUrl, name }
+              : att
+          ));
         } catch (err) {
           console.error('Attachment upload error:', err);
           setAttachments(prev => prev.filter(att => att.tempId !== tempId));
