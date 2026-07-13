@@ -148,13 +148,31 @@ Result: a single **H1** reading `My GreatX subheading`, cursor immediately after
     cursorOffset: number;       // plain-text offset within it (the seam)
   }
 
+  /**
+   * `survivingHtml` carries the unselected head of the first block and the
+   * unselected tail of the last block, ALREADY SLICED AS HTML by the caller
+   * (via sliceHtmlByTextOffset from Task 2, which has the DOM).
+   *
+   * This is why formatting is preserved: bold/links inside text the user never
+   * selected must survive the merge. Rebuilding the block from plain text would
+   * silently destroy them — that is data loss, not a cosmetic issue.
+   *
+   * The caller does the slicing because this function must stay DOM-free to run
+   * under vitest's `environment: 'node'`.
+   */
+  export interface SurvivingHtml {
+    headHtml: string;   // HTML of first block's content BEFORE the selection
+    tailHtml: string;   // HTML of last block's content AFTER the selection
+  }
+
   export function mergeAcrossBlocks(
     blocks: EditorBlock[],
     selection: BlockSelection,
-    insertText: string,   // "" for delete/backspace; the typed text otherwise
+    insertText: string,          // "" for delete/backspace; the typed text otherwise
+    surviving: SurvivingHtml,
   ): MergeResult;
   ```
-  Task 3 calls `mergeAcrossBlocks`. Task 2 produces the `BlockSelection` that feeds it.
+  Task 3 calls `mergeAcrossBlocks`. Task 2 produces both the `BlockSelection` and the `SurvivingHtml` that feed it.
 
 **Note on `blocks`:** operate on the **flat top-level list** only. Nested `children` (used by lists/columns) are out of scope for Phase 1 — if either endpoint is not found in the top-level list, return the input unchanged (Task 3 then falls back to native behavior). This keeps Phase 1 contained; the user's reported pain is top-level paragraphs.
 
@@ -164,7 +182,7 @@ Create `src/lib/editor/mergeSelection.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { mergeAcrossBlocks, type BlockSelection } from './mergeSelection';
+import { mergeAcrossBlocks, type BlockSelection, type SurvivingHtml } from './mergeSelection';
 import type { EditorBlock } from '@/data/store.types';
 
 const b = (id: string, type: EditorBlock['type'], content: string): EditorBlock =>
@@ -180,6 +198,30 @@ const doc = (): EditorBlock[] => [
 const sel = (s: string, so: number, e: string, eo: number): BlockSelection =>
   ({ startBlockId: s, startOffset: so, endBlockId: e, endOffset: eo });
 
+/**
+ * Test helper standing in for the caller's DOM slicing. In production, Task 3
+ * calls sliceHtmlByTextOffset (Task 2) to produce these. Here the fixtures are
+ * plain text, so a plain-text slice is the correct equivalent.
+ */
+const surv = (blocks: EditorBlock[], s: BlockSelection): SurvivingHtml => {
+  const aIdx = blocks.findIndex(x => x.id === s.startBlockId);
+  const bIdx = blocks.findIndex(x => x.id === s.endBlockId);
+  if (aIdx === -1 || bIdx === -1) return { headHtml: '', tailHtml: '' };
+  const fwd = aIdx < bIdx;
+  const first = blocks[fwd ? aIdx : bIdx];
+  const last = blocks[fwd ? bIdx : aIdx];
+  const headOffset = fwd ? s.startOffset : s.endOffset;
+  const tailOffset = fwd ? s.endOffset : s.startOffset;
+  return {
+    headHtml: first.content.slice(0, headOffset),
+    tailHtml: last.content.slice(tailOffset),
+  };
+};
+
+/** Merge using the fixture's own surviving slices. */
+const merge = (blocks: EditorBlock[], s: BlockSelection, insert: string) =>
+  mergeAcrossBlocks(blocks, s, insert, surv(blocks, s));
+
 // Offsets below are exact. `'My Great Title'.slice(0, 8) === 'My Great'` and
 // `'Another subheading'.slice(7) === ' subheading'` (offset 7 keeps the leading
 // space; offset 8 would give 'subheading' with none). These were verified by
@@ -187,7 +229,7 @@ const sel = (s: string, so: number, e: string, eo: number): BlockSelection =>
 
 describe('mergeAcrossBlocks — the worked example', () => {
   it('typing X over an H1→H2 selection leaves one H1, cursor at the seam', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 8, 'h2', 7), 'X');
+    const r = merge(doc(), sel('h1', 8, 'h2', 7), 'X');
 
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].type).toBe('heading1');       // first block's type wins
@@ -198,7 +240,7 @@ describe('mergeAcrossBlocks — the worked example', () => {
   });
 
   it('deleting the same selection leaves one H1 with no X', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 8, 'h2', 7), '');
+    const r = merge(doc(), sel('h1', 8, 'h2', 7), '');
 
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].type).toBe('heading1');
@@ -209,8 +251,8 @@ describe('mergeAcrossBlocks — the worked example', () => {
 
 describe('mergeAcrossBlocks — document order', () => {
   it('is identical whether dragged top-to-bottom or bottom-to-top', () => {
-    const forward  = mergeAcrossBlocks(doc(), sel('h1', 8, 'h2', 7), 'X');
-    const backward = mergeAcrossBlocks(doc(), sel('h2', 7, 'h1', 8), 'X');
+    const forward  = merge(doc(), sel('h1', 8, 'h2', 7), 'X');
+    const backward = merge(doc(), sel('h2', 7, 'h1', 8), 'X');
 
     expect(backward.blocks).toEqual(forward.blocks);
     expect(backward.cursorBlockId).toBe(forward.cursorBlockId);
@@ -220,14 +262,14 @@ describe('mergeAcrossBlocks — document order', () => {
 
 describe('mergeAcrossBlocks — partial coverage', () => {
   it('partial first block, whole last block', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 8, 'h2', 18), '');
+    const r = merge(doc(), sel('h1', 8, 'h2', 18), '');
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].content).toBe('My Great');   // last block fully consumed
     expect(r.cursorOffset).toBe(8);
   });
 
   it('whole first block, partial last block', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 0, 'h2', 8), '');
+    const r = merge(doc(), sel('h1', 0, 'h2', 8), '');
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].type).toBe('heading1');       // still the FIRST block's type
     expect(r.blocks[0].content).toBe('subheading');
@@ -235,7 +277,7 @@ describe('mergeAcrossBlocks — partial coverage', () => {
   });
 
   it('adjacent blocks with nothing between them', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 8, 'p', 4), '');
+    const r = merge(doc(), sel('h1', 8, 'p', 4), '');
     expect(r.blocks).toHaveLength(2);               // h1(merged) + h2 survives
     expect(r.blocks[0].content).toBe('My Great paragraph text here');
     expect(r.blocks[1].id).toBe('h2');
@@ -243,7 +285,7 @@ describe('mergeAcrossBlocks — partial coverage', () => {
 
   it('deletes every fully-selected block in between', () => {
     const four = [...doc(), b('h3', 'text', 'tail block')];
-    const r = mergeAcrossBlocks(four, sel('h1', 8, 'h3', 4), '');
+    const r = merge(four, sel('h1', 8, 'h3', 4), '');
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].content).toBe('My Great block');   // 'tail block'.slice(4) === ' block'
   });
@@ -251,7 +293,7 @@ describe('mergeAcrossBlocks — partial coverage', () => {
 
 describe('mergeAcrossBlocks — select all', () => {
   it('leaves one empty block of the first block type', () => {
-    const r = mergeAcrossBlocks(doc(), sel('h1', 0, 'h2', 18), '');
+    const r = merge(doc(), sel('h1', 0, 'h2', 18), '');
     expect(r.blocks).toHaveLength(1);
     expect(r.blocks[0].type).toBe('heading1');
     expect(r.blocks[0].content).toBe('');
@@ -262,13 +304,13 @@ describe('mergeAcrossBlocks — select all', () => {
 describe('mergeAcrossBlocks — guards', () => {
   it('returns input unchanged when the selection is within one block', () => {
     const input = doc();
-    const r = mergeAcrossBlocks(input, sel('p', 2, 'p', 6), 'X');
+    const r = merge(input, sel('p', 2, 'p', 6), 'X');
     expect(r.blocks).toEqual(input);
   });
 
   it('returns input unchanged when a block id is not in the top-level list', () => {
     const input = doc();
-    const r = mergeAcrossBlocks(input, sel('h1', 0, 'nope', 3), 'X');
+    const r = merge(input, sel('h1', 0, 'nope', 3), 'X');
     expect(r.blocks).toEqual(input);
   });
 
@@ -277,9 +319,69 @@ describe('mergeAcrossBlocks — guards', () => {
       { ...b('h1', 'heading1', 'My Great Title'), bgColor: '#ff0000', align: 'center' } as EditorBlock,
       b('p', 'text', 'Some paragraph text here'),
     ];
-    const r = mergeAcrossBlocks(styled, sel('h1', 8, 'p', 4), '');
+    const r = merge(styled, sel('h1', 8, 'p', 4), '');
     expect(r.blocks[0].bgColor).toBe('#ff0000');
     expect(r.blocks[0].align).toBe('center');
+  });
+});
+
+describe('mergeAcrossBlocks — inline formatting must survive', () => {
+  // The point of SurvivingHtml. Bold/links in text the user NEVER SELECTED
+  // must not be destroyed by an edit somewhere else. Losing them is data loss.
+  it('keeps bold in the unselected head of the first block', () => {
+    const blocks = [
+      b('h1', 'heading1', 'Some <b>bold</b> title here'),   // text: "Some bold title here"
+      b('p', 'text', 'paragraph'),
+      b('h2', 'heading2', 'Another subheading'),
+    ];
+    // Select from offset 16 in h1 (start of "here") through to offset 7 in h2.
+    const r = mergeAcrossBlocks(
+      blocks,
+      sel('h1', 16, 'h2', 7),
+      '',
+      { headHtml: 'Some <b>bold</b> title ', tailHtml: ' subheading' },
+    );
+
+    expect(r.blocks).toHaveLength(1);
+    expect(r.blocks[0].content).toBe('Some <b>bold</b> title  subheading');
+    expect(r.blocks[0].content).toContain('<b>bold</b>');   // NOT flattened to plain text
+  });
+
+  it('keeps a link in the unselected tail of the last block', () => {
+    const blocks = [
+      b('h1', 'heading1', 'Title'),
+      b('p', 'text', 'gone'),
+      b('h2', 'heading2', 'see <a href="/x">the docs</a>'),
+    ];
+    const r = mergeAcrossBlocks(
+      blocks,
+      sel('h1', 5, 'h2', 4),
+      '',
+      { headHtml: 'Title', tailHtml: '<a href="/x">the docs</a>' },
+    );
+
+    expect(r.blocks[0].content).toBe('Title<a href="/x">the docs</a>');
+    expect(r.blocks[0].content).toContain('href="/x"');
+  });
+
+  it('escapes typed text so it cannot inject markup', () => {
+    const r = mergeAcrossBlocks(
+      doc(),
+      sel('h1', 8, 'h2', 7),
+      '<script>',
+      { headHtml: 'My Great', tailHtml: ' subheading' },
+    );
+    expect(r.blocks[0].content).toBe('My Great&lt;script&gt; subheading');
+  });
+
+  it('places the cursor by plain-text length, ignoring tags in the head', () => {
+    const r = mergeAcrossBlocks(
+      [b('a', 'text', '<b>Bold</b> tail'), b('c', 'text', 'second')],
+      sel('a', 9, 'c', 3),
+      'X',
+      { headHtml: '<b>Bold</b> ', tailHtml: 'ond' },   // head plain text = "Bold " = 5 chars
+    );
+    expect(r.cursorOffset).toBe(6);                    // 5 + len("X")
   });
 });
 ```
@@ -309,15 +411,26 @@ export interface MergeResult {
   cursorOffset: number;
 }
 
-/** Strip HTML tags to recover the plain text a user sees. */
-export function htmlToText(html: string): string {
+/**
+ * The unselected HTML that must survive the merge, already sliced by the caller.
+ * The caller owns the slicing because it has the DOM (sliceHtmlByTextOffset);
+ * this module must stay DOM-free to run under vitest's node environment.
+ */
+export interface SurvivingHtml {
+  headHtml: string;   // first block's content BEFORE the selection starts
+  tailHtml: string;   // last block's content AFTER the selection ends
+}
+
+/** Plain text length of an HTML string — used to place the cursor at the seam. */
+export function htmlTextLength(html: string): number {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .length;
 }
 
 function escapeHtml(text: string): string {
@@ -332,8 +445,12 @@ function escapeHtml(text: string): string {
  *
  * First block wins: the surviving block keeps the FIRST block's id, type and
  * every other property. Its content becomes
- *     (unselected head of first) + insertText + (unselected tail of last)
+ *     headHtml + insertText + tailHtml
  * and blocks fully covered by the selection are removed.
+ *
+ * headHtml/tailHtml arrive as HTML, so bold, links and other inline formatting
+ * inside text the user NEVER SELECTED survive the merge. Rebuilding from plain
+ * text here would silently destroy them — that is data loss, not a rough edge.
  *
  * Returns the input unchanged if the selection does not span multiple
  * top-level blocks, so the caller can fall back to native browser behavior.
@@ -342,6 +459,7 @@ export function mergeAcrossBlocks(
   blocks: EditorBlock[],
   selection: BlockSelection,
   insertText: string,
+  surviving: SurvivingHtml,
 ): MergeResult {
   const noChange = (): MergeResult => ({
     blocks,
@@ -359,18 +477,13 @@ export function mergeAcrossBlocks(
   const forward = aIdx < bIdx;
   const firstIdx = forward ? aIdx : bIdx;
   const lastIdx = forward ? bIdx : aIdx;
-  const headOffset = forward ? selection.startOffset : selection.endOffset;
-  const tailOffset = forward ? selection.endOffset : selection.startOffset;
 
   const first = blocks[firstIdx];
-  const last = blocks[lastIdx];
-
-  const head = htmlToText(first.content).slice(0, headOffset);
-  const tail = htmlToText(last.content).slice(tailOffset);
+  const { headHtml, tailHtml } = surviving;
 
   const merged: EditorBlock = {
     ...first,                                    // first block wins: id, type, colors, align…
-    content: escapeHtml(head + insertText + tail),
+    content: headHtml + escapeHtml(insertText) + tailHtml,
   };
 
   const next = [
@@ -382,7 +495,7 @@ export function mergeAcrossBlocks(
   return {
     blocks: next,
     cursorBlockId: merged.id,
-    cursorOffset: head.length + insertText.length,
+    cursorOffset: htmlTextLength(headHtml) + insertText.length,
   };
 }
 ```
@@ -518,7 +631,10 @@ export function getBlockSelection(root: HTMLElement): BlockSelection | null {
 
 /**
  * Slice an HTML string by PLAIN-TEXT offsets, preserving inline tags that fall
- * inside the range. Used to keep bold/links in the surviving head and tail.
+ * inside the range. This is what keeps bold/links alive in the surviving head
+ * and tail of a cross-block merge.
+ *
+ * Pass Number.MAX_SAFE_INTEGER as `end` to slice through to the end.
  */
 export function sliceHtmlByTextOffset(html: string, start: number, end: number): string {
   if (start >= end) return '';
@@ -526,9 +642,14 @@ export function sliceHtmlByTextOffset(html: string, start: number, end: number):
   host.innerHTML = html;
 
   const range = document.createRange();
+  // Default to the whole host, so an `end` past the text length slices to the
+  // end instead of leaving the range unset.
+  range.selectNodeContents(host);
+
   const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
   let seen = 0;
   let startSet = false;
+  let endSet = false;
   let node: Node | null;
 
   while ((node = walker.nextNode())) {
@@ -537,13 +658,14 @@ export function sliceHtmlByTextOffset(html: string, start: number, end: number):
       range.setStart(node, start - seen);
       startSet = true;
     }
-    if (startSet && seen + len >= end) {
+    if (startSet && !endSet && seen + len >= end) {
       range.setEnd(node, end - seen);
+      endSet = true;
       break;
     }
     seen += len;
   }
-  if (!startSet) return '';
+  if (!startSet) return '';   // start is past the end of the text
 
   const out = document.createElement('div');
   out.appendChild(range.cloneContents());
@@ -679,7 +801,7 @@ Add these imports at the top of the file:
 
 ```tsx
 import { mergeAcrossBlocks } from '@/lib/editor/mergeSelection';
-import { getBlockSelection, restoreCursor } from '@/lib/editor/domSelection';
+import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset } from '@/lib/editor/domSelection';
 ```
 
 Add the interceptor next to the other `useCallback`s (e.g. just after `persistBlocks`, which ends at line 557):
@@ -718,7 +840,25 @@ Add the interceptor next to the other `useCallback`s (e.g. just after `persistBl
         ? (native.dataTransfer?.getData('text/plain') ?? '')
       : '';
 
-    const result = mergeAcrossBlocks(blocks, selection, insert);
+    // Slice the surviving head/tail as HTML, so bold/links in text the user
+    // never selected are preserved. Doing this here (not in mergeSelection)
+    // keeps the merge function DOM-free and therefore unit-testable.
+    const aIdx = blocks.findIndex(b => b.id === selection.startBlockId);
+    const bIdx = blocks.findIndex(b => b.id === selection.endBlockId);
+    if (aIdx === -1 || bIdx === -1) return;
+
+    const forward = aIdx < bIdx;
+    const first = blocks[forward ? aIdx : bIdx];
+    const last = blocks[forward ? bIdx : aIdx];
+    const headOffset = forward ? selection.startOffset : selection.endOffset;
+    const tailOffset = forward ? selection.endOffset : selection.startOffset;
+
+    const surviving = {
+      headHtml: sliceHtmlByTextOffset(first.content, 0, headOffset),
+      tailHtml: sliceHtmlByTextOffset(last.content, tailOffset, Number.MAX_SAFE_INTEGER),
+    };
+
+    const result = mergeAcrossBlocks(blocks, selection, insert, surviving);
     if (result.blocks === blocks) return;   // guard said no change
 
     pendingCursor.current = { blockId: result.cursorBlockId, offset: result.cursorOffset };
@@ -921,8 +1061,9 @@ Do **not** pile fixes on top of a broken editor. That is precisely how the previ
 ## Known limitations of Phase 1 (accepted, not bugs)
 
 - **Nested blocks (list children, column children) are out of scope.** `mergeAcrossBlocks` operates on the top-level list; a selection endpoint inside a nested child returns unchanged and the browser handles it natively. Lists get their own treatment if the user reports pain after testing.
-- **`escapeHtml` in the merge drops inline formatting from the surviving head/tail** (bold, links). `sliceHtmlByTextOffset` (Task 2) exists to preserve it, but is not wired into `mergeAcrossBlocks` because that function must stay DOM-free to run under vitest's node environment. If the user reports losing bold/links when merging, wire it in at the call site in `NoteEditor.tsx` — the DOM is available there.
 - **Columns are still present.** They are removed in Phase 2.
+
+**Inline formatting is NOT a limitation — it is preserved.** Bold, links and other inline markup inside the unselected head/tail survive the merge, because Task 3 slices them as HTML (`sliceHtmlByTextOffset`) and hands them to `mergeAcrossBlocks` via `SurvivingHtml`. Rebuilding the merged block from plain text would silently destroy formatting in text the user never selected — that is data loss, and it is why the merge function takes HTML rather than deriving text itself.
 
 ## Phase 2 (do not start without the user's go-ahead)
 

@@ -80,6 +80,7 @@ When a multi-block selection is deleted or typed over:
 1. The surviving text is the **unselected head of the first block** joined with the **unselected tail of the last block**, forming one block.
 2. That block **keeps the first block's type and formatting.** Fully-selected blocks in between are deleted outright.
 3. The **cursor lands at the seam** between the surviving head and tail.
+4. **Inline formatting in the surviving head and tail is preserved.** Bold, links and other inline markup live on through the merge. Text the user never selected must never lose its formatting because of an edit elsewhere — that would be silent data loss. The merge therefore operates on sliced **HTML**, not on flattened plain text.
 
 "First" means first in **document order**, so the result is identical whether the user dragged top-to-bottom or bottom-to-top.
 
