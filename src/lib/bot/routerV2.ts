@@ -4,6 +4,7 @@ export interface V2Classification {
   category: V2Category
   complexity: 'normal' | 'hard'
   action: boolean
+  focus_shift: string | null
 }
 
 const V2_CATEGORIES: V2Category[] = ['PRIMARY', 'WEB_SEARCH', 'RESEARCH', 'IMAGE_GEN']
@@ -29,6 +30,7 @@ export function parseClassifierV2Output(raw: string): V2Classification | null {
           category: cat as V2Category,
           complexity: obj.complexity === 'hard' ? 'hard' : 'normal',
           action: obj.action === false ? false : true,
+          focus_shift: typeof obj.focus_shift === 'string' && obj.focus_shift.trim() ? obj.focus_shift.trim() : null,
         }
       }
     } catch { /* fall through to salvage */ }
@@ -36,7 +38,7 @@ export function parseClassifierV2Output(raw: string): V2Classification | null {
   const upper = raw.toUpperCase()
   for (const cat of V2_CATEGORIES) {
     if (new RegExp(`\\b${cat}\\b`).test(upper)) {
-      return { category: cat, complexity: 'normal', action: true }
+      return { category: cat, complexity: 'normal', action: true, focus_shift: null }
     }
   }
   return null

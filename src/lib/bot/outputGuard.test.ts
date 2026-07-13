@@ -153,4 +153,14 @@ describe('hasUngroundedActionClaim', () => {
       { tool: 'update_content' },
     ])).toBe(false)
   })
+  it('flags a claim when delete_content only returned a dry-run (pending_confirmation), not an actual delete', () => {
+    expect(hasUngroundedActionClaim('The task has been deleted.', [
+      { tool: 'delete_content', status: 'pending_confirmation', items_to_delete: [{ id: 'task-1', title: 'x' }] },
+    ])).toBe(true)
+  })
+  it('flags a claim when update_content only returned a dry-run (pending_confirmation), not an actual replace', () => {
+    expect(hasUngroundedActionClaim('The note has been updated.', [
+      { tool: 'update_content', status: 'pending_confirmation', item: { id: 'e-1', title: 'x' } },
+    ])).toBe(true)
+  })
 })

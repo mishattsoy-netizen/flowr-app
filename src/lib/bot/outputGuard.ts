@@ -93,7 +93,7 @@ export function hasUngroundedActionClaim(content: string, capturedToolCalls: any
   if (!claimsAction) return false
 
   const succeededMutation = (capturedToolCalls ?? []).some(
-    (c: any) => MUTATING_TOOLS.has(c?.tool) && c?.success !== false
+    (c: any) => MUTATING_TOOLS.has(c?.tool) && c?.success !== false && c?.status !== 'pending_confirmation'
   )
   return !succeededMutation
 }

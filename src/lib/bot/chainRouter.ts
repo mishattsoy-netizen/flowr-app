@@ -225,6 +225,16 @@ export async function runChain(
     Object.assign(sessionState, compactionResult.updatedSessionState)
   }
 
+  // Monotonic per-turn counter — lets delete_content/update_content's confirmed:true
+  // gate require confirmation on the very next turn, deterministically, instead of
+  // relying on a wall-clock TTL or on focus-shift detection (unreliable) to clear
+  // pending_action. Bumped here, before any tool handler runs this turn, so a dry-run
+  // issued THIS turn and confirmed NEXT turn sees exactly a +1 gap.
+  if (sessionState) {
+    sessionState.turn_seq = (sessionState.turn_seq ?? 0) + 1
+    await updateSessionState(sessionId, { turn_seq: sessionState.turn_seq })
+  }
+
   // 1. Specialized Vision Flow (Buffer or URL)
   let activeBuffers = Array.isArray(inputBuffer) ? inputBuffer : (inputBuffer ? [inputBuffer] : [])
 
@@ -383,6 +393,20 @@ export async function runChain(
       }
       rawCategory = v2res.classification.category
       v2Flags = { complexity: v2res.classification.complexity, action: v2res.classification.action }
+
+      if (v2res.classification.focus_shift && sessionState) {
+        const newFocus = v2res.classification.focus_shift
+        sessionState.previous_focus = sessionState.current_focus ?? null
+        sessionState.current_focus = newFocus
+        sessionState.pending_action = null
+        await updateSessionState(sessionId, {
+          current_focus: newFocus,
+          previous_focus: sessionState.previous_focus,
+          pending_action: null
+        }).catch(err => logger.error(`Failed to update focus in DB: ${err.message}`))
+        logger.info(`[Router] Classifier detected focus shift: "${newFocus}"`)
+      }
+
       classifierModel = v2res.classifierModel
       classificationTrace = v2res.trace
       if (v2res.trigger_type) {
@@ -480,7 +504,10 @@ export async function runChain(
     clientTime: context?.clientTime,
     isGlobalPromptEnabled: isGlobalPromptEnabled ?? true,
     skipSummary: !!skipSummary,
-    currentSummary
+    currentSummary,
+    pendingAction: sessionState?.pending_action,
+    currentFocus: sessionState?.current_focus,
+    previousFocus: sessionState?.previous_focus
   })
 
   // ── Telegram awareness — inject formatting & brevity rules ──

@@ -66,7 +66,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "update_content",
-    description: "Update an existing note or task by ID. For notes, 'content' FULLY REPLACES the body. Use this when the user asks to integrate new information, adapt the context of a report, or change existing sections. You must provide the entire rewritten content.",
+    description: "Update an existing note or task by ID. For notes, 'content'/'blocks' FULLY REPLACE the body — this requires explicit user confirmation the same way delete_content does: call without confirmed first to get a dry-run preview, then again with confirmed: true and the SAME id after the user agrees. Use this when the user asks to integrate new information, adapt the context of a report, or change existing sections. For small edits to large notes, prefer 'patch' instead (no confirmation needed).",
     parameters: {
       type: "object",
       properties: {
@@ -76,11 +76,15 @@ export const FLOWR_TOOLS = [
                 description: "Entity type. Include 'task' when updating a task. Omit for auto-detection." },
         title: { type: "string", description: "New title." },
         // Note fields
-        content: { type: "string", description: "For notes: Markdown body. FULLY REPLACES the existing content." },
+        content: { type: "string", description: "For notes: Markdown body. FULLY REPLACES the existing content. Requires confirmed:true after a dry-run — see tool description." },
         blocks: {
           type: "array",
           items: blockItemSchema,
-          description: "For notes: structured block array (alternative to content, also fully replaces)."
+          description: "For notes: structured block array (alternative to content, also fully replaces). Requires confirmed:true after a dry-run — see tool description."
+        },
+        confirmed: {
+          type: "boolean",
+          description: "Only relevant when 'content' or 'blocks' is provided (full replace). Omit or false initially to get a dry-run preview. Set to true ONLY if the user's PREVIOUS message explicitly confirmed the replacement. Must match a dry-run this exact session already issued for this exact id."
         },
         patch: {
           type: "array",
@@ -143,7 +147,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "delete_content",
-    description: "Permanently delete one or more items by ID. Supports notes, folders, canvases, canvas blocks, and tasks.\n\nCRITICAL SAFETY RULES — you MUST follow these exactly:\n1. Get PERMISSION FIRST: Before calling this tool with `is_confirmed_by_user: true`, you MUST first call it with `is_confirmed_by_user: false`. This will return a dry-run list of what will be deleted.\n2. You must show this list to the user and AWAIT EXPLICIT CONFIRMATION.\n3. ONLY when the user explicitly confirms (e.g., 'yes', 'delete', 'proceed') to your exact list, call this tool again with `is_confirmed_by_user: true`.\n4. Folders cascade: When a folder is deleted, ALL its children (notes, sub-folders, etc.) are also permanently deleted — note this in your list.\n\nIf the user corrects or adjusts the list, present the new list (by calling with false again) for re-confirmation before deleting.",
+    description: "Permanently delete one or more items by ID. Supports notes, folders, canvases, canvas blocks, and tasks.\n\nCRITICAL SAFETY RULES — you MUST follow these exactly:\n1. Get PERMISSION FIRST: call this tool WITHOUT confirmed (or confirmed: false) first — this returns a dry-run list of what will be deleted. This is enforced server-side; a confirmed: true call with no matching prior dry-run this session will be rejected.\n2. You must show this list to the user and AWAIT EXPLICIT CONFIRMATION.\n3. ONLY when the user explicitly confirms (e.g., 'yes', 'delete', 'proceed') to your exact list, call this tool again with `confirmed: true` and the SAME ids.\n4. Folders cascade: When a folder is deleted, ALL its children (notes, sub-folders, etc.) are also permanently deleted — note this in your list.\n\nIf the user corrects or adjusts the list, present the new list (by calling without confirmed again) for re-confirmation before deleting.",
     parameters: {
       type: "object",
       properties: {
@@ -157,12 +161,27 @@ export const FLOWR_TOOLS = [
           enum: ["note", "task", "folder", "canvas"],
           description: "Optional type hint for display in the confirmation list."
         },
-        is_confirmed_by_user: {
+        confirmed: {
           type: "boolean",
-          description: "Set to false initially to get a dry-run list of items. Set to true ONLY if the user's PREVIOUS message explicitly confirmed the exact list (e.g., 'yes', 'delete', 'remove it', 'proceed')."
+          description: "Omit or set to false initially to get a dry-run list of items. Set to true ONLY if the user's PREVIOUS message explicitly confirmed the exact list (e.g., 'yes', 'delete', 'remove it', 'proceed'). Must match a dry-run this exact session already issued for these exact ids — the server rejects a confirmed:true call with no matching dry-run."
         }
       },
-      required: ["ids", "is_confirmed_by_user"]
+      required: ["ids"]
+    }
+  },
+
+  {
+    name: "update_focus",
+    description: "Explicitly record what topic/task the conversation is currently focused on. Call this when the user's intent meaningfully shifts to a new subject, or when they explicitly return to something discussed earlier. Do not call it on simple continuations of the same topic.",
+    parameters: {
+      type: "object",
+      properties: {
+        focus: {
+          type: "string",
+          description: "A short description of the new current topic/task, e.g. 'renewing passport' or 'researching noise-cancelling headphones'."
+        }
+      },
+      required: ["focus"]
     }
   },
 

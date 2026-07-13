@@ -1,7 +1,47 @@
 import { logger } from '../../logger'
 import { supabaseAdmin } from '../../supabase'
 import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../editor/markdownBlocks'
+import { sanitizeToolContent } from '../services/imagePromptGuard'
 import type { BlockInput } from '../../editor/markdownBlocks'
+
+/** Recursively sanitizes each block's `content` string (and any nested `children`) in place. */
+export function sanitizeBlocks(blocks: BlockInput[] | undefined): BlockInput[] | undefined {
+  if (!Array.isArray(blocks)) return blocks
+  for (const block of blocks) {
+    if (block.content) block.content = sanitizeToolContent(block.content)
+    if (Array.isArray(block.children)) sanitizeBlocks(block.children)
+  }
+  return blocks
+}
+
+const PENDING_ACTION_TTL_MS = 5 * 60 * 1000
+
+/**
+ * A stored pending_action only backs a confirmed:true call if it's recent.
+ * Without this, an abandoned dry-run (the user moved on without answering,
+ * and update_focus never fired to clear it — see §6c reliability notes)
+ * stays matchable indefinitely, so an unrelated later "yes" can still pass
+ * the id-match gate and execute a stale action.
+ */
+export function isPendingActionFresh(pending: { created_at?: string } | undefined | null): boolean {
+  if (!pending?.created_at) return false
+  const age = Date.now() - new Date(pending.created_at).getTime()
+  return Number.isFinite(age) && age >= 0 && age <= PENDING_ACTION_TTL_MS
+}
+
+/**
+ * Deterministic version of "is this confirmation still valid": a pending_action
+ * is only confirmable on the turn immediately after the dry-run that created it.
+ * This doesn't depend on wall-clock time (the TTL above) or on update_focus firing
+ * to clear stale state (shown unreliable — see §6c reliability notes) — it's a
+ * hard, turn-count-based expiry. currentTurnSeq is the session's turn_seq AFTER
+ * this turn's increment (see chainRouter.ts), so a dry-run stamped at turn N is
+ * only confirmable when currentTurnSeq === N + 1.
+ */
+export function isPendingActionSameNextTurn(pending: { turn_seq?: number } | undefined | null, currentTurnSeq: number | undefined): boolean {
+  if (typeof pending?.turn_seq !== 'number' || typeof currentTurnSeq !== 'number') return false
+  return currentTurnSeq === pending.turn_seq + 1
+}
 
 /**
  * Applies find/replace patch ops to Markdown, atomically. Returns the patched
@@ -132,11 +172,19 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
     }
 
-    const { type, title, content, blocks, parentId, assignedWorkspaceId,
+    let { type, title, content, blocks, parentId, assignedWorkspaceId,
             status, priority, tag, dueDate, description, subtasks } = args
 
     if (!type) return { error: "'type' is required (note | folder | workspace | task)" }
     if (!title) return { error: "'title' is required" }
+
+    // §6d: strip leaked dynamicContext scaffolding ([PENDING CONFIRMATION], [FOCUS],
+    // etc.) before it's persisted — the model sometimes echoes this metadata
+    // verbatim into saved content instead of treating it as invisible.
+    title = sanitizeToolContent(title)
+    if (typeof content === 'string') content = sanitizeToolContent(content)
+    if (typeof description === 'string') description = sanitizeToolContent(description)
+    if (Array.isArray(blocks)) blocks = sanitizeBlocks(blocks)
 
     try {
       const spaceId = await resolveSpaceId(context)
@@ -261,10 +309,16 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage tasks and notes.' }
     }
 
-    const { id, type, title, content, blocks, patch, assignedWorkspaceId,
+    let { id, type, title, content, blocks, patch, assignedWorkspaceId,
             status, priority, tag, dueDate, endDate, includeTime, reminder, description, subtasks } = args
 
     if (!id) return { error: "'id' is required" }
+
+    // §6d: strip leaked dynamicContext scaffolding before persisting.
+    if (typeof title === 'string') title = sanitizeToolContent(title)
+    if (typeof content === 'string') content = sanitizeToolContent(content)
+    if (typeof description === 'string') description = sanitizeToolContent(description)
+    if (Array.isArray(blocks)) blocks = sanitizeBlocks(blocks)
 
     try {
       const isTask = id.startsWith('task-') || type === 'task'
@@ -312,10 +366,39 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         const updates: any = {}
         if (title !== undefined) updates.title = title
 
-        if (content !== undefined) {
-          updates.content = parseMarkdownToBlocks(content)
-        } else if (blocks !== undefined) {
-          updates.content = blocks
+        if (content !== undefined || blocks !== undefined) {
+          if (args.confirmed !== true) {
+            const { data: existing } = await supabaseAdmin.from('entities').select('id, title, type').eq('id', id).eq('owner_id', context.userId).maybeSingle()
+            if (!existing) throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
+            if (context?.sessionId) {
+              const { updateSessionState, getSessionState } = await import('../context')
+              const sessionState = await getSessionState(context.sessionId)
+              await updateSessionState(context.sessionId, {
+                pending_action: { tool: 'update_content', args: { id, content, blocks }, dry_run_result: { id, title: existing.title, type: existing.type, replacing: true }, created_at: new Date().toISOString(), turn_seq: sessionState?.turn_seq }
+              })
+            }
+            return {
+              status: 'pending_confirmation',
+              message: `DRY RUN ONLY. This would FULLY REPLACE the body of "${existing.title}". Confirm with the user before calling again with confirmed: true.`,
+              item: { id, title: existing.title, type: existing.type }
+            }
+          }
+          // Server-side confirmation gate — same reasoning as delete_content:
+          // confirmed:true is only honored if it matches a dry-run this exact
+          // session actually issued for this exact id, AND that confirmation
+          // lands on the very next turn (deterministic — doesn't depend on
+          // update_focus firing). See delete_content's comment for the
+          // observed live failure this closes.
+          {
+            const { getSessionState } = await import('../context')
+            const sessionState = context?.sessionId ? await getSessionState(context.sessionId) : null
+            const pending = sessionState?.pending_action
+            const idMatches = pending?.tool === 'update_content' && pending.args?.id === id && isPendingActionFresh(pending) && isPendingActionSameNextTurn(pending, sessionState?.turn_seq)
+            if (!idMatches) {
+              return { error: 'No matching pending confirmation found for this id. Call update_content without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
+            }
+          }
+          updates.content = content !== undefined ? parseMarkdownToBlocks(content) : blocks
         } else if (Array.isArray(patch) && patch.length > 0) {
           if (patch.length > 20) return { error: 'patch supports at most 20 operations per call.' }
           const { data: existing, error: fetchErr } = await supabaseAdmin.from('entities')
@@ -332,6 +415,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (error) throw error
         if (!data || data.length === 0) {
           throw new Error(`Note/Canvas with ID '${id}' not found or you do not have permission to edit it.`)
+        }
+        if (context?.sessionId && args.confirmed === true) {
+          const { updateSessionState } = await import('../context')
+          await updateSessionState(context.sessionId, { pending_action: null })
         }
         return { success: true, id, title: data[0].title, type: data[0].type }
       }
@@ -421,16 +508,44 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage content.' }
     }
 
-    const { ids, is_confirmed_by_user } = args
+    const { ids, confirmed } = args
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return { error: "'ids' array is required" }
     }
 
+    const { updateSessionState, getSessionState } = await import('../context')
+
+    // Server-side confirmation gate: confirmed:true is only honored if it
+    // matches a dry-run this exact session actually issued for these exact
+    // ids, AND that confirmation lands on the very next turn (deterministic
+    // — doesn't depend on update_focus firing to clear stale state, shown
+    // unreliable in live testing). Without this, a model can skip the
+    // dry-run entirely and call delete_content({ ids, confirmed: true }) as
+    // its first and only call — observed live: the model re-derived a stale
+    // "yes" as "delete this" from raw history and executed with no dry-run
+    // in that confirmation cycle at all. Trusting confirmed:true alone was
+    // not enough; the id-match check alone was not enough either (a stale
+    // pending_action several turns old could still match by luck) — the
+    // turn_seq check closes that gap deterministically.
+    if (confirmed === true) {
+      const sessionState = context?.sessionId ? await getSessionState(context.sessionId) : null
+      const pending = sessionState?.pending_action
+      const idsMatch = pending?.tool === 'delete_content'
+        && Array.isArray(pending.args?.ids)
+        && pending.args.ids.length === ids.length
+        && pending.args.ids.every((id: string) => ids.includes(id))
+        && isPendingActionFresh(pending)
+        && isPendingActionSameNextTurn(pending, sessionState?.turn_seq)
+      if (!idsMatch) {
+        return { error: 'No matching pending confirmation found for these ids. Call delete_content without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
+      }
+    }
+
     try {
       const results: any[] = []
-      
+
       // If not explicitly confirmed, do a dry run and fetch titles
-      if (is_confirmed_by_user !== true) {
+      if (confirmed !== true) {
         for (const id of ids) {
           if (id.startsWith('task-')) {
             const { data } = await supabaseAdmin.from('tasks').select('id, title').eq('id', id).eq('owner_id', context.userId).single()
@@ -445,10 +560,16 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
             }
           }
         }
-        return { 
-          status: 'pending_confirmation', 
-          message: 'DRY RUN ONLY. You must present the following items to the user and ask for their EXPLICIT confirmation before deleting. Call this tool again with is_confirmed_by_user: true ONLY if they reply yes.',
-          items_to_delete: results 
+        if (context?.sessionId) {
+          const sessionState = await getSessionState(context.sessionId)
+          await updateSessionState(context.sessionId, {
+            pending_action: { tool: 'delete_content', args: { ids }, dry_run_result: results, created_at: new Date().toISOString(), turn_seq: sessionState?.turn_seq }
+          })
+        }
+        return {
+          status: 'pending_confirmation',
+          message: 'DRY RUN ONLY. Present these items to the user and ask for EXPLICIT confirmation. Call this tool again with confirmed: true and the SAME ids ONLY if they say yes.',
+          items_to_delete: results
         }
       }
 
@@ -498,11 +619,30 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         }
       }
 
+      if (context?.sessionId) {
+        await updateSessionState(context.sessionId, { pending_action: null })
+      }
       return { success: true, deleted: results.filter(r => r.success).length, items: results }
     } catch (e: any) {
       logger.error('delete_content failed:', e.message)
       return { error: e.message }
     }
+  },
+
+  // ── UPDATE FOCUS ──────────────────────────────────────────────────────────────
+  async update_focus(args: any, context: any) {
+    const { focus } = args
+    if (!focus || typeof focus !== 'string') return { error: "'focus' is required" }
+    if (!context?.sessionId) return { success: true, note: 'no session to persist focus to' }
+
+    const { getSessionState, updateSessionState } = await import('../context')
+    const current = await getSessionState(context.sessionId)
+    await updateSessionState(context.sessionId, {
+      previous_focus: current?.current_focus ?? null,
+      current_focus: focus,
+      pending_action: null, // §6b/§6c interaction: an explicit topic shift drops any outstanding unconfirmed action
+    })
+    return { success: true, focus }
   },
 
   // ── LIST CONTENT ──────────────────────────────────────────────────────────────

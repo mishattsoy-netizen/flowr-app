@@ -11,6 +11,9 @@ export interface PromptBuilderContext {
   isGlobalPromptEnabled: boolean
   skipSummary: boolean
   currentSummary: string | null
+  pendingAction?: { tool: string; args: Record<string, any>; dry_run_result: any } | null
+  currentFocus?: string | null
+  previousFocus?: string | null
 }
 
 function getChainInstructions(category: IntentCategory): string {
@@ -157,6 +160,21 @@ Desktop mode: files local, offline-capable. Web mode: cloud sync across devices.
 
   if (context.replyContext?.attentionBlock) {
     dynamicContext += context.replyContext.attentionBlock + "\n\n"
+  }
+
+  // §6b: server-recorded pending confirmation state, so the model reasons
+  // over what was actually dry-run instead of re-deriving it from raw text.
+  if (context.pendingAction) {
+    const pa = context.pendingAction
+    dynamicContext += `[PENDING CONFIRMATION]\nTool: ${pa.tool}\nDetails: ${JSON.stringify(pa.dry_run_result)}\nThe user has NOT yet confirmed this. If their message answers it (yes/no/adjustment), act accordingly — call the tool again with confirmed:true using the SAME args if they said yes, or drop it and address whatever they actually said if the topic changed.\n\n`
+  }
+
+  // §6c: explicit, model-maintained record of the current conversation topic.
+  if (context.currentFocus || context.previousFocus) {
+    dynamicContext += `[FOCUS]\n`
+    if (context.currentFocus) dynamicContext += `Current: ${context.currentFocus}\n`
+    if (context.previousFocus) dynamicContext += `Previous: ${context.previousFocus}\n`
+    dynamicContext += `\n\n`
   }
 
   // Strip system prompt and memory for IMAGE_GEN chain

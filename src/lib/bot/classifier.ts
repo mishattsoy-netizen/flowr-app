@@ -144,11 +144,11 @@ export function isRetryMessage(message: string): boolean {
 }
 
 export const TAG_CATEGORY_MAP_V2: Record<string, V2Classification> = {
-  '/search':   { category: 'WEB_SEARCH', complexity: 'normal', action: false },
-  '/research': { category: 'RESEARCH',   complexity: 'normal', action: false },
-  '/image':    { category: 'IMAGE_GEN',  complexity: 'normal', action: false },
-  '/tool':     { category: 'PRIMARY',    complexity: 'normal', action: true },
-  '/code':     { category: 'PRIMARY',    complexity: 'hard',   action: false },
+  '/search':   { category: 'WEB_SEARCH', complexity: 'normal', action: false, focus_shift: null },
+  '/research': { category: 'RESEARCH',   complexity: 'normal', action: false, focus_shift: null },
+  '/image':    { category: 'IMAGE_GEN',  complexity: 'normal', action: false, focus_shift: null },
+  '/tool':     { category: 'PRIMARY',    complexity: 'normal', action: true, focus_shift: null },
+  '/code':     { category: 'PRIMARY',    complexity: 'hard',   action: false, focus_shift: null },
 }
 
 export interface ClassifyV2Result {
@@ -220,14 +220,19 @@ export async function classifyIntentV2(
     const t0 = Date.now()
     const traceMeta = { chain: 'CLASSIFIER', model: modelConfig.id, provider: modelConfig.provider, key: `${key} 1`, input_system: activePrompt, input_user: finalUserPrompt, input_history_count: history.length }
 
+    // Classification is a routing decision, not conversation — low temperature keeps
+    // category/complexity/action/focus_shift stable across repeated identical inputs
+    // (default 0.7 was observed flip-flopping category on borderline WEB_SEARCH cases).
+    const CLASSIFIER_TEMPERATURE = 0.1
+
     try {
       let rawResponse: any = null
       if (provider === 'google' || provider === 'gemini') {
-        rawResponse = await runGoogle(modelConfig.id, finalUserPrompt, activePrompt, undefined, { aiApiKey }, history)
+        rawResponse = await runGoogle(modelConfig.id, finalUserPrompt, activePrompt, undefined, { aiApiKey, temperature: CLASSIFIER_TEMPERATURE }, history)
       } else if (provider === 'groq') {
-        rawResponse = await runGroq(modelConfig.id, finalUserPrompt, activePrompt, aiApiKey, { aiApiKey }, history)
+        rawResponse = await runGroq(modelConfig.id, finalUserPrompt, activePrompt, aiApiKey, { aiApiKey, temperature: CLASSIFIER_TEMPERATURE }, history)
       } else if (provider === 'openrouter') {
-        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, finalUserPrompt, activePrompt, history, aiApiKey, modelConfig.openrouter_provider || undefined)
+        const orRes = await (await import('./providers/openrouter')).runOpenRouter(modelConfig.id, finalUserPrompt, activePrompt, history, aiApiKey, { openrouterProvider: modelConfig.openrouter_provider || undefined, temperature: CLASSIFIER_TEMPERATURE })
         rawResponse = typeof orRes === 'string' ? orRes : (orRes as any)?.content || null
       }
 
