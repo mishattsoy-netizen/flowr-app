@@ -393,20 +393,6 @@ export async function runChain(
       }
       rawCategory = v2res.classification.category
       v2Flags = { complexity: v2res.classification.complexity, action: v2res.classification.action }
-
-      if (v2res.classification.focus_shift && sessionState) {
-        const newFocus = v2res.classification.focus_shift
-        sessionState.previous_focus = sessionState.current_focus ?? null
-        sessionState.current_focus = newFocus
-        sessionState.pending_action = null
-        await updateSessionState(sessionId, {
-          current_focus: newFocus,
-          previous_focus: sessionState.previous_focus,
-          pending_action: null
-        }).catch(err => logger.error(`Failed to update focus in DB: ${err.message}`))
-        logger.info(`[Router] Classifier detected focus shift: "${newFocus}"`)
-      }
-
       classifierModel = v2res.classifierModel
       classificationTrace = v2res.trace
       if (v2res.trigger_type) {

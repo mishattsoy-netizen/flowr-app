@@ -144,11 +144,11 @@ export function isRetryMessage(message: string): boolean {
 }
 
 export const TAG_CATEGORY_MAP_V2: Record<string, V2Classification> = {
-  '/search':   { category: 'WEB_SEARCH', complexity: 'normal', action: false, focus_shift: null },
-  '/research': { category: 'RESEARCH',   complexity: 'normal', action: false, focus_shift: null },
-  '/image':    { category: 'IMAGE_GEN',  complexity: 'normal', action: false, focus_shift: null },
-  '/tool':     { category: 'PRIMARY',    complexity: 'normal', action: true, focus_shift: null },
-  '/code':     { category: 'PRIMARY',    complexity: 'hard',   action: false, focus_shift: null },
+  '/search':   { category: 'WEB_SEARCH', complexity: 'normal', action: false },
+  '/research': { category: 'RESEARCH',   complexity: 'normal', action: false },
+  '/image':    { category: 'IMAGE_GEN',  complexity: 'normal', action: false },
+  '/tool':     { category: 'PRIMARY',    complexity: 'normal', action: true },
+  '/code':     { category: 'PRIMARY',    complexity: 'hard',   action: false },
 }
 
 export interface ClassifyV2Result {

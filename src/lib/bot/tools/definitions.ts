@@ -172,7 +172,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "update_focus",
-    description: "Explicitly record what topic/task the conversation is currently focused on. Call this when the user's intent meaningfully shifts to a new subject, or when they explicitly return to something discussed earlier. Do not call it on simple continuations of the same topic.",
+    description: "Explicitly record what topic/task the conversation is currently focused on. Call this ONLY when the user explicitly asks to focus on something (e.g. 'let's focus on X', 'switch to X for now'). Do not infer topic shifts yourself and call this automatically.",
     parameters: {
       type: "object",
       properties: {
