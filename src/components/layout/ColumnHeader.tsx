@@ -101,7 +101,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
   return (
     <div
       className="w-full flex items-center shrink-0 relative z-10 bg-sidebar"
-      style={{ height: BAR_H, paddingLeft: (entityId === 'dashboard' || entityId === 'tracker') ? 16 : 8, paddingRight: 12 }}
+      style={{ height: BAR_H, paddingLeft: (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? 20 : 10, paddingRight: 12 }}
     >
       {/* Single continuous bottom border across the ENTIRE header (matches
           HeaderBar's approach). The active tab's app-background fill + concave
