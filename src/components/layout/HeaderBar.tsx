@@ -709,11 +709,10 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           );
         })}
 
-        {/* + New Tab — inset to match the tab's own top-[6px] visual inset, so the
-            button's bottom edge/corners align with the tab's bottom baseline. */}
+        {/* + New Tab (matches inactive hover container height for uniform spacing) */}
         {!splitViewActive && (
           <div
-            className="flex items-end justify-center shrink-0 ml-[3px] pt-[6px]"
+            className="flex items-center justify-center shrink-0 ml-[3px]"
             style={{ height: BAR_H }}
           >
             <button
