@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import { useStore } from '@/data/store';
 import { ChevronDown, Check } from 'lucide-react';
 import { saveTimezone } from '@/app/settings/actions';
@@ -63,6 +63,12 @@ function TimezoneSelect({ value, onChange, timezones }: { value: string | null; 
 
 export default function AISettingsSection() {
   const { user } = useAuth();
+  // AuthProvider's session lives in the SSR-cookie-backed browser client
+  // (createBrowserClient). The plain `@/lib/supabase` export is a SEPARATE,
+  // unauthenticated client instance — using it here silently no-ops (RLS
+  // blocks the anon request, no error surfaces). Must use the same client
+  // AuthProvider uses so the session/token is actually present.
+  const supabase = useMemo(() => createClient(), []);
 
   const { manualTimezone, setManualTimezone } = useStore();
 
