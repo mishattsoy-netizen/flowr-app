@@ -22,6 +22,46 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.0',
+    build: '1400',
+    date: '2026-07-14',
+    title: 'Header Layout Perfection, AI Timezones & Unified UI',
+    featured: true,
+    sections: [
+      {
+        type: 'improved',
+        items: [
+          "Massive UI consistency sweep: Perfectly aligned all header buttons, margins, icon sizes, and corner radiuses across both Web and Desktop, especially in split-view.",
+          "Upgraded the search dropdown's visual styling to perfectly match the rest of the application's clean design.",
+          "The search results dropdown now handles long lists beautifully with smooth scrolling and a height cap so it never overflows the screen.",
+          "Header buttons now stay visibly highlighted while their drop-down menus are open, so you never lose track of what you clicked."
+        ]
+      },
+      {
+        type: 'added',
+        items: [
+          "The search bar now shows your recent searches immediately when you click into it.",
+          "The split-view header's 'reset ratio' button is now cleanly hidden until you hover over the controls area."
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          "The AI will no longer awkwardly mention 'UTC' alongside your local time in chat replies.",
+          "Tasks created without a specific time will no longer silently shift forward or backward a day on your screen due to timezone quirks.",
+          "Fixed a global layout bug that was sometimes hiding scrollbars or breaking the flex layout in the sidebar and chat panels."
+        ]
+      },
+      {
+        type: 'changed',
+        items: [
+          "Streamlined the AI's background context engine: it no longer tries to over-track your cursor focus, which makes it faster and less prone to looping.",
+          "Upgraded the AI's memory compaction system to cleanly trim down huge chats without dropping important facts."
+        ]
+      }
+    ]
+  },
+  {
     version: '1.3.6',
     build: '1306',
     date: '2026-07-13',
