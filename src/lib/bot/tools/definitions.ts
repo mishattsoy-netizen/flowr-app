@@ -6,10 +6,16 @@
 const blockItemSchema = {
   type: "object",
   properties: {
-    type: { type: "string", description: "Block type (e.g. text, bulletList, numberedList, checklist, heading, subheading, quote, divider, table, image, link, mono)." },
+    type: { type: "string", description: "Block type: text, bulletList, numberedList, dashedList, checklist, quote, divider, table, image, link. Headings are NOT a type — use type 'text' with style 'heading'." },
     content: { type: "string", description: "Text content of the block." },
     style: { type: "string", description: "Style for text blocks (body, title, heading, subheading, mono)." },
-    checked: { type: "boolean", description: "For checklist blocks: whether the item is checked." }
+    checked: { type: "boolean", description: "For checklist blocks: whether the item is checked." },
+    tableData: {
+      type: "array",
+      items: { type: "array", items: { type: "string" } },
+      description: "For table blocks: rows of cells, first row is the header. e.g. [[\"Name\",\"Role\"],[\"Ada\",\"Eng\"]]."
+    },
+    mediaUrl: { type: "string", description: "For image blocks: the image URL." }
   },
   required: ["type"]
 }

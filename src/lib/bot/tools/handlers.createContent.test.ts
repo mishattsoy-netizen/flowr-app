@@ -56,13 +56,35 @@ describe('create_content: note body', () => {
   it('persists a body when the model supplies structured `blocks` instead', async () => {
     const { result, row } = await createNote({
       blocks: [
-        { type: 'heading', content: 'No Privacy Policy' },
+        { type: 'text', style: 'heading', content: 'No Privacy Policy' },
         { type: 'text', content: 'GDPR fines go up to €20 million' },
       ],
     })
     expect(result.success).toBe(true)
-    expect(row.content.length).toBeGreaterThan(0)
+    expect(row.content).toHaveLength(2)
     expect(JSON.stringify(row.content)).toContain('GDPR fines')
+  })
+
+  // The tool schema described heading/subheading/mono as block TYPES, but they
+  // are styles on a 'text' block — normalizeBlocks silently dropped any block
+  // whose type wasn't recognized, so every heading the model wrote vanished
+  // from the note. The schema is corrected; blocks stay tolerant of the alias.
+  it('keeps heading blocks the model sends as a bare `type` instead of a style', async () => {
+    const { row } = await createNote({
+      blocks: [
+        { type: 'heading', content: 'No Cookie Consent' },
+        { type: 'bulletList', content: 'Trackers need consent in the EU' },
+      ],
+    })
+    expect(row.content).toHaveLength(2)
+    expect(row.content[0]).toMatchObject({ type: 'text', style: 'heading', content: 'No Cookie Consent' })
+  })
+
+  it('keeps table payloads instead of persisting an empty table block', async () => {
+    const { row } = await createNote({
+      blocks: [{ type: 'table', content: '', tableData: [['Risk', 'Fine'], ['No policy', '€20M']] }],
+    })
+    expect(row.content[0].tableData).toEqual([['Risk', 'Fine'], ['No policy', '€20M']])
   })
 
   it('stamps last_modified so the note does not render as Jan 1 1970', async () => {

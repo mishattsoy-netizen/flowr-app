@@ -2,11 +2,32 @@ import { EditorBlock, BlockType, BlockStyle } from '@/data/store.types';
 import { generateId } from '@/data/store.helpers';
 
 export type BlockInput = {
-  type: BlockType;
+  type: BlockType | HeadingAlias;
   content?: string;
   style?: BlockStyle;
   checked?: boolean;
   children?: BlockInput[];
+  tableData?: string[][];
+  mediaUrl?: string;
+  mediaCaption?: string;
+};
+
+/**
+ * Heading/subheading/mono/title are BlockStyles on a 'text' block, not block
+ * types — but models emit them as types (the tool schema has advertised them
+ * that way), and an unrecognized type is silently dropped by normalizeBlocks.
+ * Accept them as aliases so a model-authored heading survives instead of
+ * vanishing from the note.
+ */
+type HeadingAlias = 'heading' | 'subheading' | 'mono' | 'title' | 'paragraph' | 'body';
+
+const STYLE_ALIASES: Record<HeadingAlias, BlockStyle> = {
+  heading: 'heading',
+  subheading: 'subheading',
+  mono: 'mono',
+  title: 'title',
+  paragraph: 'body',
+  body: 'body',
 };
 
 export function looksLikeMarkdown(text: string): boolean {
@@ -338,14 +359,24 @@ function normalizeBlocksInner(input: BlockInput[], depth: number): EditorBlock[]
   if (depth > 20) throw new Error('Block tree depth exceeds maximum of 20');
   const result: EditorBlock[] = [];
   for (const raw of input) {
-    if (!VALID_TYPES.has(raw.type)) continue;
+    const alias = STYLE_ALIASES[raw.type as HeadingAlias];
+    const type = (alias ? 'text' : raw.type) as BlockType;
+    if (!VALID_TYPES.has(type)) continue;
     const block: EditorBlock = {
       id: generateId(),
-      type: raw.type,
+      type,
       content: raw.content ?? '',
-      style: raw.style,
+      style: alias ?? raw.style,
       checked: raw.checked,
     };
+    // Payload for table/image blocks — the model is told to send these, and
+    // dropping them leaves a table or image block with nothing in it.
+    if (Array.isArray(raw.tableData)) block.tableData = raw.tableData;
+    if (raw.mediaUrl) {
+      block.mediaUrl = raw.mediaUrl;
+      if (type === 'image') block.mediaType = 'image';
+    }
+    if (raw.mediaCaption) block.mediaCaption = raw.mediaCaption;
     if (raw.children && raw.children.length > 0) {
       block.children = normalizeBlocksInner(raw.children, depth + 1);
     }
