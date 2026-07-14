@@ -1,4 +1,36 @@
-import type { Entity, EditorBlock, FlowIntentCategory, AppTask } from './store.types';
+import type { Entity, EditorBlock, FlowIntentCategory, AppTask, AIAttachment } from './store.types';
+
+/**
+ * Vision needs raw image bytes, but attachments carry a Supabase Storage public
+ * URL once uploaded (spec §5b) — an absolute https:// link, not a data: URI.
+ * Anything left as a URL is dropped from the vision payload downstream, so the
+ * model silently receives no image at all. Fetch every non-data: image/PDF back
+ * into a data: URI here.
+ */
+export async function resolveAttachmentsForVision(attachments: AIAttachment[]): Promise<AIAttachment[]> {
+  return Promise.all(
+    attachments.map(async (att) => {
+      const needsBytes = att.type === 'image' || att.type === 'pdf';
+      if (!needsBytes || !att.url || att.url.startsWith('data:')) return att;
+      try {
+        const absoluteUrl = att.url.startsWith('/') ? `${window.location.origin}${att.url}` : att.url;
+        const res = await fetch(absoluteUrl);
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const blob = await res.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        return { ...att, url: base64 };
+      } catch (e) {
+        console.error('Failed to resolve attachment to base64:', att.url, e);
+        return att;
+      }
+    })
+  );
+}
 
 let _idCounter = 100;
 export function generateId(): string {

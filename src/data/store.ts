@@ -48,7 +48,8 @@ import { entityToSQLiteRow, taskToSQLiteRow, spaceToSQLiteRow } from '@/lib/lega
 
 import {
   generateId, getDescendantIds, getAllDescendants, findWorkspaceRoot, validateNoteContent,
-  robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime, getSyncModeCascade
+  robustParseJSON, markdownToBlocks, blocksToMarkdown, getClientTime, getSyncModeCascade,
+  resolveAttachmentsForVision
 } from './store.helpers';
 import { isDesktop } from '@/lib/env';
 import { createDebouncedPush } from '@/lib/debouncedPush';
@@ -1387,29 +1388,8 @@ export const useStore = create<AppState>()(
             }
           }
 
-          // Resolve any public paths in attachments to base64 strings on-the-fly for vision payload
-          const resolvedAttachments = await Promise.all(
-            attachments.map(async (att) => {
-              if (att.url && att.url.startsWith('/') && !att.url.startsWith('data:')) {
-                try {
-                  const absoluteUrl = `${window.location.origin}${att.url}`;
-                  const res = await fetch(absoluteUrl);
-                  const blob = await res.blob();
-                  const base64 = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                  });
-                  return { ...att, url: base64 };
-                } catch (e) {
-                  console.error('Failed to resolve attachment to base64:', att.url, e);
-                  return att;
-                }
-              }
-              return att;
-            })
-          );
+          // Resolve attachment URLs (storage links included) to base64 for the vision payload
+          const resolvedAttachments = await resolveAttachmentsForVision(attachments);
 
           // Handle vision / PDF: extract all image/pdf attachments as base64 array
           const imageAttachments = resolvedAttachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
@@ -1988,29 +1968,8 @@ export const useStore = create<AppState>()(
             if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
           }
 
-          // Resolve any public paths in attachments to base64 strings on-the-fly for vision payload
-          const resolvedAttachments = await Promise.all(
-            userAttachments.map(async (att) => {
-              if (att.url && att.url.startsWith('/') && !att.url.startsWith('data:')) {
-                try {
-                  const absoluteUrl = `${window.location.origin}${att.url}`;
-                  const res = await fetch(absoluteUrl);
-                  const blob = await res.blob();
-                  const base64 = await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                  });
-                  return { ...att, url: base64 };
-                } catch (e) {
-                  console.error('Failed to resolve attachment to base64:', att.url, e);
-                  return att;
-                }
-              }
-              return att;
-            })
-          );
+          // Resolve attachment URLs (storage links included) to base64 for the vision payload
+          const resolvedAttachments = await resolveAttachmentsForVision(userAttachments);
 
           const imageAttachments = resolvedAttachments.filter(a => (a.type === 'image' || a.type === 'pdf') && a.url?.startsWith('data:'));
           const imageBuffers: string[] = imageAttachments.map(a => a.url.split(',')[1]);
