@@ -20,8 +20,8 @@ Build order and status. Step numbers refer to §13.
 | 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d shipped 2026-07-13; §6c fully removed 2026-07-14. |
 | 4c | Date/time correctness (§6e) | ✅ **Done & verified live** (2026-07-14), 3/3 real UI tests. |
 | 7b | Compaction rework | ✅ **Done** (2026-07-14) — watermark compaction, single trigger, real admin config, migration applied to live DB. Unit-tested (12 new tests). Live-tested by owner (found + fixed a token-usage-metric regression, see follow-up note in §7b). ⬅️ **NEXT: §3** (Context pack) or **§6** (Memory v2) — re-check §13 before starting. |
-| 3 | Context pack (§5) | ⬜ Not started |
-| 6 | Memory v2 (§7) | ⬜ Not started |
+| 3 | Context pack (§5) | 🔀 **Superseded in part (2026-07-14)** — static half (workspace map, memory injection) absorbed by the Brain spec (`2026-07-14-brain-design.md`); only the dynamic due-today/overdue task snapshot remains here, unscheduled. |
+| 6 | Memory v2 (§7) | 🔀 **Superseded (2026-07-14)** — memory cards, fact sheet, and `manage_memory` are replaced by the Brain (`2026-07-14-brain-design.md`); idle-run auto-capture moves to Brain P3+. ⬅️ **NEXT: Brain P1** (see Brain spec §10). |
 | 7 | Notifications v1 (§8) | ⬜ Not started |
 
 **Verified in step 2 (live testing, 2026-07-12):** 5/5 novel requests routed
@@ -114,7 +114,9 @@ Prompt-prefix stability is preserved (static/dynamic split) so Anthropic/OpenAI 
 
 Mode UI: each mode selector gets an ⓘ info button with a short popup (benefits, trade-offs, relative cost) — including a note that local-only workspaces get no background runs.
 
-## 5. Context pack (injected user state)
+## 5. Context pack (injected user state) — 🔀 PARTIALLY SUPERSEDED (2026-07-14)
+
+> The static half of this section (workspace map, descriptions, proactive knowledge injection) is superseded by the **Brain** spec (`2026-07-14-brain-design.md`) — user-curated, budgeted, bot-manageable. What remains uniquely here is the **dynamic task snapshot** (due-today/overdue counts + titles, per-turn, unbudgeted, outside the cached prefix) and the anti-nagging rule below, which applies to the Brain block equally. The workspace-description field ships as part of Brain P1's data layer instead.
 
 Every tool-enabled turn receives a compact server-computed block:
 
@@ -321,7 +323,9 @@ Verified: `npx tsc --noEmit` clean, 148/148 tests passing in `src/lib/bot` after
 
 **Verified:** `tsc --noEmit` clean throughout (string-only prompt/schema edits, no logic touched).
 
-## 7. Memory v2
+## 7. Memory v2 — 🔀 SUPERSEDED (2026-07-14)
+
+> Replaced by the **Brain** spec (`2026-07-14-brain-design.md`). Memory cards become brain nodes; the `[USER MEMORY FACT SHEET]` block and `manage_memory` tool are retired in Brain P1 (owner decision — one memory system, not two). Idle-run auto-capture and weekly consolidation move to Brain P3+ (still dependent on the SYSTEM background-job chain described below, which remains the reference design for that infrastructure). Kept for the SYSTEM-chain design notes; do not implement the card/fact-sheet parts as written.
 
 Three layers:
 
@@ -464,7 +468,7 @@ note below). Work is folded into this spec — no separate plan documents.
 4c. ✅ Date/time correctness (§6e) — shipped and live-verified 2026-07-14.
 7b. ✅ Compaction rework (§7b) — shipped 2026-07-14, watermark compaction. Unit-tested; not yet live-verified with a real long conversation.
 
-**⬅️ NEXT — 3. Context pack (§5) or 6. Memory v2 (§7).**
+**⬅️ NEXT — Brain P1 (`2026-07-14-brain-design.md` §10), which supersedes §7 and the static half of §5.**
 
 > **Reorder note (2026-07-13, second reorder):** step 4b was moved ahead of 7b/3/6/7.
 > Live testing after step 5 shipped surfaced three more broken behaviours, this time
@@ -482,6 +486,7 @@ Remaining, in order:
 
 5. ✅ **Attachments** — §5b (native pipeline, delete the twin) + §5c (durable storage, Option A) + §5d (Telegram parity). Suggested internal order: §5d bug 3 (`clientTime`, quick + standalone) → §5c (unblocks §5d bug 2) → §5b (core) → §5d bugs 1-2.
 4b. ✅ **Action state** — §6b (pending confirmations) → §6d (content sanitization) → §6c (focus tracking). All shipped 2026-07-13.
-3. Context pack + workspace descriptions (§5).
-6. Memory v2 incl. session descriptions (§7).
+3. 🔀 Context pack (§5) — static half superseded by Brain; dynamic task snapshot remains, unscheduled.
+6. 🔀 Memory v2 (§7) — superseded by Brain (`2026-07-14-brain-design.md`).
 7. Notifications v1 (§8).
+9. Brain P1-P3 — see Brain spec §10 for its internal build order.
