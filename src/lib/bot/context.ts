@@ -14,7 +14,7 @@ export interface SessionState {
   last_compacted_message_id: number | null
 }
 
-const CHARS_PER_TOKEN = 4
+const CHARS_PER_TOKEN = 3.5
 
 export function estimateTokens(text: string): number {
   if (!text) return 0

@@ -1099,13 +1099,7 @@ IMAGE GENERATION:
               }
 
               const summaryTokens = currentSummary ? estimateTokens(currentSummary) : 0;
-              // providerUsage.prompt_tokens already includes the summary (it was part of
-              // the system prompt sent to the provider) — don't add summaryTokens again.
-              // The estimate fallback excludes the summary from activeHistoryText, so it
-              // still needs summaryTokens added on top.
-              const totalUsage = providerUsage
-                ? (providerUsage.prompt_tokens ?? 0) + (providerUsage.completion_tokens ?? 0)
-                : summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
+              const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
 
               const limit = sessionState?.context_limit ?? 32000
               const threshold = sessionState?.compaction_threshold ?? 0.8

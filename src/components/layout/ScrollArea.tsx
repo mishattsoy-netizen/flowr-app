@@ -92,7 +92,13 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
   }, [scrollRef, show, hide]);
 
   return (
-    <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+    <div 
+      className="relative flex-1 min-h-0 flex flex-col overflow-hidden"
+      style={{
+        maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)'
+      }}
+    >
       <div
         ref={scrollRef}
         onScroll={handleScroll}

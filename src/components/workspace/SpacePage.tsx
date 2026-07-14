@@ -693,11 +693,11 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
 
           {/* Bottom widgets grid */}
           <div
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[320px] max-h-[680px] basis-0 select-none"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[320px] max-h-[680px] basis-0 select-none min-h-0"
             style={{ flexGrow: 485 }}
           >
             {/* Tasks (2/3 width) */}
-            <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
+            <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden min-h-0">
               <div className="flex-1 min-h-0">
                 {isLoading ? (
                   <Skeleton className="h-full w-full bg-[var(--bone-5)]" />
@@ -712,7 +712,7 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
             </div>
 
             {/* Shortcuts (1/3 width) */}
-            <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden">
+            <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden min-h-0">
               <div className="flex-1 min-h-0">
                 {isLoading ? (
                   <Skeleton className="h-full w-full bg-[var(--bone-5)]" />

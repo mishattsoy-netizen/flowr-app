@@ -19,7 +19,7 @@ Build order and status. Step numbers refer to §13.
 | 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | ✅ **Done** (not yet live-tested with actual telegram bot). |
 | 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d shipped 2026-07-13; §6c fully removed 2026-07-14. |
 | 4c | Date/time correctness (§6e) | ✅ **Done & verified live** (2026-07-14), 3/3 real UI tests. |
-| 7b | Compaction rework | ✅ **Done** (2026-07-14) — watermark compaction, single trigger, real admin config. Unit-tested (12 new tests); **migration not yet applied to live DB, not yet live-verified**. ⬅️ **NEXT: apply `20260714_compaction_watermark.sql`, then §3** (Context pack) or **§6** (Memory v2) — re-check §13 before starting. |
+| 7b | Compaction rework | ✅ **Done** (2026-07-14) — watermark compaction, single trigger, real admin config. Unit-tested (12 new tests); **migration not yet applied to live DB, not yet live-verified**. Follow-up token metric regression fixed. ⬅️ **NEXT: apply `20260714_compaction_watermark.sql`, then §3** (Context pack) or **§6** (Memory v2) — re-check §13 before starting. |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 6 | Memory v2 (§7) | ⬜ Not started |
 | 7 | Notifications v1 (§8) | ⬜ Not started |
@@ -383,6 +383,8 @@ Distinctions (to prevent confusion): session compaction summary (§7b) is invisi
 - Confirmed the admin UI (`src/app/admin/bot/global/page.tsx`/`actions.ts`) needed zero changes — it already called `getCompactionConfig`/`saveCompactionConfig` correctly; those functions just do real work now.
 - **Not yet verified live:** an actual long, over-threshold conversation driving real compaction end-to-end (the unit tests cover the logic in isolation; a live multi-turn transcript showing the watermark advance across two real compactions is the next-level evidence, same bar used for §6b/§6e, not yet collected).
 - **Requires the migration to be applied before any live test means anything:** `supabase/migrations/20260714_compaction_watermark.sql` must be run against the live DB first — until then, `getCompactionConfig` silently falls back to defaults and `last_compacted_message_id` is never persisted (no compaction can advance a watermark that doesn't exist as a column). Confirm the migration ran before live-testing this section, same as §6c's removal migration.
+
+**Follow-up (2026-07-14, same day):** The provider-usage switch for `token_usage_total` was found live to cause a phantom-spike bug (Memory Usage jumping over 100% instantly). Root-caused via `route.ts`'s tool-summary logging: raw tool output is never persisted, only the rendered reply + one-line annotation (`[Tools: list_content(...) → 9 items]`), but `providerUsage.prompt_tokens` counts the full round-trip. This inflated the usage metric with tokens that can never be compacted. Reverted to the history-based estimate for this specific metric. `CHARS_PER_TOKEN` was simultaneously changed from 4 to 3.5 project-wide as a deliberate conservatism tweak (owner instruction, not root-cause-driven).
 
 ## 7c. Tool rework
 

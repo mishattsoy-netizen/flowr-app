@@ -1216,7 +1216,13 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               ? <ChatHistorySkeleton />
               : <SidebarSkeleton collapsed={effectiveCollapsed} inferredEntityId={inferredEntityId} />
           ) : effectiveCollapsed ? (
-            <div className="flex-1 min-h-0 overflow-y-auto px-[10px] pb-1 flex flex-col items-center gap-[1px] w-full scrollbar-none">
+            <div 
+              className="flex-1 min-h-0 overflow-y-auto px-[10px] pb-1 flex flex-col items-center gap-[1px] w-full scrollbar-none"
+              style={{
+                maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)'
+              }}
+            >
               <Tooltip content="Pinned items">
                 <button
                   onClick={toggleSidebar}
@@ -1452,7 +1458,13 @@ onClick={() => {
                     })()}
                     <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] pt-2 pb-4">
+                  <div 
+                    className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] pt-2 pb-4"
+                    style={{
+                      maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)'
+                    }}
+                  >
                     <div className="flex flex-col gap-[1px]">
                       {(() => {
                         const unsortedTasks = allTasks.filter(t => !t.completed && (t.spaceId || 'ws-personal') === activeSpaceId && (!t.entityId || !spacesBase.some(ws => ws.id === t.entityId)));

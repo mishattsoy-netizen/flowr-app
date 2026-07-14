@@ -35,27 +35,44 @@ export function ChatHistorySkeleton() {
  */
 export function ChatMainSkeleton() {
   return (
-    <div className="flex-1 flex flex-col h-full bg-background relative">
-      <div className="max-w-3xl mx-auto w-full space-y-10 pt-10 px-6">
-        {/* Header Skeleton */}
-        <div className="flex flex-col items-center justify-center gap-4 mb-20">
-           <Skeleton className="w-12 h-12 rounded-full bg-[var(--bone-5)]" />
-           <Skeleton className="h-6 w-48 rounded-lg bg-[var(--bone-5)]" />
-        </div>
-
-        {/* Message bubbles */}
-        <div className="space-y-10">
-          <div className="flex flex-col items-end gap-3">
-            <Skeleton className="h-10 w-2/3 rounded-2xl bg-[var(--bone-5)]" />
+    <div className="flex-1 flex flex-col h-full bg-background relative min-h-0 min-w-0">
+      <div className="flex-1 min-h-0 overflow-hidden px-6 pt-16 pb-60">
+        <div className="max-w-3xl mx-auto w-full space-y-10">
+          {/* Simulated User Message 1 */}
+          <div className="flex flex-col items-end gap-3 w-full">
+            <Skeleton className="h-4 w-32 rounded-md bg-[var(--bone-5)]" />
           </div>
-          <div className="flex flex-col items-start gap-3">
-             <div className="flex gap-4 w-full">
-                <Skeleton className="w-8 h-8 rounded-full bg-[var(--bone-5)] shrink-0" />
-                <div className="space-y-2 flex-1">
-                   <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
-                   <Skeleton className="h-4 w-[90%] rounded-md bg-[var(--bone-5)]" />
-                   <Skeleton className="h-4 w-[40%] rounded-md bg-[var(--bone-5)]" />
-                </div>
+          {/* Simulated AI Message 1 */}
+          <div className="flex flex-col items-start gap-3 w-full">
+             <Skeleton className="h-5 w-48 rounded-md bg-[var(--bone-5)] mb-1" />
+             <div className="space-y-2 w-full">
+                <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[95%] rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[85%] rounded-md bg-[var(--bone-5)]" />
+             </div>
+          </div>
+          {/* Simulated User Message 2 */}
+          <div className="flex flex-col items-end gap-2 w-full">
+            <Skeleton className="h-4 w-48 rounded-md bg-[var(--bone-5)]" />
+            <Skeleton className="h-4 w-32 rounded-md bg-[var(--bone-5)]" />
+          </div>
+          {/* Simulated AI Message 2 */}
+          <div className="flex flex-col items-start gap-3 w-full">
+             <div className="space-y-2 w-full">
+                <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[90%] rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[40%] rounded-md bg-[var(--bone-5)]" />
+             </div>
+          </div>
+          {/* Simulated User Message 3 */}
+          <div className="flex flex-col items-end gap-3 w-full">
+            <Skeleton className="h-4 w-24 rounded-md bg-[var(--bone-5)]" />
+          </div>
+          {/* Simulated AI Message 3 */}
+          <div className="flex flex-col items-start gap-3 w-full">
+             <div className="space-y-2 w-full">
+                <Skeleton className="h-4 w-[80%] rounded-md bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[60%] rounded-md bg-[var(--bone-5)]" />
              </div>
           </div>
         </div>

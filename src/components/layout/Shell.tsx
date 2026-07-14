@@ -422,7 +422,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               ) : (
                 <>
                   {!isDesktop() && <HeaderBar />}
-                  <main className="flex-1 flex flex-col overflow-hidden relative">
+                  <main className="flex-1 flex flex-col overflow-hidden relative min-h-0">
                     {children}
                   </main>
                 </>
