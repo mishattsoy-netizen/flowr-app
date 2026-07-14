@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { telegram } from '@/lib/bot/telegram'
 import { supabaseAdmin } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
@@ -650,6 +650,14 @@ Here's what I can do for you:
 
       if (isTempChat) activePrompt = userText.replace(/^\/temp\s*/i, '').trim()
 
+      // Bare /temp (no message, no photo) must not fall through to the model:
+      // an empty prompt makes it improvise off stale context (observed live:
+      // it invented and created a random task).
+      if (isTempChat && (!photo || photo.length === 0) && !activePrompt) {
+        await telegram.sendMessage(chatId, '🕶️ *Temporary chat*\n\nUsage: /temp <message> — replies are ephemeral and not saved to history.')
+        return NextResponse.json({ ok: true })
+      }
+
       if (message.media_group_id && photo && photo.length > 0) {
         const mediaGroupId = message.media_group_id
         const fileId = photo[photo.length - 1].file_id
@@ -662,64 +670,86 @@ Here's what I can do for you:
           .lt('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
           .then(undefined, () => {})
 
-        const { data: existingGroup } = await supabaseAdmin!
-          .from('telegram_media_groups')
-          .select('file_ids, caption')
-          .eq('media_group_id', mediaGroupId)
-          .maybeSingle()
-
-        if (existingGroup) {
-          const newFileIds = [...(existingGroup.file_ids as string[]), fileId]
-          const newCaption = existingGroup.caption || message.caption || null
-          await supabaseAdmin!.from('telegram_media_groups').update({ file_ids: newFileIds, caption: newCaption }).eq('media_group_id', mediaGroupId)
-        } else {
-          // Supabase surfaces failures via the returned `error` (it never
-          // rejects), so the lost-insert race (two invocations both see no
-          // row, one insert hits the PK conflict) is handled by checking it.
-          const { error: insertError } = await supabaseAdmin!.from('telegram_media_groups').insert({
-            media_group_id: mediaGroupId,
-            chat_id: String(chatId),
-            file_ids: [fileId],
-            caption: message.caption || null,
+        // Atomic append (migration 20260714000005): concurrent invocations for
+        // the same album can't lose each other's file_ids the way the old
+        // read-modify-write could. Returns the array as of this append.
+        const { data: fileIdsAfterAppend, error: appendError } = await supabaseAdmin!
+          .rpc('append_telegram_media_file', {
+            p_media_group_id: mediaGroupId,
+            p_chat_id: String(chatId),
+            p_file_id: fileId,
+            p_caption: message.caption || null,
           })
-          if (insertError) {
-            const { data: ex2 } = await supabaseAdmin!.from('telegram_media_groups').select('file_ids, caption').eq('media_group_id', mediaGroupId).maybeSingle()
-            if (ex2) {
-               const newFileIds = [...(ex2.file_ids as string[]), fileId]
-               const newCaption = ex2.caption || message.caption || null
-               await supabaseAdmin!.from('telegram_media_groups').update({ file_ids: newFileIds, caption: newCaption }).eq('media_group_id', mediaGroupId)
+        if (appendError) throw appendError
+        const countAfterAppend = Array.isArray(fileIdsAfterAppend) ? fileIdsAfterAppend.length : 1
+
+        // Telegram holds back the album's next update until this request
+        // responds, so the settle window and claim MUST run after the 200 goes
+        // out — sleeping before responding meant the first photo's invocation
+        // claimed the group before photos 2..N were ever delivered (observed
+        // live: the model only saw the album cover). Only the invocation whose
+        // append is still the newest after the settle window attempts the
+        // atomic claim; the processed=false gate breaks any remaining tie.
+        const reconcileRequestId = requestId
+        requestId = null // the after() task owns credit reconciliation for this invocation
+        after(async () => {
+          let chainResult: any = null
+          try {
+            await new Promise(resolve => setTimeout(resolve, 2500))
+
+            const { data: group } = await supabaseAdmin!
+              .from('telegram_media_groups')
+              .select('file_ids, processed')
+              .eq('media_group_id', mediaGroupId)
+              .maybeSingle()
+            const isNewestAppend = !!group && !group.processed
+              && (group.file_ids as string[]).length === countAfterAppend
+            if (!isNewestAppend) return
+
+            const { data: claimed } = await supabaseAdmin!
+              .from('telegram_media_groups')
+              .update({ processed: true })
+              .eq('media_group_id', mediaGroupId)
+              .eq('processed', false)
+              .select()
+              .maybeSingle()
+            if (!claimed) return
+
+            await telegram.sendAction(chatId, 'typing')
+            const buffers: Buffer[] = []
+            for (const fid of claimed.file_ids) {
+              const fileInfo = await telegram.getFile(fid)
+              if (fileInfo?.file_path) {
+                const buf = await telegram.downloadFile(fileInfo.file_path)
+                if (buf) buffers.push(buf)
+              }
+            }
+
+            let albumPrompt = claimed.caption || ''
+            if (isTempChat) albumPrompt = albumPrompt.replace(/^\/temp\s*/i, '').trim()
+
+            chainResult = await executeAndReply(albumPrompt, buffers)
+          } catch (err: any) {
+            if (err.message === 'USER_BLOCKED') {
+              await telegram.sendMessage(chatId, '🚫 Suspended.').catch(() => {})
+            } else {
+              logger.error('Album flow error:', err)
+              logInteraction(chatId, err.message || 'Engine error', 'model', 'text', 'chat', 'error').catch(() => {})
+              await telegram.sendMessage(chatId, '❌ *Engine Error*').catch(() => {})
+            }
+          } finally {
+            if (linkedAuthUserId && reconcileRequestId) {
+              const finalCost = (chainResult && typeof chainResult.total_cost_usd === 'number') ? chainResult.total_cost_usd : 0
+              try {
+                await supabaseAdmin!.rpc('reconcile_credit_for_user', { p_user_id: linkedAuthUserId, p_request_id: reconcileRequestId, p_real_amount_usd: finalCost })
+              } catch (e: any) {
+                logger.error('[reconcile_credit_for_user] error:', e)
+              }
             }
           }
-        }
+        })
 
-        await new Promise(resolve => setTimeout(resolve, 1800))
-
-        const { data: claimed } = await supabaseAdmin!
-          .from('telegram_media_groups')
-          .update({ processed: true })
-          .eq('media_group_id', mediaGroupId)
-          .eq('processed', false)
-          .select()
-          .maybeSingle()
-
-        if (!claimed) {
-          return NextResponse.json({ ok: true })
-        }
-
-        await telegram.sendAction(chatId, 'typing')
-        const buffers: Buffer[] = []
-        for (const fid of claimed.file_ids) {
-          const fileInfo = await telegram.getFile(fid)
-          if (fileInfo?.file_path) {
-            const buf = await telegram.downloadFile(fileInfo.file_path)
-            if (buf) buffers.push(buf)
-          }
-        }
-        
-        activePrompt = claimed.caption || ''
-        if (isTempChat) activePrompt = activePrompt.replace(/^\/temp\s*/i, '').trim()
-
-        result = await executeAndReply(activePrompt, buffers)
+        return NextResponse.json({ ok: true })
       } else {
         let buffers: Buffer[] | undefined = undefined
         if (photo && photo.length > 0) {

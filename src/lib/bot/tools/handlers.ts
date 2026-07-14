@@ -257,7 +257,11 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           entity_id: assignedWorkspaceId || null,
           owner_id: context.userId,
           completed: finalStatus === 'done',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          // last_modified drives both the UI's "last modified" display and the
+          // LWW sync merge; the column defaults to 0 (epoch), which renders as
+          // Jan 1 1970 and loses every merge against client state.
+          last_modified: Date.now()
         })
         if (error) throw error
         return { success: true, id, type: 'task', title }
@@ -272,7 +276,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           type: 'workspace',
           space_id: spaceId || null,
           owner_id: context.userId,
-          parent_id: null
+          parent_id: null,
+          last_modified: Date.now()
         })
         if (error) throw error
         return { success: true, id, type: 'workspace', title }
@@ -288,7 +293,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           content: type === 'note' ? parseMarkdownToBlocks(content || '') : [],
           space_id: spaceId || null,
           owner_id: context.userId,
-          parent_id: parentId || null
+          parent_id: parentId || null,
+          last_modified: Date.now()
         })
         if (error) throw error
         return { success: true, id, type, title }
@@ -352,6 +358,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (includeTime !== undefined) updates.include_time = includeTime;
         if (reminder !== undefined) updates.reminder = reminder || null;
         if (subtasks !== undefined) updates.subtasks = processSubtasks(subtasks);
+        updates.last_modified = Date.now()
 
         const { data, error } = await supabaseAdmin.from('tasks').update(updates).eq('id', id).eq('owner_id', context.userId).select('id, title')
         if (error) throw error
@@ -408,6 +415,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           updates.content = parseMarkdownToBlocks(patchedMd)
         }
 
+        updates.last_modified = Date.now()
         const { data, error } = await supabaseAdmin.from('entities').update(updates).eq('id', id).eq('owner_id', context.userId).select('id, title, type')
         if (error) throw error
         if (!data || data.length === 0) {
@@ -461,7 +469,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
       const { error: updateError } = await supabaseAdmin
         .from('entities')
-        .update({ content: updatedBlocks })
+        .update({ content: updatedBlocks, last_modified: Date.now() })
         .eq('id', id)
         .eq('owner_id', context.userId)
 
@@ -486,7 +494,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     try {
       const { error } = await supabaseAdmin
         .from('entities')
-        .update({ parent_id: parentId || null })
+        .update({ parent_id: parentId || null, last_modified: Date.now() })
         .eq('id', id)
         .eq('owner_id', context.userId)
 
