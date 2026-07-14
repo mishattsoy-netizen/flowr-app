@@ -133,36 +133,40 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
         )}
       {entityId ? (
         <>
-          {/* Options Menu Button */}
-          {entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker' && (
-            <Tooltip content="More Options">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  useStore.getState().openContextMenu(entityId, rect.left, rect.bottom + 6, 'tab');
-                }}
-                className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-            </Tooltip>
-          )}
+          {/* Options + Read/Edit — wrapped together so the extra 1px margin
+              (on top of the row's 6px gap) lands only between this group and
+              the tab, matching the button's own centered top/bottom margin
+              ((BAR_H - buttonSize) / 2 = 7px on web) for aligned corners. */}
+          {(entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker') && (
+            <div className="flex items-center gap-1 h-full shrink-0 mr-[1px]">
+              <Tooltip content="More Options">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    useStore.getState().openContextMenu(entityId, rect.left, rect.bottom + 6, 'tab');
+                  }}
+                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+              </Tooltip>
 
-          {/* Read/Edit toggle inside ColumnHeader */}
-          {entities.find(e => e.id === entityId)?.type === 'note' && (
-            <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
-              <button
-                onClick={e => { e.stopPropagation(); setReadMode(entityId, !isReadMode); }}
-                className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
-              >
-                {isReadMode ? (
-                  <BookOpen className="w-4 h-4" />
-                ) : (
-                  <Pencil className="w-4 h-4" />
-                )}
-              </button>
-            </Tooltip>
+              {entities.find(e => e.id === entityId)?.type === 'note' && (
+                <Tooltip content={isReadMode ? "Switch to Edit Mode" : "Switch to Reading Mode"}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setReadMode(entityId, !isReadMode); }}
+                    className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+                  >
+                    {isReadMode ? (
+                      <BookOpen className="w-4 h-4" />
+                    ) : (
+                      <Pencil className="w-4 h-4" />
+                    )}
+                  </button>
+                </Tooltip>
+              )}
+            </div>
           )}
 
           {/* ── Tab pill — identical to HeaderBar's StaticTabPill ── */}
@@ -240,7 +244,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
               }}
               className={cn(
-                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
+                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
@@ -309,7 +313,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
               }}
               className={cn(
-                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0",
+                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
                 newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >

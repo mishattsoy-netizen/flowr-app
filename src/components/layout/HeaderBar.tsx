@@ -709,10 +709,13 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           );
         })}
 
-        {/* + New Tab (matches inactive hover container height for uniform spacing) */}
+        {/* + New Tab — extra margin on top of the row's 6px gap brings the total
+            tab-to-button gap to the button's own centered top/bottom margin
+            ((BAR_H - buttonSize) / 2 = 9px desktop, 7px web), so the gap matches
+            the button's own vertical inset and the shapes read as aligned. */}
         {!splitViewActive && (
           <div
-            className="flex items-center justify-center shrink-0"
+            className={cn("flex items-center justify-center shrink-0", isDesktopEnv ? "ml-[3px]" : "ml-[1px]")}
             style={{ height: BAR_H }}
           >
             <button
@@ -736,7 +739,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                    <EntityHeaderControls entityId={splitViewLeftId} />
                  </div>
                  {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag]">
+                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
                    <Tooltip content="New Entity">
                      <button
                        onClick={(e) => {
@@ -760,7 +763,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                    <EntityHeaderControls entityId={splitViewRightId} />
                  </div>
                  {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag]">
+                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
                    <Tooltip content="New Entity">
                      <button
                        onClick={(e) => {
