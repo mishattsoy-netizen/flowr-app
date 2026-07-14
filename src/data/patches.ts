@@ -31,17 +31,7 @@ export const PATCHES: Patch[] = [
       {
         type: 'changed',
         items: [
-          "Swapped the app's serif font to Libertinus Serif — a more refined, classic typeface with full italic and weight support.",
-          "Serif text is now consistently controlled by a single CSS variable across the entire app, so font changes always apply everywhere at once.",
-          "Serif font weight is now capped at Semibold — no more accidentally bold headers. Medium text maps to Regular, Bold and above maps to Semibold.",
-          "Tight letter-spacing is now enforced globally for all serif text from one place.",
-        ]
-      },
-      {
-        type: 'improved',
-        items: [
-          "AI chat message text is slightly larger in both sidebar and full-page modes for better readability.",
-          "Size compensation applied so Libertinus Serif visually matches the previous font's apparent size.",
+          "Switched to Libertinus Serif — refined typography with better weight control and consistent sizing across the app.",
         ]
       },
       {
