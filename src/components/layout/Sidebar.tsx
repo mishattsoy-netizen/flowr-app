@@ -763,8 +763,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             const idx = siblings.findIndex(e => e.id === overEntity!.id);
             if (idx > 0) {
               const prev = siblings[idx - 1];
-              const hasChildren = entities.some(e => e.parentId === prev.id);
-              if (hasChildren && !collapsedIds.includes(prev.id)) {
+              const prevChildren = entities
+                .filter(e => e.parentId === prev.id && !hiddenEntityIds.includes(e.id))
+                .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+              const prevLastChild = prevChildren[prevChildren.length - 1];
+              const isPrevLastChildExpandedFolder = prevLastChild
+                && (prevLastChild.type === 'folder' || prevLastChild.type === 'workspace')
+                && !collapsedIds.includes(prevLastChild.id);
+              if (prevChildren.length > 0 && !collapsedIds.includes(prev.id) && isPrevLastChildExpandedFolder) {
                 overId = prev.id;
                 overEntity = prev;
                 edge = null;

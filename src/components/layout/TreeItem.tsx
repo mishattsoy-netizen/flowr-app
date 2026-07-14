@@ -127,12 +127,13 @@ export function getRedirectedTarget(
   // Now current is the deepest expanded container
   const isNoOpNest = cleanDragId === current.id || (dragItem && dragItem.parentId === current.id);
 
-  if (isNoOpNest) {
-    // The drag item is already a direct child of the deepest expanded folder above
-    // the target. Redirecting to that folder's bottom would be a no-op when the
-    // item is already the last child.
-    // Instead, fall back to the original target so the user can insert the item
-    // before targetEntity at targetDepth (moving it out of the folder).
+  // If the descent never progressed past the initial previous sibling (its own
+  // last child isn't an expanded folder), there's no deeper container to nest
+  // into — show an insert line before targetEntity at targetDepth instead of a
+  // nest-into-folder highlight.
+  const didDescend = current !== prev;
+
+  if (isNoOpNest || !didDescend) {
     return { overId: targetEntity.id, edge: 'top' as Edge, depth: targetDepth };
   } else {
     // Otherwise, nest inside
@@ -298,18 +299,18 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
         const dragId = source.data.id as string;
         const dragType = source.data.entityType as EntityType;
         const clientX = location.current.input?.clientX;
-        const { targetDepth, isNoOp } = getTargetConfig(clientX, dragId, dragType);
+        const { targetDepth } = getTargetConfig(clientX, dragId, dragType);
 
-        setIsOver(!isNoOp);
+        setIsOver(true);
         setActiveDepth(targetDepth);
       },
       onDrag: ({ location, source }) => {
         const dragId = source.data.id as string;
         const dragType = source.data.entityType as EntityType;
         const clientX = location.current.input?.clientX;
-        const { targetDepth, isNoOp } = getTargetConfig(clientX, dragId, dragType);
+        const { targetDepth } = getTargetConfig(clientX, dragId, dragType);
 
-        setIsOver(!isNoOp);
+        setIsOver(true);
         setActiveDepth(targetDepth);
       },
       onDragLeave: () => {
@@ -447,6 +448,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dropDepth, setDropDepth] = useState<number>(depth);
   const [isOver, setIsOver] = useState(false);
+  const [isAfterFolderDrop, setIsAfterFolderDrop] = useState(false);
   const edgeRef = useRef<Edge | null>(null);
   const [isNestingBlocked, setIsNestingBlocked] = useState(false);
 
@@ -767,8 +769,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         let isBlockNesting = false;
         if (isDraggingWorkspace) {
           isBlockNesting = true;
-        } else if (redirectedDepth === 0 && !isDraggingWorkspace) {
-          isBlockNesting = true; // Bug 3 fix: Regular items cannot be placed at depth 0
+        } else if (redirectedDepth === 0 && !isDraggingWorkspace && edge !== null) {
+          isBlockNesting = true; // Bug 3 fix: Regular items cannot be placed at depth 0 as siblings
         } else if (dragEntityId === targetEntityId || isTargetDescendantResolved) {
           isBlockNesting = true;
         } else if (edge === null) {
@@ -804,6 +806,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         edgeRef.current = edge;
         setDropDepth(self.data.visualDepth !== undefined ? (self.data.visualDepth as number) : depth);
         setIsNestingBlocked(self.data.isBlockNesting === true);
+        setIsAfterFolderDrop(self.data.isAfterFolder === true);
       },
       onDrag: ({ self }) => {
         const edge = self.data.edge === null ? null : (self.data.visualEdge !== undefined ? self.data.visualEdge : self.data.edge) as Edge | null;
@@ -813,6 +816,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         }
         setDropDepth(self.data.visualDepth !== undefined ? (self.data.visualDepth as number) : depth);
         setIsNestingBlocked(self.data.isBlockNesting === true);
+        setIsAfterFolderDrop(self.data.isAfterFolder === true);
       },
       onDragLeave: () => {
         setIsOver(false);
@@ -820,6 +824,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         setClosestEdge(null);
         setDropDepth(depth);
         setIsNestingBlocked(false);
+        setIsAfterFolderDrop(false);
       },
       onDrop: () => {
         setIsOver(false);
@@ -827,6 +832,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         setClosestEdge(null);
         setDropDepth(depth);
         setIsNestingBlocked(false);
+        setIsAfterFolderDrop(false);
       },
     });
   }, [myId, isFolder, isDragOverlay, entities, collapsedIds, idOverride, disableNesting, getSortedSiblings, getPinnedSiblings]);
@@ -834,6 +840,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const style = {
     zIndex: isDraggingLocal ? 1000 : (isDragOverlay ? 2000 : undefined),
     position: 'relative' as const,
+  };
+  const rowStyle = {
     opacity: isDraggingLocal && !isDragOverlay ? 0.4 : undefined,
   };
 
@@ -1037,44 +1045,44 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       className={cn(
         isWorkspace && "rounded-[var(--radius-small)] ",
         isWorkspace && isExpanded && "group/workspace",
-        "relative group/treeitem flex flex-col gap-[1px] pb-[1px]",
+        "relative group/treeitem flex flex-col gap-[1px]",
         isOver && "z-20"
       )}
     >
-      <div
-        ref={rowRef}
-        onClick={handleClick}
-        onAuxClick={handleAuxClick}
-        onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
-        data-selected={isActive || undefined}
-        className={cn(
-          "sidebar-item-row group relative flex w-full select-none",
-          isEditing ? "items-start pt-[5px]" : "items-center h-7",
-          "px-3 rounded-[var(--radius-small)]",
-          "border border-transparent",
-          effectiveMultiSelected
-            ? isDraggingLocal
-              ? "bg-[var(--app-dark)] text-[var(--bone-70)]"
-              : "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
-            : isActive
-              ? "!bg-dark text-[var(--bone-100)] font-normal"
+      <div ref={rowRef} className="relative">
+        <div
+          onClick={handleClick}
+          onAuxClick={handleAuxClick}
+          onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
+          data-selected={isActive || undefined}
+          className={cn(
+            "sidebar-item-row group relative flex w-full select-none",
+            isEditing ? "items-start pt-[5px]" : "items-center h-7",
+            "px-3 rounded-[var(--radius-small)]",
+            "border border-transparent",
+            effectiveMultiSelected
+              ? isDraggingLocal
+                ? "bg-[var(--app-dark)] text-[var(--bone-70)]"
+                : "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+              : isActive
+                ? "!bg-dark text-[var(--bone-100)] font-normal"
+                : isDraggingLocal
+                  ? "text-[var(--bone-70)] bg-transparent"
+                  : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
+            isWorkspace && !isActive && !isDraggingLocal && "group-hover/workspace:text-[var(--bone-100)]",
+            isFolderDropTarget && "sidebar-folder-drop-target",
+            "text-[14px]",
+          )}
+          style={{ paddingLeft: `${8 + depth * 18}px`, paddingRight: '3px', ...rowStyle }}
+        >
+          <div className={cn(
+            "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
+            isActive
+              ? "opacity-100"
               : isDraggingLocal
-                ? "text-[var(--bone-70)] bg-transparent"
-                : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]",
-          isWorkspace && !isActive && !isDraggingLocal && "group-hover/workspace:text-[var(--bone-100)]",
-          isFolderDropTarget && "sidebar-folder-drop-target",
-          "text-[14px]",
-        )}
-        style={{ paddingLeft: `${8 + depth * 18}px`, paddingRight: '3px' }}
-      >
-        <div className={cn(
-          "w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)]",
-          isActive
-            ? "opacity-100"
-            : isDraggingLocal
-              ? "opacity-70"
-              : "opacity-70 group-hover:opacity-100"
-        )}>
+                ? "opacity-70"
+                : "opacity-70 group-hover:opacity-100"
+          )}>
           {(!disableNesting && isCollapsible) ? getIcon(entity.type) : getIcon(entity.type)}
         </div>
 
@@ -1136,7 +1144,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           </button>
         </div>
 
-        {isOver && closestEdge && (
+        {isOver && closestEdge && !isAfterFolderDrop && (
           <div
             className={cn(
               "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
@@ -1148,6 +1156,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             }}
           />
         )}
+      </div>
       </div>
 
       {/* Overlay-clone only: dragging a pinned item outside the pinned section
@@ -1175,7 +1184,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           )}
         >
           <div className="overflow-hidden pb-[2px] -mb-[2px]">
-            <div className="relative flex flex-col">
+            <div className="relative flex flex-col gap-[1px]">
               {/* Hierarchy Line */}
               <div
                 className="absolute top-0 bottom-0 w-[1px] bg-[var(--bone-6)] pointer-events-none"
