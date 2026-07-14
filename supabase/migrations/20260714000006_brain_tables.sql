@@ -85,10 +85,19 @@ ALTER TABLE entities
 
 -- One memory system, not two: import existing bot_memories as memory nodes.
 -- bot_memories table itself is KEPT as a backup until live-verified.
+-- brain_nodes.id is a fresh gen_random_uuid() every insert, so a bare
+-- "ON CONFLICT DO NOTHING" on the PK never actually conflicts and is not a
+-- real re-run guard. Guard explicitly against re-importing the same
+-- (user_id, content, title) pair instead, so this statement is safe to
+-- run again if the migration is ever re-applied.
 INSERT INTO brain_nodes (user_id, type, content, label, created_by, created_at, updated_at)
-SELECT user_id, 'memory', content, title, 'bot', created_at, updated_at
-FROM bot_memories
-ON CONFLICT DO NOTHING;
+SELECT bm.user_id, 'memory', bm.content, bm.title, 'bot', bm.created_at, bm.updated_at
+FROM bot_memories bm
+WHERE NOT EXISTS (
+  SELECT 1 FROM brain_nodes bn
+  WHERE bn.user_id = bm.user_id AND bn.type = 'memory'
+    AND bn.content = bm.content AND bn.label IS NOT DISTINCT FROM bm.title
+);
 
 ALTER TABLE brain_nodes     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE brain_edges     ENABLE ROW LEVEL SECURITY;
