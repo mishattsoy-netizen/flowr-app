@@ -1724,3 +1724,10 @@ a:focus:not(:focus-visible),
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+/* Cross-block selection: the native text highlight remains, and every block the
+   selection touches gets a faint tint so the span is obvious at a glance. */
+.editor-block:has(::selection) {
+  background-color: var(--bone-3, rgba(255, 255, 255, 0.03));
+  border-radius: var(--radius-medium);
+  transition: background-color 80ms ease-out;
+}
