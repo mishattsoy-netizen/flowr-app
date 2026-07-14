@@ -286,11 +286,20 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       // --- NOTE / FOLDER ---
       if (type === 'note' || type === 'folder') {
         const id = (type === 'note' ? 'doc-' : 'folder-') + Date.now().toString()
+        // The schema offers 'blocks' as an alternative to 'content' for notes,
+        // so honor it — reading only 'content' silently persisted an empty body
+        // whenever the model chose blocks, while still reporting success.
+        const noteBody = type === 'note'
+          ? (content ? parseMarkdownToBlocks(content) : normalizeBlocks((blocks as BlockInput[]) || []))
+          : []
+        if (type === 'note' && noteBody.length === 0) {
+          logger.warn(`create_content: note "${title}" has an empty body (args: ${Object.keys(args).join(', ')})`)
+        }
         const { error } = await supabaseAdmin.from('entities').insert({
           id,
           title,
           type,
-          content: type === 'note' ? parseMarkdownToBlocks(content || '') : [],
+          content: noteBody,
           space_id: spaceId || null,
           owner_id: context.userId,
           parent_id: parentId || null,
@@ -402,7 +411,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
               return { error: 'No matching pending confirmation found for this id. Call update_content without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
             }
           }
-          updates.content = content !== undefined ? parseMarkdownToBlocks(content) : blocks
+          updates.content = content !== undefined
+            ? parseMarkdownToBlocks(content)
+            : normalizeBlocks((blocks as BlockInput[]) || [])
         } else if (Array.isArray(patch) && patch.length > 0) {
           if (patch.length > 20) return { error: 'patch supports at most 20 operations per call.' }
           const { data: existing, error: fetchErr } = await supabaseAdmin.from('entities')
