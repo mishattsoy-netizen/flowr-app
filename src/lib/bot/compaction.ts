@@ -7,26 +7,39 @@ import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
 import { computeModelCost } from './services/costFormula'
 import type { RouterModel } from '../router-config'
+import type { MemoryItem } from './memory'
 
 export interface CompactionConfig {
   context_limit: number
   compaction_threshold: number
 }
 
-// ─── Hardcoded Compaction Config ────────────────────────────────────────────
-// The Admin UI sliders are a static preview only.
-const HARDCODED_COMPACTION_CONFIG: CompactionConfig = {
+const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   context_limit: 10000,   // tokens per session before compaction triggers
   compaction_threshold: 0.80, // 80% of context_limit
 }
 
 export async function getCompactionConfig(): Promise<CompactionConfig> {
-  return HARDCODED_COMPACTION_CONFIG
+  if (!supabase) return DEFAULT_COMPACTION_CONFIG
+  const { data, error } = await supabase
+    .from('bot_compaction_config')
+    .select('context_limit, compaction_threshold')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error || !data) {
+    logger.warn(`Failed to fetch compaction config, using defaults: ${error?.message}`)
+    return DEFAULT_COMPACTION_CONFIG
+  }
+  return { context_limit: data.context_limit, compaction_threshold: data.compaction_threshold }
 }
 
-// No-op: DB writes are disabled. Edit HARDCODED_COMPACTION_CONFIG above.
-export async function saveCompactionConfig(_config: Partial<CompactionConfig>): Promise<void> {
-  logger.warn('saveCompactionConfig: settings are hardcoded, DB write skipped.')
+export async function saveCompactionConfig(config: Partial<CompactionConfig>): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('bot_compaction_config')
+    .update({ ...config, updated_at: new Date().toISOString() })
+    .eq('id', 1)
+  if (error) logger.error('Failed to save compaction config:', error)
 }
 
 async function runCompactionModel(
@@ -78,14 +91,15 @@ async function runCompactionModel(
 
 export async function compactSession(
   chatId: string,
-  history: any[],
-  currentSummary: string | null
-): Promise<{ summary: string | null; cost: number }> {
+  history: MemoryItem[],
+  currentSummary: string | null,
+  currentWatermark: number | null = null
+): Promise<{ summary: string | null; cost: number; newWatermark: number | null }> {
   const { chain } = await getRouterChain('COMPACTION', 'default').catch(() => ({ chain: [] as RouterModel[] }))
   const compactionPrompt = getChainPrompt('compaction')
 
   const historyText = history
-    .map(h => `${h.role}: ${h.parts?.[0]?.text || h.content}`)
+    .map(h => `${h.role}: ${h.parts?.[0]?.text || (h as any).content}`)
     .join('\n\n')
 
   const userMessage = [
@@ -97,14 +111,17 @@ export async function compactSession(
 
   const enabledModels = (chain || []).filter(m => m.is_enabled)
 
+  const messageIds = history.map(h => h.id ?? 0).filter(id => id > 0)
+  const newWatermark = messageIds.length > 0 ? Math.max(...messageIds) : currentWatermark
+
   for (const modelConfig of enabledModels) {
     const result = await runCompactionModel(modelConfig, compactionPrompt, userMessage, chatId)
     if (result) {
-      return { summary: result.content, cost: result.cost }
+      return { summary: result.content, cost: result.cost, newWatermark }
     }
   }
 
   logger.warn(`Compaction failed for ${chatId}: all models failed, keeping old summary`)
-  return { summary: currentSummary, cost: 0 }
+  return { summary: currentSummary, cost: 0, newWatermark: currentWatermark }
 }
 

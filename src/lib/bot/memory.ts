@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../supabase'
 import { logger } from '../logger'
 
 export interface MemoryItem {
+  id?: number
   role: 'user' | 'model'
   parts: [{ text: string }]
 }
@@ -40,7 +41,7 @@ export async function getConversationMemory(telegramId: number, limit: number = 
   try {
     const { data, error } = await supabaseAdmin
       .from('message_logs')
-      .select('role, content, context_messages')
+      .select('id, role, content, context_messages')
       .eq('telegram_id', telegramId)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -60,6 +61,7 @@ export async function getConversationMemory(telegramId: number, limit: number = 
         if (twin) cleanContent = `${cleanContent}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${twin}`.trim()
       }
       return {
+        id: msg.id,
         role: msg.role === 'model' ? 'model' : 'user',
         parts: [{ text: cleanContent }]
       };
@@ -91,7 +93,7 @@ export async function getWebConversationMemory(authUserId: string, limit: number
 
     let query = supabaseAdmin
       .from('message_logs')
-      .select('role, content, context_messages');
+      .select('id, role, content, context_messages');
 
     if (validAuthUserId) {
       query = query.eq('auth_user_id', validAuthUserId);
@@ -135,6 +137,7 @@ export async function getWebConversationMemory(authUserId: string, limit: number
         if (twin) cleanContent = `${cleanContent}\n\n[VISION CONTEXT - DIGITAL TWIN]\n${twin}`.trim()
       }
       return {
+        id: msg.id,
         role: msg.role === 'model' ? 'model' : 'user',
         parts: [{ text: cleanContent }]
       };

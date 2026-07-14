@@ -11,6 +11,7 @@ export interface SessionState {
   last_summarized_at: string
   pending_action: { tool: string; args: Record<string, any>; dry_run_result: any; created_at: string; turn_seq?: number } | null
   turn_seq: number
+  last_compacted_message_id: number | null
 }
 
 const CHARS_PER_TOKEN = 4
@@ -38,7 +39,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       compaction_threshold: config.compaction_threshold,
       last_summarized_at: new Date(0).toISOString(),
       pending_action: null,
-      turn_seq: 0
+      turn_seq: 0,
+      last_compacted_message_id: null
     }
   }
 
@@ -51,7 +53,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       compaction_threshold: config.compaction_threshold,
       last_summarized_at: new Date(0).toISOString(),
       pending_action: null,
-      turn_seq: 0
+      turn_seq: 0,
+      last_compacted_message_id: null
     }
   }
 
@@ -77,7 +80,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     token_usage_total: 0,
     last_summarized_at: new Date(0).toISOString(),
     pending_action: null,
-    turn_seq: 0
+    turn_seq: 0,
+    last_compacted_message_id: null
   }
 
   return {
@@ -117,13 +121,19 @@ export async function summarizeSession(
   currentSummary: string | null
 ): Promise<{ summary: string | null; cost: number }> {
   try {
-    const { summary: newSummary, cost } = await compactSession(chatId, history, currentSummary)
+    // Fetch the existing watermark so a failed compaction (compactSession
+    // falls back to { newWatermark: currentWatermark } when all models fail)
+    // preserves it instead of being nulled out below.
+    const existing = await getSessionState(chatId)
+    const currentWatermark = existing?.last_compacted_message_id ?? null
+    const { summary: newSummary, cost, newWatermark } = await compactSession(chatId, history, currentSummary, currentWatermark)
     if (newSummary) {
       if (!(chatId === 'temp' || chatId.startsWith('temp:') || chatId.startsWith('temp'))) {
         await updateSessionState(chatId, {
           distilled_summary: newSummary,
           last_summarized_at: new Date().toISOString(),
           token_usage_total: estimateTokens(newSummary),
+          last_compacted_message_id: newWatermark ?? currentWatermark,
         })
       }
       return { summary: newSummary, cost }

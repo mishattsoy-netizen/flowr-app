@@ -22,8 +22,7 @@ import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
 import { runNvidia } from './providers/nvidia'
 import { getConversationMemory, getWebConversationMemory } from './memory'
-import { supabaseAdmin } from '../supabase'
-import { getSessionState, updateSessionState, estimateTokens, summarizeSession } from './context'
+import { getSessionState, updateSessionState, estimateTokens } from './context'
 import type { StatusCallback, PipelineStep } from './pipeline'
 import { runThinkChain } from './thinkChain'
 import { getPipelineSettings } from '../router-config'
@@ -32,7 +31,7 @@ import { buildTranscript } from './transcript'
 import { executeProvider, executeVisionProvider, logCost, trackModelUsage } from './services/providerExecution'
 import { buildSystemPrompt } from './services/promptBuilder'
 import { getChainPrompt } from './prompts'
-import { fetchConversationHistory, manageSessionCompaction } from './services/memoryManager'
+import { fetchConversationHistory, manageSessionCompaction, messagesAfterWatermark } from './services/memoryManager'
 import { computeModelCost } from './services/costFormula'
 
 // Augments search query with context from conversation history
@@ -208,17 +207,19 @@ export async function runChain(
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
 
-  let history = await fetchConversationHistory({
+  const memoryContext = {
     chatId: context?.chatId,
     userId: context?.userId,
     isTempChat: context?.isTempChat,
     activeChatId: context?.activeChatId,
     clientHistory: context?.clientHistory,
     _triggerType: context?._triggerType
-  }, historyLimit)
+  }
+
+  let history = await fetchConversationHistory(memoryContext, historyLimit)
 
   let currentSummary = sessionState?.distilled_summary || null
-  const compactionResult = await manageSessionCompaction(sessionId, history, sessionState)
+  const compactionResult = await manageSessionCompaction(sessionId, history, sessionState, memoryContext)
   currentSummary = compactionResult.currentSummary
   totalCostUsd += compactionResult.cost
   if (sessionState) {
@@ -778,10 +779,11 @@ IMAGE GENERATION:
             ? history.slice(-4)
             : (!pipelineSettings.historyEnabledCategories || pipelineSettings.historyEnabledCategories.includes(category)) ? history : []
 
-          // When session summary exists, trim raw history — the summary carries prior context.
-          // Keep only the last few messages for immediate conversational coherence (Claude Code style).
-          if (currentSummary && historyForChain.length > 5) {
-            historyForChain = historyForChain.slice(-5)
+          // When a session summary exists, the summary already covers everything up to
+          // the watermark — only show the model messages AFTER that point, not a fixed
+          // "last 5" that could hide messages the summary never actually covered.
+          if (currentSummary && sessionState?.last_compacted_message_id) {
+            historyForChain = messagesAfterWatermark(historyForChain, sessionState.last_compacted_message_id)
           }
 
           // ── Token Limit Application ──
@@ -1075,7 +1077,15 @@ IMAGE GENERATION:
                 activeImageCount += Array.isArray(inputBuffer) ? inputBuffer.length : 1;
               }
 
-              const limitHistory = currentSummary ? historyWithResponse.slice(-5) : historyWithResponse;
+              // Same "messages after the watermark" window as historyForChain (line ~777) —
+              // must stay in lockstep with the prompt window, or this estimate silently
+              // diverges from what was actually sent (undercounting once the post-watermark
+              // window grows past 5, or double-counting already-summarized messages right
+              // after compaction).
+              const watermark = sessionState?.last_compacted_message_id ?? null
+              const limitHistory = currentSummary
+                ? messagesAfterWatermark(historyWithResponse, watermark)
+                : historyWithResponse;
               for (const h of limitHistory) {
                 const partText = h.parts?.[0]?.text || h.content || '';
                 activeHistoryText += partText;
@@ -1089,29 +1099,21 @@ IMAGE GENERATION:
               }
 
               const summaryTokens = currentSummary ? estimateTokens(currentSummary) : 0;
-              const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
+              // providerUsage.prompt_tokens already includes the summary (it was part of
+              // the system prompt sent to the provider) — don't add summaryTokens again.
+              // The estimate fallback excludes the summary from activeHistoryText, so it
+              // still needs summaryTokens added on top.
+              const totalUsage = providerUsage
+                ? (providerUsage.prompt_tokens ?? 0) + (providerUsage.completion_tokens ?? 0)
+                : summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
 
               const limit = sessionState?.context_limit ?? 32000
               const threshold = sessionState?.compaction_threshold ?? 0.8
-              if (totalUsage > limit * threshold) {
-                logger.info(`Context limit (${Math.round(threshold * 100)}%) reached for ${sid}. Triggering summarization...`)
-                summarizeSession(sid, history, currentSummary).then(({ cost: bgCost }) => {
-                  if (bgCost > 0 && context?.userId && context.userId !== 'anonymous') {
-                    supabaseAdmin?.from('credit_spend_events').insert({
-                      user_id: context.userId,
-                      request_id: crypto.randomUUID(),
-                      amount_usd: bgCost,
-                      mode: 'default',
-                      is_reservation: false,
-                    }).then(({ error }: any) => {
-                      if (error) logger.error(`Failed to log standalone compaction cost for session ${sid}:`, error)
-                    })
-                  }
-                }).catch((e: any) => logger.error(`Background compaction failed for ${sid}:`, e))
-              } else {
-                await updateSessionState(sid, { token_usage_total: totalUsage, context_limit: limit, compaction_threshold: threshold })
-                  .catch((e: any) => logger.error(`Failed to update session state for ${sid}:`, e))
-              }
+              // Compaction itself is triggered pre-request by manageSessionCompaction —
+              // this is bookkeeping only, so the next turn's trigger check has an
+              // accurate totalUsage to compare against.
+              await updateSessionState(sid, { token_usage_total: totalUsage, context_limit: limit, compaction_threshold: threshold })
+                .catch((e: any) => logger.error(`Failed to update session state for ${sid}:`, e))
             }
 
             if (typeof finalContent === 'string') {

@@ -18,8 +18,8 @@ Build order and status. Step numbers refer to §13.
 | 8 | Prompt diet (§10) | ✅ **Substantially done** — prompt ~9k→~4k tokens, caching fixed |
 | 5 | Native attachments (§5b) + attachment storage (§5c) + Telegram parity (§5d) | ✅ **Done** (not yet live-tested with actual telegram bot). |
 | 4b | Server-side action state: pending confirmations (§6b), focus tracking (§6c), content sanitization (§6d) | ✅ **Done** — §6b, §6c, §6d shipped 2026-07-13; §6c fully removed 2026-07-14. |
-| 4c | Date/time correctness (§6e) | ✅ **Done & verified live** (2026-07-14), 3/3 real UI tests. ⬅️ **NEXT: §7b** (Compaction rework). |
-| 7b | Compaction rework | ⬜ Not started |
+| 4c | Date/time correctness (§6e) | ✅ **Done & verified live** (2026-07-14), 3/3 real UI tests. |
+| 7b | Compaction rework | ✅ **Done** (2026-07-14) — watermark compaction, single trigger, real admin config. Unit-tested (12 new tests); **migration not yet applied to live DB, not yet live-verified**. ⬅️ **NEXT: apply `20260714_compaction_watermark.sql`, then §3** (Context pack) or **§6** (Memory v2) — re-check §13 before starting. |
 | 3 | Context pack (§5) | ⬜ Not started |
 | 6 | Memory v2 (§7) | ⬜ Not started |
 | 7 | Notifications v1 (§8) | ⬜ Not started |
@@ -359,19 +359,30 @@ Three layers:
 
 Distinctions (to prevent confusion): session compaction summary (§7b) is invisible, per-session, purely technical context management; memory cards are visible, cross-session, about the user; session descriptions are per-session metadata for cross-session browsing. Session summaries are never silently promoted into memory.
 
-## 7b. Compaction rework
+## 7b. Compaction rework — ✅ DONE (2026-07-14)
 
-Current implementation is defective and gets rebuilt:
+**Shipped:** watermark-based compaction, replacing all four defects below.
 
-Defects found: (1) when a summary exists the prompt window is hard-cut to the last 5 messages while re-compaction only fires past the token threshold — messages in between are in neither summary nor window (silent context hole; a direct cause of long-session focus loss); (2) compaction re-reads the last-20 fetch rather than "messages since last compaction" — older messages are lost, already-summarized ones are re-summarized (drift); (3) two uncoordinated triggers (pre-request when no summary exists + post-response fire-and-forget) with no locking — races and inconsistent `token_usage_total`; (4) `context_limit` hardcoded at 10k tokens and admin sliders are a no-op; token accounting is chars/4 even when providers report real usage.
+**Defects found:** (1) when a summary exists the prompt window is hard-cut to the last 5 messages while re-compaction only fires past the token threshold — messages in between are in neither summary nor window (silent context hole; a direct cause of long-session focus loss); (2) compaction re-reads the last-20 fetch rather than "messages since last compaction" — older messages are lost, already-summarized ones are re-summarized (drift); (3) two uncoordinated triggers (pre-request when no summary exists + post-response fire-and-forget) with no locking — races and inconsistent `token_usage_total`; (4) `context_limit` hardcoded at 10k tokens and admin sliders are a no-op; token accounting is chars/4 even when providers report real usage.
 
-New design (watermark compaction):
+**What changed:**
+- `message_logs.id` now flows through `MemoryItem` (`memory.ts`'s `getConversationMemory`/`getWebConversationMemory`) as a per-message watermark anchor.
+- New `bot_session_states.last_compacted_message_id` column + `bot_compaction_config` table (migration `20260714_compaction_watermark.sql`), replacing `HARDCODED_COMPACTION_CONFIG` — `getCompactionConfig`/`saveCompactionConfig` now do real reads/writes.
+- `compactSession` (`compaction.ts`) accepts/returns a watermark: consumes exactly the messages it's given, advances the watermark to the newest message id seen, and — critically — **preserves the existing watermark on the all-models-failed path** rather than nulling it out (verified by a dedicated test; this was a real trap, not a hypothetical one).
+- `manageSessionCompaction` (`memoryManager.ts`) is now the single trigger: fires whenever `token_usage_total > limit * threshold` (not just "no summary yet" as before, which is why re-compaction on an already-summarized session never happened via this path pre-fix), and holds a per-session in-process lock (`Map`) so two near-simultaneous requests for the same session don't race — **known limitation, stated explicitly, not oversold: this lock is per-process, not cross-instance; it does not protect against two different serverless instances compacting the same session simultaneously.**
+- **A real gap found during review, before ship:** the `history` array passed into `manageSessionCompaction` from `chainRouter.ts` is the same array used to build the model's prompt each turn, capped at `historyLimit` (default 20, admin-configurable). Filtering *that* capped array by the watermark would silently drop anything older than the cap once a chatty session outgrew it between compactions — the watermark would jump to the newest of only the last ~20 messages, skipping everyone older that was never actually folded into the summary. This is defect #1/#2 reopened through a different mechanism, and would have gotten *worse*, not better, from fixing defect #4 (a higher, real `context_limit` widens the gap between compactions). **Fix:** `manageSessionCompaction` now takes an optional `memoryContext` and, once the threshold gate passes, re-fetches a much wider window (`COMPACTION_FETCH_LIMIT = 500` messages) via the existing `fetchConversationHistory`, reaching back toward the watermark instead of trusting the display-capped array. Verified by a dedicated test proving the wider fetch actually returns messages the display cap would have hidden.
+- `chainRouter.ts`'s second (post-response, fire-and-forget) trigger is deleted entirely. The fixed `.slice(-5)` prompt-window cut is replaced with the same `messagesAfterWatermark` filter used by the trigger — the context hole disappears by construction, since the summary and the window are now defined by the same watermark. A second, previously-unnoticed `.slice(-5)` in the token-usage *accounting* block (used only for the chars/4 estimate) was also found and fixed to use the same watermark filter — left as `.slice(-5)` it would have silently diverged from the actual prompt window once compaction changed what "the window" means (undercounting once the post-watermark window exceeds 5 messages, double-counting right after a compaction).
+- Token accounting now prefers real provider-reported `usage.prompt_tokens`/`completion_tokens` over the chars/4 estimate when available (`providerUsage` was already in scope from the main provider call). The provider-usage branch deliberately does **not** add `summaryTokens` on top — `prompt_tokens` already includes the summary, since it was part of the system prompt sent to the provider; only the estimate-fallback branch needs `summaryTokens` added separately, since its `activeHistoryText` excludes the summary. This asymmetry is intentional and commented in place.
+- `context.ts`'s `summarizeSession` (used by exactly one remaining caller, the manual `/api/ai/memory/compact` admin route — not covered by any "don't touch" scope boundary) was kept rather than deleted, but made watermark-safe: it now fetches the existing watermark before compacting and persists `newWatermark` on success, correctly preserving the old watermark on a failed manual compaction instead of nulling it.
 
-- Session state stores `last_compacted_message_id` (watermark).
-- Prompt window is always `summary + all messages after the watermark`. No fixed slice — the context hole disappears by construction.
-- Compaction consumes exactly `old summary + messages since watermark`, then advances the watermark. Nothing summarized twice, nothing dropped.
-- Single pre-request trigger with a per-session lock (skip if already compacting).
-- Admin compaction config becomes real (writes persist); context limits configurable per tier; provider-reported token usage preferred over estimates.
+**What was verified:**
+- `tsc --noEmit` clean throughout.
+- Full test suite: 368 → 380 (12 new tests), all passing. New tests cover `messagesAfterWatermark`'s filtering semantics directly (no watermark, mid-history watermark, watermark older/newer than all messages, id-less items), `manageSessionCompaction`'s early-return gates (null session, short history, under-threshold, fully-compacted-already), the display-cap-vs-wide-fetch gap fix above, and — most importantly — `compactSession`'s all-models-failed path actually preserves an existing watermark and doesn't invent one from `null` (this exercises the real fallback behavior when the router chain is unavailable, not a mocked shortcut).
+- `manageSessionCompaction`'s compaction body is wrapped in try/catch (matching the old `summarizeSession`'s safety — a throw from `compactSession` no longer fails the whole user-facing request or poisons a concurrent waiter on the same lock).
+- Grepped for `HARDCODED_COMPACTION_CONFIG` (zero hits) and the old `.slice(-5)` prompt-window cut in `chainRouter.ts` (gone; only the unrelated, intentional WEB_SEARCH/RESEARCH `.slice(-4)` remains).
+- Confirmed the admin UI (`src/app/admin/bot/global/page.tsx`/`actions.ts`) needed zero changes — it already called `getCompactionConfig`/`saveCompactionConfig` correctly; those functions just do real work now.
+- **Not yet verified live:** an actual long, over-threshold conversation driving real compaction end-to-end (the unit tests cover the logic in isolation; a live multi-turn transcript showing the watermark advance across two real compactions is the next-level evidence, same bar used for §6b/§6e, not yet collected).
+- **Requires the migration to be applied before any live test means anything:** `supabase/migrations/20260714_compaction_watermark.sql` must be run against the live DB first — until then, `getCompactionConfig` silently falls back to defaults and `last_compacted_message_id` is never persisted (no compaction can advance a watermark that doesn't exist as a column). Confirm the migration ran before live-testing this section, same as §6c's removal migration.
 
 ## 7c. Tool rework
 
@@ -448,7 +459,10 @@ note below). Work is folded into this spec — no separate plan documents.
 4a. ✅ Grounding guard + tool-loop guard (§6a) — pulled forward out of step 4.
 8. ✅ Prompt diet (§10) — substantially done alongside step 2 (~9k→~4k tokens, prompt caching fixed).
 
-**⬅️ NEXT — 7b. Compaction rework (§7b).**
+4c. ✅ Date/time correctness (§6e) — shipped and live-verified 2026-07-14.
+7b. ✅ Compaction rework (§7b) — shipped 2026-07-14, watermark compaction. Unit-tested; not yet live-verified with a real long conversation.
+
+**⬅️ NEXT — 3. Context pack (§5) or 6. Memory v2 (§7).**
 
 > **Reorder note (2026-07-13, second reorder):** step 4b was moved ahead of 7b/3/6/7.
 > Live testing after step 5 shipped surfaced three more broken behaviours, this time
@@ -466,7 +480,6 @@ Remaining, in order:
 
 5. ✅ **Attachments** — §5b (native pipeline, delete the twin) + §5c (durable storage, Option A) + §5d (Telegram parity). Suggested internal order: §5d bug 3 (`clientTime`, quick + standalone) → §5c (unblocks §5d bug 2) → §5b (core) → §5d bugs 1-2.
 4b. ✅ **Action state** — §6b (pending confirmations) → §6d (content sanitization) → §6c (focus tracking). All shipped 2026-07-13.
-7b. Compaction rework (§7b) — pairs naturally with §5b's history cost policy.
 3. Context pack + workspace descriptions (§5).
 6. Memory v2 incl. session descriptions (§7).
 7. Notifications v1 (§8).
