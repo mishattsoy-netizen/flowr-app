@@ -51,6 +51,7 @@ export const PATCHES: Patch[] = [
           "Split view Reset and Swap buttons now appear when hovering either column, not just the right one.",
           "Reset and Swap buttons now stay visible even when one side of the split is empty.",
           "Pin and Reset button positions in the split view header have been swapped to a more logical order.",
+          "Fixed a crash that caused the Telegram bot to send an error message for every photo in an album before even processing them.",
         ]
       }
     ]
