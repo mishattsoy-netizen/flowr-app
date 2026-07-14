@@ -76,8 +76,8 @@ brain_compiles (                       -- compiled text cache, shared across ses
 )
 
 brain_config (                         -- admin-editable tier limits
-  tier         text PRIMARY KEY,       -- 'free' | 'pro' | ...
-  token_limit  integer NOT NULL,       -- placeholder: free 2000, pro 10000
+  tier         text PRIMARY KEY REFERENCES subscription_tiers(id), -- 'free' | 'pro' | 'max'
+  token_limit  integer NOT NULL,       -- placeholder: free 2000, pro 10000, max 15000
   per_node_cap integer NOT NULL DEFAULT 2000
 )
 ```
@@ -129,7 +129,7 @@ This is your knowledge base about the user, curated by them and by you.
 
 **Server-owned, enforced at compile time — never trusted to the model** (same principle as §6b confirmations; same lesson as the §7b token-metric bug).
 
-- Per-tier `token_limit` from `brain_config` (admin-editable; placeholders free=2k, pro=10k — **10k, not 20k**: at 20k with per-category cache writes and heavy use, brain cache costs plausibly eat $5-10/month of a $15-credit Pro user. Tune against real cache-read costs after launch).
+- Per-tier `token_limit` from `brain_config`, keyed to the real `subscription_tiers` (free/pro/max, $0/$20/$50 — verified in `20260707_credit_metering_schema.sql`; admin-editable; placeholders free=2k, pro=10k, max=15k — **10k, not 20k, for Pro**: at 20k with per-category cache writes and heavy use, brain cache costs plausibly eat $5-10/month of a $15-credit Pro user. Tune all three against real cache-read costs after launch).
 - **Per-node cap** (`per_node_cap`, default 2k): one huge note cannot eat the whole budget. Content truncates at a block boundary with an explicit `[truncated]` marker.
 - **Non-monotonicity handled**: because content is referenced, a note edit can push the brain over budget with zero brain edits. So add-time rejection alone is insufficient. The compile applies a **deterministic drop policy**: never drop `pinned` nodes; drop lowest `priority` first, oldest-updated first within equal priority; record `dropped_node_ids` in the compile row; UI shows a "dropped — over budget" badge; `manage_brain list` reports the same state to the bot.
 - `manage_brain add_node` pre-checks projected total and returns a structured error when over ("brain is full — remove or unpin something, or upgrade"), which the bot relays conversationally.
