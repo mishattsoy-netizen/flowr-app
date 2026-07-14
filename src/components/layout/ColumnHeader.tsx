@@ -3,11 +3,17 @@
 import { useState } from 'react';
 import { useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus, Search, PanelLeft } from 'lucide-react';
+import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus, Search, PanelLeft, RotateCcw } from 'lucide-react';
 import { cn, stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import { Tooltip } from '@/components/layout/Tooltip';
 import { Portal } from '@/components/layout/Portal';
+import { create } from 'zustand';
+
+const useHeaderHoverStore = create<{ isHovered: boolean; setHovered: (v: boolean) => void }>((set) => ({
+  isHovered: false,
+  setHovered: (isHovered) => set({ isHovered })
+}));
 
 // ─── Concave corner SVG (same as HeaderBar) ──────────────────────────────────
 function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number }) {
@@ -72,6 +78,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
   const isTempChat = useStore(s => s.isTempChat);
   const removeTab = useStore(s => s.removeTab);
   const toggleSplitView = useStore(s => s.toggleSplitView);
+  const setSplitViewPosition = useStore(s => s.setSplitViewPosition);
   const splitViewPinned = useStore(s => s.splitViewPinned);
   const togglePin = useStore(s => s.togglePin);
   const swapColumns = useStore(s => s.swapColumns);
@@ -98,12 +105,17 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
   const { title, Icon } = getTitleAndIcon(entityId, entities, chatConversations, activeChatId, isTempChat);
 
+  const isHovered = useHeaderHoverStore(s => s.isHovered);
+  const setHovered = useHeaderHoverStore(s => s.setHovered);
+
   const contextMenu = useStore(s => s.contextMenu);
   const isOptionsOpen = contextMenu?.entityId === entityId && contextMenu?.source === 'tab';
 
   return (
     <div
-      className="w-full flex items-center shrink-0 relative z-10 bg-sidebar"
+      className="w-full flex items-center shrink-0 relative z-10 bg-sidebar group/header"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         height: BAR_H,
         paddingLeft: (!isDesktopEnv && isSidebarCollapsed && column === 'left')
@@ -276,6 +288,18 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
           {/* ── Right-side controls ── */}
           <div className="flex items-center gap-1 shrink-0 z-10">
+            {column === 'right' && (
+              <div className={cn("flex items-center transition-opacity", isHovered ? "opacity-100" : "opacity-0")}>
+                <Tooltip content="Reset ratio">
+                  <button
+                    onClick={e => { e.stopPropagation(); setSplitViewPosition(50); }}
+                    className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 hover:bg-[var(--bone-6)] z-10 transition-colors"
+                  >
+                    <RotateCcw strokeWidth={2} className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
             {column === 'right' && !['dashboard', 'chat', 'tracker'].includes(splitViewLeftId || '') && !['dashboard', 'chat', 'tracker'].includes(splitViewRightId || '') && (
               <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
                 <button
@@ -345,6 +369,28 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
           {/* Right side controls */}
           <div className="flex items-center gap-1 shrink-0 ml-auto z-10">
+            {column === 'right' && (
+              <div className={cn("flex items-center transition-opacity", isHovered ? "opacity-100" : "opacity-0")}>
+                <Tooltip content="Reset ratio">
+                  <button
+                    onClick={e => { e.stopPropagation(); setSplitViewPosition(50); }}
+                    className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 hover:bg-[var(--bone-6)] z-10 transition-colors"
+                  >
+                    <RotateCcw strokeWidth={2} className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
+            {column === 'right' && (
+              <Tooltip content="Swap columns">
+                <button
+                  onClick={e => { e.stopPropagation(); swapColumns(); }}
+                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 hover:bg-[var(--bone-6)] z-10 transition-colors"
+                >
+                  <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            )}
             {column === 'right' && (
               <Tooltip content="Exit split view">
                 <button

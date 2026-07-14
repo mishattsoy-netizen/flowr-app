@@ -1,4 +1,4 @@
-import { Literata, DM_Sans, DM_Mono } from "next/font/google";
+import { Libertinus_Serif, DM_Sans, DM_Mono } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
@@ -12,8 +12,10 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerRegistrar from "@/components/pwa/ServiceWorkerRegistrar";
 import { DowngradeBanner } from "@/components/DowngradeBanner";
 
-const literata = Literata({
+const literata = Libertinus_Serif({
   variable: "--font-display",
+  weight: ["400", "600", "700"],
+  style: ["normal", "italic"],
   subsets: ["latin"],
 });
 

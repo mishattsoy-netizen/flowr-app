@@ -40,7 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center max-w-sm px-6">
-          <h1 className="text-2xl font-display font-semibold text-foreground tracking-tight mb-2">Access Denied</h1>
+          <h1 className="text-xs font-display font-semibold text-foreground tracking-tight mb-2">Access Denied</h1>
           <p className="text-sm text-muted-foreground">You do not have admin access. Contact the system administrator.</p>
         </div>
       </div>

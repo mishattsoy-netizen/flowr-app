@@ -22,7 +22,42 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.1',
+    build: '1410',
+    date: '2026-07-14',
+    title: 'New Serif Font & Split View Fixes',
+    featured: false,
+    sections: [
+      {
+        type: 'changed',
+        items: [
+          "Swapped the app's serif font to Libertinus Serif — a more refined, classic typeface with full italic and weight support.",
+          "Serif text is now consistently controlled by a single CSS variable across the entire app, so font changes always apply everywhere at once.",
+          "Serif font weight is now capped at Semibold — no more accidentally bold headers. Medium text maps to Regular, Bold and above maps to Semibold.",
+          "Tight letter-spacing is now enforced globally for all serif text from one place.",
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          "AI chat message text is slightly larger in both sidebar and full-page modes for better readability.",
+          "Size compensation applied so Libertinus Serif visually matches the previous font's apparent size.",
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          "Closing the only open tab in split-view now correctly exits split mode and keeps the page open, instead of leaving two empty columns.",
+          "Split view Reset and Swap buttons now appear when hovering either column, not just the right one.",
+          "Reset and Swap buttons now stay visible even when one side of the split is empty.",
+          "Pin and Reset button positions in the split view header have been swapped to a more logical order.",
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.0',
+
     build: '1400',
     date: '2026-07-14',
     title: 'Header Layout Perfection, AI Timezones & Unified UI',

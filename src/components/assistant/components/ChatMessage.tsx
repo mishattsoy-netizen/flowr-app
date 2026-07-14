@@ -906,7 +906,7 @@ const AdvisorCard = ({ content, state, compact = false }: { content: string; sta
           <span className="text-[10px] font-medium text-amber-400/70 ml-auto">Needs your input</span>
         )}
       </div>
-      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-[14px] prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100 prose-code:text-emerald-300 prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg w-full overflow-hidden [&_p]:my-0 break-words" style={{ fontFamily: '"Literata"', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
+      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-[14px] prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100 prose-code:text-emerald-300 prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg w-full overflow-hidden [&_p]:my-0 break-words" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {content}
         </ReactMarkdown>
@@ -1175,8 +1175,8 @@ export const ChatMessage = memo(({
             const textAfter = contentStr.substring(matchIndex + imgMatch[0].length);
 
             return (
-              <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
-                {textBefore && <span style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>{renderContentWithStyles(textBefore)}</span>}
+              <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
+                {textBefore && <span style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>{renderContentWithStyles(textBefore)}</span>}
                 <ChatImage
                   key={cleanSrc.substring(0, 32) + (description?.length || 0)}
                   src={cleanSrc}
@@ -1186,7 +1186,7 @@ export const ChatMessage = memo(({
                   onHeightChange={scrollToBottom}
                   onAddToWorkspace={() => handleAddImageToWorkspace(cleanSrc)}
                 />
-                {textAfter && <span style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>{renderContentWithStyles(textAfter)}</span>}
+                {textAfter && <span style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>{renderContentWithStyles(textAfter)}</span>}
               </div>
             );
           }
@@ -1198,19 +1198,19 @@ export const ChatMessage = memo(({
         const renderedContent = parseMentions(childrenArray, entities, spaces);
 
         return (
-          <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
+          <div className="mb-2 last:mb-0 break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
             {renderedContent.map((c, i) => <React.Fragment key={i}>{typeof c === 'string' ? renderContentWithStyles(c) : c}</React.Fragment>)}
           </div>
         );
       },
       h1: ({ node, children }: any) => {
-        return <h1 className="text-2xl font-medium mb-4 text-bone-100 mt-6 first:mt-0" style={{ fontFamily: '"Literata"', fontSize: compact ? '20px' : '27px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h1>;
+        return <h1 className="text-2xl font-medium mb-4 text-bone-100 mt-6 first:mt-0" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '20px' : '27px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h1>;
       },
       h2({ node, children }: any) {
-        return <h2 className="text-xl font-medium mb-3 text-bone-100 mt-5" style={{ fontFamily: '"Literata"', fontSize: compact ? '17px' : '23px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h2>;
+        return <h2 className="text-xl font-medium mb-3 text-bone-100 mt-5" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '17px' : '23px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h2>;
       },
       h3({ node, children }: any) {
-        return <h3 className="text-lg font-medium mb-2 text-bone-100 mt-4" style={{ fontFamily: '"Literata"', fontSize: compact ? '15px' : '19px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h3>;
+        return <h3 className="text-lg font-medium mb-2 text-bone-100 mt-4" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '15px' : '19px', letterSpacing: '-0.01em', fontWeight: 500 }}>{renderContentWithStyles(children)}</h3>;
       },
 
       a: ({ href, children }: any) => {
@@ -1316,11 +1316,11 @@ export const ChatMessage = memo(({
       },
       strong({ children }: any) {
         const inTable = !!useContext(InTableContext);
-        return <strong className="font-medium" style={!inTable ? { fontFamily: '"Literata"', fontWeight: 500, letterSpacing: '-0.01em' } : undefined}>{renderContentWithStyles(children)}</strong>;
+        return <strong className="font-medium" style={!inTable ? { fontFamily: 'var(--font-display)', fontWeight: 500, letterSpacing: '-0.01em' } : undefined}>{renderContentWithStyles(children)}</strong>;
       },
       em({ children }: any) {
         const inTable = !!useContext(InTableContext);
-        return <em className="italic" style={!inTable ? { fontFamily: '"Literata"', letterSpacing: '-0.01em' } : undefined}>{renderContentWithStyles(children)}</em>;
+        return <em className="italic" style={!inTable ? { fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' } : undefined}>{renderContentWithStyles(children)}</em>;
       },
       ul: ({ children, className: ulClassName }: any) => {
         const isTaskList = typeof ulClassName === 'string' && ulClassName.includes('contains-task-list');
@@ -1427,10 +1427,10 @@ export const ChatMessage = memo(({
               ) : listType === 'ul' ? (
                 <span className="w-[5.5px] h-[5.5px] rounded-full bg-bone-70/40 mt-[11px] mr-1" />
               ) : listType === 'ol' ? (
-                <span className={cn("text-bone-70/40 font-normal font-serif tracking-tight mt-0 before:content-[counter(list-counter)_'.']", compact ? "text-[13.5px]" : "text-[17px]")} style={{ fontFamily: '"Literata"', letterSpacing: '-0.01em' }} />
+                <span className={cn("text-bone-70/40 font-normal font-serif tracking-tight mt-0 before:content-[counter(list-counter)_'.']", compact ? "text-[13.5px]" : "text-[17px]")} style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }} />
               ) : null}
             </div>
-            <div className="flex-1 min-w-0 leading-[1.6] font-normal tracking-[0] break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
+            <div className="flex-1 min-w-0 leading-[1.6] font-normal tracking-[0] break-words !max-w-full !w-full text-[var(--bone-100)]" style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '13.5px' : '17px', letterSpacing: '-0.01em' }}>
               <InListContext.Provider value={true}>
                 {renderContentWithStyles(filteredChildren)}
               </InListContext.Provider>
@@ -1635,7 +1635,7 @@ export const ChatMessage = memo(({
       <div className="flex flex-col group items-start mb-3">
         <div className="flex gap-3 w-full items-start flex-row">
           <div className="flex flex-col min-w-0 items-start max-w-full flex-1">
-            <div className="prose prose-invert max-w-none w-full opacity-60 italic" style={{ fontFamily: '"Literata"', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
+            <div className="prose prose-invert max-w-none w-full opacity-60 italic" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
               <span>Interrupted</span>
             </div>
           </div>
@@ -1681,7 +1681,7 @@ export const ChatMessage = memo(({
                     return DEFAULT_STATUS_MESSAGES[category] || "Working...";
                   })()}
                   className="font-normal text-[var(--bone-100)]"
-                  style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: compact ? '13px' : '15px', letterSpacing: '-0.01em' }}
+                  style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: compact ? '16px' : '16px', letterSpacing: '-0.01em' }}
                 />
                 {elapsed > 0 && (
                   <span className="text-[12px] font-medium text-[var(--bone-30)] font-mono opacity-80 select-none mt-0.5">
@@ -1803,7 +1803,7 @@ export const ChatMessage = memo(({
                           "prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg",
                           "w-full overflow-hidden relative [&_p]:my-0 break-words",
                           isAILoading && msg.role === 'assistant' && "prose-streaming"
-                        )} style={{ fontFamily: '"Literata"', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
+                        )} style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '15.5px' : '18px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={markdownComponents as any}

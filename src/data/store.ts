@@ -545,10 +545,11 @@ export const useStore = create<AppState>()(
       },
       exitSplitView: () => {
         const state = get();
+        const activeInSplit = state.splitViewLeftId ?? state.splitViewRightId;
         set({
           splitViewActive: false,
-          activeEntityId: state.splitViewLeftId ?? state.activeEntityId,
-          activeTabId: state.splitViewLeftId ?? state.activeEntityId,
+          activeEntityId: activeInSplit ?? state.activeEntityId,
+          activeTabId: activeInSplit ?? state.activeEntityId,
           splitViewLeftId: null,
           splitViewRightId: null,
           splitViewPinned: false,
@@ -2389,6 +2390,18 @@ export const useStore = create<AppState>()(
                 activeTabId: survivingId,
                 activeEntityId: survivingId,
                 splitViewLeftId: survivingId,
+                splitViewRightId: null,
+                splitViewPinned: false,
+              });
+              get().syncUIStateToCloud();
+              return;
+            } else {
+              set({
+                openTabIds: nextTabs,
+                activeTabId: nextActive,
+                activeEntityId: nextActive,
+                splitViewActive: false,
+                splitViewLeftId: null,
                 splitViewRightId: null,
                 splitViewPinned: false,
               });

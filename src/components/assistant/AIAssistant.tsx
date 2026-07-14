@@ -741,7 +741,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
           <div className="py-3 border-b border-[var(--bone-6)] flex items-center justify-between shrink-0 px-6">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2.5">
-                <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
+                <h1 className="text-[26px] font-medium tracking-tight text-foreground leading-none" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
                   {isTempChat
                     ? 'Temporary Chat'
                     : 'Chat'}
@@ -877,7 +877,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                   <StatusTyping
                     text={DEFAULT_STATUS_MESSAGES['COMPACTION'] || "Compressing..."}
                     className="font-normal text-[var(--bone-100)]"
-                    style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: '13px', letterSpacing: '-0.01em' }}
+                    style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: '15px', letterSpacing: '-0.01em' }}
                   />
                 </div>
               </div>

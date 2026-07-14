@@ -152,7 +152,7 @@ function RowEl({
         if (i < rowIndex && rows[i].depth < row.depth) count = 0;
       }
       if (rowIndex === 0 && row.depth === 0 && listNumber != null) count = listNumber;
-      return <span className="text-bone-70/40 text-[16px] font-normal leading-[1.6]" style={{ fontFamily: '"Literata"', letterSpacing: '-0.01em' }}>{formatCounter(count, counterStyle)}.</span>;
+      return <span className="text-bone-70/40 text-[16px] font-normal leading-[1.6]" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>{formatCounter(count, counterStyle)}.</span>;
     }
     return null;
   };
@@ -188,7 +188,7 @@ function RowEl({
           row.checked ? "text-[var(--bone-30)]" : "text-bone-100",
         )}
         style={{
-          fontFamily: '"Literata"',
+          fontFamily: 'var(--font-display)',
           letterSpacing: '-0.01em',
           direction: 'ltr',
           ...(row.checked ? { textDecoration: 'line-through', textDecorationThickness: '1px', textDecorationColor: 'var(--bone-70)' } : {}),

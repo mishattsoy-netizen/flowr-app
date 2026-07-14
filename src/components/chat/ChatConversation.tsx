@@ -105,7 +105,7 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
                     <StatusTyping
                       text={DEFAULT_STATUS_MESSAGES['COMPACTION'] || "Compressing..."}
                       className="font-normal text-[var(--bone-100)]"
-                      style={{ fontFamily: '"Literata"', fontWeight: 400, fontSize: '13px', letterSpacing: '-0.01em' }}
+                      style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: '15px', letterSpacing: '-0.01em' }}
                     />
                   </div>
                 </div>

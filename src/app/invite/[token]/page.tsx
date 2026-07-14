@@ -13,7 +13,7 @@ export default async function InvitePage({ params }: Props) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center max-w-sm px-6">
-          <h1 className="text-2xl font-display font-medium text-foreground mb-2">Invalid Invite</h1>
+          <h1 className="text-xs font-display font-medium text-foreground mb-2">Invalid Invite</h1>
           <p className="text-sm text-muted-foreground">
             This invite link is invalid or has already been used. Ask for a new one.
           </p>

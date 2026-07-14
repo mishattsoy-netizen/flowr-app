@@ -493,7 +493,7 @@ export default function BrainClient({ initialEntries }: Props) {
         <div className="py-3 border-b border-[var(--bone-6)] flex items-center justify-between shrink-0 bg-sidebar px-6">
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
-              <h1 className="text-[20px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: '"Literata", serif', letterSpacing: '-0.01em' }}>
+              <h1 className="text-[20px] font-semibold tracking-tight text-foreground leading-none" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
                 AI Manager
               </h1>
               <div className="w-1.5 h-1.5 rounded-full mt-1 bg-[#22C55E] shadow-[0_0_10px_rgba(34,197,94,0.5)]" />

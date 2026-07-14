@@ -1400,7 +1400,7 @@ export function BlockRenderer({
           isFocused && "focused",
           isSelected && "selected-block",
         )}
-        style={{ ...style, fontFamily: '"Literata"', letterSpacing: '-0.01em' }}
+        style={{ ...style, fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
       >
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
@@ -1459,7 +1459,7 @@ export function BlockRenderer({
         isInsideColumn && ("rounded-[var(--radius-medium)] break-words min-h-[100px] column-container" + (!isReadOnly ? " hover:bg-hover/10" : "")),
         isInsideColumn && !block.content && "empty"
       )}
-      style={{ ...style, fontFamily: '"Literata"', letterSpacing: '-0.01em' }}
+      style={{ ...style, fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
       onMouseDown={!isReadOnly ? () => onFocus?.(block.id) : undefined}
     >
       <BlockControls {...controlsProps} topOffset={textTopOffset} />

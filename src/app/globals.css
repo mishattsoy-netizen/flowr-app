@@ -314,18 +314,53 @@ html[data-interface-size="big"] {
 }
 
 @utility font-serif {
-  font-family: 'Literata', serif;
+  font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: -0.01em;
   font-optical-sizing: auto;
 }
 
-/* Global Literata Tracking Override */
-[style*="Literata"],
+/* Global Serif Override — Libertinus Serif */
+[style*="var(--font-display)"],
 .font-display,
 .font-serif {
   letter-spacing: -0.01em !important;
   font-optical-sizing: auto !important;
+  /* Remap weight 500 (medium) to 600 — Libertinus only has 400/600/700 */
+  font-synthesis: weight !important;
+}
+
+/* Weight remapping: Serif = regular (400) or semibold (600) only
+   font-medium (500) → 400, font-bold (700+) → 600 */
+.font-display.font-medium,
+.font-serif.font-medium,
+[style*="var(--font-display)"].font-medium {
+  font-weight: 400 !important;
+}
+
+.font-display.font-bold,
+.font-serif.font-bold,
+.font-display .font-bold,
+.font-serif .font-bold,
+[style*="var(--font-display)"].font-bold,
+.font-display.font-extrabold,
+.font-serif.font-extrabold,
+.font-display .font-extrabold,
+.font-serif .font-extrabold,
+.font-display.font-black,
+.font-serif.font-black,
+.font-display .font-black,
+.font-serif .font-black {
+  font-weight: 600 !important;
+}
+
+/* Size compensation: Libertinus has a shorter x-height than Literata.
+   Scale up using font-size-adjust on ALL serif elements.
+   This is the reliable cross-browser approach. */
+[style*="var(--font-display)"],
+.font-display,
+.font-serif {
+  font-size-adjust: 0.50;
 }
 
 @utility text-fade {
