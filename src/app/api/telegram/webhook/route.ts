@@ -654,10 +654,13 @@ Here's what I can do for you:
         const mediaGroupId = message.media_group_id
         const fileId = photo[photo.length - 1].file_id
 
+        // PostgrestBuilder is PromiseLike (then-only, no .catch), and the
+        // query doesn't execute until then() is invoked — so fire-and-forget
+        // cleanup must go through then().
         supabaseAdmin!.from('telegram_media_groups')
           .delete()
           .lt('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
-          .catch(() => {})
+          .then(undefined, () => {})
 
         const { data: existingGroup } = await supabaseAdmin!
           .from('telegram_media_groups')
@@ -670,19 +673,23 @@ Here's what I can do for you:
           const newCaption = existingGroup.caption || message.caption || null
           await supabaseAdmin!.from('telegram_media_groups').update({ file_ids: newFileIds, caption: newCaption }).eq('media_group_id', mediaGroupId)
         } else {
-          await supabaseAdmin!.from('telegram_media_groups').insert({
+          // Supabase surfaces failures via the returned `error` (it never
+          // rejects), so the lost-insert race (two invocations both see no
+          // row, one insert hits the PK conflict) is handled by checking it.
+          const { error: insertError } = await supabaseAdmin!.from('telegram_media_groups').insert({
             media_group_id: mediaGroupId,
             chat_id: String(chatId),
             file_ids: [fileId],
             caption: message.caption || null,
-          }).catch(async () => {
+          })
+          if (insertError) {
             const { data: ex2 } = await supabaseAdmin!.from('telegram_media_groups').select('file_ids, caption').eq('media_group_id', mediaGroupId).maybeSingle()
             if (ex2) {
                const newFileIds = [...(ex2.file_ids as string[]), fileId]
                const newCaption = ex2.caption || message.caption || null
                await supabaseAdmin!.from('telegram_media_groups').update({ file_ids: newFileIds, caption: newCaption }).eq('media_group_id', mediaGroupId)
             }
-          })
+          }
         }
 
         await new Promise(resolve => setTimeout(resolve, 1800))
