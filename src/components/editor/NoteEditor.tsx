@@ -13,6 +13,8 @@ import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
+import { mergeAcrossBlocks } from '@/lib/editor/mergeSelection';
+import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset } from '@/lib/editor/domSelection';
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -494,6 +496,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   useTooltipSuppression(Boolean(activeOptionsMenu || slashMenu || isDragging));
   const [activeId, setActiveId] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const blocksHostRef = useRef<HTMLDivElement>(null);
+  const pendingCursor = useRef<{ blockId: string; offset: number } | null>(null);
 
   const isReadMode = useStore(s => !!s.readModeStates[entity.id]);
   const setReadMode = useStore(s => s.setReadMode);
@@ -555,6 +559,73 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       });
     }
   }, [entity.id, updateEntityContent, historyIndex]);
+
+  // A native Selection can span blocks now that they share one editing host.
+  // Let the browser handle everything inside a single block; intercept only
+  // DESTRUCTIVE edits that span two or more blocks, so the store cannot fall
+  // out of sync with a DOM the browser rewrote across several blocks at once.
+  const handleHostBeforeInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    if (isReadMode) return;
+    const host = blocksHostRef.current;
+    if (!host) return;
+
+    const native = e.nativeEvent as InputEvent;
+    const DESTRUCTIVE = new Set([
+      'insertText',
+      'insertParagraph',
+      'insertLineBreak',
+      'insertFromPaste',
+      'deleteContentBackward',
+      'deleteContentForward',
+      'deleteByCut',
+      'deleteByDrag',
+    ]);
+    if (!DESTRUCTIVE.has(native.inputType)) return;
+
+    const selection = getBlockSelection(host);
+    if (!selection) return;   // single block or caret → native behavior
+
+    e.preventDefault();
+
+    const insert =
+      native.inputType === 'insertText' ? (native.data ?? '')
+      : native.inputType === 'insertFromPaste'
+        ? (native.dataTransfer?.getData('text/plain') ?? '')
+      : '';
+
+    // Slice the surviving head/tail as HTML, so bold/links in text the user
+    // never selected are preserved. Doing this here (not in mergeSelection)
+    // keeps the merge function DOM-free and therefore unit-testable.
+    const aIdx = blocks.findIndex(b => b.id === selection.startBlockId);
+    const bIdx = blocks.findIndex(b => b.id === selection.endBlockId);
+    if (aIdx === -1 || bIdx === -1) return;
+
+    const forward = aIdx < bIdx;
+    const first = blocks[forward ? aIdx : bIdx];
+    const last = blocks[forward ? bIdx : aIdx];
+    const headOffset = forward ? selection.startOffset : selection.endOffset;
+    const tailOffset = forward ? selection.endOffset : selection.startOffset;
+
+    const surviving = {
+      headHtml: sliceHtmlByTextOffset(first.content, 0, headOffset),
+      tailHtml: sliceHtmlByTextOffset(last.content, tailOffset, Number.MAX_SAFE_INTEGER),
+    };
+
+    const result = mergeAcrossBlocks(blocks, selection, insert, surviving);
+    if (result.blocks === blocks) return;   // guard said no change
+
+    pendingCursor.current = { blockId: result.cursorBlockId, offset: result.cursorOffset };
+    persistBlocks(result.blocks);
+  }, [blocks, isReadMode, persistBlocks]);
+
+  // Put the caret at the seam after React has re-rendered the merged blocks.
+  useLayoutEffect(() => {
+    const target = pendingCursor.current;
+    const host = blocksHostRef.current;
+    if (!target || !host) return;
+    pendingCursor.current = null;
+    restoreCursor(host, target.blockId, target.offset);
+  }, [blocks]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only handle if clicking on the container background or an empty space
@@ -1404,7 +1475,11 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
             return (
               <div
-                className="space-y-2 min-h-[50vh] note-editor-bg"
+                ref={blocksHostRef}
+                contentEditable={!isReadMode}
+                suppressContentEditableWarning
+                onBeforeInput={handleHostBeforeInput}
+                className="space-y-2 min-h-[50vh] note-editor-bg outline-none"
               >
                 <div className="flex flex-col note-editor-bg">
                   {isLoading ? (

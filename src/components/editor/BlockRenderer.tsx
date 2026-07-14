@@ -1493,7 +1493,11 @@ export function BlockRenderer({
           )}
           <div
             ref={contentRef}
-            contentEditable={(isFocused && !isReadOnly) ? true : undefined}
+            // The blocks container is the single contentEditable host (see
+            // NoteEditor). A per-block contenteditable would be its own editing
+            // host, and a native Selection cannot cross an editing-host
+            // boundary — that is what made selection stop at block edges.
+            contentEditable={undefined}
             suppressContentEditableWarning
             spellCheck={effectiveStyle === 'mono' ? "false" : "true"}
             onFocus={() => {
