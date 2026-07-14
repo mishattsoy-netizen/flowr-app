@@ -91,4 +91,21 @@ describe('create_content: note body', () => {
     const { row } = await createNote({ content: 'body' })
     expect(row.last_modified).toBeGreaterThan(1_700_000_000_000)
   })
+
+  // Regression test for a live DATA-LOSS bug (2026-07-14): the tool result only
+  // ever returned {success, id, type, title} — never the content it persisted.
+  // The web client mirrors every create_content result into its local store via
+  // addEntity(), reconstructing content from `tr.content`; when that was
+  // undefined it defaulted to [], AND addEntity schedules a debounced upsert
+  // back to Supabase 1.5s later. That upsert used the SAME id the row above was
+  // just inserted with, so it silently overwrote the note's real body with an
+  // empty array — confirmed live: a note created with a fully-formed blocks
+  // array (verified via transcript) still read back empty after the debounced
+  // push fired. The result must carry the same content that was inserted.
+  it('returns the persisted content in the result, not just success:true', async () => {
+    const { result, row } = await createNote({
+      blocks: [{ type: 'text', style: 'heading', content: 'No Cookie Consent' }],
+    })
+    expect(result.content).toEqual(row.content)
+  })
 })

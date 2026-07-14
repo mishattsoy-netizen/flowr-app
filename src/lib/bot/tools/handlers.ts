@@ -306,7 +306,14 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           last_modified: Date.now()
         })
         if (error) throw error
-        return { success: true, id, type, title }
+        // Echo the persisted blocks back: the client mirrors this result into its
+        // local store via addEntity, which ALSO schedules a debounced upsert back
+        // to Supabase (spec §5c) — without the real content here, that upsert
+        // fires 1.5s later with content defaulted to [], silently overwriting the
+        // note this handler just wrote with an empty body (live data-loss bug,
+        // 2026-07-14: the tool call above persisted valid blocks correctly, but
+        // the note read back empty because of this).
+        return { success: true, id, type, title, content: noteBody }
       }
       return { error: `Unknown type '${type}'. Must be: note | folder | workspace | task` }
     } catch (e: any) {
@@ -436,7 +443,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           const { updateSessionState } = await import('../context')
           await updateSessionState(context.sessionId, { pending_action: null })
         }
-        return { success: true, id, title: data[0].title, type: data[0].type }
+        // Echo the persisted content back (see create_content's comment on why
+        // this matters) so the client's local mirror doesn't silently retain
+        // stale pre-edit content when it later re-syncs.
+        return { success: true, id, title: data[0].title, type: data[0].type, content: updates.content }
       }
     } catch (e: any) {
       logger.error('update_content failed:', e.message)
@@ -485,7 +495,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         .eq('owner_id', context.userId)
 
       if (updateError) throw updateError
-      return { success: true, id, title: data.title, type: data.type, appendedCount: newBlocks.length }
+      // Echo just the newly-appended blocks (not the full body) — the client's
+      // local mirror appends this to whatever it already has, same reasoning
+      // as create_content's comment above.
+      return { success: true, id, title: data.title, type: data.type, appendedCount: newBlocks.length, blocks: newBlocks }
     } catch (e: any) {
       logger.error('append_to_note failed:', e.message)
       return { error: e.message }
