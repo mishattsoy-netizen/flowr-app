@@ -215,17 +215,33 @@ export async function addBrainNode(
 // changed here would let an update silently repoint a node at an
 // unowned/foreign entity, bypassing that check entirely. If ref_id ever
 // needs to be editable, re-run assertOwnedEntity on the new value first.
+const UPDATABLE_NODE_FIELDS = ['content', 'label', 'section_id', 'priority', 'pinned', 'enabled', 'position'] as const
+
 export async function updateBrainNode(
   userId: string, actor: 'user' | 'bot', nodeId: string,
-  updates: Partial<Pick<BrainNodeRow, 'content' | 'label' | 'section_id' | 'priority' | 'pinned' | 'enabled' | 'position'>>
+  updates: Partial<Pick<BrainNodeRow, typeof UPDATABLE_NODE_FIELDS[number]>>
 ): Promise<{ success: true } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  // Mass-assignment guard: `updates` is typed as a Pick<> at compile time,
+  // but every real caller passes it through from `any` (tool args from the
+  // model, or raw JSON request bodies) — the Pick<> erases at runtime and
+  // gives zero protection there. `{ ...updates }` would let an object
+  // carrying e.g. `user_id` reassign this row to another user (the row
+  // still matches .eq('user_id', userId) in the WHERE, but SET user_id
+  // changes it going forward) — that node then compiles into the VICTIM's
+  // [BRAIN] block with attacker-controlled content: cross-tenant prompt
+  // injection. Whitelist explicitly so only these exact keys can ever
+  // reach the update, regardless of what the caller's object contains.
+  const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() }
+  for (const key of UPDATABLE_NODE_FIELDS) {
+    if (updates[key] !== undefined) safeUpdates[key] = updates[key]
+  }
   const { error, data } = await supabaseAdmin.from('brain_nodes')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(safeUpdates)
     .eq('id', nodeId).eq('user_id', userId).is('deleted_at', null).select('id')
   if (error) return { error: error.message }
   if (!data || data.length === 0) return { error: `Brain node '${nodeId}' not found.` }
-  await logRevision(userId, actor, 'update_node', { id: nodeId, updates })
+  await logRevision(userId, actor, 'update_node', { id: nodeId, updates: safeUpdates })
   return { success: true }
 }
 
