@@ -8,14 +8,14 @@
 // content-hashed URLs (a new deploy = new URL = fresh fetch), not via the cache
 // name. Bump CACHE_NAME manually only if you need to force-purge all caches.
 
-const CACHE_NAME = 'flowr-shell-v1';
+const CACHE_NAME = 'flowr-shell-v2';
 
 const PRECACHE_URLS = [
   '/',
   '/manifest.webmanifest',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
+  '/Shortcut app Icon.png',
+  '/Shortcut app Icon.svg',
+  '/Empty logo.svg',
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,6 +36,9 @@ function isStaticAsset(url) {
   return url.pathname.startsWith('/_next/static/')
     || url.pathname.startsWith('/icons/')
     || url.pathname === '/manifest.webmanifest'
+    || url.pathname === '/Empty logo.svg'
+    || url.pathname === '/Shortcut app Icon.png'
+    || url.pathname === '/Shortcut app Icon.svg'
     || url.pathname === '/favicon.svg'
     || url.pathname === '/favicon.ico';
 }

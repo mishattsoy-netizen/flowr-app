@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore, generateId } from '@/data/store';
-import { Search, FileText, Frame } from 'lucide-react';
+import { Search, FileText, Frame, ChevronRight } from 'lucide-react';
 import { getEntityIcon } from '@/data/icons';
 import { stripHtml } from '@/lib/utils';
 import { useState } from 'react';
@@ -16,19 +16,22 @@ export function ColumnPlaceholder({ column, onOpenEntity }: ColumnPlaceholderPro
   const recentEntityIds = useStore(s => s.recentEntityIds);
   const addEntity = useStore(s => s.addEntity);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   const recentEntities = recentEntityIds
     .map(id => entities.find(e => e.id === id))
     .filter((e): e is NonNullable<typeof e> => !!e)
     .filter(e => e.type === 'note' || e.type === 'canvas')
-    .slice(0, 3);
+    .slice(0, 5);
 
   const searchResults = searchQuery.trim()
     ? entities
-        .filter(e => e.type === 'note' || e.type === 'canvas')
-        .filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase()))
-        .slice(0, 5)
-    : [];
+      .filter(e => e.type === 'note' || e.type === 'canvas')
+      .filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) => b.lastModified - a.lastModified)
+    : entities
+      .filter(e => e.type === 'note' || e.type === 'canvas')
+      .sort((a, b) => b.lastModified - a.lastModified);
 
   const handleNewEntity = (type: 'note' | 'canvas') => {
     const newId = generateId();
@@ -43,90 +46,81 @@ export function ColumnPlaceholder({ column, onOpenEntity }: ColumnPlaceholderPro
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8 min-h-0 overflow-y-auto animate-fade-in bg-[var(--app-background)]">
-      {/* Logo */}
-      <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-[var(--bone-4)] border border-[var(--bone-6)] mb-2">
-        <span
-          className="font-serif italic font-medium text-[var(--bone-40)] select-none"
-          style={{ fontSize: 36, lineHeight: 1, letterSpacing: '-0.02em' }}
-        >
-          F
-        </span>
-      </div>
-
+    <div className="flex-1 flex flex-col items-center justify-center p-8 gap-5 min-h-0 overflow-y-auto animate-fade-in bg-[var(--app-background)] relative">
       {/* Quick action buttons */}
-      <div className="flex gap-3">
+      <div className="flex items-center gap-4">
         <button
           onClick={() => handleNewEntity('note')}
-          className="flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[var(--app-background)] hover:bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-100)] text-sm font-medium transition-colors"
+          className="flex items-center gap-2.5 px-5 h-11 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-90)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 text-sm font-semibold select-none"
         >
-          <FileText strokeWidth={2} className="w-4 h-4 opacity-70" />
+          <FileText strokeWidth={2} className="w-5 h-5 opacity-70" />
           New Note
         </button>
         <button
           onClick={() => handleNewEntity('canvas')}
-          className="flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[var(--app-background)] hover:bg-[var(--bone-6)] border border-[var(--bone-10)] text-[var(--bone-100)] text-sm font-medium transition-colors"
+          className="flex items-center gap-2.5 px-5 h-11 rounded-full border border-[var(--bone-10)] bg-[var(--sys-color)] text-[var(--bone-90)] hover:border-[var(--bone-30)] hover:bg-[var(--card-bg)] transition-all duration-200 text-sm font-semibold select-none"
         >
-          <Frame strokeWidth={2} className="w-4 h-4 opacity-70" />
+          <Frame strokeWidth={2} className="w-5 h-5 opacity-70" />
           New Canvas
         </button>
       </div>
 
-      {/* Search bar */}
-      <div className="w-full max-w-[280px] relative">
-        <Search
-          strokeWidth={2}
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--bone-40)] pointer-events-none"
-        />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search entities..."
-          className="w-full pl-9 pr-4 py-2 rounded-[8px] bg-[var(--app-background)] border border-[var(--bone-10)] text-[var(--bone-100)] text-sm placeholder:text-[var(--bone-30)] outline-none focus:border-[var(--bone-30)] focus:bg-[var(--bone-4)] transition-colors"
-        />
-        {/* Search results dropdown */}
-        {searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-2 rounded-[8px] bg-[var(--app-background)] border border-[var(--bone-10)] shadow-lg overflow-hidden z-50">
-            {searchResults.map(entity => {
-              const Icon = entity.icon
-                ? getEntityIcon(entity.icon)
-                : entity.type === 'canvas' ? Frame : FileText;
-              return (
-                <button
-                  key={entity.id}
-                  onClick={() => {
-                    onOpenEntity(entity.id);
-                    setSearchQuery('');
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[var(--bone-4)] text-sm text-[var(--bone-100)] transition-colors border-b border-[var(--bone-3)] last:border-0"
-                >
-                  <Icon strokeWidth={2} className="w-4 h-4 shrink-0 opacity-70" />
-                  <span className="truncate font-medium">{stripHtml(entity.title)}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Bento Widget Container */}
+      <div className="w-[420px] shrink-0 bg-panel widget-shadow border border-[var(--bone-6)] rounded-[var(--radius-big)] p-6 flex flex-col gap-6">
+        {/* Search bar */}
+        <div className="w-full relative">
+          <Search strokeWidth={2} className="absolute top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--bone-60)] pointer-events-none" style={{ left: 16 }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="Search"
+            className="w-full pr-4 h-11 rounded-[10px] bg-[var(--bone-3)] hover:bg-[var(--bone-5)] focus:bg-[var(--bone-5)] border border-[var(--bone-3)] hover:border-[var(--bone-10)] focus:border-[var(--brand-blue)] focus:hover:border-[var(--bone-10)] text-[var(--bone-100)] text-sm placeholder:text-[var(--bone-60)] outline-none transition-colors"
+            style={{ paddingLeft: 44 }}
+          />
+          {/* Search results dropdown */}
+          {isFocused && searchResults.length > 0 && (
+            <div
+              className="absolute top-full left-0 right-0 mt-2 z-[300] popup-glass-small overflow-hidden"
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <div
+                className="p-1 flex flex-col gap-[2px] overflow-y-auto custom-scrollbar"
+                style={{ maxHeight: 300 }}
+              >
+                {searchResults.slice(0, 20).map(entity => {
+                  const Icon = entity.icon
+                    ? getEntityIcon(entity.icon)
+                    : entity.type === 'canvas' ? Frame : FileText;
+                  return (
+                    <button
+                      key={entity.id}
+                      onClick={() => {
+                        onOpenEntity(entity.id);
+                        setSearchQuery('');
+                        setIsFocused(false);
+                        (document.activeElement as HTMLElement)?.blur();
+                      }}
+                      className="popup-item justify-between py-2 shrink-0"
+                    >
+                      <div className="flex items-center gap-3 truncate">
+                        <Icon strokeWidth={2} className="w-5 h-5 shrink-0 opacity-70" />
+                        <span className="truncate font-medium">{stripHtml(entity.title)}</span>
+                      </div>
+                      <ChevronRight strokeWidth={2} className="w-5 h-5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
-      {/* Instruction text */}
-      <div className="flex items-center justify-center w-full max-w-[280px] py-2">
-        <div className="h-[1px] flex-1 bg-[var(--bone-10)]" />
-        <span className="px-3 text-[10px] uppercase tracking-wider font-semibold text-[var(--bone-30)]">
-          Or
-        </span>
-        <div className="h-[1px] flex-1 bg-[var(--bone-10)]" />
-      </div>
-
-      <p className="text-xs text-[var(--bone-40)] text-center max-w-[240px] leading-relaxed">
-        Drag and drop any entity from the sidebar to open it here
-      </p>
-
-      {/* Recent entities */}
-      {recentEntities.length > 0 && (
-        <div className="w-full max-w-[280px] mt-2">
-          <p className="text-xs font-semibold text-[var(--bone-30)] mb-2 ml-1">Recent</p>
+        {/* Recent entities */}
+        <div className="w-full flex flex-col gap-2">
+          <p className="text-[13px] font-medium text-[var(--bone-60)] ml-1 mb-1">Recent</p>
           <div className="flex flex-col gap-1">
             {recentEntities.map(entity => {
               const Icon = entity.icon
@@ -136,16 +130,30 @@ export function ColumnPlaceholder({ column, onOpenEntity }: ColumnPlaceholderPro
                 <button
                   key={entity.id}
                   onClick={() => onOpenEntity(entity.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[var(--bone-4)] text-sm text-[var(--bone-100)] transition-colors"
+                  className="group flex items-center justify-between w-full px-3 py-2.5 rounded-[10px] bg-[var(--bone-6)] text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-colors"
                 >
-                  <Icon strokeWidth={2} className="w-4 h-4 shrink-0 opacity-70" />
-                  <span className="truncate">{stripHtml(entity.title)}</span>
+                  <div className="flex items-center gap-3 truncate">
+                    <Icon strokeWidth={2} className="w-5 h-5 text-[var(--bone-100)] opacity-70 shrink-0" />
+                    <span className="truncate text-sm font-medium">{stripHtml(entity.title)}</span>
+                  </div>
+                  <ChevronRight strokeWidth={2} className="w-5 h-5 opacity-0 group-hover:opacity-60 text-[var(--bone-100)] transition-opacity shrink-0" />
                 </button>
               );
             })}
           </div>
         </div>
-      )}
+      </div>
+
+      <p className="text-xs text-[var(--bone-30)] text-center mt-2 max-w-[240px] leading-relaxed z-10">
+        Drag and drop any entity from the sidebar to open it here
+      </p>
+
+      {/* Logo at bottom */}
+      <img
+        src="/Logo stamp.svg"
+        alt="Flowr Logo"
+        className="absolute bottom-8 w-12 h-12 opacity-5 select-none pointer-events-none"
+      />
     </div>
   );
 }

@@ -278,6 +278,7 @@ async function createWindow() {
       symbolColor: '#636363', // A nice subtle color for the window controls
       height: 50 // Matches the 50px of the HeaderBar
     },
+    icon: path.join(__dirname, '../icons/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

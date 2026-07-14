@@ -44,11 +44,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/Empty logo.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/icons/icon-192.png",
+    shortcut: "/Empty logo.svg",
+    apple: "/Shortcut app Icon.png",
   },
 };
 
@@ -64,8 +63,9 @@ export default function RootLayout({
       className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <head suppressHydrationWarning>
-        <script
+        <Script
           id="flowr-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function() {
               try {

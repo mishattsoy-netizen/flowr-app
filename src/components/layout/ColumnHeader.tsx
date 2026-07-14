@@ -98,10 +98,19 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
 
   const { title, Icon } = getTitleAndIcon(entityId, entities, chatConversations, activeChatId, isTempChat);
 
+  const contextMenu = useStore(s => s.contextMenu);
+  const isOptionsOpen = contextMenu?.entityId === entityId && contextMenu?.source === 'tab';
+
   return (
     <div
       className="w-full flex items-center shrink-0 relative z-10 bg-sidebar"
-      style={{ height: BAR_H, paddingLeft: (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? 20 : 10, paddingRight: 12 }}
+      style={{
+        height: BAR_H,
+        paddingLeft: (!isDesktopEnv && isSidebarCollapsed && column === 'left')
+          ? 12
+          : (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? 20 : 10,
+        paddingRight: 12
+      }}
     >
       {/* Single continuous bottom border across the ENTIRE header (matches
           HeaderBar's approach). The active tab's app-background fill + concave
@@ -115,21 +124,28 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
           vertical center (y = BAR_H/2), identical to HeaderBar. */}
       <div className="flex items-center w-full relative z-10" style={{ height: BAR_H, gap: M }}>
         {!isDesktopEnv && column === 'left' && isSidebarCollapsed && (
-          <>
-            <button
-              onClick={() => toggleCommandPalette()}
-              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
-            >
-              <Search className="w-4 h-4" />
-            </button>
+          <div
+            className={cn(
+              "flex items-center gap-1 shrink-0 z-10",
+              (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? "mr-[1px]" : "mr-[2px]"
+            )}
+          >
             <button
               onClick={toggleSidebar}
-              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer shrink-0"
             >
               <PanelLeft className="w-4 h-4" />
             </button>
-            <div className="w-[1px] h-4 bg-[var(--bone-10)] shrink-0" />
-          </>
+            <button
+              onClick={() => toggleCommandPalette()}
+              className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer shrink-0"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            {!(entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') && (
+              <div className="w-[1px] h-4 bg-[var(--bone-10)] ml-1 mr-0 shrink-0" />
+            )}
+          </div>
         )}
       {entityId ? (
         <>
@@ -146,7 +162,10 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                     const rect = e.currentTarget.getBoundingClientRect();
                     useStore.getState().openContextMenu(entityId, rect.left, rect.bottom + 6, 'tab');
                   }}
-                  className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-colors cursor-pointer z-20 shrink-0"
+                  className={cn(
+                    "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors cursor-pointer z-20 shrink-0",
+                    isOptionsOpen ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                  )}
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -199,7 +218,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
             {/* Content */}
             <div
               className="relative z-10 w-full h-full flex items-center gap-[5px]"
-              style={{ paddingLeft: 12, paddingRight: 28 }}
+              style={{ paddingLeft: 12, paddingRight: 32 }}
             >
               {Icon && (
                 <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }}
@@ -222,7 +241,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                     removeTab(entityId);
                   }
                 }}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-12)] rounded-[3px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
                 style={{ width: 18, height: 18 }}
               >
                 <X strokeWidth={2.5} className="w-3 h-3" />
@@ -245,7 +264,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               }}
               className={cn(
                 "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
-                newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
               <Plus strokeWidth={2} className="w-4 h-4" />
@@ -314,7 +333,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               }}
               className={cn(
                 "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
-                newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
               <Plus strokeWidth={2} className="w-4 h-4" />

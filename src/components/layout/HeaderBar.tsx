@@ -21,7 +21,7 @@ import React, { memo, useState, useRef, useLayoutEffect, useEffect } from 'react
 function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number }) {
   const overlap = 1;
   const size = r + overlap;
-  
+
   return (
     <div
       className="absolute z-10 pointer-events-none overflow-hidden"
@@ -135,25 +135,25 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
           className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'}`}
         >
           {/* Tab Background */}
-          <div 
+          <div
             className="absolute inset-0 bg-[var(--app-background)]"
             style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
           />
           {/* Tab Border (masked to stop exactly at curve tangent) */}
-          <div 
+          <div
             className="absolute inset-0 border-t border-l border-r border-[var(--bone-10)] pointer-events-none"
-            style={{ 
+            style={{
               borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0`,
               WebkitMaskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`,
               maskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`
             }}
           />
-          <ConcaveCorner side="left"  r={R_ACTIVE} />
+          <ConcaveCorner side="left" r={R_ACTIVE} />
           <ConcaveCorner side="right" r={R_ACTIVE} />
         </div>
         <div
           className="relative z-10 w-full h-full flex items-center gap-[5px]"
-          style={{ paddingLeft: 12, paddingRight: 28 }}
+          style={{ paddingLeft: 12, paddingRight: 32 }}
         >
           {Icon && <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }} className="text-[var(--bone-100)] opacity-90" />}
           <span
@@ -174,10 +174,10 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
           </span>
           <button
             onClick={e => { e.stopPropagation(); removeTab(tabId); }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-12)] rounded-[3px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
             style={{ width: 18, height: 18 }}
           >
-            <X strokeWidth={2.5} className="w-3 h-3"/>
+            <X strokeWidth={2.5} className="w-3 h-3" />
           </button>
         </div>
       </div>
@@ -186,29 +186,29 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
 };
 
 export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { leftWidth?: number, rightWidth?: number }) {
-  const activeEntityId       = useStore(s => s.activeEntityId);
-  const entities             = useStore(s => s.entities);
-  const goBack               = useStore(s => s.goBack);
-  const goForward            = useStore(s => s.goForward);
-  const setActiveEntityId    = useStore(s => s.setActiveEntityId);
-  const toggleSidebar        = useStore(s => s.toggleSidebar);
+  const activeEntityId = useStore(s => s.activeEntityId);
+  const entities = useStore(s => s.entities);
+  const goBack = useStore(s => s.goBack);
+  const goForward = useStore(s => s.goForward);
+  const setActiveEntityId = useStore(s => s.setActiveEntityId);
+  const toggleSidebar = useStore(s => s.toggleSidebar);
   const toggleCommandPalette = useStore(s => s.toggleCommandPalette);
-  const openContextMenu      = useStore(s => s.openContextMenu);
-  const isTabsHeaderVisible  = useStore(s => s.isTabsHeaderVisible);
-  const openTabIds           = useStore(s => s.openTabIds);
-  const activeTabId          = useStore(s => s.activeTabId);
-  const setActiveTab         = useStore(s => s.setActiveTab);
-  const removeTab            = useStore(s => s.removeTab);
-  const addEntity            = useStore(s => s.addEntity);
-  const setOpenTabs          = useStore(s => s.setOpenTabs);
-  const isTempChat           = useStore(s => s.isTempChat);
-  const isSidebarCollapsed   = useStore(s => s.isSidebarCollapsed);
-  const toggleSplitView      = useStore(s => s.toggleSplitView);
-  const selectedSidebarIds   = useStore(s => s.selectedSidebarIds);
-  const splitViewActive      = useStore(s => s.splitViewActive);
-  const splitViewLeftId      = useStore(s => s.splitViewLeftId);
-  const splitViewRightId     = useStore(s => s.splitViewRightId);
-  const splitViewPosition    = useStore(s => s.splitViewPosition);
+  const openContextMenu = useStore(s => s.openContextMenu);
+  const isTabsHeaderVisible = useStore(s => s.isTabsHeaderVisible);
+  const openTabIds = useStore(s => s.openTabIds);
+  const activeTabId = useStore(s => s.activeTabId);
+  const setActiveTab = useStore(s => s.setActiveTab);
+  const removeTab = useStore(s => s.removeTab);
+  const addEntity = useStore(s => s.addEntity);
+  const setOpenTabs = useStore(s => s.setOpenTabs);
+  const isTempChat = useStore(s => s.isTempChat);
+  const isSidebarCollapsed = useStore(s => s.isSidebarCollapsed);
+  const toggleSplitView = useStore(s => s.toggleSplitView);
+  const selectedSidebarIds = useStore(s => s.selectedSidebarIds);
+  const splitViewActive = useStore(s => s.splitViewActive);
+  const splitViewLeftId = useStore(s => s.splitViewLeftId);
+  const splitViewRightId = useStore(s => s.splitViewRightId);
+  const splitViewPosition = useStore(s => s.splitViewPosition);
   const setSplitViewPosition = useStore(s => s.setSplitViewPosition);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -216,9 +216,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
   const { isReady: hasHydrated } = useAppReady();
 
-  const splitViewPinned      = useStore(s => s.splitViewPinned);
-  const togglePin            = useStore(s => s.togglePin);
-  const swapColumns          = useStore(s => s.swapColumns);
+  const splitViewPinned = useStore(s => s.splitViewPinned);
+  const togglePin = useStore(s => s.togglePin);
+  const swapColumns = useStore(s => s.swapColumns);
 
   const isDesktopEnv = isDesktop();
   const isMac = typeof window !== 'undefined' && window.navigator.userAgent.indexOf('Mac') !== -1;
@@ -235,9 +235,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   }, [isMac]);
 
   // â”€â”€â”€ Sizing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const BAR_H     = isDesktopEnv ? 50 : 42; // fixed header height
-  const M         = 6;                    // uniform tab spacing: hover container top/bottom margins + strip gap (px)
-  const R_ACTIVE   = 12;                  // concave bridge under selected tab
+  const BAR_H = isDesktopEnv ? 50 : 42; // fixed header height
+  const M = 6;                    // uniform tab spacing: hover container top/bottom margins + strip gap (px)
+  const R_ACTIVE = 12;                  // concave bridge under selected tab
   const R_INACTIVE = 8;                    // selected top corners + unselected hover container
 
   const [newItemPopup, setNewItemPopup] = useState<{ x: number; y: number } | null>(null);
@@ -269,7 +269,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   const releaseRafRef = useRef<{ outer: number | null; inner: number | null; cancelled: boolean }>({ outer: null, inner: null, cancelled: false });
 
   type DragInfo = {
-    id: string;  origIndex: number;
+    id: string; origIndex: number;
     targetIndex: number;
     width: number;
     grabOffset: number;
@@ -304,9 +304,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
     const draggedEl = els.find(el => el.getAttribute('data-tab-id') === tabId);
     if (!draggedEl) return;
 
-    const naturalLefts   = els.map(el => el.offsetLeft);
-    const containerLeft  = container.getBoundingClientRect().left;
-    const grabOffset     = e.clientX - (containerLeft + draggedEl.offsetLeft);
+    const naturalLefts = els.map(el => el.offsetLeft);
+    const containerLeft = container.getBoundingClientRect().left;
+    const grabOffset = e.clientX - (containerLeft + draggedEl.offsetLeft);
     // screen-level centers (match clientX in onMove) — must use the tab's
     // *natural* screen position so thresholds never drift with push transforms.
     const screenCenters = els.map(el => {
@@ -433,7 +433,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
     if (!el) return;
 
     const visualLeft = pending.naturalLeft + pending.latestOffset; // where it was under the pointer
-    const newNatural  = el.offsetLeft;                            // its slot now (post-commit), excludes transforms
+    const newNatural = el.offsetLeft;                            // its slot now (post-commit), excludes transforms
     const dx = visualLeft - newNatural;
 
     // INVERT (before paint, transition none): paint the tab exactly where it was
@@ -469,7 +469,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
   const getPath = (id: string | null): any[] => {
     if (!id || id === 'dashboard') return [];
-    if (id === 'chat')    return [{ id: 'chat',    title: 'Chat',  icon: 'MessageCircle' }];
+    if (id === 'chat') return [{ id: 'chat', title: 'Chat', icon: 'MessageCircle' }];
     if (id === 'tracker') return [{ id: 'tracker', title: 'Tasks', icon: 'ListTodo' }];
     const entity = entities.find(e => e.id === id);
     if (!entity) return [];
@@ -486,10 +486,10 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
     const entity = entities.find(e => e.id === tabId);
     let title = entity?.title;
     let Icon: any = null;
-    if      (tabId === 'dashboard') { title = 'Home'; Icon = Home; }
-    else if (tabId === 'chat')      { title = isTempChat ? 'Temporary Chat' : 'Chat'; Icon = MessageCircle; }
-    else if (tabId === 'tracker')   { title = 'Tasks'; Icon = ListTodo; }
-    else if (entity)                { Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : File; }
+    if (tabId === 'dashboard') { title = 'Home'; Icon = Home; }
+    else if (tabId === 'chat') { title = isTempChat ? 'Temporary Chat' : 'Chat'; Icon = MessageCircle; }
+    else if (tabId === 'tracker') { title = 'Tasks'; Icon = ListTodo; }
+    else if (entity) { Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : File; }
     return { title, Icon };
   };
 
@@ -502,7 +502,8 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
     <div
       className={cn(
         "w-full flex items-center shrink-0 relative z-30 [-webkit-app-region:drag] group/header",
-        isDesktopEnv ? "px-2 gap-2 bg-[var(--app-dark)]" : "pl-2 pr-3 bg-sidebar"
+        isDesktopEnv ? "px-2 gap-2 bg-[var(--app-dark)]" : "pr-3 bg-sidebar",
+        (!isDesktopEnv && isSidebarCollapsed) ? "pl-3" : ""
       )}
       style={{ height: BAR_H }}
     >
@@ -511,31 +512,30 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
       {/* Web: collapsed sidebar buttons */}
       {!isDesktopEnv && isSidebarCollapsed && (
-        <div className="flex items-center gap-1 shrink-0 mr-2 z-10">
-          <button
-            onClick={toggleCommandPalette}
-            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
-          >
-            <Search strokeWidth={2} className="w-4 h-4"/>
-          </button>
+        <div className="flex items-center gap-1 shrink-0 z-10">
           <button
             onClick={toggleSidebar}
             className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
           >
-            <PanelLeft strokeWidth={2} className="w-4 h-4"/>
+            <PanelLeft strokeWidth={2} className="w-4 h-4" />
           </button>
-          <div className="w-[1px] h-4 bg-[var(--bone-10)] ml-1 mr-0" />
+          <button
+            onClick={toggleCommandPalette}
+            className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 transition-opacity opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] [-webkit-app-region:no-drag]"
+          >
+            <Search strokeWidth={2} className="w-4 h-4" />
+          </button>
         </div>
       )}
 
       {/* Desktop nav */}
       {isDesktopEnv && (
         <div className={`flex items-center gap-1 shrink-0 z-10 ${isMac && !isFullscreen ? 'pl-[72px]' : 'pl-[20px]'}`} style={{ width: isSidebarCollapsed ? undefined : `calc(${leftWidth}px - 8px)` }}>
-          <Tooltip content="Go Back">   <button onClick={goBack}               className={btnCls(true)}><ArrowLeft  strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
-          <Tooltip content="Go Forward"><button onClick={goForward}             className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
-          <Tooltip content="Refresh">    <button onClick={() => window.location.reload()}              className={btnCls(true)}><RotateCw   strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
-          <Tooltip content="Search">     <button onClick={toggleCommandPalette}            className={btnCls(true)}><Search     strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
-          <Tooltip content="Toggle Sidebar"><button onClick={toggleSidebar}                 className={btnCls(true)}><PanelLeft  strokeWidth={2} className="w-4 h-4"/></button></Tooltip>
+          <Tooltip content="Go Back">   <button onClick={goBack} className={btnCls(true)}><ArrowLeft strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
+          <Tooltip content="Go Forward"><button onClick={goForward} className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
+          <Tooltip content="Refresh">    <button onClick={() => window.location.reload()} className={btnCls(true)}><RotateCw strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
+          <Tooltip content="Search">     <button onClick={toggleCommandPalette} className={btnCls(true)}><Search strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
+          <Tooltip content="Toggle Sidebar"><button onClick={toggleSidebar} className={btnCls(true)}><PanelLeft strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
         </div>
       )}
 
@@ -551,7 +551,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
       <div
         ref={tabsRef}
         className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
-        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 0 : 20, paddingRight: splitViewActive ? 0 : 8 }}
+        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 0 : (!isDesktopEnv && isSidebarCollapsed ? 7 : 20), paddingRight: splitViewActive ? 0 : 8 }}
       >
         {!hasHydrated && !splitViewActive && (
           <div className="flex gap-[6px] items-end h-full">
@@ -583,16 +583,16 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           let transition = 'none';
           let zIndex = isActive ? 20 : 10;
           if (isReleased) {
-            transform  = `translateX(${release!.dx}px)`;
+            transform = `translateX(${release!.dx}px)`;
             transition = releasePlay ? 'transform 160ms cubic-bezier(0.2, 0, 0, 1)' : 'none';
-            zIndex     = 40;
+            zIndex = 40;
           } else if (isDragged) {
-            transform  = `translateX(${dragOffsetX}px)`;
+            transform = `translateX(${dragOffsetX}px)`;
             transition = 'none'; // pointer follows instantly
-            zIndex     = 40;     // stays on top of the tabs it pushes aside
+            zIndex = 40;     // stays on top of the tabs it pushes aside
           } else if (drag) {
             const s = pushShift(idx, drag.origIndex, drag.targetIndex, drag.width);
-            transform  = s ? `translateX(${s}px)` : undefined;
+            transform = s ? `translateX(${s}px)` : undefined;
             transition = 'transform 160ms cubic-bezier(0.2, 0, 0, 1)'; // pushed tabs slide
           }
 
@@ -603,109 +603,109 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                 onMouseDown={e => onTabMouseDown(e, tabId)}
                 className="relative flex-shrink min-w-0 max-w-[250px] [-webkit-app-region:no-drag] cursor-pointer select-none group"
                 style={{
-                  height:     BAR_H,
+                  height: BAR_H,
                   zIndex,
                   transform,
                   transition
                 }}
               >
-              {/* ——— Visual tab background (swaps per state; content layer never moves) ——— */}
-              {isActive ? (
-                <div
-                  className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'}`}
-                >
-                  <div 
-                    className="absolute inset-0 bg-[var(--app-background)]"
-                    style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
-                  />
+                {/* ——— Visual tab background (swaps per state; content layer never moves) ——— */}
+                {isActive ? (
                   <div
-                    className="absolute inset-0 border-t border-l border-r pointer-events-none"
-                    style={{
-                      borderColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
-                      borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0`,
-                      WebkitMaskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`,
-                      maskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`
-                    }}
-                  />
-                  <ConcaveCorner side="left"  r={R_ACTIVE} />
-                  <ConcaveCorner side="right" r={R_ACTIVE} />
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="absolute inset-x-0 top-[6px] bottom-[6px] group-hover:bg-[var(--bone-6)] group-hover:backdrop-blur-sm"
-                    style={{ borderRadius: R_INACTIVE }}
-                  />
-                  {!isDesktopEnv && (
-                    <div 
-                      className="absolute bottom-0 inset-x-0 h-[1px] pointer-events-none"
+                    className={`absolute inset-x-0 top-[6px] ${isDesktopEnv ? 'bottom-[-1px]' : 'bottom-0'}`}
+                  >
+                    <div
+                      className="absolute inset-0 bg-[var(--app-background)]"
+                      style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
+                    />
+                    <div
+                      className="absolute inset-0 border-t border-l border-r pointer-events-none"
                       style={{
-                        backgroundColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
-                        maskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
-                                   isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none',
-                        WebkitMaskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` : 
-                                         isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none'
+                        borderColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
+                        borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0`,
+                        WebkitMaskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`,
+                        maskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`
                       }}
                     />
-                  )}
-                </>
-              )}
-
-              {/* ——— Content container (Vertically centered inside BAR_H across all tabs) ——— */}
-              <div
-                className="relative z-10 w-full h-full flex items-center gap-[5px]"
-                style={{
-                  paddingLeft: 12,
-                  paddingRight: openTabIds.length > 1 ? 28 : 14
-                }}
-              >
-                {Icon && (
-                  <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }}
-                    className={cn("text-[var(--bone-100)]", isActive ? "opacity-90" : "opacity-50")}
-                  />
+                    <ConcaveCorner side="left" r={R_ACTIVE} />
+                    <ConcaveCorner side="right" r={R_ACTIVE} />
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="absolute inset-x-0 top-[6px] bottom-[6px] group-hover:bg-[var(--bone-6)] group-hover:backdrop-blur-sm"
+                      style={{ borderRadius: R_INACTIVE }}
+                    />
+                    {!isDesktopEnv && (
+                      <div
+                        className="absolute bottom-0 inset-x-0 h-[1px] pointer-events-none"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
+                          maskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` :
+                            isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none',
+                          WebkitMaskImage: isLeftAdjacent ? `linear-gradient(to right, black calc(100% - ${R_ACTIVE - 1}px), transparent calc(100% - ${R_ACTIVE - 1}px))` :
+                            isRightAdjacent ? `linear-gradient(to right, transparent ${R_ACTIVE - 1}px, black ${R_ACTIVE - 1}px)` : 'none'
+                        }}
+                      />
+                    )}
+                  </>
                 )}
 
-                <span
-                  className={cn(
-                    "flex-1 min-w-0 font-medium",
-                    isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)]"
-                  )}
+                {/* ——— Content container (Vertically centered inside BAR_H across all tabs) ——— */}
+                <div
+                  className="relative z-10 w-full h-full flex items-center gap-[5px]"
                   style={{
-                    fontSize: 13, lineHeight: 1, overflow: 'hidden', whiteSpace: 'nowrap',
-                  }}
-                  ref={(el) => {
-                    if (!el) return;
-                    if (el.scrollWidth > el.clientWidth) {
-                      el.style.maskImage = 'linear-gradient(to right, black calc(100% - 16px), transparent 100%)';
-                      el.style.webkitMaskImage = 'linear-gradient(to right, black calc(100% - 16px), transparent 100%)';
-                    } else {
-                      el.style.maskImage = '';
-                      el.style.webkitMaskImage = '';
-                    }
+                    paddingLeft: 12,
+                    paddingRight: openTabIds.length > 1 ? 32 : 14
                   }}
                 >
-                  {stripHtml(title || '')}
-                </span>
+                  {Icon && (
+                    <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }}
+                      className={cn("text-[var(--bone-100)]", isActive ? "opacity-90" : "opacity-50")}
+                    />
+                  )}
 
-                {openTabIds.length > 1 && (
-                  <button
-                    data-close="true"
-                    onMouseDown={e => e.stopPropagation()}
-                    onClick={e => { e.stopPropagation(); removeTab(tabId); }}
+                  <span
                     className={cn(
-                      "absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-12)] rounded-[3px] flex items-center justify-center shrink-0",
-                      isActive
-                        ? "opacity-50 hover:opacity-100"
-                        : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+                      "flex-1 min-w-0 font-medium",
+                      isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-60)]"
                     )}
-                    style={{ width: 18, height: 18 }}
+                    style={{
+                      fontSize: 13, lineHeight: 1, overflow: 'hidden', whiteSpace: 'nowrap',
+                    }}
+                    ref={(el) => {
+                      if (!el) return;
+                      if (el.scrollWidth > el.clientWidth) {
+                        el.style.maskImage = 'linear-gradient(to right, black calc(100% - 16px), transparent 100%)';
+                        el.style.webkitMaskImage = 'linear-gradient(to right, black calc(100% - 16px), transparent 100%)';
+                      } else {
+                        el.style.maskImage = '';
+                        el.style.webkitMaskImage = '';
+                      }
+                    }}
                   >
-                    <X strokeWidth={2.5} className="w-3 h-3"/>
-                  </button>
-                )}
+                    {stripHtml(title || '')}
+                  </span>
+
+                  {openTabIds.length > 1 && (
+                    <button
+                      data-close="true"
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={e => { e.stopPropagation(); removeTab(tabId); }}
+                      className={cn(
+                        "absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0",
+                        isActive
+                          ? "opacity-50 hover:opacity-100"
+                          : "opacity-0 group-hover:opacity-60 hover:!opacity-100"
+                      )}
+                      style={{ width: 18, height: 18 }}
+                    >
+                      <X strokeWidth={2.5} className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </Tooltip>
+            </Tooltip>
           );
         })}
 
@@ -722,10 +722,10 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
               onClick={e => { e.stopPropagation(); if (newItemPopup) { setNewItemPopup(null); return; } const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setNewItemPopup({ x: r.right + 4, y: r.top }); }}
               className={cn(
                 `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-opacity shrink-0 [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`,
-                newItemPopup ? "opacity-100 bg-[var(--bone-6)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
-              <Plus strokeWidth={2} className="w-4 h-4"/>
+              <Plus strokeWidth={2} className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -734,52 +734,56 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           <div className="flex flex-1 h-full relative" style={{ gap: '8px' }}>
             {/* Mirrors SplitViewLayout: content area = 100vw - px-2(16) - sidebar - gap(8) - [right panel + gap(8)]; left column = pos% - 4px */}
             <div className="flex items-end h-full min-w-0" style={{ width: `calc( (100vw - ${(leftWidth || 0) + 24 + (rightWidth ? rightWidth + 8 : 0)}px) * ${splitViewPosition / 100} - 4px )`, paddingLeft: (splitViewLeftId && ['dashboard', 'tracker', 'chat'].includes(splitViewLeftId)) ? 20 : 10 }}>
-               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                 <div className="h-full flex items-center mr-[3px]">
-                   <EntityHeaderControls entityId={splitViewLeftId} />
-                 </div>
-                 {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
-                   <Tooltip content="New Entity">
-                     <button
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         const rect = e.currentTarget.getBoundingClientRect();
-                         setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
-                       }}
-                       className={cn(
-                         `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`
-                       )}
-                     >
-                       <Plus className="w-4 h-4" />
-                     </button>
-                   </Tooltip>
-                 </div>
-               </div>
+              <div className="flex items-end h-full min-w-0 gap-[6px]">
+                <div className="h-full flex items-center mr-[3px]">
+                  <EntityHeaderControls entityId={splitViewLeftId} />
+                </div>
+                {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+                <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
+                  <Tooltip content="New Entity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (newItemPopup) { setNewItemPopup(null); return; }
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
+                      }}
+                      className={cn(
+                        `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] cursor-pointer transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`,
+                        newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                      )}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
             </div>
             <div className="flex items-end h-full justify-between min-w-0 flex-1 group/split-header" style={{ paddingLeft: (splitViewRightId && ['dashboard', 'tracker', 'chat'].includes(splitViewRightId)) ? 20 : 10 }}>
-               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                 <div className="h-full flex items-center mr-[3px]">
-                   <EntityHeaderControls entityId={splitViewRightId} />
-                 </div>
-                 {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
-                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
-                   <Tooltip content="New Entity">
-                     <button
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         const rect = e.currentTarget.getBoundingClientRect();
-                         setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
-                       }}
-                       className={cn(
-                         `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`
-                       )}
-                     >
-                       <Plus className="w-4 h-4" />
-                     </button>
-                   </Tooltip>
-                 </div>
-               </div>
+              <div className="flex items-end h-full min-w-0 gap-[6px]">
+                <div className="h-full flex items-center mr-[3px]">
+                  <EntityHeaderControls entityId={splitViewRightId} />
+                </div>
+                {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+                <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
+                  <Tooltip content="New Entity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (newItemPopup) { setNewItemPopup(null); return; }
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
+                      }}
+                      className={cn(
+                        `flex items-center justify-center rounded-[var(--radius-medium)] text-[var(--bone-100)] cursor-pointer transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`,
+                        newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                      )}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -791,25 +795,25 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
           <div className="flex items-center opacity-0 group-hover/splitctrls:opacity-100 transition-opacity">
             <Tooltip content="Reset ratio">
               <button onClick={() => setSplitViewPosition(50)} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-                 <RotateCcw strokeWidth={2} className="w-4 h-4" />
+                <RotateCcw strokeWidth={2} className="w-4 h-4" />
               </button>
             </Tooltip>
           </div>
           {splitViewLeftId && splitViewRightId && (
             <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
               <button onClick={togglePin} className={cn(`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`, splitViewPinned ? "bg-[var(--bone-10)] opacity-100 hover:bg-[var(--bone-12)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]")}>
-                 <Pin strokeWidth={2} className="w-4 h-4" fill={splitViewPinned ? "currentColor" : "none"} />
+                <Pin strokeWidth={2} className="w-4 h-4" fill={splitViewPinned ? "currentColor" : "none"} />
               </button>
             </Tooltip>
           )}
           <Tooltip content="Swap columns">
             <button onClick={swapColumns} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-               <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
+              <ArrowLeftRight strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
           <Tooltip content="Exit split view">
             <button onClick={toggleSplitView} className={`flex items-center justify-center text-[var(--bone-100)] rounded-[var(--radius-medium)] shrink-0 bg-[var(--bone-10)] opacity-100 hover:bg-[var(--bone-12)] transition-opacity ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'}`}>
-               <Columns2 strokeWidth={2} className="w-4 h-4" />
+              <Columns2 strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
         </div>
@@ -826,7 +830,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                 "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
               )}
             >
-              <Columns2 strokeWidth={2} className="w-4 h-4"/>
+              <Columns2 strokeWidth={2} className="w-4 h-4" />
             </button>
           </Tooltip>
         </div>

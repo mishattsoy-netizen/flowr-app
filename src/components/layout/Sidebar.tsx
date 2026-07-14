@@ -1108,7 +1108,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </Tooltip>
           </div>
         ) : (
-          <div className={cn("px-[10px] mb-0 flex-none", isTabsHeaderVisible ? "pt-3" : "pt-1")}>
+          <div className={cn("px-[10px] mb-0 flex-none", isDesktopEnv ? "pt-0" : (isTabsHeaderVisible ? "pt-3" : "pt-1"))}>
             <div className="relative flex items-center p-[4px] rounded-[10px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
               {/* Sliding Pill */}
               {(() => {
