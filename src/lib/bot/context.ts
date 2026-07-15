@@ -22,6 +22,34 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
 }
 
+const FLAT_IMAGE_TOKEN_CREDIT = 258
+
+/**
+ * Flat per-image token credit added on top of the real text already counted
+ * via estimateTokens(). Only counts:
+ *  - visualBufferCount: images actually sent as raw pixels THIS turn (never
+ *    text-doc attachments — those are transcript-only, no image credit, ever;
+ *    see docs/superpowers/specs/2026-07-15-attachment-text-extraction-design.md).
+ *  - legacy [Image:]/[Image attached] placeholders in history text — images
+ *    that were stripped with no twin available, so there's no other signal of
+ *    their weight.
+ * A [VISION CONTEXT - DIGITAL TWIN] block does NOT earn this credit: it's real
+ * transcript/description text already counted via estimateTokens() on the
+ * caller's concatenated history string. Adding a flat credit on top of that
+ * double-counted every described attachment, on every turn it stayed in the
+ * active history window (fixed 2026-07-15).
+ */
+export function computeVisionTokenCredit(visualBufferCount: number, historyPartTexts: string[]): number {
+  let count = visualBufferCount
+  for (const partText of historyPartTexts) {
+    if (!partText) continue
+    const matches1 = partText.match(/\[Image:/g)?.length || 0
+    const matches2 = partText.match(/\[Image attached\]/g)?.length || 0
+    count += matches1 + matches2
+  }
+  return count * FLAT_IMAGE_TOKEN_CREDIT
+}
+
 export async function getSessionState(chatId: string): Promise<SessionState | null> {
   const { getCompactionConfig } = await import('./compaction')
   const { getPipelineSettings } = await import('../router-config')
