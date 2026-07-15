@@ -14,7 +14,7 @@ import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
 import { mergeAcrossBlocks } from '@/lib/editor/mergeSelection';
-import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset } from '@/lib/editor/domSelection';
+import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset, blockOf } from '@/lib/editor/domSelection';
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -765,7 +765,37 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     setBlocks(next);
   }, []);
 
+  // Single-block edits: the browser applies its own default DOM edit (we did
+  // NOT preventDefault for these in handleHostBeforeInput), so by the time
+  // "input" fires the block's own contentEditable div already has the new
+  // text. With the container as the single editing host, native "input"
+  // targets the HOST, not the block div — BlockRenderer's own onInput never
+  // fires — so persistence must happen here, or typed text is silently lost
+  // on the next unrelated re-render.
+  //
+  // Cross-block edits are already fully handled (preventDefault + persist) in
+  // handleHostBeforeInput, so this only needs to act when getBlockSelection
+  // returns null (a single-block/collapsed selection).
+  const handleHostInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    if (isReadMode) return;
+    const host = blocksHostRef.current;
+    if (!host) return;
 
+    const selection = getBlockSelection(host);
+    if (selection) return;   // cross-block edit — handleHostBeforeInput already persisted it
+
+    const sel = window.getSelection();
+    const blockEl = sel ? blockOf(sel.anchorNode) : null;
+    if (!blockEl || !host.contains(blockEl)) return;
+
+    const blockId = blockEl.dataset.blockId;
+    if (!blockId) return;
+
+    const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
+    if (!contentEl) return;
+
+    updateBlock(blockId, { content: contentEl.innerHTML });
+  }, [isReadMode, updateBlock]);
 
   const deleteBlock = useCallback((id: string) => {
     isUserModified.current = true;
@@ -1479,6 +1509,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                 contentEditable={!isReadMode}
                 suppressContentEditableWarning
                 onBeforeInput={handleHostBeforeInput}
+                onInput={handleHostInput}
                 className="space-y-2 min-h-[50vh] note-editor-bg outline-none"
               >
                 <div className="flex flex-col note-editor-bg">

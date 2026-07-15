@@ -1498,6 +1498,10 @@ export function BlockRenderer({
             // host, and a native Selection cannot cross an editing-host
             // boundary — that is what made selection stop at block edges.
             contentEditable={undefined}
+            // Marks the actual editable text node for NoteEditor's container-level
+            // input handler: [data-block-id] is the block WRAPPER (also holds
+            // BlockControls, fold chevron, etc.), not the editable text itself.
+            data-block-content
             suppressContentEditableWarning
             spellCheck={effectiveStyle === 'mono' ? "false" : "true"}
             onFocus={() => {

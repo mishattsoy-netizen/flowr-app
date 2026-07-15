@@ -6,6 +6,16 @@ import type { BlockSelection } from './mergeSelection';
  * (scripts/probe-selection.mjs) in a real browser rather than by vitest.
  */
 
+/**
+ * The block wrapper (`[data-block-id]`) containing a selection endpoint.
+ * With the single editing host, `document.activeElement` is always the host
+ * itself — this is the only reliable way to find "which block is the caret in."
+ */
+export function blockOf(node: Node | null): HTMLElement | null {
+  const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement | null);
+  return el?.closest('[data-block-id]') ?? null;
+}
+
 /** Plain-text offset of (node, offset) measured from the start of `root`. */
 function textOffsetWithin(root: Node, node: Node, offset: number): number {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -27,11 +37,6 @@ function textOffsetWithin(root: Node, node: Node, offset: number): number {
 export function getBlockSelection(root: HTMLElement): BlockSelection | null {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
-
-  const blockOf = (n: Node | null): HTMLElement | null => {
-    const el = n?.nodeType === Node.TEXT_NODE ? n.parentElement : (n as HTMLElement | null);
-    return el?.closest('[data-block-id]') ?? null;
-  };
 
   const anchorBlock = blockOf(sel.anchorNode);
   const focusBlock = blockOf(sel.focusNode);
