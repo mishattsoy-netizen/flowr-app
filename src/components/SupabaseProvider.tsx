@@ -10,6 +10,34 @@ import { isDesktop } from '@/lib/env';
 
 const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
+const RECENTS_LIMIT = 10;
+
+/** Local recents first (current-device order preserved), then cloud-only ids, capped. */
+export function unionRecents(local: string[], cloud: string[]): string[] {
+  const merged = [...local];
+  for (const id of cloud) {
+    if (!merged.includes(id)) merged.push(id);
+  }
+  return merged.slice(0, RECENTS_LIMIT);
+}
+
+/** Per-context union of shortcut lists; on id collision the LOCAL entry wins
+ *  (shortcuts have no per-item timestamp, so we can't LWW — the current device's
+ *  version is authoritative). Cloud contributes only ids/contexts local lacks. */
+export function unionShortcuts(
+  local: Record<string, Array<{ id: string; [k: string]: any }>>,
+  cloud: Record<string, Array<{ id: string; [k: string]: any }>>,
+): Record<string, Array<{ id: string; [k: string]: any }>> {
+  const result: Record<string, Array<{ id: string; [k: string]: any }>> = { ...local };
+  for (const [ctx, cloudList] of Object.entries(cloud)) {
+    const localList = local[ctx] ?? [];
+    const localIds = new Set(localList.map(s => s.id));
+    const additions = cloudList.filter(s => !localIds.has(s.id));
+    result[ctx] = [...localList, ...additions].slice(0, 12);
+  }
+  return result;
+}
+
 /**
  * Merge cloud data into the store, dropping synced items that no longer exist in the cloud.
  * Entities/spaces with syncMode !== 'local-only' that are absent from
@@ -116,13 +144,21 @@ export function mergeCloudData(data: {
     });
   }
 
-  // ── Shortcuts and Recent Entities ──
+  // ── Shortcuts and Recent Entities (non-destructive union) ──
+  // Local data is the source of truth for the current device; cloud settings
+  // only ADD entries the local device doesn't already have. A raw overwrite
+  // here silently clears local recents/shortcuts whenever the cloud settings
+  // row is stale or empty (common on the dev server).
   if (data.settings) {
     if (data.settings.shortcuts) {
-      store().setShortcutsState(data.settings.shortcuts);
+      store().setShortcutsState(
+        unionShortcuts(store().shortcuts, data.settings.shortcuts),
+      );
     }
-    if (data.settings.recentEntityIds) {
-      useStore.setState({ recentEntityIds: data.settings.recentEntityIds });
+    if (Array.isArray(data.settings.recentEntityIds)) {
+      useStore.setState({
+        recentEntityIds: unionRecents(store().recentEntityIds, data.settings.recentEntityIds),
+      });
     }
   }
 }
@@ -257,17 +293,7 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       }
       // -------------------------------------------------------------
 
-      // 4. Restore cross-device recent items (prefer cloud if it has more entries)
-      if (Array.isArray(data.settings?.recentEntityIds)) {
-        const cloudRecent: string[] = data.settings.recentEntityIds;
-        const localRecent = useStore.getState().recentEntityIds;
-        // Merge: cloud items first (most recently opened across devices), then local-only ids
-        const merged = [...cloudRecent];
-        for (const id of localRecent) {
-          if (!merged.includes(id)) merged.push(id);
-        }
-        useStore.getState().setRecentEntityIds(merged.slice(0, 10));
-      }
+      // 4. Restore cross-device recent items (handled by mergeCloudData)
 
       // 4b. Prune stale recent entities — IDs that point to entities/spaces that
       //     no longer exist (e.g. dropped by mergeCloudData when the cloud doesn't
