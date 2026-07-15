@@ -174,6 +174,57 @@ export function mergeCloudData(data: {
   }
 }
 
+export function mergeDeltaData(delta: {
+  entities: Entity[];
+  tasks: AppTask[];
+  spaces: Space[];
+  settings?: Record<string, any>;
+  entityIds: Set<string>;
+  taskIds: Set<string>;
+  spaceIds: Set<string>;
+}) {
+  const store = useStore.getState;
+  const desktop = isDesktop();
+
+  const reconcile = <T extends { id: string; lastModified?: number; syncMode?: string }>(
+    local: T[],
+    deltaRows: T[],
+    cloudIds: Set<string>,
+  ): T[] => {
+    const byId = new Map<string, T>();
+    // Start from local rows that still exist in the cloud id set (drop deletions),
+    // except keep local-only rows on desktop (they never appear in the cloud id set).
+    for (const l of local) {
+      const keep = cloudIds.has(l.id) || (desktop && l.syncMode === 'local-only');
+      if (keep) byId.set(l.id, l);
+    }
+    // Apply changed rows with LWW.
+    for (const d of deltaRows) {
+      const existing = byId.get(d.id);
+      if (!existing || (d.lastModified ?? 0) >= (existing.lastModified ?? 0)) {
+        byId.set(d.id, d);
+      }
+    }
+    return Array.from(byId.values());
+  };
+
+  store().setEntities(reconcile(store().entities, delta.entities, delta.entityIds));
+  store().setTasks(reconcile(store().tasks, delta.tasks, delta.taskIds));
+  store().setSpaces(reconcile(store().spaces, delta.spaces, delta.spaceIds));
+
+  // Settings reuse the same non-destructive union as the full path.
+  if (delta.settings) {
+    if (delta.settings.shortcuts) {
+      store().setShortcutsState(unionShortcuts(store().shortcuts, delta.settings.shortcuts));
+    }
+    if (Array.isArray(delta.settings.recentEntityIds)) {
+      useStore.setState({
+        recentEntityIds: unionRecents(store().recentEntityIds, delta.settings.recentEntityIds),
+      });
+    }
+  }
+}
+
 /**
  * Mounts once at app root.
  * - Loads initial data from Supabase on boot (overrides localStorage if Supabase is configured).
