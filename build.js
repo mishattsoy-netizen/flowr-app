@@ -74,7 +74,8 @@ if (buildStatus === 0) {
   try {
     fs.cpSync('public', '.next/standalone/public', { recursive: true, force: true });
     fs.cpSync('.next/static', '.next/standalone/.next/static', { recursive: true, force: true });
-    console.log('[Build Wrapper] Static files copied to standalone.');
+    fs.cpSync('src/lib/bot/prompts', '.next/standalone/src/lib/bot/prompts', { recursive: true, force: true });
+    console.log('[Build Wrapper] Static files and prompts copied to standalone.');
   } catch (e) {
     console.error('[Build Wrapper] Postbuild tasks failed:', e);
     buildStatus = 1;

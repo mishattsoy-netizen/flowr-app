@@ -1,7 +1,13 @@
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
-const PROMPTS_DIR = join(process.cwd(), 'src', 'lib', 'bot', 'prompts')
+function getPromptsDir(): string {
+  const cwdPath = join(process.cwd(), 'src', 'lib', 'bot', 'prompts')
+  if (existsSync(cwdPath)) return cwdPath
+  return join(__dirname, '..', '..', '..', '..', 'src', 'lib', 'bot', 'prompts')
+}
+
+const PROMPTS_DIR = getPromptsDir()
 
 const cache = new Map<string, string>()
 

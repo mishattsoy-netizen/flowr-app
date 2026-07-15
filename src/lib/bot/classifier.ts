@@ -7,6 +7,14 @@ import type { BotMode } from '@/data/store.types'
 import { isModelFailed, markModelFailed } from './chainRouter'
 import { TraceCollector } from './tracing'
 import { parseClassifierV2Output, type V2Classification } from './routerV2'
+import path from 'path'
+import fs from 'fs'
+
+function getPromptsDir(): string {
+  const cwdPath = path.join(process.cwd(), 'src/lib/bot/prompts')
+  if (fs.existsSync(cwdPath)) return cwdPath
+  return path.join(__dirname, '../../../../src/lib/bot/prompts')
+}
 
 function trackModelUsage(modelId: string, provider: string) {
   supabaseAdmin.rpc('increment_model_usage', { p_model_id: modelId, p_provider: provider })
@@ -190,9 +198,7 @@ export async function classifyIntentV2(
 
   let activePrompt = ''
   try {
-    const fs = require('fs')
-    const path = require('path')
-    activePrompt = fs.readFileSync(path.join(process.cwd(), 'src/lib/bot/prompts/chains/classifier_v2.txt'), 'utf8')
+    activePrompt = fs.readFileSync(path.join(getPromptsDir(), 'chains/classifier_v2.txt'), 'utf8')
   } catch {
     logger.warn('Failed to read classifier_v2.txt — v2 classification unavailable.')
     return { classification: null, classifierModel: 'Error', trace: [], error: 'classifier_v2.txt missing' }
@@ -299,9 +305,7 @@ export async function classifyIntentWithModel(
   // Read active prompt from file
   let activePrompt = DEFAULT_CLASSIFIER_PROMPT
   try {
-    const fs = require('fs')
-    const path = require('path')
-    const promptPath = path.join(process.cwd(), 'src/lib/bot/prompts/chains/classifier.txt')
+    const promptPath = path.join(getPromptsDir(), 'chains/classifier.txt')
     activePrompt = fs.readFileSync(promptPath, 'utf8')
   } catch (err) {
     logger.warn(`Failed to read classifier.txt, using default.`)
@@ -310,9 +314,7 @@ export async function classifyIntentWithModel(
   // Load keywords from static file
   let keywordsObj: Record<string, string[]> | null = null
   try {
-    const fs = require('fs')
-    const path = require('path')
-    const kwPath = path.join(process.cwd(), 'src/lib/bot/prompts/classifier_keywords.json')
+    const kwPath = path.join(getPromptsDir(), 'classifier_keywords.json')
     keywordsObj = JSON.parse(fs.readFileSync(kwPath, 'utf8'))
   } catch (err) {
     logger.warn('Failed to read classifier_keywords.json, skipping keyword fast-path.')

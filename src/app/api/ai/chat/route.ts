@@ -7,6 +7,8 @@ import { logWebInteraction, logModelWebMessage } from '@/lib/bot/analytics'
 import fs from 'fs'
 import path from 'path'
 
+export const maxDuration = 60;
+
 /**
  * Converts captured tool calls into a compact one-line history annotation.
  * Stored alongside the final AI response so future requests know what was queried.

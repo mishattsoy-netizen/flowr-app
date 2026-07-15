@@ -183,7 +183,7 @@ export async function getRouterChain(category: IntentCategory, mode: RouterMode 
   const getCachedForMode = (m: RouterMode) => unstable_cache(
     async () => fetchRouterChainFromDb(category, m),
     ['router-chain', category, m],
-    { tags: ['router-config'], revalidate: false }
+    { tags: ['router-config'], revalidate: 300 }
   )()
 
   return getCachedForMode(mode)
@@ -206,7 +206,7 @@ export async function getFallbackModes() {
   const getCached = unstable_cache(
     async () => fetchFallbackModesFromDb(),
     ['router-fallback-modes'],
-    { tags: ['router-config'], revalidate: false }
+    { tags: ['router-config'], revalidate: 300 }
   )
   return getCached()
 }
