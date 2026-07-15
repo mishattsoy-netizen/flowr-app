@@ -95,7 +95,7 @@ export function partitionNarrationResults(
 export async function narrateGeneratedImage(
   imageBuffer: Buffer,
   context?: any
-): Promise<{ description: string; modelId: string; provider: string } | null> {
+): Promise<{ description: string; modelId: string; provider: string; mode: 'transcript' | 'visual'; truncated: boolean } | null> {
   const chainCategory: IntentCategory = 'VISION'
   const systemPrompt = getChainPrompt('image_narration')
 
@@ -105,7 +105,7 @@ export async function narrateGeneratedImage(
     return null
   }
 
-  const prompt = 'Describe this image in detail (250-700 characters).'
+  const prompt = 'Analyze this attachment as instructed.'
 
   // Strip onChunk so narration tokens don't leak into the user-facing chat stream
   // (the narration is returned as image_description, not as message content).
@@ -129,10 +129,12 @@ export async function narrateGeneratedImage(
       }
 
       if (response) {
-        const description = typeof response === 'object' ? response.content : response
-        if (description && description.length >= 10) {
-          logger.info(`Narrated image using ${model.id}: ${description.slice(0, 50)}...`)
-          return { description: description.trim(), modelId: model.id, provider: model.provider }
+        const raw = typeof response === 'object' ? response.content : response
+        if (raw && raw.length >= 10) {
+          const { mode, text } = parseNarrationResponse(raw)
+          const { text: capped, truncated } = capNarrationText(text)
+          logger.info(`Narrated image using ${model.id} (mode=${mode}${truncated ? ', truncated' : ''}): ${capped.slice(0, 50)}...`)
+          return { description: capped, modelId: model.id, provider: model.provider, mode, truncated }
         }
       }
     } catch (e: any) {
