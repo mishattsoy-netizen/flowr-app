@@ -424,6 +424,7 @@ export interface AppState {
   navigationHistory: string[];
   historyIndex: number;
   recentEntityIds: string[];
+  syncCursors: Record<'entities' | 'tasks' | 'spaces', number>;
 
   openTabIds: string[];
   activeTabId: string | null;
@@ -559,6 +560,7 @@ export interface AppState {
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;
   setSpaces: (spaces: Space[]) => void;
   setRecentEntityIds: (ids: string[]) => void;
+  setSyncCursor: (table: 'entities' | 'tasks' | 'spaces', ts: number) => void;
   setActiveSpaceId: (id: string | null) => void;
   setTrackerFilterTags: (tags: string[]) => void;
   setTrackerFilterEntityIds: (ids: string[]) => void;

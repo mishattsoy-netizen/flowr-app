@@ -169,6 +169,7 @@ export const useStore = create<AppState>()(
       shortcuts: {},
       cachedDisplayName: '',
       lastSaved: null,
+      syncCursors: {} as Record<'entities' | 'tasks' | 'spaces', number>,
       syncMode: 'local-only',
       isInitialSync: true,
       defaultsSeeded: false,
@@ -266,6 +267,8 @@ export const useStore = create<AppState>()(
         });
       },
       setRecentEntityIds: (recentEntityIds) => set({ recentEntityIds }),
+      setSyncCursor: (table: 'entities' | 'tasks' | 'spaces', ts: number) =>
+        set(s => ({ syncCursors: { ...s.syncCursors, [table]: ts } })),
 
 
       activeEntityId: 'dashboard',
@@ -3640,6 +3643,7 @@ export const useStore = create<AppState>()(
           chatMessagesMap: state.chatMessagesMap,
         }),
         activeSpaceId: state.activeSpaceId,
+        syncCursors: state.syncCursors,
         pendingModeWrites: state.pendingModeWrites,
 
         activeEntityId: state.activeEntityId,
