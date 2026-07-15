@@ -1360,7 +1360,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         />
                                       ) : (
                                         <span className="flex-1 text-[14px] tracking-wide truncate flex items-center gap-[6px]">
-                                          {conv.is_favorite && <Star className="w-[10px] h-[10px] fill-[var(--accent)] text-[var(--accent)] shrink-0" />}
+                                          {conv.is_favorite && <Star strokeWidth={0} className="w-3.5 h-3.5 fill-[var(--accent)] shrink-0" />}
                                           <span className="truncate">{stripHtml(conv.title)}</span>
                                         </span>
                                       )}
