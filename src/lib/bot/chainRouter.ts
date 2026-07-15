@@ -22,7 +22,7 @@ import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
 import { runNvidia } from './providers/nvidia'
 import { getConversationMemory, getWebConversationMemory } from './memory'
-import { getSessionState, updateSessionState, estimateTokens } from './context'
+import { getSessionState, updateSessionState, estimateTokens, computeVisionTokenCredit } from './context'
 import type { StatusCallback, PipelineStep } from './pipeline'
 import { runThinkChain } from './thinkChain'
 import { getPipelineSettings } from '../router-config'
@@ -327,6 +327,12 @@ export async function runChain(
     return DEFAULT_STATUS_MESSAGES[chain] || fallback || 'Working...'
   }
 
+  // Buffers actually fed to PRIMARY as raw images this turn — populated below.
+  // Text-doc attachments are never fed here (their transcript is authoritative);
+  // visual attachments are fed here THIS turn only, then dropped from later turns
+  // once their twin is in history. See spec "Core Model".
+  let visualBuffersForPrimary: Buffer[] = []
+
   if (activeBuffer) {
     onStatus({
       chain: 'VISION',
@@ -336,21 +342,25 @@ export async function runChain(
     })
 
     try {
-      const { narrateGeneratedImage } = await import('./image-narration')
-      const descriptions: string[] = []
-      for (let i = 0; i < activeBuffers.length; i++) {
-        const result = await narrateGeneratedImage(activeBuffers[i], context)
-        if (result?.description) {
-          descriptions.push(activeBuffers.length > 1 ? `Image ${i + 1}:\n${result.description}` : result.description)
-        }
+      const { narrateGeneratedImage, partitionNarrationResults } = await import('./image-narration')
+      const narrationResults = await Promise.all(
+        activeBuffers.map(buf => narrateGeneratedImage(buf, context))
+      )
+      const { visualBuffers, transcriptDescriptions, allDescriptions } = partitionNarrationResults(activeBuffers, narrationResults)
+      visualBuffersForPrimary = visualBuffers
+
+      // This turn's [VISION DATA] carries text-doc transcripts only — a visual
+      // attachment's twin is deliberately excluded here since its raw pixels are
+      // already in visualBuffersForPrimary; including both would pay twice for
+      // the same information.
+      if (transcriptDescriptions.length > 0) {
+        const combined = transcriptDescriptions.join('\n\n')
+        if (context) context.vision_notes = `[IMAGE DESCRIPTION]\n${combined}`
       }
-      
-      if (descriptions.length > 0) {
-        const combined = descriptions.join('\n\n')
-        if (context) {
-          context.vision_notes = `[IMAGE DESCRIPTION]\n${combined}`
-          context._visionImageDescription = combined
-        }
+      // Persisted as image_description so LATER turns (when the raw image is
+      // gone) see every attachment's twin — transcript or visual — as text.
+      if (allDescriptions.length > 0 && context) {
+        context._visionImageDescription = allDescriptions.join('\n\n')
       }
     } catch (e: any) {
       logger.warn(`Image description failed: ${e.message}`)
@@ -857,7 +867,7 @@ IMAGE GENERATION:
               temperature,
               prompt,
               augmentSearchQuery,
-              category === 'PRIMARY' ? activeBuffers : undefined
+              category === 'PRIMARY' ? visualBuffersForPrimary : undefined
             )
 
             totalCostUsd += result.searchCostUsd
@@ -1075,11 +1085,6 @@ IMAGE GENERATION:
               ];
 
               let activeHistoryText = prompt || '';
-              let activeImageCount = 0;
-
-              if (inputBuffer) {
-                activeImageCount += Array.isArray(inputBuffer) ? inputBuffer.length : 1;
-              }
 
               // Same "messages after the watermark" window as historyForChain (line ~777) —
               // must stay in lockstep with the prompt window, or this estimate silently
@@ -1090,20 +1095,12 @@ IMAGE GENERATION:
               const limitHistory = currentSummary
                 ? messagesAfterWatermark(historyWithResponse, watermark)
                 : historyWithResponse;
-              for (const h of limitHistory) {
-                const partText = h.parts?.[0]?.text || h.content || '';
-                activeHistoryText += partText;
-
-                if (partText) {
-                  const matches1 = partText.match(/\[Image:/g)?.length || 0;
-                  const matches2 = partText.match(/\[Image attached\]/g)?.length || 0;
-                  const matches3 = partText.match(/\[VISION CONTEXT - DIGITAL TWIN\]/g)?.length || 0;
-                  activeImageCount += (matches1 + matches2 + matches3);
-                }
-              }
+              const historyPartTexts = limitHistory.map(h => h.parts?.[0]?.text || h.content || '')
+              activeHistoryText += historyPartTexts.join('')
 
               const summaryTokens = currentSummary ? estimateTokens(currentSummary) : 0;
-              const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + (activeImageCount * 258);
+              const imageTokenCredit = computeVisionTokenCredit(visualBuffersForPrimary.length, historyPartTexts);
+              const totalUsage = summaryTokens + estimateTokens(activeHistoryText) + imageTokenCredit;
 
               const limit = sessionState?.context_limit ?? 32000
               const threshold = sessionState?.compaction_threshold ?? 0.8
