@@ -285,6 +285,58 @@ export async function loadFromSupabase(): Promise<{
   };
 }
 
+export interface DeltaCursors {
+  entities: number;
+  tasks: number;
+  spaces: number;
+}
+
+export interface DeltaResult {
+  entities: Entity[];
+  tasks: AppTask[];
+  spaces: Space[];
+  settings: Record<string, any>;
+  entityIds: Set<string>;
+  taskIds: Set<string>;
+  spaceIds: Set<string>;
+}
+
+/**
+ * Delta load: for each table, fetch only rows changed after the cursor
+ * (last_modified > cursor) as full rows, PLUS a lightweight `id, last_modified`
+ * list of ALL rows. Callers upsert the changed rows and drop any local row
+ * whose id is absent from the full id set — this catches deletions (including
+ * ones made while this client was offline) without a full-row re-fetch and
+ * without tombstones.
+ */
+export async function loadDeltaFromSupabase(cursors: DeltaCursors): Promise<DeltaResult | null> {
+  if (!supabase) return null;
+
+  const [entDelta, entIds, taskDelta, taskIds, spaceDelta, spaceIds, setRes] = await Promise.all([
+    supabase!.from('entities').select('*').gt('last_modified', cursors.entities),
+    supabase!.from('entities').select('id, last_modified'),
+    supabase!.from('tasks').select('*').gt('last_modified', cursors.tasks),
+    supabase!.from('tasks').select('id, last_modified'),
+    supabase!.from('spaces').select('*').gt('last_modified', cursors.spaces),
+    supabase!.from('spaces').select('id, last_modified'),
+    supabase!.from('settings').select('*'),
+  ]);
+
+  const desktop = isDesktop();
+  const settings: Record<string, any> = {};
+  (setRes.data ?? []).forEach((row: any) => { settings[row.key] = row.value; });
+
+  return {
+    entities: filterLocalOnlyForWeb((entDelta.data ?? []).map(rowToEntity), desktop),
+    tasks:    filterLocalOnlyForWeb((taskDelta.data ?? []).map(rowToTask), desktop),
+    spaces:   filterLocalOnlyForWeb((spaceDelta.data ?? []).map(rowToWorkspace), desktop),
+    settings,
+    entityIds: new Set((entIds.data ?? []).map((r: any) => r.id as string)),
+    taskIds:   new Set((taskIds.data ?? []).map((r: any) => r.id as string)),
+    spaceIds:  new Set((spaceIds.data ?? []).map((r: any) => r.id as string)),
+  };
+}
+
 // ─── Upsert / Delete helpers ──────────────────────────────────────────────────
 
 export async function upsertSetting(key: string, value: any) {
