@@ -47,6 +47,51 @@ export function parseNarrationResponse(raw: string): { mode: 'transcript' | 'vis
   return { mode: 'visual', text: trimmed }
 }
 
+export interface NarrationPartition {
+  /** Buffers to feed to PRIMARY as raw images this turn (visual attachments, plus any failed narrations). */
+  visualBuffers: Buffer[]
+  /** Text-doc transcripts only — this turn's [VISION DATA] content. */
+  transcriptDescriptions: string[]
+  /** Every twin (transcript AND visual) — persisted as image_description so later turns see every attachment's twin as text. */
+  allDescriptions: string[]
+}
+
+/**
+ * Splits narrated attachments into what PRIMARY needs THIS turn vs. what gets
+ * persisted for later turns. See spec "Core Model": text-doc attachments are
+ * never fed as images (their transcript is strictly better); visual
+ * attachments ARE fed as raw images this turn, with their twin excluded from
+ * this turn's [VISION DATA] to avoid paying for the same information twice.
+ */
+export function partitionNarrationResults(
+  buffers: Buffer[],
+  results: Array<{ description: string; mode: 'transcript' | 'visual' } | null>
+): NarrationPartition {
+  const visualBuffers: Buffer[] = []
+  const transcriptDescriptions: string[] = []
+  const allDescriptions: string[] = []
+  const multi = buffers.length > 1
+
+  buffers.forEach((buf, i) => {
+    const result = results[i]
+    if (!result?.description) {
+      // Narration failed or returned nothing — fail open: still let PRIMARY
+      // see the raw image directly rather than silently dropping it.
+      visualBuffers.push(buf)
+      return
+    }
+    const label = multi ? `Image ${i + 1}:\n${result.description}` : result.description
+    allDescriptions.push(label)
+    if (result.mode === 'transcript') {
+      transcriptDescriptions.push(label)
+    } else {
+      visualBuffers.push(buf)
+    }
+  })
+
+  return { visualBuffers, transcriptDescriptions, allDescriptions }
+}
+
 export async function narrateGeneratedImage(
   imageBuffer: Buffer,
   context?: any
