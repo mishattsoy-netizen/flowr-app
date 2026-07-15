@@ -692,6 +692,7 @@ export interface AppState {
   loadConversation: (id: string) => Promise<void>;
   deleteChatConversation: (id: string) => Promise<void>;
   renameChatConversation: (id: string, title: string) => Promise<void>;
+  toggleFavoriteChatConversation: (id: string, is_favorite: boolean) => Promise<void>;
   loadChatConversations: () => Promise<void>;
   openChatInPage: () => void;
   setInitialSync: (isInitialSync: boolean) => void;

@@ -433,6 +433,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const pendingNewChat = useStore(state => state.pendingNewChat);
   const deleteChatConversation = useStore(state => state.deleteChatConversation);
   const renameChatConversation = useStore(state => state.renameChatConversation);
+  const toggleFavoriteChatConversation = useStore(state => state.toggleFavoriteChatConversation);
   const addTab = useStore(state => state.addTab);
 
   const [isFavoritesCollapsed, setIsFavoritesCollapsed] = useState(false);
@@ -1358,7 +1359,10 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                           className="flex-1 bg-transparent text-[14px] tracking-wide outline-none border-b border-white/30"
                                         />
                                       ) : (
-                                        <span className="flex-1 text-[14px] tracking-wide truncate">{stripHtml(conv.title)}</span>
+                                        <span className="flex-1 text-[14px] tracking-wide truncate flex items-center gap-[6px]">
+                                          {conv.is_favorite && <Star className="w-[10px] h-[10px] fill-[var(--accent)] text-[var(--accent)] shrink-0" />}
+                                          <span className="truncate">{stripHtml(conv.title)}</span>
+                                        </span>
                                       )}
                                       <div className={cn(
                                         "sidebar-actions flex items-center gap-[1px] shrink-0",
@@ -1960,6 +1964,21 @@ onClick={() => {
             >
               <ExternalLink strokeWidth={2} className="w-4 h-4 shrink-0" />
               Open in new tab
+            </button>
+            <button
+              onClick={() => {
+                if (chatMenuOpenId) {
+                  const conv = chatConversations.find(c => c.id === chatMenuOpenId);
+                  if (conv) {
+                    toggleFavoriteChatConversation(chatMenuOpenId, !conv.is_favorite);
+                  }
+                }
+                setChatMenuOpenId(null);
+              }}
+              className="popup-item"
+            >
+              <Star strokeWidth={2} className="w-4 h-4 shrink-0" />
+              {chatConversations.find(c => c.id === chatMenuOpenId)?.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
             </button>
             <button
               onClick={() => { setChatEditingId(chatMenuOpenId); setChatEditTitle(chatConversations.find(c => c.id === chatMenuOpenId)?.title ?? ''); setChatMenuOpenId(null); }}

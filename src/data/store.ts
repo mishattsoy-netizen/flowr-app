@@ -13,6 +13,7 @@ import {
   fetchConversations,
   createConversation,
   updateConversationTitle,
+  updateConversationFavorite,
   deleteConversation as deleteConversationFromDB,
   fetchMessages,
   insertMessage,
@@ -1036,6 +1037,19 @@ export const useStore = create<AppState>()(
           }));
         } catch (e) {
           console.error('Failed to rename conversation', e);
+        }
+      },
+
+      toggleFavoriteChatConversation: async (id: string, is_favorite: boolean) => {
+        try {
+          await updateConversationFavorite(id, is_favorite);
+          set(s => ({
+            chatConversations: s.chatConversations.map(c =>
+              c.id === id ? { ...c, is_favorite, updated_at: new Date().toISOString() } : c
+            ),
+          }));
+        } catch (e) {
+          console.error('Failed to toggle favorite conversation', e);
         }
       },
 

@@ -7,6 +7,7 @@ export interface ChatConversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  is_favorite?: boolean;
   space_id?: string;
   messages?: { id: string }[];
 }
@@ -105,6 +106,15 @@ export async function updateConversationTitle(id: string, title: string): Promis
   const { error } = await supabase
     .from('conversations')
     .update({ title, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateConversationFavorite(id: string, is_favorite: boolean): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from('conversations')
+    .update({ is_favorite, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw error;
 }
