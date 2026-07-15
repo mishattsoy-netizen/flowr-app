@@ -1072,7 +1072,7 @@ export const ChatMessage = memo(({
 
   const { revealedText, isRevealing } = useWordReveal(safeContent, {
     enabled: isLast && !msg.hasRevealed,
-    initialProgress: 'complete',
+    initialProgress: isAILoading ? 'zero' : 'complete',
   });
 
   const markMessageRevealed = useStore(state => state.markMessageRevealed);
@@ -1818,6 +1818,8 @@ export const ChatMessage = memo(({
                       <div className="flex flex-col gap-2 w-full mt-3">
                         {msg.toolResults.filter(tr => {
                           const name = String((tr as any).tool || tr.type || '')
+                          if (!(tr as any).success) return false
+                          if ((tr as any).status === 'pending_confirmation') return false
                           return ['create_content', 'update_content', 'append_to_note', 'move_content', 'manage_memory'].includes(name)
                         }).map((tr, i) => {
                           const actionName = String((tr as any).tool || tr.type || '')

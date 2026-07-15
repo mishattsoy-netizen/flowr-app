@@ -1258,6 +1258,10 @@ export const useStore = create<AppState>()(
         const cleanContent = extractedIntent ? content.trim().substring(extractedIntent.length).trim() : content;
 
         if (!cleanContent && attachments.length === 0 && !extractedIntent) return;
+
+        // Instantly trigger UI transition for new chats
+        set({ isAILoading: true });
+
         // Create pending new chat on first message
         if (get().pendingNewChat) {
           let conv;
@@ -1840,9 +1844,8 @@ export const useStore = create<AppState>()(
             }
 
             // Process toolResults: sync Zustand store with server-side tool changes
-            if (lastToolResults && Array.isArray(lastToolResults) && lastToolResults.length > 0) {
-              get().syncToolResults(lastToolResults);
-            }
+            // syncToolResults is already called inline during streaming (L1604).
+            // Removed redundant call here to prevent double-appends.
 
             return;
           }
@@ -3204,6 +3207,10 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      // Track tool calls already synced to prevent double-appends from
+      // multiple SSE emissions of the same cumulative toolResults array.
+      _syncedToolCallIds: new Set<string>(),
+
       syncToolResults: (toolResults) => {
         if (!toolResults || !Array.isArray(toolResults) || toolResults.length === 0) return;
         const currentEntities = get().entities;
@@ -3212,6 +3219,10 @@ export const useStore = create<AppState>()(
         let blocksUpdated = false;
 
         for (const tr of toolResults) {
+          // Deduplicate: skip if we already processed this exact tool call
+          const trKey = `${tr.tool}-${tr.id}-${tr.title}-${tr.success}`;
+          if (get()._syncedToolCallIds.has(trKey)) continue;
+          get()._syncedToolCallIds.add(trKey);
           if (tr.tool === 'create_content' && tr.type === 'workspace' && tr.success && tr.id) {
             const exists = currentEntities.find(e => e.id === tr.id);
             if (!exists) {
