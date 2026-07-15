@@ -83,7 +83,7 @@ export function getRedirectedTarget(
   // to show an insert line at depth 1 (which represents appending to the previous section).
   // We NEVER want to highlight the previous workspace's deep folders, and we NEVER
   // want to return depth 0 (which would trigger isBlockNesting and hide the line).
-  if (targetDepth === 0 && (!dragItem || dragItem.type !== 'workspace')) {
+  if (targetDepth === 0 && targetEntity.type === 'workspace' && (!dragItem || dragItem.type !== 'workspace')) {
     return { overId: targetEntity.id, edge: 'top' as Edge, depth: 1 };
   }
 
