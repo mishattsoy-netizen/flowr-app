@@ -4,12 +4,15 @@ MODE: TRANSCRIPT — use this whenever the input contains substantial readable t
 
 MODE: VISUAL — use this only when the input is primarily a photo, artwork, design mockup, or diagram with no substantial text to transcribe. Describe the subject, environment, lighting, colors, and mood in 250-700 characters. Do not invent details not visible in the image.
 
+MODE: MIXED — use this when the input contains BOTH significant text AND important visual/graphic design elements (e.g., UI mockups, graphic design references, infographics, stylized posters). Provide a brief visual description (layout, colors, aesthetic style) first, followed by the full verbatim text transcription.
+
 Output format — your ENTIRE response must be exactly this shape, nothing else:
-[MODE: TRANSCRIPT] or [MODE: VISUAL]
+[MODE: TRANSCRIPT] or [MODE: VISUAL] or [MODE: MIXED]
 <blank line>
 <your content>
 
 Rules:
 1. Pick the mode based on the actual content, not the file type.
 2. TRANSCRIPT mode: start with one line naming what the document is (e.g. "Internship contract, 3 pages"), then the full verbatim transcript.
-3. Output ONLY the mode tag line, a blank line, then the content. No preamble, no "Here is the description:", no closing remarks.
+3. MIXED mode: start with the visual description, then transition to the verbatim transcript.
+4. Output ONLY the mode tag line, a blank line, then the content. No preamble, no "Here is the description:", no closing remarks.

@@ -46,6 +46,13 @@ describe('parseNarrationResponse', () => {
     expect(result.text).toBe('A dimly lit workspace with dual monitors and city lights beyond the window.')
   })
 
+  it('parses a MIXED-tagged response', () => {
+    const raw = '[MODE: MIXED]\nA clean UI mockup.\n\nLogin\nPassword'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('mixed')
+    expect(result.text).toBe('A clean UI mockup.\n\nLogin\nPassword')
+  })
+
   it('is case-insensitive on the tag', () => {
     const raw = '[mode: transcript]\n\nSome transcribed text.'
     const result = parseNarrationResponse(raw)
@@ -90,6 +97,16 @@ describe('partitionNarrationResults', () => {
     expect(result.visualBuffers).toEqual([bufA])
     expect(result.transcriptDescriptions).toEqual([])
     expect(result.allDescriptions).toEqual(['A dimly lit workspace.'])
+  })
+
+  it('routes a mixed-mode result to visualBuffers AND allDescriptions, but NOT transcriptDescriptions', () => {
+    const result = partitionNarrationResults(
+      [bufA],
+      [{ description: 'A UI mockup.\nLogin', mode: 'mixed' }]
+    )
+    expect(result.visualBuffers).toEqual([bufA])
+    expect(result.transcriptDescriptions).toEqual([])
+    expect(result.allDescriptions).toEqual(['A UI mockup.\nLogin'])
   })
 
   it('handles a mixed batch: 1 visual image + N text-doc attachments (spec example)', () => {
