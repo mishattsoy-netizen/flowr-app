@@ -125,6 +125,8 @@ This is your knowledge base about the user, curated by them and by you.
 
 **Static prompt restructure.** Current order interleaves per-chain instructions before the memory block. New order: `[global personality] [app context] [BRAIN]` → *cache boundary* → `[per-chain instructions]`. The big stable segment caches once across categories (Anthropic-style explicit breakpoints; prefix-based implicit caching on Google/Groq/OpenRouter gets the same benefit from prefix sharing).
 
+**Status (2026-07-15): Implemented (P1 Task 4).** `[BRAIN]` injection + fact-sheet removal + session pinning landed in `promptBuilder.ts`/`chainRouter.ts`/`context.ts` (commit `20aae61`). Cache-boundary ordering asserted by a unit test (`promptBuilder.test.ts`). Live cache-hit verification (spec §9) NOT yet done.
+
 ## 5. Budget
 
 **Server-owned, enforced at compile time — never trusted to the model** (same principle as §6b confirmations; same lesson as the §7b token-metric bug).
