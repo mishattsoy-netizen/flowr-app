@@ -1182,6 +1182,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
             "grid transition-all duration-100 ease-out",
             isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
           )}
+          style={isDraggingLocal && !isDragOverlay ? { opacity: 0.4 } : undefined}
         >
           <div className="overflow-hidden pb-[2px] -mb-[2px]">
             <div className="relative flex flex-col gap-[1px]">
