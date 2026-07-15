@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { getEntityIcon } from '@/data/icons';
 import { cn } from '@/lib/utils';
 import type { WidgetProps } from './types';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface Shortcut {
   id: string;
@@ -18,7 +19,7 @@ interface Shortcut {
 
 const EMPTY_SHORTCUTS: Shortcut[] = [];
 
-export function ShortcutsWidget({ contextId }: { contextId: string }) {
+export function ShortcutsWidget({ contextId, isLoading }: { contextId: string; isLoading?: boolean }) {
   const activeSpaceId = useStore(state => state.activeSpaceId);
   const scopedKey = activeSpaceId ? `${activeSpaceId}:${contextId}` : contextId;
   // scopedKey = `${activeSpaceId}:${contextId}` — ensures isolation per space
@@ -119,7 +120,26 @@ export function ShortcutsWidget({ contextId }: { contextId: string }) {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col no-scrollbar relative">
-        {shortcuts.length > 0 ? (
+        {isLoading ? (
+          <div
+            className="grid gap-2 flex-1 grid-flow-row pointer-events-none"
+            style={{
+              gridTemplateColumns: `repeat(${numCols}, minmax(0, 1fr))`,
+              gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+              gridAutoRows: 'minmax(0, 1fr)',
+            }}
+          >
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col p-3 rounded-[10px] bg-[var(--bone-3)] border border-[var(--bone-6)] min-h-[76px] col-span-1">
+                <Skeleton className="w-[18px] h-[18px] rounded-md bg-[var(--bone-10)] shrink-0 mb-3" />
+                <div className="flex flex-col gap-1.5 flex-1 justify-end">
+                  <Skeleton className="h-2.5 w-3/4 bg-[var(--bone-5)] rounded-sm" />
+                  <Skeleton className="h-2 w-1/2 bg-[var(--bone-5)] rounded-sm" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : shortcuts.length > 0 ? (
           <div
             className={cn(
               "grid gap-2 flex-1 grid-flow-row transition-opacity duration-200",

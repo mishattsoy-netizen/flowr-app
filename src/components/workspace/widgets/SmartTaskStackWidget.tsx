@@ -9,6 +9,7 @@ import { stripHtml } from '@/lib/utils';
 import type { WidgetProps } from './types';
 import type { AppTask } from '@/data/store.types';
 import { getTaskImplicitPosition } from '@/components/tracker/dragLogic';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const ALL_TABS = [
   { id: 'todo', label: 'To do', icon: Calendar, color: 'text-blue-400', dotColor: '#3B82F6' },
@@ -35,7 +36,7 @@ const formatDate = (dateStr: string) => {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d);
 };
 
-export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId }: SmartTaskStackProps) {
+export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId, isLoading }: SmartTaskStackProps) {
   const tasks = useStore(state => state.tasks);
   const toggleTask = useStore(state => state.toggleTask);
   const addTask = useStore(state => state.addTask);
@@ -264,7 +265,10 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
               <div
                 key={tab.id}
                 data-active={activeId === tab.id ? "true" : undefined}
-                className="relative z-10 flex items-center justify-center px-3.5 group/tab shrink-0"
+                className={cn(
+                  "relative z-10 flex items-center justify-center px-3.5 group/tab shrink-0",
+                  !pillStyle && activeId === tab.id && "bg-[var(--slider-pill)] rounded-[6px] shadow-[var(--slider-pill-shadow)]"
+                )}
               >
                 <button
                   onClick={() => handleTabSwitch(tab.id)}
@@ -340,7 +344,16 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId 
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {displayTasks.length > 0 ? (
+        {isLoading ? (
+          <div className="space-y-1 flex-1 pointer-events-none">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] h-[32px]">
+                <div className="w-4 h-4 rounded-[4px] border border-[var(--bone-10)] bg-[var(--bone-3)] shrink-0" />
+                <Skeleton className="h-2.5 w-48 bg-[var(--bone-5)] rounded-[3px]" />
+              </div>
+            ))}
+          </div>
+        ) : displayTasks.length > 0 ? (
           <div className="space-y-1">
             {displayTasks.map(t => {
               const workspaceName = entities.find(e => e.id === (t.entityId || t.spaceId))?.title || null;

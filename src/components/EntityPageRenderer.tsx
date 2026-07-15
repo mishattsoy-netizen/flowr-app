@@ -9,7 +9,7 @@ import { SpacePage } from './workspace/SpacePage';
 import { TrackerPage } from './tracker/TrackerPage';
 import ChatPage from './chat/ChatPage';
 import { SettingsPage } from './settings/SettingsPage';
-import { DashboardSkeleton } from './dashboard/DashboardSkeleton';
+
 import { ChatMainSkeleton } from './chat/ChatSkeleton';
 import { TrackerSkeleton } from './tracker/TrackerSkeleton';
 import { NoteSkeleton } from './editor/NoteSkeleton';
@@ -48,8 +48,12 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
   if (!entity) {
     if (isLoading) {
       // If we don't even know the entity type yet, we can't render the exact page.
-      // We will fallback to DashboardSkeleton to avoid empty screen
-      return <DashboardSkeleton />;
+      // We will fallback to the Space skeleton (like UnifiedAppSkeleton does) to avoid layout shifts
+      const isSpace = entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker' && entityId !== 'settings';
+      if (isSpace) {
+        return <SpacePage entity={{ id: entityId, title: 'Loading...', type: 'workspace', syncMode: 'full-sync', lastModified: Date.now() } as any} isLoading={true} />;
+      }
+      return <Dashboard isLoading={true} />;
     }
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
