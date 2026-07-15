@@ -393,7 +393,7 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
 
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 {isLoading ? (
-                  <Skeleton className="h-9 w-64 rounded-md bg-[var(--bone-5)]" />
+                  <Skeleton className="h-11 w-64 rounded-md bg-[var(--bone-5)]" />
                 ) : isEditing ? (
                   <input
                     autoFocus
@@ -568,12 +568,35 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
           <section
             className={cn(
               "relative rounded-[var(--radius-big)] overflow-hidden px-5 pb-5 pt-4 flex flex-col min-h-[180px] max-h-[365px] basis-0",
-              !isLoading && "bg-panel widget-shadow"
+              "bg-panel widget-shadow"
             )}
             style={{ flexGrow: 261 }}
           >
             {isLoading ? (
-              <Skeleton className="absolute inset-0 w-full h-full bg-[var(--bone-5)]" />
+              <>
+                <div className="flex items-center justify-between mb-4 shrink-0">
+                  <Skeleton className="h-5 w-20 rounded bg-[var(--bone-5)]" />
+                  <div className="flex items-center gap-1.5">
+                    <Skeleton className="h-7 w-24 rounded-[var(--radius-small)] bg-[var(--bone-5)]" />
+                  </div>
+                </div>
+                <div className="flex gap-4 pb-1.5 overflow-hidden flex-1">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex-shrink-0 w-[280px] h-full bg-[var(--card-bg)] border border-[var(--bone-10)] rounded-xl flex flex-col p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <Skeleton className="h-3 w-16 bg-[var(--bone-5)] rounded-sm" />
+                        <Skeleton className="h-3 w-10 bg-[var(--bone-5)] rounded-sm" />
+                      </div>
+                      <Skeleton className="h-5 w-3/4 bg-[var(--bone-5)] rounded-sm mb-4" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-2.5 w-full bg-[var(--bone-5)] rounded-sm" />
+                        <Skeleton className="h-2.5 w-5/6 bg-[var(--bone-5)] rounded-sm" />
+                        <Skeleton className="h-2.5 w-4/6 bg-[var(--bone-5)] rounded-sm" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <>
             <div className="flex items-center justify-between mb-4 shrink-0">
@@ -697,14 +720,27 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
             style={{ flexGrow: 485 }}
           >
             {/* Tasks (2/3 width) */}
-            <div className="md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden min-h-0">
-              <div className="flex-1 min-h-0">
-                {isLoading ? (
-                  <Skeleton className="h-full w-full bg-[var(--bone-5)]" />
-                ) : (
-                  <SmartTaskStackWidget contextId={entity.id} />
-                )}
-              </div>
+          <div className={cn("md:col-span-2 flex flex-col relative rounded-[var(--radius-big)] overflow-hidden", isLoading && "bg-panel widget-shadow p-5")}>
+            <div className="flex-1 min-h-0">
+              {isLoading ? (
+                <>
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                    <Skeleton className="h-5 w-24 rounded bg-[var(--bone-5)]" />
+                    <Skeleton className="h-7 w-20 rounded-[var(--radius-small)] bg-[var(--bone-5)]" />
+                  </div>
+                  <div className="flex gap-4 flex-1 h-[calc(100%-36px)]">
+                    <div className="w-1/3 space-y-3">
+                      {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-full rounded-[var(--radius-small)] bg-[var(--bone-5)]" />)}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full rounded-[var(--radius-small)] bg-[var(--bone-5)]" />)}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <SmartTaskStackWidget contextId={entity.id} />
+              )}
+            </div>
               <div
                 className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
                 style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}
@@ -712,14 +748,27 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
             </div>
 
             {/* Shortcuts (1/3 width) */}
-            <div className="flex flex-col relative rounded-[var(--radius-big)] overflow-hidden min-h-0">
-              <div className="flex-1 min-h-0">
-                {isLoading ? (
-                  <Skeleton className="h-full w-full bg-[var(--bone-5)]" />
-                ) : (
-                  <ShortcutsWidget contextId={entity.id} />
-                )}
-              </div>
+          <div className={cn("flex flex-col relative rounded-[var(--radius-big)] overflow-hidden", isLoading && "bg-panel widget-shadow p-5")}>
+            <div className="flex-1 min-h-0">
+              {isLoading ? (
+                <>
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                    <Skeleton className="h-5 w-24 rounded bg-[var(--bone-5)]" />
+                    <Skeleton className="h-7 w-7 rounded-[var(--radius-small)] bg-[var(--bone-5)]" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="h-24 rounded-[var(--radius-small)] bg-[var(--bone-5)] flex flex-col items-center justify-center gap-2">
+                        <Skeleton className="h-6 w-6 rounded-md bg-[var(--bone-10)]" />
+                        <Skeleton className="h-3 w-16 rounded-sm bg-[var(--bone-10)]" />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <ShortcutsWidget contextId={entity.id} />
+              )}
+            </div>
               <div
                 className="pointer-events-none absolute inset-0 rounded-[var(--radius-big)] border"
                 style={{ borderColor: resolvedTheme === 'dark' ? 'var(--bone-3)' : 'var(--bone-6)' }}

@@ -5,6 +5,7 @@ export interface WidgetProps {
   data?: any;
   onUpdateData?: (data: any) => void;
   isEditing?: boolean;
+  isLoading?: boolean;
 }
 
 export interface WidgetPropsWithEntity extends WidgetProps {
