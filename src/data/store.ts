@@ -1460,7 +1460,7 @@ export const useStore = create<AppState>()(
           }
           
           if (finalPrompt.trim() === '' && imageAttachments.length > 0) {
-            finalPrompt = 'Please analyze the attached image(s).';
+            finalPrompt = 'Please analyze the attached file(s).';
           }
 
           const res = await fetch('/api/ai/chat', {
