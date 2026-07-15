@@ -1,5 +1,7 @@
 # Stable Refresh Implementation Plan
 
+> **STATUS (2026-07-16):** Scope 1 ✅ done + committed (incl. SSR-hydration fix). Scope 3 ✅ done + committed (Tasks 4–6). Scope 2 ✅ done + committed (Tasks 7–13) — 459 tests pass, tsc clean. Scope 2 needs manual multi-space cloud smoke-test (node-env tests can't drive the boot effect; see Task 12 commit). A separate Scope 4 (zero-flash tab SSR) is specced in `docs/superpowers/specs/2026-07-15-zero-flash-shell-ssr-design.md`, not yet planned.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make browser refresh stable — stay on the same page, no skeleton shimmer over already-cached data, keep recents/shortcuts from disappearing, and (cloud path only) fetch only changed rows.
