@@ -72,3 +72,25 @@ describe('Scope 3: non-destructive cloud settings merge', () => {
     expect(byId['s-cloud'].label).toBe('Cloud only');  // cloud-only added
   });
 });
+
+describe('Scope 3: local page/tabs win over stale cloud ui_state', () => {
+  beforeEach(() => {
+    useStore.setState({
+      entities: [
+        { id: 'e-open', title: 'Open note', type: 'note', parentId: null, lastModified: 1, syncMode: 'full-sync', pairedEntityId: null } as any,
+      ],
+      tasks: [], spaces: [],
+      activeEntityId: 'e-open',
+      openTabIds: ['e-open'],
+      activeTabId: 'e-open',
+    });
+  });
+
+  it('does not overwrite the local open page with stale cloud ui_state', () => {
+    mergeCloudData({
+      entities: [], tasks: [], spaces: [],
+      settings: { ui_state: { activeEntityId: 'dashboard', openTabIds: ['dashboard'], activeTabId: 'dashboard' } },
+    });
+    expect(useStore.getState().activeEntityId).toBe('e-open');
+  });
+});

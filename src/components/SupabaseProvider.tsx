@@ -131,17 +131,27 @@ export function mergeCloudData(data: {
     const splitViewLeftId = isValidId(ui.splitViewLeftId) ? ui.splitViewLeftId : null;
     const splitViewRightId = isValidId(ui.splitViewRightId) ? ui.splitViewRightId : null;
 
-    // Apply UI state directly via useStore.setState
-    useStore.setState({
-      openTabIds: openTabIds.length > 0 ? openTabIds : ['dashboard'],
-      activeTabId,
-      activeEntityId,
-      splitViewActive: !!ui.splitViewActive && !!splitViewLeftId,
-      splitViewLeftId,
-      splitViewRightId,
-      splitViewPinned: !!ui.splitViewPinned,
-      splitViewPosition: typeof ui.splitViewPosition === 'number' ? ui.splitViewPosition : 50,
-    });
+    // Only adopt cloud UI state when local has nothing meaningful yet (fresh
+    // device / empty tabs). Otherwise the just-restored local page and tab set
+    // (from the synchronous persist store) win — stale cloud ui_state must not
+    // yank the user to another page on refresh.
+    const localState = useStore.getState();
+    const localHasTabs = (localState.openTabIds?.length ?? 0) > 0
+      && !(localState.openTabIds.length === 1 && localState.openTabIds[0] === 'dashboard');
+    const localHasPage = !!localState.activeEntityId && localState.activeEntityId !== 'dashboard';
+
+    if (!localHasTabs && !localHasPage) {
+      useStore.setState({
+        openTabIds: openTabIds.length > 0 ? openTabIds : ['dashboard'],
+        activeTabId,
+        activeEntityId,
+        splitViewActive: !!ui.splitViewActive && !!splitViewLeftId,
+        splitViewLeftId,
+        splitViewRightId,
+        splitViewPinned: !!ui.splitViewPinned,
+        splitViewPosition: typeof ui.splitViewPosition === 'number' ? ui.splitViewPosition : 50,
+      });
+    }
   }
 
   // ── Shortcuts and Recent Entities (non-destructive union) ──
