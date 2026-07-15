@@ -1,10 +1,10 @@
 ---
-trigger: always_on
+trigger: manual
 ---
 
 Global project rules for all agents:
 
-- Never pull or checkout from GitHub without my explicit confirmation.
+- Never pull from GitHub without my explicit confirmation.
 - When many changes have been made, or when it seems wise to create a safe restore point, recommend that I push the current version to GitHub.
 - Regularly recommend clearing cache and restarting the server.
 - Every time I ask to run the server, clear cache first.

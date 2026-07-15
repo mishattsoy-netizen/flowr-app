@@ -178,7 +178,7 @@ export interface Entity {
   lastModified: number;
   icon?: string;
   tags?: string[];
-  content?: any; // EditorBlock[] (legacy) or JSONContent (tiptap)
+  content?: EditorBlock[];
   widgetLayout?: WidgetConfig[];
   spaceId?: string | null;
 
@@ -653,6 +653,7 @@ export interface AppState {
   openTaskContextMenu: (taskId: string, column: string, x: number, y: number) => void;
   closeTaskContextMenu: () => void;
   updateTask: (id: string, updates: Partial<AppTask>) => Promise<{ error: any }>;
+  _syncedToolCallIds: Set<string>;
   syncToolResults: (toolResults: any[]) => void;
   updateWidgetLayout: (entityId: string, layout: WidgetConfig[]) => void;
   sortEntities: (criteria: 'title' | 'lastModified') => void;
