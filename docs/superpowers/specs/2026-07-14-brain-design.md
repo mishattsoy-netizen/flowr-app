@@ -167,6 +167,8 @@ manage_brain({ op: "add_node" | "update_node" | "remove_node" | "connect" | "dis
 
 **Interview flow** ("build a profile section — ask me what you need") is a prompt pattern over these tools, not new infrastructure: the bot asks questions in chat, then issues a sequence of `manage_brain` calls. Ships as P3 prompt work.
 
+**Status (2026-07-15): Implemented (P1 Task 5).** `manage_brain` tool + handler landed (commit `9f1e404`), `manage_memory` fully retired from the live pipeline — `bot_memories` is no longer written to anywhere (item 4 above, the table-drop cleanup migration, is still pending). The confirmed:true pending-action match for multi-node removes was hardened to run before any DB call, closing a gap where its own unit test could pass without ever reaching the rejection path. Foreign-entity-rejection security test (§6, "#1 embarrassment scenario") is covered by `brainStore`'s `assertOwnedEntity`/compile-time filter (Task 3) but the live acceptance test (spec §9) is NOT yet done.
+
 ## 8. UI phases (data-first, owner decision)
 
 - **P1 — plain Brain page** (chat sidebar): list grouped by section; enable/disable toggles; pin; simple priority reorder; budget meter ("Brain 6.2k / 10k"); broken/dropped badges; manual add (pick workspace/entity or write a memory); soft-delete + restore; **"view as bot sees it"** compiled preview. The bot can already build the brain via chat in P1 — the page is the honest MVP view of it.
