@@ -149,7 +149,7 @@ export function getRedirectedTarget(
  *  tree-item drag it shows an edge line at the folder's depth to signal
  *  "insert after this folder at the parent level." The Sidebar's onDrop
  *  recognizes the isAfterFolder flag and forces edge='bottom' on the folder. */
-function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; depth: number; spaceId?: string | null }) {
+export function AfterFolderSpacer({ folderId, depth, spaceId, fillRemainingSpace }: { folderId: string; depth: number; spaceId?: string | null; fillRemainingSpace?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [isOver, setIsOver] = useState(false);
   const [activeDepth, setActiveDepth] = useState(depth + 1);
@@ -161,9 +161,13 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
     const rect = el.getBoundingClientRect();
     const safeClientX = clientX !== undefined ? clientX : (dragCursor.ready ? dragCursor.x : 0);
     const localX = safeClientX - rect.left;
-    const minDepth = dragType === 'workspace' ? 0 : 1;
+    const isDragWS = dragType === 'workspace';
+    const minDepth = isDragWS ? 0 : 1;
 
-    let targetDepth = depth + 1;
+    // Workspaces can never nest inside another workspace, so the horizontal
+    // depth-picking below doesn't apply — always resolve to "insert after"
+    // at the top level regardless of cursor X position.
+    let targetDepth = isDragWS ? depth : depth + 1;
     while (targetDepth > minDepth) {
       const levelStart = 8 + targetDepth * 18;
       if (localX < levelStart - 4) {
@@ -325,17 +329,23 @@ function AfterFolderSpacer({ folderId, depth, spaceId }: { folderId: string; dep
   return (
     <div
       ref={ref}
-      className="relative w-full"
-      style={{ height: '0px', zIndex: 10 + depth }}
+      className={cn("relative w-full", fillRemainingSpace ? "flex-1 min-h-[24px]" : "-mt-px")}
+      style={fillRemainingSpace ? { zIndex: 10 + depth } : { height: '0px', zIndex: 10 + depth }}
     >
       {/* Invisible expanded hit target for dragging */}
       <div
-        className="absolute right-0 h-5 -top-2 bg-transparent z-10 sidebar-spacer-hit-target"
-        style={{ left: '0px' }}
+        className={cn(
+          "absolute right-0 bg-transparent z-10 sidebar-spacer-hit-target",
+          fillRemainingSpace ? "inset-0" : "h-5"
+        )}
+        style={fillRemainingSpace ? { left: '0px' } : { left: '0px', top: '-7px' }}
       />
       {isOver && (
         <div
-          className="absolute h-px bg-[var(--bone-30)] pointer-events-none z-20 top-0"
+          className={cn(
+            "absolute h-px bg-[var(--bone-30)] pointer-events-none z-20",
+            fillRemainingSpace ? "-top-[8px]" : "top-0"
+          )}
           style={{
             left: `${8 + activeDepth * 18}px`,
             right: '3px',

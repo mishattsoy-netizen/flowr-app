@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { isDesktop } from '@/lib/env';
 import { useDeferredLoading } from '@/hooks/use-deferred-loading';
-import { TreeItem } from './TreeItem';
+import { TreeItem, AfterFolderSpacer } from './TreeItem';
 import { ScrollArea } from './ScrollArea';
 import { Tooltip } from './Tooltip';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -359,6 +359,7 @@ function TrackerWorkspaceItem({
 
 export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId }: { forceFull?: boolean, initialEntityId?: string }) {
   const entities = useStore(state => state.entities);
+  const collapsedIds = useStore(state => state.collapsedIds);
   const [collapsedTrackerWorkspaces, setCollapsedTrackerWorkspaces] = useState<Record<string, boolean>>({});
   const trackerFilterTags = useStore(state => state.trackerFilterTags);
   const setTrackerFilterTags = useStore(state => state.setTrackerFilterTags);
@@ -741,7 +742,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           const collapsedIds = useStore.getState().collapsedIds;
           const isOverFolder = overEntity && (overEntity.type === 'folder' || overEntity.type === 'workspace');
           const isOverExpanded = isOverFolder && !collapsedIds.includes(overId);
-          if (edge === 'bottom' && isOverExpanded) {
+          if (edge === 'bottom' && isOverExpanded && !isDraggingWorkspace) {
             const folderChildren = entities
               .filter(e => e.parentId === overId && !hiddenEntityIds.includes(e.id))
               .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
@@ -1635,11 +1636,13 @@ onClick={() => {
                     onScroll={onScroll}
                     className="px-[10px] pt-2 pb-4"
                   >
-                    <div onClick={(e) => {
-                      if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {
-                        clearSelectedSidebarIds();
-                      }
-                    }}>
+                    <div
+                      className="flex flex-col min-h-full"
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {
+                          clearSelectedSidebarIds();
+                        }
+                      }}>
                       <>
                         {sectionOrder.map((sectionId) => {
                           if (sectionId === 'favorites') {
@@ -1834,6 +1837,14 @@ onClick={() => {
                                         {displayWorkspaces.map(workspace => (
                                           <TreeItem key={workspace.id} entity={workspace} depth={0} isMultiSelected={selectedSidebarIds.includes(workspace.id)} onShiftClick={handleShiftClick} />
                                         ))}
+                                        {(() => {
+                                          const lastWorkspace = displayWorkspaces[displayWorkspaces.length - 1];
+                                          if (!lastWorkspace) return null;
+                                          const hasChildren = entities.some(e => e.parentId === lastWorkspace.id);
+                                          const isExpanded = !collapsedIds.includes(lastWorkspace.id);
+                                          if (!hasChildren || !isExpanded) return null;
+                                          return <AfterFolderSpacer folderId={lastWorkspace.id} depth={0} spaceId={lastWorkspace.spaceId} />;
+                                        })()}
                                       </DroppableZone>
                                     </div>
                                   </div>
@@ -1844,6 +1855,11 @@ onClick={() => {
                           return null;
                         })}
                       </>
+                      {(() => {
+                        const lastWorkspace = displayWorkspaces[displayWorkspaces.length - 1];
+                        if (!lastWorkspace) return null;
+                        return <AfterFolderSpacer folderId={lastWorkspace.id} depth={0} spaceId={lastWorkspace.spaceId} fillRemainingSpace />;
+                      })()}
                     </div>
                   </ScrollArea>
                 </div>
