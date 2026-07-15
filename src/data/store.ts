@@ -1261,59 +1261,8 @@ export const useStore = create<AppState>()(
 
         if (!cleanContent && attachments.length === 0 && !extractedIntent) return;
 
-        // Instantly trigger UI transition for new chats
-        set({ isAILoading: true });
-
-        // Create pending new chat on first message
-        if (get().pendingNewChat) {
-          let conv;
-          if (!isSupabaseEnabled) {
-            const title = cleanContent.slice(0, 60);
-            conv = {
-              id: crypto.randomUUID(),
-              user_id: 'local',
-              title: title,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              is_archived: false,
-              space_id: get().activeSpaceId || undefined,
-            };
-          } else {
-            conv = await createConversation('New Chat', get().activeSpaceId || undefined);
-            if (conv) {
-              const title = cleanContent.slice(0, 60);
-              await updateConversationTitle(conv.id, title);
-              conv.title = title;
-            }
-          }
-
-          if (conv) {
-            set({
-              activeChatId: conv.id,
-              newEmptyChatId: null,
-              pendingNewChat: false,
-              isTempChat: false,
-              chatConversations: [conv, ...get().chatConversations],
-            });
-            const sid = getChatSessionId(conv.id, get().activeEntityId, get().activeSpaceId, 'global');
-            await get().fetchAISessionContext(sid);
-          } else {
-            set({ pendingNewChat: false, isTempChat: true });
-          }
-        }
-
-        const { aiMessages, activeReplyMessage } = get();
-        const isTemp = get().isTempChat;
-        const activeChatId = get().activeChatId;
-        const activeEntityId = get().activeEntityId;
-        const activeSpaceId = get().activeSpaceId;
-        const aiApiKey = get().aiApiKey;
-        const aiClassificationModelId = get().aiClassificationModelId;
-        const activeMode = get().activeMode;
-        const pendingState = get().pendingAdvisorState;
-        const thinkingEnabled = get().thinkingEnabled;
-        const advisorEnabled = get().advisorEnabled;
-        const targetChatId = getChatSessionId(activeChatId, activeEntityId, get().activeSpaceId, isTemp ? 'temp' : 'global');
+        // --- STEP 1: Compute UI state immediately ---
+        const { aiMessages, activeReplyMessage, isTempChat, activeChatId, activeEntityId, activeSpaceId, pendingNewChat } = get();
 
         let replyContext: any = null;
         if (activeReplyMessage) {
@@ -1361,27 +1310,90 @@ export const useStore = create<AppState>()(
           timestamp: Date.now(),
         };
 
+        const initialTargetChatId = getChatSessionId(activeChatId, activeEntityId, activeSpaceId, isTempChat ? 'temp' : 'global');
+
+        // Optimistically trigger UI transition and append messages
         set(s => {
-          const updated = [...(s.chatMessagesMap[targetChatId] || s.aiMessages), userMessage, placeholderMessage];
-          const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-          const isActive = currentActiveId === targetChatId;
+          const updated = [...(s.chatMessagesMap[initialTargetChatId] || s.aiMessages), userMessage, placeholderMessage];
           return {
             chatMessagesMap: {
               ...s.chatMessagesMap,
-              [targetChatId]: updated
+              [initialTargetChatId]: updated
             },
-            ...(isActive ? { aiMessages: updated } : {}),
-            ...(isTemp ? { tempChatMessages: updated } : {}),
+            aiMessages: updated,
+            ...(isTempChat ? { tempChatMessages: updated } : {}),
             newEmptyChatId: null,
             activeReplyMessage: null,
             isAILoading: true,
-            loadingStatesMap: { ...s.loadingStatesMap, [targetChatId]: true }
+            loadingStatesMap: { ...s.loadingStatesMap, [initialTargetChatId]: true }
           };
         });
 
+        // --- STEP 2: Create conversation on server if needed ---
+        let finalActiveChatId = activeChatId;
+
+        // Create pending new chat on first message
+        if (pendingNewChat) {
+          let conv;
+          if (!isSupabaseEnabled) {
+            const title = cleanContent.slice(0, 60);
+            conv = {
+              id: crypto.randomUUID(),
+              user_id: 'local',
+              title: title,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              is_archived: false,
+              space_id: activeSpaceId || undefined,
+            };
+          } else {
+            conv = await createConversation('New Chat', activeSpaceId || undefined);
+            if (conv) {
+              const title = cleanContent.slice(0, 60);
+              await updateConversationTitle(conv.id, title);
+              conv.title = title;
+            }
+          }
+
+          if (conv) {
+            finalActiveChatId = conv.id;
+            const newTargetChatId = getChatSessionId(conv.id, activeEntityId, activeSpaceId, 'global');
+            
+            set(s => {
+              const currentMessages = s.aiMessages;
+              return {
+                activeChatId: conv.id,
+                pendingNewChat: false,
+                isTempChat: false,
+                chatConversations: [conv, ...s.chatConversations],
+                chatMessagesMap: {
+                  ...s.chatMessagesMap,
+                  [newTargetChatId]: currentMessages
+                },
+                loadingStatesMap: {
+                  ...s.loadingStatesMap,
+                  [newTargetChatId]: true
+                }
+              };
+            });
+            await get().fetchAISessionContext(newTargetChatId);
+          } else {
+            set({ pendingNewChat: false, isTempChat: true });
+          }
+        }
+
+        const isTemp = get().isTempChat;
+        const aiApiKey = get().aiApiKey;
+        const aiClassificationModelId = get().aiClassificationModelId;
+        const activeMode = get().activeMode;
+        const pendingState = get().pendingAdvisorState;
+        const thinkingEnabled = get().thinkingEnabled;
+        const advisorEnabled = get().advisorEnabled;
+        const finalTargetChatId = getChatSessionId(finalActiveChatId, activeEntityId, activeSpaceId, isTemp ? 'temp' : 'global');
+
         // Persist user message if in a named conversation (and not hidden tool result)
-        if (activeChatId && !isTemp && !isHidden) {
-          insertMessage(activeChatId, 'user', content, undefined, undefined, undefined, undefined, attachments, undefined, extractedIntent || undefined).catch(e => console.warn('[Store] Failed to persist user message:', e));
+        if (finalActiveChatId && !isTemp && !isHidden) {
+          insertMessage(finalActiveChatId, 'user', content, undefined, undefined, undefined, undefined, attachments, undefined, extractedIntent || undefined).catch(e => console.warn('[Store] Failed to persist user message:', e));
         }
 
         try {
@@ -1437,8 +1449,8 @@ export const useStore = create<AppState>()(
 
           const controller = new AbortController();
           set(s => ({
-            aiAbortController: s.activeChatId === targetChatId || (!s.activeChatId && targetChatId === 'temp' && s.isTempChat) ? controller : s.aiAbortController,
-            abortControllersMap: { ...s.abortControllersMap, [targetChatId]: controller }
+            aiAbortController: s.activeChatId === finalTargetChatId || (!s.activeChatId && finalTargetChatId === 'temp' && s.isTempChat) ? controller : s.aiAbortController,
+            abortControllersMap: { ...s.abortControllersMap, [finalTargetChatId]: controller }
           }));
 
           let finalPrompt = content;
@@ -1455,7 +1467,7 @@ export const useStore = create<AppState>()(
               prompt: finalPrompt,
               buffer: imageBuffer,
               images: imagesArray,
-              activeEntityId: targetChatId,
+              activeEntityId: finalTargetChatId,
               activeChatId,
               aiApiKey,
               activeSpaceId,
@@ -1476,19 +1488,19 @@ export const useStore = create<AppState>()(
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: 'Request failed' }));
             set(s => {
-              const updated = (s.chatMessagesMap[targetChatId] || []).map(m => m.id === placeholderMessage.id
+              const updated = (s.chatMessagesMap[finalTargetChatId] || []).map(m => m.id === placeholderMessage.id
                 ? { ...m, content: err.error || 'Something went wrong.', model: err.model || 'system' }
                 : m
               );
               const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-              const isActive = currentActiveId === targetChatId;
+              const isActive = currentActiveId === finalTargetChatId;
               return {
-                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                 ...(isActive ? { aiMessages: updated } : {}),
                 ...(isTemp ? { tempChatMessages: updated } : {})
               };
             });
-            await get().finishAILoading(targetChatId);
+            await get().finishAILoading(finalTargetChatId);
             return;
           }
 
@@ -1520,7 +1532,7 @@ export const useStore = create<AppState>()(
                 flushTimer = null;
                 const contentToSet = pendingContent;
                 set((s) => {
-                  const updatedMessages = (s.chatMessagesMap[targetChatId] || []).map((m) =>
+                  const updatedMessages = (s.chatMessagesMap[finalTargetChatId] || []).map((m) =>
                     m.id === placeholderMessage.id
                   ? {
                       ...m,
@@ -1543,9 +1555,9 @@ export const useStore = create<AppState>()(
                       : m
                   );
                   const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-                  const isActive = currentActiveId === targetChatId;
+                  const isActive = currentActiveId === finalTargetChatId;
                   return {
-                    chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updatedMessages },
+                    chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updatedMessages },
                     ...(isActive ? { aiMessages: updatedMessages } : {}),
                     ...(isTemp ? { tempChatMessages: updatedMessages } : {}),
                   };
@@ -1614,15 +1626,15 @@ export const useStore = create<AppState>()(
                         if (parsed.tokens_used) lastTokensUsed = parsed.tokens_used;
                       } else if (parsed.status) {
                         set((s) => {
-                          const updated = (s.chatMessagesMap[targetChatId] || []).map((m) =>
+                          const updated = (s.chatMessagesMap[finalTargetChatId] || []).map((m) =>
                             m.id === placeholderMessage.id
                               ? { ...m, status: parsed.status }
                               : m
                           );
                           const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-                          const isActive = currentActiveId === targetChatId;
+                          const isActive = currentActiveId === finalTargetChatId;
                           return {
-                            chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                            chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                             ...(isActive ? { aiMessages: updated } : {}),
                             ...(isTemp ? { tempChatMessages: updated } : {}),
                           };
@@ -1658,7 +1670,7 @@ export const useStore = create<AppState>()(
                 set({ pendingAdvisorState: null });
               }
             }
-            await get().finishAILoading(targetChatId);
+            await get().finishAILoading(finalTargetChatId);
 
             // ====== ZERO-LOOP XML INTERCEPTOR ======
             // Intercept complete XML tool calls from the AI response
@@ -1786,7 +1798,7 @@ export const useStore = create<AppState>()(
 
                 if (toolResultItem) {
                   set((s) => {
-                    const updated = (s.chatMessagesMap[targetChatId] || []).map((m) => {
+                    const updated = (s.chatMessagesMap[finalTargetChatId] || []).map((m) => {
                       if (m.id === placeholderMessage.id || m.id === get().aiMessages[get().aiMessages.length - 1]?.id) {
                         return {
                           ...m,
@@ -1796,7 +1808,7 @@ export const useStore = create<AppState>()(
                       return m;
                     });
                     return {
-                      chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                      chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                       aiMessages: updated,
                     };
                   });
@@ -1815,13 +1827,13 @@ export const useStore = create<AppState>()(
             // turns can reference what was in the image, even for non-vision chains
             if (lastImageDescription) {
               set(s => {
-                const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
+                const updated = (s.chatMessagesMap[finalTargetChatId] || []).map(m =>
                   m.id === userMessage.id ? { ...m, image_description: lastImageDescription } : m
                 );
                 const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-                const isActive = currentActiveId === targetChatId;
+                const isActive = currentActiveId === finalTargetChatId;
                 return {
-                  chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                  chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                   ...(isActive ? { aiMessages: updated } : {}),
                   ...(isTemp ? { tempChatMessages: updated } : {}),
                 };
@@ -1854,7 +1866,7 @@ export const useStore = create<AppState>()(
 
           const data = await res.json();
           set(s => {
-            const updated = (s.chatMessagesMap[targetChatId] || []).map(m => {
+            const updated = (s.chatMessagesMap[finalTargetChatId] || []).map(m => {
               if (m.id === placeholderMessage.id) return {
                 ...m,
                 content: data.content,
@@ -1873,14 +1885,14 @@ export const useStore = create<AppState>()(
               return m
             });
             const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-            const isActive = currentActiveId === targetChatId;
+            const isActive = currentActiveId === finalTargetChatId;
             return {
-              chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+              chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
               ...(isActive ? { aiMessages: updated } : {}),
               ...(isTemp ? { tempChatMessages: updated } : {}),
             };
           });
-          await get().finishAILoading(targetChatId);
+          await get().finishAILoading(finalTargetChatId);
 
           // Persist non-streaming assistant reply
           if (activeChatId && !isTemp && data.content) {
@@ -1896,39 +1908,39 @@ export const useStore = create<AppState>()(
           if (e?.name === 'AbortError') {
             const interruptedContent = 'Generation stopped by user.';
             set(s => {
-              const updated = (s.chatMessagesMap[targetChatId] || []).map(m =>
+              const updated = (s.chatMessagesMap[finalTargetChatId] || []).map(m =>
                 m.id === placeholderMessage.id
                   ? { ...m, content: interruptedContent, interrupted: true }
                   : m
               );
               const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-              const isActive = currentActiveId === targetChatId;
+              const isActive = currentActiveId === finalTargetChatId;
               return {
-                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                 ...(isActive ? { aiMessages: updated } : {}),
                 ...(isTemp ? { tempChatMessages: updated } : {}),
               };
             });
-            await get().finishAILoading(targetChatId);
+            await get().finishAILoading(finalTargetChatId);
             if (activeChatId && !isTemp) {
               insertMessage(activeChatId, 'assistant', interruptedContent).catch(e => console.warn('[Store] Failed to persist interrupted message:', e));
             }
           } else {
             const errMsg = e?.message ? `Connection error: ${e.message}. Please check your connection and try again.` : 'Connection error. Please try again.';
             set(s => {
-              const updated = (s.chatMessagesMap[targetChatId] || []).map(m => m.id === placeholderMessage.id
+              const updated = (s.chatMessagesMap[finalTargetChatId] || []).map(m => m.id === placeholderMessage.id
                 ? { ...m, content: errMsg, model: 'system' }
                 : m
               );
               const currentActiveId = getChatSessionId(s.activeChatId, s.activeEntityId, s.activeSpaceId, s.isTempChat ? 'temp' : 'global');
-              const isActive = currentActiveId === targetChatId;
+              const isActive = currentActiveId === finalTargetChatId;
               return {
-                chatMessagesMap: { ...s.chatMessagesMap, [targetChatId]: updated },
+                chatMessagesMap: { ...s.chatMessagesMap, [finalTargetChatId]: updated },
                 ...(isActive ? { aiMessages: updated } : {}),
                 ...(isTemp ? { tempChatMessages: updated } : {}),
               };
             });
-            await get().finishAILoading(targetChatId);
+            await get().finishAILoading(finalTargetChatId);
           }
         }
       },
