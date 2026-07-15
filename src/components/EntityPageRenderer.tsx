@@ -46,15 +46,9 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
   }
 
   if (!entity) {
-    if (isLoading) {
-      // If we don't even know the entity type yet, we can't render the exact page.
-      // We will fallback to the Space skeleton (like UnifiedAppSkeleton does) to avoid layout shifts
-      const isSpace = entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker' && entityId !== 'settings';
-      if (isSpace) {
-        return <SpacePage entity={{ id: entityId, title: 'Loading...', type: 'workspace', syncMode: 'full-sync', lastModified: Date.now() } as any} isLoading={true} />;
-      }
-      return <Dashboard isLoading={true} />;
-    }
+    // Store is hydrated (isLoading is instant now — see useAppReady). A missing
+    // entity here genuinely means the id resolves to nothing, so show the empty
+    // state rather than guessing a page type and flashing the wrong layout.
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         Select an item from the sidebar.
