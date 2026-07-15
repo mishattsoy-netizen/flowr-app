@@ -5,7 +5,7 @@ import { ChatConversation } from './ChatConversation';
 import { AIAssistant } from '@/components/assistant/AIAssistant';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { useAuth } from '@/components/AuthProvider';
-import { Eraser, Trash2, Bookmark, Image as ImageIcon, Globe, Telescope, CheckSquare, MessageCircleDashed, Download } from 'lucide-react';
+import { Eraser, Trash2, Bookmark, Image as ImageIcon, Globe, Telescope, CheckSquare, MessageCircleDashed, Download, Star } from 'lucide-react';
 import { Tooltip } from '@/components/layout/Tooltip';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
@@ -192,6 +192,24 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
 
             {!isTempChat && activeChatId && (
               <>
+                <Tooltip content={activeConv?.is_favorite ? "Remove from Favorites" : "Add to Favorites"}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeChatId && activeConv) {
+                        useStore.getState().toggleFavoriteChatConversation(activeChatId, !activeConv.is_favorite);
+                      }
+                    }}
+                    className={cn(
+                      "pointer-events-auto w-8 h-8 flex items-center justify-center rounded-[8px] transition-colors shrink-0 cursor-pointer",
+                      activeConv?.is_favorite 
+                        ? "text-[var(--accent)] bg-[var(--accent)]/10 hover:bg-[var(--accent)]/20 opacity-100" 
+                        : "text-[var(--bone-100)] opacity-60 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                    )}
+                  >
+                    <Star strokeWidth={activeConv?.is_favorite ? 1.5 : 2} strokeLinejoin="round" strokeLinecap="round" className={cn("w-5 h-5", activeConv?.is_favorite && "fill-[var(--accent)]")} />
+                  </button>
+                </Tooltip>
                 <Tooltip content="Export Transcript">
                   <button
                     onClick={(e) => {
