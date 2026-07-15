@@ -28,6 +28,25 @@ export function capNarrationText(text: string, maxChars: number = MAX_NARRATION_
   }
 }
 
+const MODE_TAG_RE = /^\[MODE:\s*(TRANSCRIPT|VISUAL)\]\s*\n+([\s\S]*)$/i
+
+/**
+ * Extracts the model's self-selected mode tag (see image_narration.txt) from
+ * its raw response. If the model didn't follow the tag format, falls back to
+ * 'visual' — the historically safe default — and keeps the raw text as-is.
+ */
+export function parseNarrationResponse(raw: string): { mode: 'transcript' | 'visual'; text: string } {
+  const trimmed = raw.trim()
+  const match = trimmed.match(MODE_TAG_RE)
+  if (match) {
+    return {
+      mode: match[1].toUpperCase() === 'TRANSCRIPT' ? 'transcript' : 'visual',
+      text: match[2].trim(),
+    }
+  }
+  return { mode: 'visual', text: trimmed }
+}
+
 export async function narrateGeneratedImage(
   imageBuffer: Buffer,
   context?: any

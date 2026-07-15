@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { capNarrationText } from './image-narration'
+import { capNarrationText, parseNarrationResponse } from './image-narration'
 
 describe('capNarrationText', () => {
   it('leaves text under the cap unchanged', () => {
@@ -28,5 +28,41 @@ describe('capNarrationText', () => {
     const exactText = 'z'.repeat(14000)
     const result = capNarrationText(exactText)
     expect(result).toEqual({ text: exactText, truncated: false })
+  })
+})
+
+describe('parseNarrationResponse', () => {
+  it('parses a TRANSCRIPT-tagged response', () => {
+    const raw = '[MODE: TRANSCRIPT]\n\nArticle 1: The intern shall attend all scheduled sessions.'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('transcript')
+    expect(result.text).toBe('Article 1: The intern shall attend all scheduled sessions.')
+  })
+
+  it('parses a VISUAL-tagged response', () => {
+    const raw = '[MODE: VISUAL]\nA dimly lit workspace with dual monitors and city lights beyond the window.'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('visual')
+    expect(result.text).toBe('A dimly lit workspace with dual monitors and city lights beyond the window.')
+  })
+
+  it('is case-insensitive on the tag', () => {
+    const raw = '[mode: transcript]\n\nSome transcribed text.'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('transcript')
+  })
+
+  it('falls back to visual mode when no tag is present', () => {
+    const raw = 'Just a plain description with no tag at all.'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('visual')
+    expect(result.text).toBe('Just a plain description with no tag at all.')
+  })
+
+  it('falls back to visual mode when the tag is malformed', () => {
+    const raw = '[MODE TRANSCRIPT]\nMissing the colon.'
+    const result = parseNarrationResponse(raw)
+    expect(result.mode).toBe('visual')
+    expect(result.text).toBe(raw.trim())
   })
 })
