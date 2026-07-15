@@ -22,6 +22,41 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.3',
+    build: '1430',
+    date: '2026-07-15',
+    title: 'Smarter Memory, Better Vision, & Faster Loads',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'The AI now has a much smarter, long-term memory system to instantly recall important details about your projects.',
+          'When you upload images, the AI now intelligently reads documents and receipts word-for-word, while describing visual mockups naturally.',
+          'Enhanced our backend security to keep your workspace safe and prevent unauthorized access.',
+          'Added strict safety guardrails so the AI stays helpful and never breaks character.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'App loading is now seamless and faster—no more screen flashing when you first open your workspace!',
+          'Uploading large images is now much faster and significantly cheaper on your AI usage limit.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed an issue where the AI might take too long to respond during heavy usage.',
+          "Fixed a bug where quickly typing a note without pressing enter wouldn't save properly.",
+          'Smoothed out scrolling physics, tab corners, and dragging highlights so the app feels better to use.',
+          'The AI usage meter now correctly tracks your image uploads without double-counting them.',
+          'Fixed a rare issue where your open tabs might accidentally reset when reloading the app.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.2',
     build: '1420',
     date: '2026-07-15',
