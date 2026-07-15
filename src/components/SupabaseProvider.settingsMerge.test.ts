@@ -24,7 +24,7 @@ describe('Scope 3: non-destructive cloud settings merge', () => {
       tasks: [],
       spaces: [],
       recentEntityIds: ['e-1'],
-      shortcuts: { dashboard: [{ id: 's-local', type: 'link', label: 'Local', value: 'x' }] },
+      shortcuts: { dashboard: [{ id: 's-local', type: 'url', label: 'Local', value: 'x' }] },
     });
   });
 
@@ -61,8 +61,8 @@ describe('Scope 3: non-destructive cloud settings merge', () => {
       entities: [], tasks: [], spaces: [],
       settings: { shortcuts: {
         dashboard: [
-          { id: 's-local', type: 'link', label: 'Cloud version', value: 'y' }, // collision: local must win
-          { id: 's-cloud', type: 'link', label: 'Cloud only', value: 'z' },     // new: added
+          { id: 's-local', type: 'url', label: 'Cloud version', value: 'y' }, // collision: local must win
+          { id: 's-cloud', type: 'url', label: 'Cloud only', value: 'z' },     // new: added
         ],
       } },
     });

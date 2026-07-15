@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useStore, Entity, AppTask, Space } from '@/data/store';
+import type { Shortcut } from '@/data/store.types';
 import { loadFromSupabase, subscribeRealtime, upsertSpace } from '@/lib/sync';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
 import { parseLegacyLocalStorageSnapshot, entityToSQLiteRow, taskToSQLiteRow, spaceToSQLiteRow } from '@/lib/legacyImport';
@@ -25,10 +26,10 @@ export function unionRecents(local: string[], cloud: string[]): string[] {
  *  (shortcuts have no per-item timestamp, so we can't LWW — the current device's
  *  version is authoritative). Cloud contributes only ids/contexts local lacks. */
 export function unionShortcuts(
-  local: Record<string, Array<{ id: string; [k: string]: any }>>,
-  cloud: Record<string, Array<{ id: string; [k: string]: any }>>,
-): Record<string, Array<{ id: string; [k: string]: any }>> {
-  const result: Record<string, Array<{ id: string; [k: string]: any }>> = { ...local };
+  local: Record<string, Shortcut[]>,
+  cloud: Record<string, Shortcut[]>,
+): Record<string, Shortcut[]> {
+  const result: Record<string, Shortcut[]> = { ...local };
   for (const [ctx, cloudList] of Object.entries(cloud)) {
     const localList = local[ctx] ?? [];
     const localIds = new Set(localList.map(s => s.id));
