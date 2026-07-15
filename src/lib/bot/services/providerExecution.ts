@@ -175,7 +175,7 @@ export async function executeProvider(
         isExa ? getSearchProviderCost('exa_search') : Promise.resolve(0),
       ])
 
-      const SEARCH_FAILURE_STRINGS = ['search failed', 'unavailable', 'could not retrieve', 'failed to retrieve', 'unable to find', 'no results']
+      const SEARCH_FAILURE_MESSAGE = 'Search failed to retrieve results.'
       let searchResult: string | null = null
       const searchQuery = augmentSearchQuery(originalPrompt, historyForChain)
 
@@ -189,7 +189,7 @@ export async function executeProvider(
         searchCostUsd += exaCostPerCall
       }
 
-      let isSearchFailure = !searchResult || SEARCH_FAILURE_STRINGS.some(f => searchResult!.toLowerCase().includes(f))
+      let isSearchFailure = !searchResult || searchResult.trim() === SEARCH_FAILURE_MESSAGE
 
       if (isSearchFailure) {
         const altQueries = generateOptimizedQuery(searchQuery)
@@ -207,7 +207,7 @@ export async function executeProvider(
             searchCostUsd += exaCostPerCall
           }
 
-          const retryFailed = !retryResult || SEARCH_FAILURE_STRINGS.some(f => retryResult!.toLowerCase().includes(f))
+          const retryFailed = !retryResult || retryResult.trim() === SEARCH_FAILURE_MESSAGE
           if (!retryFailed) {
             searchResult = retryResult
             isSearchFailure = false

@@ -186,7 +186,14 @@ export async function runGoogle(
               const safeHistory: any[] = []
               for (const msg of history) {
                 const expectedRole = safeHistory.length % 2 === 0 ? 'user' : 'model'
-                if (msg.role === expectedRole) safeHistory.push(msg)
+                if (msg.role === expectedRole) {
+                  // The Google Generative AI SDK is strictly validating the schema.
+                  // We must strip internal fields like 'id' from the history items.
+                  safeHistory.push({
+                    role: msg.role,
+                    parts: msg.parts || [{ text: msg.content || '' }]
+                  })
+                }
               }
               if (safeHistory.length % 2 !== 0) safeHistory.pop()
 
