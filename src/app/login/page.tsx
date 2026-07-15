@@ -39,8 +39,22 @@ function LoginPageInner() {
 
   if (loading || hasInvite === null) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="animate-spin w-5 h-5 border-2 border-foreground/20 border-t-foreground rounded-full" />
+      <div className="flex h-screen items-center justify-center bg-[var(--sys-color)]">
+        <div className="flex flex-col items-center gap-4 w-[300px]">
+          <div className="w-full h-1.5 bg-[var(--bone-3)] rounded-full overflow-hidden">
+            <div className="h-full bg-[var(--brand-blue)] rounded-full w-[100px] loading-progress-bar" />
+          </div>
+        </div>
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          .loading-progress-bar {
+            animation: indeterminate 1.5s infinite ease-in-out !important;
+          }
+          @keyframes indeterminate {
+            0% { transform: translateX(-100px); }
+            100% { transform: translateX(300px); }
+          }
+        `}} />
       </div>
     )
   }
@@ -93,8 +107,22 @@ function LoginPageInner() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="animate-spin w-5 h-5 border-2 border-foreground/20 border-t-foreground rounded-full" />
+      <div className="flex h-screen items-center justify-center bg-[var(--sys-color)]">
+        <div className="flex flex-col items-center gap-4 w-[300px]">
+          <div className="w-full h-1.5 bg-[var(--bone-3)] rounded-full overflow-hidden">
+            <div className="h-full bg-[var(--brand-blue)] rounded-full w-[100px] loading-progress-bar" />
+          </div>
+        </div>
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          .loading-progress-bar {
+            animation: indeterminate 1.5s infinite ease-in-out !important;
+          }
+          @keyframes indeterminate {
+            0% { transform: translateX(-100px); }
+            100% { transform: translateX(300px); }
+          }
+        `}} />
       </div>
     }>
       <LoginPageInner />

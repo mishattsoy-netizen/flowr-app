@@ -254,6 +254,78 @@ async function startNextServer(port) {
 }
 
 async function createWindow() {
+  const { nativeTheme } = require('electron');
+  const isDark = nativeTheme.shouldUseDarkColors;
+  const sysColor = isDark ? '#1E1E1D' : '#F7F7F6';
+  const bone3 = isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
+  const brandBlue = '#2A78D6';
+
+  let loadingWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    backgroundColor: sysColor,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: 'rgba(0,0,0,0)',
+      symbolColor: '#636363',
+      height: 50
+    },
+    icon: path.join(__dirname, '../icons/icon.png'),
+    show: true,
+  });
+
+  const loadingHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+      body {
+        background-color: ${sysColor};
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        height: 100vh;
+        -webkit-app-region: drag;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      .loading-text {
+        font-size: 15px;
+        font-weight: 500;
+        color: ${isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'};
+      }
+      .progress-container {
+        width: 300px;
+        height: 6px;
+        background-color: ${bone3};
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .progress-bar {
+        width: 100px;
+        height: 100%;
+        background-color: ${brandBlue};
+        border-radius: 3px;
+        animation: indeterminate 1.5s infinite ease-in-out;
+      }
+      @keyframes indeterminate {
+        0% { transform: translateX(-100px); }
+        100% { transform: translateX(300px); }
+      }
+    </style>
+    </head>
+    <body>
+      <div class="loading-text">Starting Flowr...</div>
+      <div class="progress-container">
+        <div class="progress-bar"></div>
+      </div>
+    </body>
+    </html>
+  `;
+  loadingWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
+
   if (app.isPackaged) {
     nextPort = await getFreePort();
     debugLog(`Selected free port: ${nextPort}`);
@@ -261,6 +333,9 @@ async function createWindow() {
       await startNextServer(nextPort);
     } catch (err) {
       debugLog('startNextServer failed:', err.message);
+      if (loadingWindow && !loadingWindow.isDestroyed()) {
+        loadingWindow.close();
+      }
       throw err; // caught by the .catch() in app.whenReady
     }
   } else {
@@ -270,7 +345,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: sysColor,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -279,12 +354,20 @@ async function createWindow() {
       height: 50 // Matches the 50px of the HeaderBar
     },
     icon: path.join(__dirname, '../icons/icon.png'),
+    show: false, // Hide until ready
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
     },
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    if (loadingWindow && !loadingWindow.isDestroyed()) {
+      loadingWindow.close();
+    }
+    mainWindow.show();
   });
 
   mainWindow.webContents.on('render-process-gone', (event, details) => {
