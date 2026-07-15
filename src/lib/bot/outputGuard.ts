@@ -76,7 +76,7 @@ const MUTATING_TOOLS = new Set([
   'append_to_note',
   'move_content',
   'delete_content',
-  'manage_memory',
+  'manage_brain',
 ])
 
 /**

@@ -832,76 +832,169 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     }
   },
 
-  // ── MANAGE MEMORY ─────────────────────────────────────────────────────────────
-  async manage_memory(args: any, context: any) {
-    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  // ── MANAGE BRAIN ──────────────────────────────────────────────────────────────
+  async manage_brain(args: any, context: any) {
     if (isUserAnonymous(context)) {
-      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage memories.' }
+      return { error: 'You are currently using Flowr in anonymous mode. Please log in to manage the brain.' }
+    }
+    const {
+      op, type, ref_id, content, label, section_id, priority, pinned, enabled,
+      node_id, node_ids, from, to, edge_label, edge_id, confirmed,
+    } = args
+
+    const VALID_OPS = ['add_node', 'update_node', 'remove_node', 'connect', 'disconnect', 'list', 'refresh']
+    if (!VALID_OPS.includes(op)) {
+      return { error: `Unknown op '${op}'. Valid: ${VALID_OPS.join(', ')}.` }
+    }
+    let removeIds: string[] = []
+    if (op === 'remove_node') {
+      removeIds = Array.isArray(node_ids) && node_ids.length > 0 ? node_ids : (node_id ? [node_id] : [])
+      if (removeIds.length === 0) return { error: "'node_id' or 'node_ids' is required for remove_node" }
+    }
+    if (op === 'connect' && (!from || !to || !edge_label)) {
+      return { error: "'from', 'to' and 'edge_label' are required for connect" }
     }
 
-    const { action, id, title, content } = args
+    // A multi-id remove always needs confirmation — no DB read required to
+    // know that. If confirmed:true is already claimed, check it against the
+    // stored pending_action BEFORE any DB call: the whole point of the §6b
+    // gate is that a bare confirmed:true is never trusted without a matching
+    // prior dry-run, and that check must not be reachable-but-skipped by an
+    // earlier DB-availability short-circuit.
+    if (op === 'remove_node' && removeIds.length > 1 && confirmed === true) {
+      const { getSessionState, updateSessionState } = await import('../context')
+      const sessionState = context?.sessionId ? await getSessionState(context.sessionId) : null
+      const pending = sessionState?.pending_action
+      const idsMatch = pending?.tool === 'manage_brain'
+        && Array.isArray(pending.args?.ids)
+        && pending.args.ids.length === removeIds.length
+        && pending.args.ids.every((id: string) => removeIds.includes(id))
+        && isPendingActionFresh(pending)
+        && isPendingActionSameNextTurn(pending, sessionState?.turn_seq)
+      if (!idsMatch) {
+        return { error: 'No matching pending confirmation found for these brain nodes. Call remove_node without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
+      }
+      if (!supabaseAdmin) return { error: 'Supabase not configured' }
+      const brain = await import('../services/brainStore')
+      const res = await brain.removeBrainNodes(context.userId, 'bot', removeIds)
+      if (context?.sessionId) await updateSessionState(context.sessionId, { pending_action: null })
+      return res
+    }
 
-    if (!action) return { error: "'action' is required (add | update | delete)" }
+    if (!supabaseAdmin) return { error: 'Supabase not configured' }
+    const brain = await import('../services/brainStore')
+    const userId = context.userId as string
 
     try {
-      if (action === 'add') {
-        if (!title || !content) return { error: "'title' and 'content' are required for add" }
-        
-        // Check cap
-        const { count, error: countError } = await supabaseAdmin
-          .from('bot_memories')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', context.userId)
-        
-        if (countError) throw countError
-        if (count && count >= 20) {
-          return { error: 'Hard cap of 20 memories reached. You must delete an old memory before adding a new one.' }
+      switch (op) {
+        case 'list': {
+          const state = await brain.listBrain(userId)
+          return {
+            success: true,
+            budget: state.budget,
+            nodes: state.nodes.map(n => ({
+              id: n.id, type: n.type, label: n.label, ref_id: n.ref_id,
+              content: n.content, section_id: n.section_id, priority: n.priority,
+              pinned: n.pinned, enabled: n.enabled,
+              dropped: state.budget.dropped.includes(n.id),
+              broken: state.budget.broken.includes(n.id),
+            })),
+            edges: state.edges.map(e => ({ id: e.id, from: e.from_node, to: e.to_node, label: e.label })),
+          }
         }
+        case 'add_node': {
+          if (!type) return { error: "'type' is required for add_node" }
+          const res = await brain.addBrainNode(userId, 'bot', {
+            type, ref_id, content: content ? sanitizeToolContent(content) : undefined,
+            label: label ? sanitizeToolContent(label) : undefined, section_id, priority, pinned,
+          })
+          if ('error' in res) return res
+          return { success: true, id: res.id, op: 'add_node', type, label: label ?? null }
+        }
+        case 'update_node': {
+          if (!node_id) return { error: "'node_id' is required for update_node" }
+          const updates: any = {}
+          if (content !== undefined) updates.content = sanitizeToolContent(content)
+          if (label !== undefined) updates.label = sanitizeToolContent(label)
+          if (section_id !== undefined) updates.section_id = section_id
+          if (priority !== undefined) updates.priority = priority
+          if (pinned !== undefined) updates.pinned = pinned
+          if (enabled !== undefined) updates.enabled = enabled
+          return await brain.updateBrainNode(userId, 'bot', node_id, updates)
+        }
+        case 'remove_node': {
+          // The multi-id + confirmed:true path is handled above, before any
+          // DB call, so it can never be bypassed by a Supabase-availability
+          // short-circuit. What remains here: multi-id dry-run (no confirmed
+          // yet), and single-id removes (which still need a DB check because
+          // a lone section also requires confirmation).
+          const ids = removeIds
 
-        const { data, error } = await supabaseAdmin.from('bot_memories').insert({
-          user_id: context.userId,
-          title,
-          content
-        }).select('id').single()
-        
-        if (error) throw error
-        return { success: true, id: data.id, action: 'add', title, content }
-      } 
-      else if (action === 'update') {
-        if (!id) return { error: "'id' is required for update" }
-        const updates: any = { updated_at: new Date().toISOString() }
-        if (title !== undefined) updates.title = title
-        if (content !== undefined) updates.content = content
-        
-        const { error } = await supabaseAdmin
-          .from('bot_memories')
-          .update(updates)
-          .eq('id', id)
-          .eq('user_id', context.userId)
-        
-        if (error) throw error
-        return { success: true, id, action: 'update', title, content }
-      }
-      else if (action === 'delete') {
-        if (!id) return { error: "'id' is required for delete" }
-        
-        // Get title before delete for the artifact
-        const { data } = await supabaseAdmin.from('bot_memories').select('title').eq('id', id).single()
-        const deletedTitle = data?.title || 'Unknown'
+          // Is a section among the targets? Sections and multi-removes are
+          // destructive enough for the §6b dry-run → next-turn-confirm gate.
+          const { data: targets } = await supabaseAdmin.from('brain_nodes')
+            .select('id, type, label').in('id', ids).eq('user_id', userId).is('deleted_at', null)
+          const needsConfirmation = ids.length > 1 || (targets ?? []).some((t: any) => t.type === 'section')
 
-        const { error } = await supabaseAdmin
-          .from('bot_memories')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', context.userId)
-          
-        if (error) throw error
-        return { success: true, id, action: 'delete', title: deletedTitle }
+          if (needsConfirmation && confirmed !== true) {
+            if (context?.sessionId) {
+              const { updateSessionState, getSessionState } = await import('../context')
+              const sessionState = await getSessionState(context.sessionId)
+              await updateSessionState(context.sessionId, {
+                pending_action: {
+                  tool: 'manage_brain', args: { op: 'remove_node', ids },
+                  dry_run_result: { ids, titles: (targets ?? []).map((t: any) => t.label ?? t.id) },
+                  created_at: new Date().toISOString(), turn_seq: sessionState?.turn_seq,
+                },
+              })
+            }
+            return {
+              status: 'pending_confirmation',
+              message: `DRY RUN ONLY. This would remove ${ids.length} brain node(s): ${(targets ?? []).map((t: any) => t.label ?? t.id).join(', ')}. Confirm with the user before calling again with confirmed: true.`,
+            }
+          }
+          if (needsConfirmation && confirmed === true) {
+            const { getSessionState, updateSessionState } = await import('../context')
+            const sessionState = context?.sessionId ? await getSessionState(context.sessionId) : null
+            const pending = sessionState?.pending_action
+            const idsMatch = pending?.tool === 'manage_brain'
+              && Array.isArray(pending.args?.ids)
+              && pending.args.ids.length === ids.length
+              && pending.args.ids.every((id: string) => ids.includes(id))
+              && isPendingActionFresh(pending)
+              && isPendingActionSameNextTurn(pending, sessionState?.turn_seq)
+            if (!idsMatch) {
+              return { error: 'No matching pending confirmation found for these brain nodes. Call remove_node without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
+            }
+            const res = await brain.removeBrainNodes(userId, 'bot', ids)
+            if (context?.sessionId) await updateSessionState(context.sessionId, { pending_action: null })
+            return res
+          }
+          return await brain.removeBrainNodes(userId, 'bot', ids)
+        }
+        case 'connect': {
+          if (!from || !to || !edge_label) return { error: "'from', 'to' and 'edge_label' are required for connect" }
+          const res = await brain.addBrainEdge(userId, 'bot', from, to, sanitizeToolContent(edge_label))
+          if ('error' in res) return res
+          return { success: true, id: res.id, op: 'connect' }
+        }
+        case 'disconnect': {
+          if (!edge_id) return { error: "'edge_id' is required for disconnect" }
+          return await brain.removeBrainEdge(userId, 'bot', edge_id)
+        }
+        case 'refresh': {
+          const compiled = await brain.compileBrain(userId)
+          if (context?.sessionId) {
+            const { updateSessionState } = await import('../context')
+            await updateSessionState(context.sessionId, { pinned_brain_version: compiled.version } as any)
+          }
+          return { success: true, version: compiled.version, tokenCount: compiled.tokenCount }
+        }
+        default:
+          return { error: `Unknown op '${op}'. Valid: add_node, update_node, remove_node, connect, disconnect, list, refresh.` }
       }
-      
-      return { error: `Unknown action '${action}'` }
     } catch (e: any) {
-      logger.error(`manage_memory tool failed: ${e.message}`)
+      logger.error(`manage_brain tool failed: ${e.message}`)
       return { error: e.message }
     }
   }

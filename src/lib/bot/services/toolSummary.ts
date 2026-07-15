@@ -4,7 +4,7 @@ const VERBS: Record<string, string> = {
   append_to_note: 'Appended to',
   move_content: 'Moved',
   delete_content: 'Deleted',
-  manage_memory: 'Saved memory',
+  manage_brain: 'Updated brain',
 }
 
 // Past verb → imperative for failure phrasing ("Deleted" → "Delete ... failed")
@@ -14,7 +14,7 @@ const FAIL_VERBS: Record<string, string> = {
   append_to_note: 'Append to',
   move_content: 'Move',
   delete_content: 'Delete',
-  manage_memory: 'Save memory',
+  manage_brain: 'Update brain',
 }
 
 /**

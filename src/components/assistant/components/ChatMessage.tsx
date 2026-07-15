@@ -1820,7 +1820,7 @@ export const ChatMessage = memo(({
                           const name = String((tr as any).tool || tr.type || '')
                           if (!(tr as any).success) return false
                           if ((tr as any).status === 'pending_confirmation') return false
-                          return ['create_content', 'update_content', 'append_to_note', 'move_content', 'manage_memory'].includes(name)
+                          return ['create_content', 'update_content', 'append_to_note', 'move_content', 'manage_brain'].includes(name)
                         }).map((tr, i) => {
                           const actionName = String((tr as any).tool || tr.type || '')
                           const isTask = tr.type === 'task' || (tr.id && tr.id.startsWith('task-'))
@@ -1835,22 +1835,22 @@ export const ChatMessage = memo(({
                             actionText = 'Edited'
                           } else if (actionName === 'move_content') {
                             actionText = 'Moved'
-                          } else if (actionName === 'manage_memory') {
+                          } else if (actionName === 'manage_brain') {
                             const trMem = tr as any;
-                            actionText = trMem.action === 'add' ? 'NEW MEMORY' : trMem.action === 'update' ? 'UPDATED MEMORY' : trMem.action === 'delete' ? 'DELETED MEMORY' : 'MEMORY'
+                            actionText = trMem.op === 'add_node' ? 'NEW BRAIN NODE' : trMem.op === 'update_node' ? 'UPDATED BRAIN NODE' : trMem.op === 'remove_node' ? 'REMOVED BRAIN NODE' : 'BRAIN'
                           } else {
                             actionText = 'Action'
                           }
 
                           const matchedEntity = !isTask ? useStore.getState().entities.find(e => e.id === tr.id) : null
                           const matchedTask = isTask ? useStore.getState().tasks.find(t => t.id === tr.id) : null
-                          const entityTitle = actionName === 'manage_memory' ? tr.title : (matchedEntity?.title || matchedTask?.title || tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled'))
+                          const entityTitle = actionName === 'manage_brain' ? ((tr as any).label || (tr as any).type || 'Brain') : (matchedEntity?.title || matchedTask?.title || tr.title || (tr.id ? `Entity ${tr.id.split('-')[0]}` : 'Untitled'))
 
                           return (
                             <div
                               key={i}
                               onClick={() => {
-                                if (actionName === 'manage_memory') {
+                                if (actionName === 'manage_brain') {
                                   useStore.getState().openModal({ kind: 'settings', tab: 'capabilities' });
                                   return;
                                 }
@@ -1866,7 +1866,7 @@ export const ChatMessage = memo(({
                               )}
                             >
                               <div className={cn("flex items-center text-bone-80 opacity-30 shrink-0 transition-all group-hover/card:opacity-80")}>
-                                {actionName === 'manage_memory' ? (
+                                {actionName === 'manage_brain' ? (
                                   <Brain strokeWidth={1.5} className="w-8 h-8" />
                                 ) : isTask ? (
                                   <CheckCircle2 strokeWidth={1.5} className="w-8 h-8" />
@@ -1880,12 +1880,12 @@ export const ChatMessage = memo(({
                               </div>
                               <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <p className="text-[10px] uppercase tracking-wider text-bone-100 opacity-40 font-semibold mb-0.5">{actionText}</p>
-                                <p className={cn("text-base font-serif font-medium tracking-tight text-bone-100 opacity-80 transition-opacity truncate", actionName !== 'manage_memory' && "group-hover/card:opacity-100")}>{entityTitle}</p>
+                                <p className={cn("text-base font-serif font-medium tracking-tight text-bone-100 opacity-80 transition-opacity truncate", actionName !== 'manage_brain' && "group-hover/card:opacity-100")}>{entityTitle}</p>
                                 {tr.content_preview && (
                                   <p className="text-xs text-bone-40 truncate mt-0.5">{tr.content_preview}</p>
                                 )}
                               </div>
-                              {actionName !== 'manage_memory' && (
+                              {actionName !== 'manage_brain' && (
                                 <ChevronRight strokeWidth={2} className="w-4 h-4 text-bone-30 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" />
                               )}
                             </div>

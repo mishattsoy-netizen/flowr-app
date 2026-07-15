@@ -234,17 +234,29 @@ export const FLOWR_TOOLS = [
   },
 
   {
-    name: "manage_memory",
-    description: "Manage facts and details about the user to build a long-term profile. Use this to remember things the user tells you about themselves, their preferences, or their environment. Do not memorize irrelevant chat messages. Hard cap of 20 memories.",
+    name: "manage_brain",
+    description: "Manage your Brain — the curated knowledge base injected into your context every conversation. Nodes are workspaces/notes (by ref), freetext memories, or section headers; edges are labeled relationships between nodes. Use it to remember durable facts, organize knowledge into sections, and connect related items. The brain has a token budget — if an add is rejected as full, tell the user and suggest removing/unpinning something. Changes apply from the NEXT conversation (this session keeps its pinned snapshot).",
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["add", "update", "delete"], description: "Action to perform." },
-        id: { type: "string", description: "ID of the memory to update or delete. Required for 'update' and 'delete'." },
-        title: { type: "string", description: "Short title for the memory. Required for 'add' and 'update'. Not injected into prompt, used only for UI cards." },
-        content: { type: "string", description: "The factual detail to remember. Required for 'add' and 'update'." }
+        op: { type: "string", enum: ["add_node", "update_node", "remove_node", "connect", "disconnect", "list", "refresh"], description: "Operation. REQUIRED. 'list' shows all nodes with token costs and budget; use it before reorganizing." },
+        type: { type: "string", enum: ["workspace", "entity", "memory", "section"], description: "For add_node. 'workspace'/'entity' reference existing items by ref_id (content stays live); 'memory' is freetext; 'section' is a grouping header." },
+        ref_id: { type: "string", description: "For add_node with type workspace/entity: the entity ID (find it with list_content first — never guess)." },
+        content: { type: "string", description: "For memory nodes: the fact to remember. Durable, atomic facts — not chat transcripts." },
+        label: { type: "string", description: "Display label. Required for sections; optional elsewhere." },
+        section_id: { type: "string", description: "Brain node id of the section this node belongs under." },
+        priority: { type: "number", description: "Higher survives budget pressure longer. Default 0." },
+        pinned: { type: "boolean", description: "Pinned nodes are never dropped by the budget." },
+        enabled: { type: "boolean", description: "For update_node: false removes the node from the compiled brain without deleting it." },
+        node_id: { type: "string", description: "Target node for update_node / remove_node." },
+        node_ids: { type: "array", items: { type: "string" }, description: "For remove_node: multiple targets. Removing multiple nodes or a section requires the dry-run → confirmed:true flow, same as delete_content." },
+        from: { type: "string", description: "For connect: source node id." },
+        to: { type: "string", description: "For connect: target node id." },
+        edge_label: { type: "string", description: "For connect: the relationship, as a plain statement (e.g. 'check risk rules before logging trades'). REQUIRED — unlabeled edges mean nothing." },
+        edge_id: { type: "string", description: "For disconnect: the edge to remove." },
+        confirmed: { type: "boolean", description: "For remove_node of a section or multiple nodes: omit first to get a dry-run, set true only after the user explicitly confirmed on the previous turn." }
       },
-      required: ["action"]
+      required: ["op"]
     }
   }
 ]
