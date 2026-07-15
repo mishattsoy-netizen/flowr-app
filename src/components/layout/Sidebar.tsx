@@ -1015,27 +1015,27 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
   return (
     <aside
-        ref={sidebarRef}
-        onMouseEnter={() => {
-          if (!isSidebarPinned && effectiveCollapsed) toggleSidebar();
-        }}
-        onMouseLeave={() => {
-          if (!isSidebarPinned && !effectiveCollapsed) toggleSidebar();
-        }}
-        className={cn(
-          "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
-          activeDragId && "is-dragging"
-        )}
-      >
-        {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 12 }} />}
-        
-        {!isDesktopEnv && (
-          <div
-            className={cn(
-              "flex items-center px-[10px] pt-4 pb-2 shrink-0",
-              effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
-            )}
-          >
+      ref={sidebarRef}
+      onMouseEnter={() => {
+        if (!isSidebarPinned && effectiveCollapsed) toggleSidebar();
+      }}
+      onMouseLeave={() => {
+        if (!isSidebarPinned && !effectiveCollapsed) toggleSidebar();
+      }}
+      className={cn(
+        "h-full bg-sidebar flex flex-col overflow-hidden flex-shrink-0 w-full",
+        activeDragId && "is-dragging"
+      )}
+    >
+      {isDesktopEnv && <div className="shrink-0 [-webkit-app-region:drag]" style={{ height: 12 }} />}
+
+      {!isDesktopEnv && (
+        <div
+          className={cn(
+            "flex items-center px-[10px] pt-4 pb-2 shrink-0",
+            effectiveCollapsed ? "justify-center border-b border-[var(--bone-6)]" : "justify-between"
+          )}
+        >
           {effectiveCollapsed ? null : (
             <>
               <span className="font-serif font-normal text-[24px] text-bone-100 tracking-tight leading-none select-none pl-[8px]">
@@ -1059,8 +1059,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               )}
             </>
           )}
-          </div>
-        )}
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
@@ -1121,19 +1121,19 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               {/* Sliding Pill */}
               {(() => {
                 const getTabForId = (id: string | null) => id === 'tracker' ? 1 : id === 'chat' ? 2 : 0;
-                
+
                 const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
                 const activeTabs = new Set<number>();
-                
+
                 if (splitViewActive) {
                   activeTabs.add(getTabForId(splitViewLeftId));
                   activeTabs.add(getTabForId(splitViewRightId));
                 } else {
                   activeTabs.add(getTabForId(effectiveEntityId));
                 }
-                
+
                 const tabsArray = Array.from(activeTabs).sort();
-                
+
                 if (tabsArray.length === 2 && tabsArray[1] - tabsArray[0] === 1) {
                   // Neighbors: unify in one wide background tab, and slide active pill inside
                   return (
@@ -1193,12 +1193,12 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 const isActive = (() => {
                   const tabIndex = tab.id === 'tracker' ? 1 : tab.id === 'chat' ? 2 : 0;
                   const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
-                  
+
                   if (splitViewActive) {
-                     return (splitViewLeftId === 'tracker' ? 1 : splitViewLeftId === 'chat' ? 2 : 0) === tabIndex ||
-                            (splitViewRightId === 'tracker' ? 1 : splitViewRightId === 'chat' ? 2 : 0) === tabIndex;
+                    return (splitViewLeftId === 'tracker' ? 1 : splitViewLeftId === 'chat' ? 2 : 0) === tabIndex ||
+                      (splitViewRightId === 'tracker' ? 1 : splitViewRightId === 'chat' ? 2 : 0) === tabIndex;
                   }
-                  
+
                   const activeIndex = effectiveEntityId === 'tracker' ? 1 : effectiveEntityId === 'chat' ? 2 : 0;
                   return activeIndex === tabIndex;
                 })();
@@ -1224,7 +1224,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               ? <ChatHistorySkeleton />
               : <SidebarSkeleton collapsed={effectiveCollapsed} inferredEntityId={inferredEntityId} />
           ) : effectiveCollapsed ? (
-            <div 
+            <div
               className="flex-1 min-h-0 overflow-y-auto px-[10px] pb-1 flex flex-col items-center gap-[1px] w-full scrollbar-none"
               style={{
                 maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
@@ -1360,7 +1360,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         />
                                       ) : (
                                         <span className="flex-1 text-[14px] tracking-wide truncate flex items-center gap-[6px]">
-                                          {conv.is_favorite && <Star strokeWidth={0} className="w-3.5 h-3.5 fill-[var(--accent)] shrink-0" />}
+                                          {conv.is_favorite && <Star className="w-4 h-4 fill-[var(--accent)] stroke-[var(--accent)] shrink-0" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
                                           <span className="truncate">{stripHtml(conv.title)}</span>
                                         </span>
                                       )}
@@ -1420,14 +1420,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">New Task</span>
                     </button>
                     <button
-onClick={() => {
-                          clearTrackerFilterEntityIds();
-                          clearTrackerFilterTags();
-                        }}
-                        className={cn(
-                          "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
-                          trackerFilterEntityIds.length === 0 && trackerFilterTags.length === 0 && "!bg-dark !text-[var(--bone-100)]"
-                        )}
+                      onClick={() => {
+                        clearTrackerFilterEntityIds();
+                        clearTrackerFilterTags();
+                      }}
+                      className={cn(
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]",
+                        trackerFilterEntityIds.length === 0 && trackerFilterTags.length === 0 && "!bg-dark !text-[var(--bone-100)]"
+                      )}
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
                         <ListTodo strokeWidth={2} className="w-3.5 h-3.5" />
@@ -1469,7 +1469,7 @@ onClick={() => {
                     })()}
                     <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
-                  <div 
+                  <div
                     className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-[10px] pt-2 pb-4"
                     style={{
                       maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
@@ -1482,7 +1482,7 @@ onClick={() => {
                         const unsortedTags = Array.from(new Set(unsortedTasks.filter(t => t.tag && t.tag.trim()).map(t => t.tag!.trim()))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
                         const hasUnsortedTags = unsortedTags.length > 0;
                         if (!hasUnsortedTags) return null;
-                        
+
                         return (
                           <div className="mb-4 flex flex-col gap-[1px]">
                             <div className="pl-[8px] pr-[3px] h-7 flex items-center justify-between group cursor-default select-none rounded-[var(--radius-small)] text-[var(--bone-30)]">
@@ -1490,7 +1490,7 @@ onClick={() => {
                                 <span className="text-[11px] font-ui-label font-medium tracking-wide text-[var(--bone-30)] group-hover/header-label:text-[var(--bone-100)] transition-colors duration-75">Unsorted</span>
                               </div>
                             </div>
-                            
+
                             <div className="relative">
                               <div className="flex flex-col gap-[1px]">
                                 {unsortedTags.map((tag: string) => {
