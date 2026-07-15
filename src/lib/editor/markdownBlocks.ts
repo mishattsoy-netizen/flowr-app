@@ -153,9 +153,14 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
 export function parseMarkdownToBlocks(md: string): EditorBlock[] {
   if (!md.trim()) return [];
 
-  // Option C: Forgiving parser for mashed-up checklists.
+  // Option C: Forgiving parser for mashed-up lists.
   // If the LLM generates "- [ ] Item 1 - [ ] Item 2" on one line, split them.
-  const cleanedMd = md.replace(/(\S)\s+(-\s*\[\s*[xX ]?\s*\])/g, '$1\n$2');
+  let cleanedMd = md.replace(/(\S)\s+(-\s*\[\s*[xX ]?\s*\])/g, '$1\n$2');
+  // Numbered lists: "1. ", "2. ", etc.
+  cleanedMd = cleanedMd.replace(/(\S)\s+(\d+\.\s+)/g, '$1\n$2');
+  // Bullet lists using * or + (We avoid "-" for regular bullets because it breaks normal sentences like "Movie - A masterpiece")
+  cleanedMd = cleanedMd.replace(/(\S)\s+([*+]\s+)/g, '$1\n$2');
+  
   const lines = cleanedMd.split('\n');
   const root: EditorBlock[] = [];
   const stack: Array<{ block: EditorBlock; depth: number }> = [];
