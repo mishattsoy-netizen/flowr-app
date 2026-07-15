@@ -6,6 +6,28 @@ import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
 import { getChainPrompt } from './prompts'
 
+// Coupled to context.ts's CHARS_PER_TOKEN (3.5, not exported) — keep in sync if
+// that ratio ever changes. Duplicated here rather than imported to avoid adding
+// a cross-module dependency for a single constant.
+const MAX_NARRATION_TOKENS = 4000
+const MAX_NARRATION_CHARS = Math.floor(MAX_NARRATION_TOKENS * 3.5)
+
+/**
+ * Caps narration text at MAX_NARRATION_CHARS so one huge document can't blow a
+ * turn's context budget. Not a hard reject — the capped text still counts
+ * toward token_usage_total, so several large attachments naturally push the
+ * session toward compaction (spec: 2026-07-15-attachment-text-extraction-design.md).
+ */
+export function capNarrationText(text: string, maxChars: number = MAX_NARRATION_CHARS): { text: string; truncated: boolean } {
+  if (text.length <= maxChars) return { text, truncated: false }
+  const omittedChars = text.length - maxChars
+  const truncated = text.slice(0, maxChars).trimEnd()
+  return {
+    text: `${truncated}\n\n[truncated — approximately ${omittedChars} more characters omitted. Ask me to continue for the rest.]`,
+    truncated: true,
+  }
+}
+
 export async function narrateGeneratedImage(
   imageBuffer: Buffer,
   context?: any
