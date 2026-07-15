@@ -27,29 +27,37 @@ export function ThemeProvider({
   const [theme, setThemeState] = useState<Theme>(defaultTheme);
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
 
-  // Suppress useLayoutEffect warning on server by safely falling back to useEffect
   const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : useEffect;
 
+  // Track if we've mounted to avoid overwriting localStorage on first render
+  const [mounted, setMounted] = useState(false);
+
   useIsomorphicLayoutEffect(() => {
-    // Initial load from localStorage
     const saved = localStorage.getItem("theme") as Theme | null;
     if (saved) {
       setThemeState(saved);
     }
+    setMounted(true);
   }, []);
 
   useIsomorphicLayoutEffect(() => {
+    if (!mounted) return; // Don't run the side effects until we've read from localStorage
+
     const isDarkOS = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolved = theme === "system" ? (isDarkOS ? "dark" : "light") : theme;
     setResolvedTheme(resolved as "dark" | "light");
 
     const root = window.document.documentElement;
     root.classList.remove("light", "dark");
-    root.classList.add(resolved);
+    if (resolved === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.add("light");
+    }
     
-    // Save to localStorage if not system (or always save it)
+    // Save to localStorage
     localStorage.setItem("theme", theme);
-  }, [theme]);
+  }, [theme, mounted]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme: setThemeState, resolvedTheme }}>

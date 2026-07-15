@@ -62,12 +62,11 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
+      className={`dark ${literata.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased preload`}
     >
       <head suppressHydrationWarning>
-        <Script
+        <script
           id="flowr-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function() {
               try {
@@ -75,6 +74,7 @@ export default function RootLayout({
                 const theme = localStorage.getItem('theme') || 'dark';
                 const isDarkOS = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const resolvedTheme = theme === 'system' ? (isDarkOS ? 'dark' : 'light') : theme;
+                document.documentElement.classList.remove('light', 'dark');
                 document.documentElement.classList.add(resolvedTheme);
                 document.documentElement.style.backgroundColor = resolvedTheme === 'dark' ? '#0a0a0a' : '#ffffff';
                 document.documentElement.style.color = resolvedTheme === 'dark' ? '#f1f0ee' : '#1f1e1c';

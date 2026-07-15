@@ -120,7 +120,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
         height: BAR_H,
         paddingLeft: (!isDesktopEnv && isSidebarCollapsed && column === 'left')
           ? 12
-          : (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? 20 : 10,
+          : (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? (isDesktopEnv ? 30 : 20) : 10,
         paddingRight: 12
       }}
     >
@@ -230,7 +230,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
             {/* Content */}
             <div
               className="relative z-10 w-full h-full flex items-center gap-[5px]"
-              style={{ paddingLeft: 12, paddingRight: 32 }}
+              style={{ paddingLeft: 12, paddingRight: isDesktopEnv ? 38 : 32 }}
             >
               {Icon && (
                 <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }}
@@ -253,7 +253,10 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                     removeTab(entityId);
                   }
                 }}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100",
+                  isDesktopEnv ? "right-[12px]" : "right-1.5"
+                )}
                 style={{ width: 18, height: 18 }}
               >
                 <X strokeWidth={2.5} className="w-3 h-3" />

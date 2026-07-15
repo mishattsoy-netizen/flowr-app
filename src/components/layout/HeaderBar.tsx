@@ -153,7 +153,7 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
         </div>
         <div
           className="relative z-10 w-full h-full flex items-center gap-[5px]"
-          style={{ paddingLeft: 12, paddingRight: 32 }}
+          style={{ paddingLeft: 12, paddingRight: isDesktopEnv ? 38 : 32 }}
         >
           {Icon && <Icon strokeWidth={2} style={{ width: 14, height: 14, flexShrink: 0 }} className="text-[var(--bone-100)] opacity-90" />}
           <span
@@ -174,7 +174,10 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
           </span>
           <button
             onClick={e => { e.stopPropagation(); removeTab(tabId); }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100"
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 hover:bg-[var(--bone-6)] rounded-[4px] flex items-center justify-center shrink-0 opacity-50 hover:opacity-100",
+              isDesktopEnv ? "right-[12px]" : "right-1.5"
+            )}
             style={{ width: 18, height: 18 }}
           >
             <X strokeWidth={2.5} className="w-3 h-3" />
@@ -530,7 +533,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
       {/* Desktop nav */}
       {isDesktopEnv && (
-        <div className={`flex items-center gap-1 shrink-0 z-10 ${isMac && !isFullscreen ? 'pl-[72px]' : 'pl-[20px]'}`} style={{ width: isSidebarCollapsed ? undefined : `calc(${leftWidth}px - 8px)` }}>
+        <div className={`flex items-center gap-1 shrink-0 z-10 ${isMac && !isFullscreen ? 'pl-[72px]' : 'pl-[30px]'}`} style={{ width: isSidebarCollapsed ? undefined : `calc(${leftWidth}px - 8px)` }}>
           <Tooltip content="Go Back">   <button onClick={goBack} className={btnCls(true)}><ArrowLeft strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
           <Tooltip content="Go Forward"><button onClick={goForward} className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
           <Tooltip content="Refresh">    <button onClick={() => window.location.reload()} className={btnCls(true)}><RotateCw strokeWidth={2} className="w-4 h-4" /></button></Tooltip>

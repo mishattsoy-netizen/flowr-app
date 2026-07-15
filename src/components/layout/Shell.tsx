@@ -90,13 +90,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
     return kind;
   }, [modal]);
 
-  useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
-    }
-  }, [theme]);
+
 
   useEffect(() => {
     document.documentElement.setAttribute('data-interface-size', interfaceSize);
@@ -291,7 +285,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isTaskPanelVisible = !isMobile && isTaskPanelOpen && !splitViewActive;
   const isAiPanelMounted = hasHydrated && isAIAssistantExtended && activeEntityId !== 'chat' && !splitViewActive;
   const isAiPanelOpen = isAiPanelMounted && isAIAssistantOpen;
-  // Task panel and AI panel share the same width — no jump when switching
+  // Task panel and AI panel share the same width ΓÇö no jump when switching
   const currentRightPanelWidth = currentAiSidebarWidth;
   const currentSidebarCollapsed = isSidebarCollapsed;
 
@@ -471,7 +465,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               </div>
             )}
 
-            {/* Right Panel — single flex shrink-0 element, max-width animated.
+            {/* Right Panel ΓÇö single flex shrink-0 element, max-width animated.
                 overflow-hidden clips content as the panel opens/closes so the
                 left edge and content always move as one unit. */}
             <div
