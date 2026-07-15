@@ -39,7 +39,7 @@ adding just ONE extra filter to a list or comparison ("under $50/mo", "released 
 2025") still stays WEB_SEARCH. Only escalate to RESEARCH when a required inclusion or
 a second independent filter is stacked on top of an already-filtered list/comparison.
 
-IMAGE_GEN: Create, generate, draw, or modify images/pictures using AI generation. IMPORTANT DISTINCTION: If the user asks for a diagram, mindmap, flowchart, or visualization meant to be a UI component, editable canvas, or notes workspace, classify as REGULAR/COMPLEX/CODING. If they want an exported picture or are iterating on a previously generated image, classify as IMAGE_GEN. Capability questions route to text tiers.
+IMAGE_GEN: Create, generate, draw, or modify images/pictures using AI generation. IMPORTANT DISTINCTION: If the user asks for a diagram, mindmap, flowchart, or visualization meant to be a UI component, editable canvas, or notes workspace, classify as REGULAR/COMPLEX. If they want an exported picture or are iterating on a previously generated image, classify as IMAGE_GEN. Capability questions route to text tiers.
 
 AUDIO: Audio processing, transcription, voice synthesis.
 

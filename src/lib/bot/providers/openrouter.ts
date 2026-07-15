@@ -217,7 +217,8 @@ export async function runOpenRouter(
                     if (output?.error) {
                       recordToolFailure(call.function.name, args, String(output.error), failedToolCalls)
                     }
-                    capturedToolCalls.push({ ...args, ...output, tool: call.function.name, success: !output?.error })
+                    const isPending = output?.status === 'pending_confirmation'
+                    capturedToolCalls.push({ ...args, ...output, tool: call.function.name, success: !output?.error && !isPending })
                   }
                 } catch (e: any) {
                   output = { error: e.message }

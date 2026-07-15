@@ -261,7 +261,8 @@ export async function runGoogle(
                   recordToolFailure(call.name, call.args, String(output.error), failedToolCalls)
                 }
                 toolResults.push({ functionResponse: { name: call.name, response: output } })
-                capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error })
+                const isPending = output?.status === 'pending_confirmation'
+                capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error && !isPending })
               }
             }
             if ((context as any)?.onEvent) {
