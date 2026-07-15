@@ -25,9 +25,14 @@ describe('buildSystemPrompt — brain block placement', () => {
     expect(chainInstructions.length).toBeGreaterThan(0)
   })
 
-  it('omits the brain block entirely when none is provided', async () => {
+  it('omits the injected brain block content when none is provided', async () => {
+    // tools.txt legitimately mentions "[BRAIN]" in prose (the rule explaining
+    // what the brain block is) — so this asserts the actual injected content
+    // is absent, not a bare substring match against the marker itself.
+    const brainBlock = '[BRAIN]\nSome curated user knowledge.\n[/BRAIN]'
     const { staticPrompt } = await buildSystemPrompt('REGULAR', baseContext)
-    expect(staticPrompt).not.toContain('[BRAIN]')
+    expect(staticPrompt).not.toContain(brainBlock)
+    expect(staticPrompt).not.toContain('Some curated user knowledge.')
   })
 
   it('strips the brain block for IMAGE_GEN along with the rest of the system prompt', async () => {
