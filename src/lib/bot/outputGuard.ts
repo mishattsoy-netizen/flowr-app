@@ -39,6 +39,18 @@ export const SANITIZE_PATTERNS: [RegExp, string][] = [
 export function sanitizeOutput(content: string): string {
   if (!content) return content
 
+  // Guard against prompt leakage/jailbreaking
+  const leakPatterns = [
+    /You are Flowr's AI assistant/i,
+    /System Isolation \(critical\):/i,
+    /\[SYSTEM SECURITY OVERRIDE\]/i
+  ]
+  for (const pattern of leakPatterns) {
+    if (pattern.test(content)) {
+      return "I cannot fulfill this request."
+    }
+  }
+
   let result = content
   for (const [pattern] of SANITIZE_PATTERNS) {
     result = result.replace(pattern, '')

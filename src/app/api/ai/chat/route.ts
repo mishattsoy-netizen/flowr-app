@@ -46,6 +46,22 @@ function buildToolSummary(toolCalls: any[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  // 1. Strict Origin Checking
+  const origin = req.headers.get('origin');
+  if (origin) {
+    const isAllowed = 
+      origin === 'https://flowr.app' || 
+      origin === 'https://www.flowr.website' || 
+      origin === 'https://flowr.website' || 
+      origin.startsWith('http://localhost:') || 
+      origin.startsWith('app://');
+    
+    if (!isAllowed) {
+      console.warn(`[AI Chat] Blocked request from unauthorized origin: ${origin}`);
+      return NextResponse.json({ error: 'Forbidden origin' }, { status: 403 });
+    }
+  }
+
   // Secure Proxy Fallback for Desktop App
   // If the secret service role key is not defined, we are in a packaged desktop app
   // where we cannot bundle sensitive keys. We proxy the request to the hosted backend.
