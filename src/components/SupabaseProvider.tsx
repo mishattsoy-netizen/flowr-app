@@ -295,15 +295,35 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
       return;
     }
 
-    // 1. Initial load
-    sqliteHydration.then(() => loadFromSupabase()).then(async (data) => {
+    // 1. Initial load. Use a delta load (changed rows + all-id sets) once a sync
+    //    cursor exists from a prior session; otherwise a full load on first boot.
+    const cursors = useStore.getState().syncCursors;
+    const hasCursors = typeof cursors.entities === 'number'
+      || typeof cursors.tasks === 'number'
+      || typeof cursors.spaces === 'number';
+    const initialLoad = () => hasCursors
+      ? import('@/lib/sync').then(({ loadDeltaFromSupabase }) =>
+          loadDeltaFromSupabase({
+            entities: cursors.entities ?? 0,
+            tasks: cursors.tasks ?? 0,
+            spaces: cursors.spaces ?? 0,
+          }))
+      : loadFromSupabase();
+
+    sqliteHydration.then(() => initialLoad()).then(async (data) => {
       if (!data) {
         useStore.getState().setInitialSync(false);
         return;
       }
 
       // Ensure the personal workspace exists in the DB if it's missing.
-      const hasPersonalWs = data.spaces.some(w => w.id === 'ws-personal');
+      // Under a delta load, data.spaces holds ONLY changed spaces — ws-personal
+      // rarely changes, so it's usually absent from the delta even though it
+      // exists. Check the full cloud id-set (always present on delta results)
+      // so we don't spuriously run the branch below and truncate spaces.
+      const hasPersonalWs = 'spaceIds' in data
+        ? (data as any).spaceIds.has('ws-personal')
+        : data.spaces.some(w => w.id === 'ws-personal');
       if (!hasPersonalWs && supabase) {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
@@ -311,18 +331,26 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
           const personalWs = s.spaces.find(w => w.id === 'ws-personal');
           if (personalWs) {
             const updatedWs = { ...personalWs, ownerId: user.id };
-            setSpaces([...data.spaces, updatedWs]);
+            // Merge onto EXISTING local spaces (not data.spaces, which under a
+            // delta load holds only changed spaces) so unchanged spaces survive.
+            const otherSpaces = s.spaces.filter(w => w.id !== 'ws-personal');
+            setSpaces([...otherSpaces, updatedWs]);
             const { error } = await upsertSpace(updatedWs);
             if (error) {
               // RLS collision: another user owns 'ws-personal'. Keep it local-only.
-              setSpaces([...data.spaces, personalWs]);
+              setSpaces([...otherSpaces, personalWs]);
             }
           }
         }
       }
 
-      // 3. Merge cloud + local data
-      mergeCloudData(data);
+      // 3. Merge cloud + local data. The delta result carries id-sets for
+      //    deletion reconciliation; the full result does not.
+      if ('entityIds' in data) {
+        mergeDeltaData(data as any);
+      } else {
+        mergeCloudData(data);
+      }
       const s = useStore.getState();
 
       // --- Auto-cleanup for dead entities and corrupted spaceIds ---
@@ -391,6 +419,17 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
         if (hadUnscoped) {
           import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('shortcuts', cleaned));
         }
+      }
+
+      // Advance the delta cursor to the newest last_modified we now hold, so the
+      // next boot only fetches rows changed after this point.
+      {
+        const s2 = useStore.getState();
+        const maxTs = (rows: Array<{ lastModified?: number }>) =>
+          rows.reduce((m, r) => Math.max(m, r.lastModified ?? 0), 0);
+        s2.setSyncCursor('entities', Math.max(cursors.entities ?? 0, maxTs(s2.entities)));
+        s2.setSyncCursor('tasks', Math.max(cursors.tasks ?? 0, maxTs(s2.tasks)));
+        s2.setSyncCursor('spaces', Math.max(cursors.spaces ?? 0, maxTs(s2.spaces)));
       }
 
       useStore.getState().setInitialSync(false);
