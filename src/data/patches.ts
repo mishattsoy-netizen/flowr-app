@@ -22,6 +22,41 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.2',
+    build: '1420',
+    date: '2026-07-15',
+    title: 'Brain Service Setup, Advanced Editor Selection & Sidebar Fluidity',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          "Foundation for the new 'Brain' system: AI can now compile, link, and reason across your notes with full revision history.",
+          "Major Editor Upgrade: You can now seamlessly select and merge text across multiple different blocks without glitches.",
+          "Desktop App: Added a native, branded loading screen during startup instead of basic web spinners."
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          "Massive improvements to Sidebar drag-and-drop: You can now drop items into empty space, expanded children dim while dragging, and the blue insert line perfectly matches the folder depth.",
+          "Improved loading skeleton alignments for the Sidebar, Tasks, and Shortcuts widgets to significantly reduce layout jumps and flashing while content loads.",
+          "AI assistants now gracefully handle pending tool confirmations and can natively read storage-uploaded image attachments."
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          "Fixed chat UI responsiveness issues and completely smoothed out the AI text streaming animation.",
+          "Fixed a critical bug where AI-authored note blocks and content were being silently dropped or overwritten.",
+          "Fixed the annoying dark-mode 'flash' that occasionally happened on initial page load.",
+          "Patched a backend data-guard vulnerability in the Brain nodes.",
+          "Minor padding alignments in the desktop Header Bar for a cleaner edge-to-edge look."
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.1',
     build: '1410',
     date: '2026-07-14',
