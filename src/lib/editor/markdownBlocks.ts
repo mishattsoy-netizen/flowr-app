@@ -153,7 +153,10 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
 export function parseMarkdownToBlocks(md: string): EditorBlock[] {
   if (!md.trim()) return [];
 
-  const lines = md.split('\n');
+  // Option C: Forgiving parser for mashed-up checklists.
+  // If the LLM generates "- [ ] Item 1 - [ ] Item 2" on one line, split them.
+  const cleanedMd = md.replace(/(\S)\s+(-\s*\[\s*[xX ]?\s*\])/g, '$1\n$2');
+  const lines = cleanedMd.split('\n');
   const root: EditorBlock[] = [];
   const stack: Array<{ block: EditorBlock; depth: number }> = [];
   let inFence = false;
