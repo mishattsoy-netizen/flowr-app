@@ -1,5 +1,4 @@
 import { getGlobalPrompt, getToolInstructions, getChainPrompt } from '../prompts'
-import { supabaseAdmin } from '../../supabase'
 import type { IntentCategory } from '../../router-config'
 
 export interface PromptBuilderContext {
@@ -12,6 +11,7 @@ export interface PromptBuilderContext {
   skipSummary: boolean
   currentSummary: string | null
   pendingAction?: { tool: string; args: Record<string, any>; dry_run_result: any } | null
+  brainBlock?: string
 }
 
 function getChainInstructions(category: IntentCategory): string {
@@ -104,35 +104,19 @@ What Flowr does:
 Desktop mode: files local, offline-capable. Web mode: cloud sync across devices. Both include AI + tasks.\n`
   }
 
+  // [BRAIN] — user-curated knowledge base (spec 2026-07-14-brain-design.md §4).
+  // Static + session-pinned: byte-stable across turns, so the prefix caches.
+  // Placed BEFORE chain instructions so all categories share the same prefix.
+  if (context.brainBlock) {
+    finalSysPrompt += "\n\n" + context.brainBlock
+  }
+
   if (chainInstructions) {
     finalSysPrompt += "\n\n" + chainInstructions
   }
 
   if (['REGULAR', 'COMPLEX', 'CODING', 'WEB_SEARCH', 'RESEARCH', 'PRIMARY'].includes(category)) {
     finalSysPrompt += "\n\n" + getToolInstructions()
-  }
-
-  // Memory fact sheet stays in the STATIC system prompt: it changes rarely
-  // (only when manage_memory fires), so the whole prefix — global + app +
-  // chain + tools + memory — is byte-stable across turns and cacheable.
-  if (context.isGlobalPromptEnabled && context.userId && supabaseAdmin) {
-    try {
-      const { data: memories } = await supabaseAdmin
-        .from('bot_memories')
-        .select('id, title, content')
-        .eq('user_id', context.userId)
-        .order('created_at', { ascending: true })
-
-      if (memories && memories.length > 0) {
-        finalSysPrompt += `\n\n[USER MEMORY FACT SHEET]\nThe following are confirmed facts you have memorized about the user:\n`
-        for (const mem of memories) {
-          finalSysPrompt += `- [ID: ${mem.id}] [${mem.title}] ${mem.content}\n`
-        }
-        finalSysPrompt += `\n`
-      }
-    } catch (e) {
-      console.error('Failed to fetch bot memories:', e)
-    }
   }
 
   let system_prompt = finalSysPrompt

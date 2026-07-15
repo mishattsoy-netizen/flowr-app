@@ -483,6 +483,9 @@ export async function runChain(
     : true
 
   const skipSummary = category === 'WEB_SEARCH' || category === 'RESEARCH' || context?._skipSessionSummary || context?.isTempChat
+  const brainBlock = isGlobalPromptEnabled
+    ? await (await import('./services/brainStore')).getBrainBlockForSession(sessionId, sessionState, context?.userId)
+    : ''
   let { staticPrompt: system_prompt, dynamicContext } = await buildSystemPrompt(category, {
     userId: context?.userId,
     pageContext: typeof context?.pageContext === 'object' ? JSON.stringify(context?.pageContext) : context?.pageContext,
@@ -492,7 +495,8 @@ export async function runChain(
     isGlobalPromptEnabled: isGlobalPromptEnabled ?? true,
     skipSummary: !!skipSummary,
     currentSummary,
-    pendingAction: sessionState?.pending_action
+    pendingAction: sessionState?.pending_action,
+    brainBlock,
   })
 
   // ── Telegram awareness — inject formatting & brevity rules ──
