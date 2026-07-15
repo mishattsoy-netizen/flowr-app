@@ -2,6 +2,15 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('__FLOWR_DESKTOP__', true);
 
+contextBridge.exposeInMainWorld('flowrDesktop', {
+  onFullscreenChange: (callback) => {
+    const listener = (_, isFullscreen) => callback(isFullscreen);
+    ipcRenderer.on('window:fullscreen-change', listener);
+    return () => ipcRenderer.removeListener('window:fullscreen-change', listener);
+  },
+  isFullscreen: () => ipcRenderer.invoke('window:is-fullscreen')
+});
+
 contextBridge.exposeInMainWorld('flowrDB', {
   upsertEntity: (row) => ipcRenderer.invoke('db:upsertEntity', row),
   deleteEntity: (id) => ipcRenderer.invoke('db:deleteEntity', id),

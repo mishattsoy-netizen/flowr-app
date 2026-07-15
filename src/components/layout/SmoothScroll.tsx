@@ -62,6 +62,14 @@ export function SmoothScroll() {
       const scrollable = getScrollableParent(e.target as HTMLElement);
       if (!scrollable) return;
       
+      // Bypass custom smooth scroll for high-precision devices (trackpads, smooth mouse wheels).
+      // They send small continuous deltas (<50) or fractional values and have native OS momentum.
+      // Standard chunky mouse wheels typically send deltaY values like 100 or 120.
+      const isHighPrecision = Math.abs(e.deltaY) < 50 || !Number.isInteger(e.deltaY);
+      if (isHighPrecision) {
+        return; // Let the native OS handle the scroll
+      }
+
       e.preventDefault();
       
       if (scrollable !== targetNode) {

@@ -32,8 +32,9 @@ export function SplitViewLayout() {
   const [isResizing, setIsResizing] = useState(false);
   const [isDividerHovered, setIsDividerHovered] = useState(false);
   const dividerHoverTimer = useRef<NodeJS.Timeout | null>(null);
-  const [dragOverLeft, setDragOverLeft] = useState(false);
-  const [dragOverRight, setDragOverRight] = useState(false);
+  
+  const columnDragOver = useStore(s => s.columnDragOver);
+  const setColumnDragOver = useStore(s => s.setColumnDragOver);
 
   // ── Drop targets for sidebar drag-and-drop ──
   useEffect(() => {
@@ -50,10 +51,10 @@ export function SplitViewLayout() {
         if (id === 'chat') return false;
         return entityType === 'note' || entityType === 'canvas' || entityType === 'workspace' || entityType === 'folder' || entityType === 'main_page';
       },
-      onDragEnter: () => setDragOverLeft(true),
-      onDragLeave: () => setDragOverLeft(false),
+      onDragEnter: () => setColumnDragOver('left'),
+      onDragLeave: () => setColumnDragOver(null),
       onDrop: ({ source }) => {
-        setDragOverLeft(false);
+        setColumnDragOver(null);
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('left', entityId);
       },
@@ -68,10 +69,10 @@ export function SplitViewLayout() {
         if (id === 'chat') return false;
         return entityType === 'note' || entityType === 'canvas' || entityType === 'workspace' || entityType === 'folder' || entityType === 'main_page';
       },
-      onDragEnter: () => setDragOverRight(true),
-      onDragLeave: () => setDragOverRight(false),
+      onDragEnter: () => setColumnDragOver('right'),
+      onDragLeave: () => setColumnDragOver(null),
       onDrop: ({ source }) => {
-        setDragOverRight(false);
+        setColumnDragOver(null);
         const entityId = source.data.id as string;
         if (entityId) setColumnEntity('right', entityId);
       },
@@ -160,14 +161,22 @@ export function SplitViewLayout() {
         ref={leftColRef}
         className={cn(
           "flex flex-col h-full min-h-0 transition-colors duration-150 overflow-hidden relative",
-          isDesktopEnv ? "bg-[var(--app-background)] border border-[var(--bone-10)] rounded-2xl shadow-sm" : "bg-[var(--app-background)]",
-          dragOverLeft && "bg-[var(--bone-4)]"
+          isDesktopEnv ? cn(
+            "bg-[var(--app-background)] border rounded-2xl shadow-sm",
+            columnDragOver === 'left' ? "border-[var(--bone-15)]" : "border-[var(--bone-10)]"
+          ) : "bg-[var(--app-background)]"
         )}
         style={{
           width: `calc(${clampedPosition}% - ${isDesktopEnv ? '4px' : '0px'})`,
           transition: isResizing ? 'none' : undefined,
         }}
       >
+        {columnDragOver === 'left' && (
+          <div 
+            className="absolute inset-x-0 bottom-0 bg-[var(--bone-5)] pointer-events-none z-50"
+            style={{ top: isDesktopEnv ? 0 : 42 }}
+          />
+        )}
         {!isDesktopEnv && <ColumnHeader column="left" entityId={splitViewLeftId} />}
         {splitViewLeftId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
@@ -217,10 +226,18 @@ export function SplitViewLayout() {
         ref={rightColRef}
         className={cn(
           "flex flex-col h-full min-h-0 flex-1 transition-colors duration-150 overflow-hidden relative",
-          isDesktopEnv ? "bg-[var(--app-background)] border border-[var(--bone-10)] rounded-2xl shadow-sm" : "bg-[var(--app-background)]",
-          dragOverRight && "bg-[var(--bone-4)]"
+          isDesktopEnv ? cn(
+            "bg-[var(--app-background)] border rounded-2xl shadow-sm",
+            columnDragOver === 'right' ? "border-[var(--bone-15)]" : "border-[var(--bone-10)]"
+          ) : "bg-[var(--app-background)]"
         )}
       >
+        {columnDragOver === 'right' && (
+          <div 
+            className="absolute inset-x-0 bottom-0 bg-[var(--bone-5)] pointer-events-none z-50"
+            style={{ top: isDesktopEnv ? 0 : 42 }}
+          />
+        )}
         {!isDesktopEnv && <ColumnHeader column="right" entityId={splitViewRightId} />}
         {splitViewRightId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">

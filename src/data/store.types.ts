@@ -450,6 +450,7 @@ export interface AppState {
   splitViewRightId: string | null;
   splitViewPinned: boolean;
   splitViewPosition: number;
+  columnDragOver: 'left' | 'right' | null;
   isFullWidth: boolean;
   isTabsHeaderVisible: boolean;
   appStyle: 'v1' | 'v2' | 'v3';
@@ -552,6 +553,7 @@ export interface AppState {
   swapColumns: () => void;
   exitSplitView: () => void;
   setSplitViewPosition: (pos: number) => void;
+  setColumnDragOver: (col: 'left' | 'right' | null) => void;
   toggleFullWidth: () => void;
   toggleTabsHeader: () => void;
   setAppStyle: (style: 'v1' | 'v2' | 'v3') => void;

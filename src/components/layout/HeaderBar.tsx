@@ -18,7 +18,7 @@ import { useAppReady } from '@/hooks/useAppReady';
 import React, { memo, useState, useRef, useLayoutEffect, useEffect } from 'react';
 
 // â”€â”€â”€ Concave corner SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number }) {
+function ConcaveCorner({ side, r = 12, isDragOver }: { side: 'left' | 'right'; r?: number; isDragOver?: boolean }) {
   const overlap = 1;
   const size = r + overlap;
 
@@ -40,9 +40,22 @@ function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number })
           [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: size,
           borderBottom: '1px solid color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
           [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
-          boxShadow: `0 0 0 100px var(--app-background)`,
+          boxShadow: `0 0 0 100px var(--app-background)`
         }}
       />
+      {isDragOver && (
+        <div
+          className="absolute w-[200%] h-[200%]"
+          style={{
+            bottom: 0,
+            [side === 'left' ? 'right' : 'left']: 0,
+            [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: size,
+            borderBottom: '1px solid var(--bone-10)',
+            [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid var(--bone-10)',
+            boxShadow: `0 0 0 100px var(--bone-5)`
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -100,7 +113,7 @@ const EntityHeaderControls = ({ entityId }: { entityId: string | null }) => {
   );
 };
 
-const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any) => {
+const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H, isDragOver }: any) => {
   const entities = useStore(s => s.entities);
   const chatConversations = useStore(s => s.chatConversations);
   const activeChatId = useStore(s => s.activeChatId);
@@ -136,9 +149,15 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
         >
           {/* Tab Background */}
           <div
-            className="absolute inset-0 bg-[var(--app-background)]"
+            className={cn("absolute inset-0 bg-[var(--app-background)]")}
             style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
           />
+          {isDragOver && (
+            <div 
+              className="absolute inset-0 bg-[var(--bone-5)] pointer-events-none"
+              style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
+            />
+          )}
           {/* Tab Border (masked to stop exactly at curve tangent) */}
           <div
             className="absolute inset-0 border-t border-l border-r border-[var(--bone-10)] pointer-events-none"
@@ -148,8 +167,8 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H }: any
               maskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`
             }}
           />
-          <ConcaveCorner side="left" r={R_ACTIVE} />
-          <ConcaveCorner side="right" r={R_ACTIVE} />
+          <ConcaveCorner side="left" r={R_ACTIVE} isDragOver={isDragOver} />
+          <ConcaveCorner side="right" r={R_ACTIVE} isDragOver={isDragOver} />
         </div>
         <div
           className="relative z-10 w-full h-full flex items-center gap-[5px]"
@@ -212,6 +231,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   const splitViewLeftId = useStore(s => s.splitViewLeftId);
   const splitViewRightId = useStore(s => s.splitViewRightId);
   const splitViewPosition = useStore(s => s.splitViewPosition);
+  const columnDragOver = useStore(s => s.columnDragOver);
   const setSplitViewPosition = useStore(s => s.setSplitViewPosition);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -229,6 +249,13 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => {
     if (!isMac || typeof window === 'undefined') return;
+    // @ts-ignore
+    const desk = window.flowrDesktop;
+    if (desk && desk.onFullscreenChange) {
+      desk.isFullscreen().then(setIsFullscreen);
+      return desk.onFullscreenChange(setIsFullscreen);
+    }
+
     const checkFullscreen = () => {
       setIsFullscreen(window.innerHeight === window.screen.height);
     };
@@ -498,6 +525,18 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
   const btnCls = (ok: boolean) =>
     `flex items-center justify-center rounded-[var(--radius-medium)] [-webkit-app-region:no-drag] ${isDesktopEnv ? 'w-8 h-8' : 'w-7 h-7'} ${ok ? 'text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)] cursor-pointer transition-opacity' : 'text-border opacity-30 cursor-default'}`;
+  const getSafeRightPadding = () => {
+    if (!isDesktopEnv) return undefined;
+    const isMacGap = isMac || isFullscreen;
+    const controlsOffset = isMacGap ? 20 : 140;
+    const controlsWidth = splitViewActive ? 150 : 50; // split view has 4 buttons, single view has 1 button
+    const requiredSpace = controlsOffset + controlsWidth;
+    const reservedSpace = isMac ? (rightWidth || 0) : Math.max(rightWidth || 0, 140);
+    const deficit = requiredSpace - reservedSpace;
+    return deficit > 0 ? deficit : undefined;
+  };
+
+  const safeRightPadding = getSafeRightPadding();
 
   if (!isTabsHeaderVisible && !isDesktopEnv) return null;
 
@@ -533,7 +572,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
       {/* Desktop nav */}
       {isDesktopEnv && (
-        <div className={`flex items-center gap-1 shrink-0 z-10 ${isMac && !isFullscreen ? 'pl-[72px]' : 'pl-[30px]'}`} style={{ width: isSidebarCollapsed ? undefined : `calc(${leftWidth}px - 8px)` }}>
+        <div className={`flex items-center gap-1 shrink-0 z-10 ${isMac && !isFullscreen ? 'pl-[72px]' : 'pl-[12px]'}`} style={{ width: isSidebarCollapsed ? undefined : leftWidth }}>
           <Tooltip content="Go Back">   <button onClick={goBack} className={btnCls(true)}><ArrowLeft strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
           <Tooltip content="Go Forward"><button onClick={goForward} className={btnCls(true)}><ArrowRight strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
           <Tooltip content="Refresh">    <button onClick={() => window.location.reload()} className={btnCls(true)}><RotateCw strokeWidth={2} className="w-4 h-4" /></button></Tooltip>
@@ -554,7 +593,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
       <div
         ref={tabsRef}
         className="hidden md:flex flex-1 items-end min-w-0 z-10 relative"
-        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 0 : (!isDesktopEnv && isSidebarCollapsed ? 7 : 20), paddingRight: splitViewActive ? 0 : 8 }}
+        style={{ height: BAR_H, gap: M, paddingLeft: splitViewActive ? 0 : (!isDesktopEnv && isSidebarCollapsed ? 7 : (isDesktopEnv ? 30 : 20)), paddingRight: splitViewActive ? 0 : (safeRightPadding ?? 8), overflow: 'clip', overflowClipMargin: '2px' }}
       >
         {!hasHydrated && !splitViewActive && (
           <div className="flex gap-[6px] items-end h-full">
@@ -736,12 +775,14 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
         {splitViewActive && (
           <div className="flex flex-1 h-full relative" style={{ gap: '8px' }}>
             {/* Mirrors SplitViewLayout: content area = 100vw - px-2(16) - sidebar - gap(8) - [right panel + gap(8)]; left column = pos% - 4px */}
-            <div className="flex items-end h-full min-w-0" style={{ width: `calc( (100vw - ${(leftWidth || 0) + 24 + (rightWidth ? rightWidth + 8 : 0)}px) * ${splitViewPosition / 100} - 4px )`, paddingLeft: (splitViewLeftId && ['dashboard', 'tracker', 'chat'].includes(splitViewLeftId)) ? 20 : 10 }}>
+            <div className="flex items-end h-full min-w-0" style={{ width: `calc( (100vw - ${(leftWidth || 0) + 24 + (rightWidth ? rightWidth + 8 : 0)}px) * ${splitViewPosition / 100} - 4px )`, paddingLeft: (splitViewLeftId && ['dashboard', 'tracker', 'chat'].includes(splitViewLeftId)) ? (isDesktopEnv ? 30 : 20) : 10, overflow: 'clip', overflowClipMargin: '2px' }}>
               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                <div className="h-full flex items-center mr-[3px]">
-                  <EntityHeaderControls entityId={splitViewLeftId} />
-                </div>
-                {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+                {splitViewLeftId && !['dashboard', 'chat', 'tracker'].includes(splitViewLeftId) && (
+                  <div className="h-full flex items-center mr-[3px]">
+                    <EntityHeaderControls entityId={splitViewLeftId} />
+                  </div>
+                )}
+                {splitViewLeftId && <StaticTabPill tabId={splitViewLeftId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} isDragOver={columnDragOver === 'left'} />}
                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
                   <Tooltip content="New Entity">
                     <button
@@ -762,12 +803,14 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
                 </div>
               </div>
             </div>
-            <div className="flex items-end h-full justify-between min-w-0 flex-1 group/split-header" style={{ paddingLeft: (splitViewRightId && ['dashboard', 'tracker', 'chat'].includes(splitViewRightId)) ? 20 : 10 }}>
+            <div className="flex items-end h-full justify-between min-w-0 flex-1 group/split-header" style={{ paddingLeft: (splitViewRightId && ['dashboard', 'tracker', 'chat'].includes(splitViewRightId)) ? (isDesktopEnv ? 30 : 20) : 10, paddingRight: safeRightPadding ?? 8, overflow: 'clip', overflowClipMargin: '2px' }}>
               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                <div className="h-full flex items-center mr-[3px]">
-                  <EntityHeaderControls entityId={splitViewRightId} />
-                </div>
-                {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} />}
+                {splitViewRightId && !['dashboard', 'chat', 'tracker'].includes(splitViewRightId) && (
+                  <div className="h-full flex items-center mr-[3px]">
+                    <EntityHeaderControls entityId={splitViewRightId} />
+                  </div>
+                )}
+                {splitViewRightId && <StaticTabPill tabId={splitViewRightId} isDesktopEnv={isDesktopEnv} R_INACTIVE={R_INACTIVE} R_ACTIVE={R_ACTIVE} BAR_H={BAR_H} isDragOver={columnDragOver === 'right'} />}
                 <div className="flex items-center h-full shrink-0 [-webkit-app-region:no-drag] ml-[3px]">
                   <Tooltip content="New Entity">
                     <button

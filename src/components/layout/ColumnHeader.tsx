@@ -16,7 +16,7 @@ const useHeaderHoverStore = create<{ isHovered: boolean; setHovered: (v: boolean
 }));
 
 // ─── Concave corner SVG (same as HeaderBar) ──────────────────────────────────
-function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number }) {
+function ConcaveCorner({ side, r = 12, isDragOver }: { side: 'left' | 'right'; r?: number; isDragOver?: boolean }) {
   const overlap = 1;
   const size = r + overlap;
   
@@ -38,9 +38,20 @@ function ConcaveCorner({ side, r = 12 }: { side: 'left' | 'right'; r?: number })
           [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: size,
           borderBottom: '1px solid color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
           [side === 'left' ? 'borderRight' : 'borderLeft']: '1px solid color-mix(in srgb, var(--bone-100) 10%, var(--app-background))',
-          boxShadow: `0 0 0 100px var(--app-background)`,
+          boxShadow: `0 0 0 100px var(--app-background)`
         }}
       />
+      {isDragOver && (
+        <div
+          className="absolute w-[200%] h-[200%]"
+          style={{
+            bottom: 0,
+            [side === 'left' ? 'right' : 'left']: 0,
+            [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: size,
+            boxShadow: `0 0 0 100px var(--bone-5)`
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -95,6 +106,9 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
   const toggleSidebar = useStore(s => s.toggleSidebar);
 
   const [newItemPopup, setNewItemPopup] = useState<{ x: number; y: number } | null>(null);
+
+  const columnDragOver = useStore(s => s.columnDragOver);
+  const isDragOver = columnDragOver === column;
 
   const isDesktopEnv = isDesktop();
 
@@ -214,6 +228,12 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 className="absolute inset-0 bg-[var(--app-background)]"
                 style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
               />
+              {isDragOver && (
+                <div 
+                  className="absolute inset-0 bg-[var(--bone-5)] pointer-events-none"
+                  style={{ borderRadius: `${R_INACTIVE}px ${R_INACTIVE}px 0 0` }}
+                />
+              )}
               <div
                 className="absolute inset-0 border-t border-l border-r pointer-events-none"
                 style={{
@@ -223,8 +243,8 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                   maskImage: `linear-gradient(to bottom, black calc(100% - ${R_ACTIVE + 1}px), transparent calc(100% - ${R_ACTIVE + 1}px))`
                 }}
               />
-              <ConcaveCorner side="left"  r={R_ACTIVE} />
-              <ConcaveCorner side="right" r={R_ACTIVE} />
+              <ConcaveCorner side="left"  r={R_ACTIVE} isDragOver={isDragOver} />
+              <ConcaveCorner side="right" r={R_ACTIVE} isDragOver={isDragOver} />
             </div>
 
             {/* Content */}

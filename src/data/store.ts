@@ -299,6 +299,7 @@ export const useStore = create<AppState>()(
       splitViewRightId: null,
       splitViewPinned: false,
       splitViewPosition: 50,
+      columnDragOver: null as 'left' | 'right' | null,
       isFullWidth: false,
       isTabsHeaderVisible: true,
       appStyle: 'v3',
@@ -557,6 +558,7 @@ export const useStore = create<AppState>()(
         });
       },
       setSplitViewPosition: (pos) => set({ splitViewPosition: Math.max(15, Math.min(85, pos)) }),
+      setColumnDragOver: (col) => set({ columnDragOver: col }),
       toggleFullWidth: () => set((state) => ({ isFullWidth: !state.isFullWidth })),
       toggleTabsHeader: () => set((state) => ({ isTabsHeaderVisible: !state.isTabsHeaderVisible })),
       setAppStyle: (appStyle) => set({ appStyle }),

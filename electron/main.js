@@ -376,6 +376,12 @@ async function createWindow() {
   mainWindow.on('unresponsive', () => {
     debugLog('[CRASH] window unresponsive');
   });
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('window:fullscreen-change', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('window:fullscreen-change', false);
+  });
   mainWindow.webContents.on('plugin-crashed', (event, name, version) => {
     debugLog('[CRASH] plugin-crashed: ' + name);
   });
@@ -472,6 +478,10 @@ app.whenReady().then(() => {
   ipcMain.handle('db:upsertEntity', async (_, row) => flowrDb.upsertEntity(app, row));
   ipcMain.handle('db:deleteEntity', async (_, id) => flowrDb.deleteEntity(app, id));
   ipcMain.handle('db:getAllEntities', async () => flowrDb.getAllEntities(app));
+  
+  ipcMain.handle('window:is-fullscreen', async () => {
+    return mainWindow ? mainWindow.isFullScreen() : false;
+  });
 
   ipcMain.handle('db:upsertTask', async (_, row) => flowrDb.upsertTask(app, row));
   ipcMain.handle('db:deleteTask', async (_, id) => flowrDb.deleteTask(app, id));
