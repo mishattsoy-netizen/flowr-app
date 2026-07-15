@@ -27,7 +27,7 @@ export const WorkspaceRouter = memo(function WorkspaceRouter({ initialEntityId }
       ref={containerRef}
       className="flex-1 flex flex-col min-h-0 relative"
     >
-      <EntityPageRenderer entityId={activeEntityId ?? 'dashboard'} />
+      <EntityPageRenderer entityId={activeEntityId ?? initialEntityId ?? 'dashboard'} />
     </div>
   );
 });
