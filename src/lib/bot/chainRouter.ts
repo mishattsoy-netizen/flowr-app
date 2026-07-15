@@ -237,7 +237,18 @@ export async function runChain(
   }
 
   // 1. Specialized Vision Flow (Buffer or URL)
-  let activeBuffers = Array.isArray(inputBuffer) ? inputBuffer : (inputBuffer ? [inputBuffer] : [])
+  let rawBuffers = Array.isArray(inputBuffer) ? inputBuffer : (inputBuffer ? [inputBuffer] : [])
+  let activeBuffers: Buffer[] = []
+  
+  if (rawBuffers.length > 0) {
+    try {
+      const { resizeImageForApi } = await import('./image-resizer')
+      activeBuffers = await Promise.all(rawBuffers.map(b => resizeImageForApi(b)))
+    } catch (e: any) {
+      logger.warn(`[Router] Failed to load or execute image-resizer, falling back to raw buffers: ${e.message}`)
+      activeBuffers = rawBuffers
+    }
+  }
 
   // Advisor pre-flight — runs before classification if enabled and no image attached.
   // Under router v2, advisor behavior is inline in the PRIMARY prompt instead of a separate gate.
