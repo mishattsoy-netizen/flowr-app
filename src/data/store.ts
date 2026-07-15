@@ -1458,6 +1458,10 @@ export const useStore = create<AppState>()(
           if (textAttachments.length > 0) {
             finalPrompt += '\n\n' + textAttachments.map(a => `[ATTACHED FILE: ${a.name}]\n${a.textContent}\n`).join('\n\n');
           }
+          
+          if (finalPrompt.trim() === '' && imageAttachments.length > 0) {
+            finalPrompt = 'Please analyze the attached image(s).';
+          }
 
           const res = await fetch('/api/ai/chat', {
             method: 'POST',
