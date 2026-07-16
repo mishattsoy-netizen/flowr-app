@@ -713,9 +713,9 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
       // Auto-focus the new block
       setTimeout(() => {
-        const newEl = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
+        const newEl = document.querySelector(`[data-block-id="${newBlock.id}"] [data-block-content]`) as HTMLElement;
         if (newEl) {
-          newEl.focus();
+          blocksHostRef.current?.focus();
           // Place cursor at the end
           const range = document.createRange();
           const sel = window.getSelection();
@@ -1453,9 +1453,9 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
     if (type === 'link') {
       const blockId = slashMenu.blockId;
-      const el = document.querySelector(`[data-block-id="${blockId}"] [contenteditable]`) as HTMLElement;
+      const el = document.querySelector(`[data-block-id="${blockId}"] [data-block-content]`) as HTMLElement;
       if (el) {
-        el.focus();
+        blocksHostRef.current?.focus();
         const sel = window.getSelection();
         if (sel && sel.rangeCount > 0) {
           const range = sel.getRangeAt(0);
@@ -2037,9 +2037,9 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               const newBlock = createBlock('text', { style: 'body' });
               persistBlocks([...blocks, newBlock]);
               setTimeout(() => {
-                const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
+                const el = document.querySelector(`[data-block-id="${newBlock.id}"] [data-block-content]`) as HTMLElement;
                 if (el) {
-                  el.focus();
+                  blocksHostRef.current?.focus();
                   const range = document.createRange();
                   const sel = window.getSelection();
                   range.selectNodeContents(el);
