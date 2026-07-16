@@ -1,6 +1,17 @@
+export interface BrainRow {
+  id: string
+  user_id: string
+  title: string
+  description: string | null
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface BrainNodeRow {
   id: string
   user_id: string
+  brain_id: string
   type: 'workspace' | 'entity' | 'memory' | 'section'
   ref_id: string | null
   content: string | null
@@ -19,6 +30,7 @@ export interface BrainNodeRow {
 export interface BrainEdgeRow {
   id: string
   user_id: string
+  brain_id: string
   from_node: string
   to_node: string
   label: string
