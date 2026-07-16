@@ -8,6 +8,7 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
+import { flattenRows, nestRows } from './ListBlock';
 import { Portal } from '../layout/Portal';
 import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
@@ -1040,6 +1041,160 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const anchorNode = sel?.anchorNode ?? null;
     const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : (anchorNode as HTMLElement | null);
     if (!anchorEl) return;
+
+    // ROW LEVEL (Task 4)
+    const rowEl = anchorEl.closest<HTMLElement>('[data-row-id]');
+    if (rowEl && host.contains(rowEl)) {
+      const rowId = rowEl.dataset.rowId;
+      const parentBlockEl = rowEl.closest<HTMLElement>('[data-block-id]');
+      const parentBlockId = parentBlockEl?.dataset.blockId;
+      if (rowId && parentBlockId) {
+        const parentBlock = blocks.find(b => b.id === parentBlockId);
+        if (parentBlock) {
+          const isListLike = ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(parentBlock.type);
+          if (isListLike) {
+            const rows = flattenRows(parentBlock);
+            const rowIndex = rows.findIndex(r => r.id === rowId);
+            if (rowIndex !== -1) {
+              const row = rows[rowIndex];
+
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const contentEl = rowEl.hasAttribute('contenteditable') ? rowEl : rowEl.querySelector<HTMLElement>('[contenteditable]');
+                const contentText = contentEl?.textContent ?? '';
+
+                if (!contentText.trim()) {
+                  if (row.depth > 0) {
+                    const newRows = [...rows];
+                    newRows[rowIndex] = { ...row, depth: row.depth - 1 };
+                    const nested = nestRows(newRows, parentBlock.type);
+                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                  } else if (rowIndex === rows.length - 1) {
+                    const newRows = rows.slice(0, rowIndex);
+                    if (newRows.length === 0) {
+                      insertAfter(parentBlockId, 'text');
+                      setBlocks(prev => {
+                        const { list } = findAndRemoveBlock(prev, parentBlockId);
+                        setTimeout(() => updateEntityContent(entity.id, list), 0);
+                        return list;
+                      });
+                    } else {
+                      const nested = nestRows(newRows, parentBlock.type);
+                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                      insertAfter(parentBlockId, 'text');
+                    }
+                  } else {
+                    insertAfter(parentBlockId, 'text');
+                  }
+                  return;
+                }
+
+                const newRow = {
+                  id: generateId(),
+                  content: '',
+                  checked: parentBlock.type === 'checklist' ? false : undefined,
+                  depth: row.depth,
+                };
+                const newRows = [...rows.slice(0, rowIndex + 1), newRow, ...rows.slice(rowIndex + 1)];
+                const nested = nestRows(newRows, parentBlock.type);
+                updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                
+                setTimeout(() => {
+                  const newEl = host.querySelector<HTMLElement>(`[data-row-id="${newRow.id}"]`);
+                  if (newEl) newEl.focus();
+                }, 10);
+                return;
+              }
+
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                  if (row.depth === 0) return;
+                  const newRows = [...rows];
+                  newRows[rowIndex] = { ...row, depth: row.depth - 1 };
+                  const nested = nestRows(newRows, parentBlock.type);
+                  updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                } else {
+                  if (rowIndex === 0) return;
+                  const maxDepth = rows[rowIndex - 1].depth + 1;
+                  const newRows = [...rows];
+                  newRows[rowIndex] = { ...row, depth: Math.min(row.depth + 1, maxDepth) };
+                  const nested = nestRows(newRows, parentBlock.type);
+                  updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                }
+                return;
+              }
+
+              if (e.key === 'Backspace') {
+                const contentEl = rowEl.hasAttribute('contenteditable') ? rowEl : rowEl.querySelector<HTMLElement>('[contenteditable]');
+                const text = contentEl?.textContent ?? '';
+                if (!text.trim()) {
+                  e.preventDefault();
+                  if (row.depth > 0) {
+                    const newRows = [...rows];
+                    newRows[rowIndex] = { ...row, depth: row.depth - 1 };
+                    const nested = nestRows(newRows, parentBlock.type);
+                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                  } else if (rowIndex === 0 && rows.length === 1) {
+                    insertAfter(parentBlockId, 'text');
+                    setBlocks(prev => {
+                      const { list } = findAndRemoveBlock(prev, parentBlockId);
+                      setTimeout(() => updateEntityContent(entity.id, list), 0);
+                      return list;
+                    });
+                  } else if (rowIndex === 0) {
+                    const newRows = rows.slice(1);
+                    const nested = nestRows(newRows, parentBlock.type);
+                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                  } else {
+                    const prevId = rows[rowIndex - 1].id;
+                    const newRows = [...rows.slice(0, rowIndex), ...rows.slice(rowIndex + 1)];
+                    const nested = nestRows(newRows, parentBlock.type);
+                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    setTimeout(() => {
+                      const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevId}"]`);
+                      if (prevEl) restoreCursor(prevEl, 'end');
+                    }, 10);
+                  }
+                  return;
+                }
+
+                const sel2 = window.getSelection();
+                if (sel2?.rangeCount && sel2.getRangeAt(0).collapsed) {
+                  const range = sel2.getRangeAt(0);
+                  const testRange = document.createRange();
+                  testRange.selectNodeContents(contentEl!);
+                  testRange.setEnd(range.startContainer, range.startOffset);
+                  if (testRange.toString().length === 0) {
+                    e.preventDefault();
+                    if (row.depth > 0) {
+                      const newRows = [...rows];
+                      newRows[rowIndex] = { ...row, depth: row.depth - 1 };
+                      const nested = nestRows(newRows, parentBlock.type);
+                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    } else if (rowIndex > 0) {
+                      const prevRow = rows[rowIndex - 1];
+                      const prevContent = prevRow.content || '';
+                      const curContent = row.content || '';
+                      const newContent = prevContent + curContent;
+                      const mergedRows = [...rows.slice(0, rowIndex - 1), { ...prevRow, content: newContent }, ...rows.slice(rowIndex + 1)];
+                      const nested = nestRows(mergedRows, parentBlock.type);
+                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                      setTimeout(() => {
+                        const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevRow.id}"]`);
+                        if (prevEl) restoreCursor(prevEl, 'end');
+                      }, 10);
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     const blockEl = anchorEl.closest<HTMLElement>('[data-block-id]');
     if (!blockEl || !host.contains(blockEl)) return;
     const blockId = blockEl.dataset.blockId;
@@ -1098,7 +1253,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       if (text === '---') return transform({ type: 'divider' });
       if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
     }
-  }, [isReadMode, handleSlash, undo, redo, updateBlock, blocks, insertAfter, indentBlock, unindentBlock]);
+  }, [isReadMode, handleSlash, undo, redo, updateBlock, blocks, insertAfter, indentBlock, unindentBlock, setBlocks, entity.id, updateEntityContent]);
 
   useEffect(() => {
     const host = blocksHostRef.current;
