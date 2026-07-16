@@ -655,6 +655,26 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     restoreCursor(host, target.blockId, target.offset);
   }, [blocks]);
 
+  // Keep activeBlockId synced to the real caret. Under the single editing
+  // host, per-block onFocus/onBlur never fire (document.activeElement is
+  // always the host), so caret position is the only truthful focus signal.
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const host = blocksHostRef.current;
+      if (!host) return;
+      const sel = window.getSelection();
+      const anchorNode = sel?.anchorNode ?? null;
+      const anchorEl = anchorNode
+        ? (anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode as HTMLElement)
+        : null;
+      const blockEl = anchorEl?.closest?.('[data-block-id]') as HTMLElement | null;
+      const id = blockEl && host.contains(blockEl) ? (blockEl.dataset.blockId ?? null) : null;
+      setActiveBlockId(prev => (prev === id ? prev : id));
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, []);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only handle if clicking on the container background or an empty space
     const target = e.target as HTMLElement;
@@ -1678,6 +1698,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
           onOpenMenu={handleOpenMenu}
           onFocus={handleBlockFocus}
           isSelected={selectedBlockIds.has(block.id)}
+          isActive={activeBlockId === block.id}
           listNumber={block.type === 'numberedList' ? getListCounter(block.id, list) : undefined}
           slashMenuOpen={slashMenu?.blockId === block.id}
           menuOpen={activeOptionsMenu?.blockId === block.id}
