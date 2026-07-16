@@ -19,6 +19,7 @@ interface MenuItem {
   selected?: boolean;
   hideCheckmark?: boolean;
   rightElement?: React.ReactNode;
+  keepOpen?: boolean;
 }
 
 function MenuItemsList({ 
@@ -81,7 +82,9 @@ function MenuItemComponent({
       onToggle();
     } else if (item.onClick) {
       item.onClick();
-      closeMenu();
+      if (!item.keepOpen) {
+        closeMenu();
+      }
     }
   };
 
@@ -402,6 +405,7 @@ export function ContextMenu() {
       items.push({
         icon: <Palette strokeWidth={2} className="w-4 h-4" />,
         label: 'Change icon',
+        keepOpen: true,
         onClick: () => { setPickerEntityId(entity!.id); },
       });
     }
@@ -426,10 +430,7 @@ export function ContextMenu() {
       }
     );
 
-    const activeEntity = entities.find(e => e.id === activeEntityId);
-    const activeIsNoteOrCanvas = activeEntity && (activeEntity.type === 'note' || activeEntity.type === 'canvas');
-    const clickedIsNoteOrCanvas = entity && (entity.type === 'note' || entity.type === 'canvas');
-    if (activeEntityId && activeEntityId !== entity!.id && activeIsNoteOrCanvas && clickedIsNoteOrCanvas) {
+    if (activeEntityId && activeEntityId !== entity!.id) {
       items.push({
         icon: <Columns2 strokeWidth={2} className="w-4 h-4" />,
         label: 'Split page',
@@ -519,7 +520,7 @@ export function ContextMenu() {
                       onClick={() => { openModal({ kind: 'rename', entityId: ws.id }); setSpaceOptionsId(null); closeContextMenu(); }}
                       className="popup-item flex items-center w-full px-3 py-1.5 text-sm gap-2"
                     >
-                      <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)]" />
+                      <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0" />
                       <span>Rename</span>
                     </button>
                     <button
@@ -530,7 +531,7 @@ export function ContextMenu() {
                         ws.isDefault && "opacity-50 cursor-default"
                       )}
                     >
-                      <Star strokeWidth={2} className={cn("w-4 h-4 shrink-0", ws.isDefault ? "text-accent" : "text-[var(--bone-70)]")} />
+                      <Star strokeWidth={2} className={cn("w-4 h-4 shrink-0", ws.isDefault && "text-accent")} />
                       <span>{ws.isDefault ? '✓ Default' : 'Set as default'}</span>
                     </button>
                     <div className="popup-divider" />

@@ -196,14 +196,6 @@ export function buildTranscript(d: TranscriptData): string {
       lines.push('```')
       lines.push('')
     }
-    if (d.systemPrompt) {
-      lines.push('### Final Assembled System Prompt')
-      lines.push('')
-      lines.push('```')
-      lines.push(d.systemPrompt)
-      lines.push('```')
-      lines.push('')
-    }
   }
 
   // ── Classification ──

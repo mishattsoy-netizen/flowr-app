@@ -53,18 +53,19 @@ export async function runOpenRouter(
       }
 
       const isAnthropic = modelId.startsWith('anthropic/')
+      const supportsPromptCaching = isAnthropic || modelId.startsWith('google/') || modelId.startsWith('openai/') || modelId.startsWith('gemini-')
       const messages: { role: string; content: any; cache_control?: any; tool_call_id?: string; tool_calls?: any }[] = []
       if (systemPrompt) {
         messages.push({
           role: 'system',
           content: systemPrompt,
-          ...(isAnthropic ? { cache_control: { type: 'ephemeral' } } : {})
+          ...(supportsPromptCaching ? { cache_control: { type: 'ephemeral' } } : {})
         })
       }
-      // Anthropic prefix caching: breakpoint on the last history message caches
+      // Prefix caching: breakpoint on the last history message caches
       // all prior turns (history is append-only, so the prefix stays stable).
       // Max 4 breakpoints per request; we use 2 (system + history tail).
-      if (isAnthropic && historyMessages.length > 0) {
+      if (supportsPromptCaching && historyMessages.length > 0) {
         ;(historyMessages[historyMessages.length - 1] as any).cache_control = { type: 'ephemeral' }
       }
       messages.push(...historyMessages)

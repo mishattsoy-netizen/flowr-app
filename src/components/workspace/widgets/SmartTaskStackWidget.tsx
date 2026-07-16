@@ -249,11 +249,11 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
 
         {/* Tab switcher */}
         {visibleTabs.length > 0 ? (
-          <div ref={tabContainerRef} className="relative flex items-center p-[3px] rounded-[8px] no-drag overflow-hidden w-fit" style={{ background: 'var(--slider-track)' }}>
+          <div ref={tabContainerRef} className="relative flex items-center p-[2px] rounded-[8px] no-drag overflow-hidden w-fit" style={{ background: 'var(--slider-track)' }}>
             {/* Sliding pill — hidden until first measurement to avoid shifting from initial guess */}
             {pillStyle && (
               <div
-                className="absolute top-[3px] bottom-[3px] rounded-[6px] bg-[var(--slider-pill)] transition-[left,width] duration-300 ease-out"
+                className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-[left,width] duration-300 ease-out"
                 style={{
                   left: `${pillStyle.left}px`,
                   width: `${pillStyle.width}px`,

@@ -157,14 +157,14 @@ export function SettingsModal() {
                       <div>
                         <h4 className="text-[14px] font-medium text-bone-100">Appearance</h4>
                       </div>
-                      <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[140px]">
+                      <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[140px]">
                         <div
-                          className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                          className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                           style={{
-                            width: 'calc((100% - 8px) / 3)',
-                            left: `calc(4px + (${
+                            width: 'calc((100% - 4px) / 3)',
+                            left: `calc(2px + (${
                               (!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
-                            } * (100% - 8px) / 3))`
+                            } * (100% - 4px) / 3))`
                           }}
                         />
                         <button
@@ -205,14 +205,14 @@ export function SettingsModal() {
                       <div>
                         <h4 className="text-[14px] font-medium text-bone-100">Interface Scaling</h4>
                       </div>
-                      <div className="relative flex items-center p-[4px] bg-[var(--slider-track)] rounded-[10px] w-[240px]">
+                      <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[240px]">
                         <div
-                          className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                          className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
                           style={{
-                            width: 'calc((100% - 8px) / 3)',
-                            left: `calc(4px + (${
+                            width: 'calc((100% - 4px) / 3)',
+                            left: `calc(2px + (${
                               interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
-                            } * (100% - 8px) / 3))`
+                            } * (100% - 4px) / 3))`
                           }}
                         />
                         {['small', 'regular', 'big'].map((size) => (

@@ -30,6 +30,7 @@
 - Square/rounded-rect shapes (`rounded-[4px]`) for calendar date cells
 - Borderless selected states (no `border` on selected items)
 - **Block Hover Backgrounds:** Block rows in the document editor use `bg-[var(--bone-2)]` (`rgba(0, 0, 0, 0.02)` in light mode, `rgba(233, 233, 226, 0.02)` in dark mode) for hover/focus states, ensuring subtle but visible feedback across both themes.
+- **Default Slider Layout:** Main navigation slider tracks use 2px padding (`p-[2px]`), an 8px border radius (`rounded-[8px]`), and inner absolute positioned pills with a 6px border radius (`rounded-[6px]`) and width offsets of `calc(100% - 4px)` to perfectly nest within the track.
 - **Tab switchers:** Clean, borderless `bg-dark` containers with a rounded active sliding pill (`bg-[var(--bone-10)]`) rather than solid `bg-background` or borders, providing a unified dark aesthetic across widgets.
 - **Mono Pills (Quick Access):** Transparent background with a `1px` border of `var(--bone-10)`, `var(--bone-100)` text (idle), and `var(--bone-30)` icon (idle). On hover, it fills with `var(--app-dark)`, removes the border (`border-transparent`), and transitions the icon to `var(--bone-60)` while maintaining `var(--bone-100)` text. Sized compactly (`px-3 py-1.5`, `text-[12px]`) with corners using `rounded-[var(--radius-medium)]` (8px) rather than capsule shapes, maintaining a minimal boxy tone.
 - Subtle hover backgrounds (`hover:bg-white/5`) over bordered buttons

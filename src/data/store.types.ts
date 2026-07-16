@@ -514,6 +514,7 @@ export interface AppState {
 
   // Chat page state
   activeChatId: string | null;
+  activeBrainId: string | null;
   newEmptyChatId: string | null;
   isTempChat: boolean;
   pendingNewChat: boolean;
@@ -684,6 +685,7 @@ export interface AppState {
 
   // Chat page actions
   setActiveChatId: (id: string | null) => void;
+  setActiveBrainId: (id: string | null) => void;
   setIsTempChat: (temp: boolean) => void;
   setChatHistoryOpen: (open: boolean) => void;
   startTempChat: () => Promise<void>;

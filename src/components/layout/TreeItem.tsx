@@ -858,7 +858,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   const [tempTitle, setTempTitle] = React.useState(entity.title);
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [plusPopupPos, setPlusPopupPos] = useState<{ x: number; y: number } | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isEditing = editingEntity?.id === entity.id && editingEntity?.source === 'sidebar';
 
@@ -877,10 +877,10 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
   };
 
   React.useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      const target = textareaRef.current;
-      target.style.height = '18px';
-      target.style.height = `${Math.min(target.scrollHeight, 40)}px`;
+    if (isEditing && inputRef.current) {
+      const target = inputRef.current;
+      target.focus();
+      target.setSelectionRange(target.value.length, target.value.length);
     }
   }, [isEditing]);
 
@@ -1066,9 +1066,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
           onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
           data-selected={isActive || undefined}
           className={cn(
-            "sidebar-item-row group relative flex w-full select-none",
-            isEditing ? "items-start pt-[5px]" : "items-center h-7",
-            "px-3 rounded-[var(--radius-small)]",
+            "sidebar-item-row group relative flex w-full select-none items-center h-7 px-3 rounded-[var(--radius-small)]",
             "border border-transparent",
             effectiveMultiSelected
               ? isDraggingLocal
@@ -1097,10 +1095,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
         </div>
 
         {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            autoFocus
-            rows={1}
+          <input
+            ref={inputRef}
             value={tempTitle}
             onChange={(e) => setTempTitle(e.target.value)}
             onBlur={handleRename}
@@ -1112,12 +1108,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
               if (e.key === 'Escape') setEditingEntityId(null);
             }}
             onClick={(e) => e.stopPropagation()}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = '18px';
-              target.style.height = `${Math.min(target.scrollHeight, 40)}px`;
-            }}
-            className="ml-[6px] flex-1 min-w-0 bg-transparent outline-none text-[var(--foreground)] border-none p-0 text-[13px] leading-snug resize-none overflow-hidden break-words whitespace-pre-wrap w-full"
+            className="ml-[6px] flex-1 min-w-0 bg-transparent outline-none text-[var(--bone-100)] border-none p-0 text-[14px] leading-snug truncate w-full"
           />
         ) : (
           <span className={cn(

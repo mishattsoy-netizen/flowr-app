@@ -2,6 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -104,7 +105,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
 
   const currentIcon = entity?.icon || 'Folder';
 
-  return (
+  const content = (
     <div
       ref={ref}
       className={cn(
@@ -153,7 +154,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
                         "w-10 h-10 rounded-[var(--radius-small)]  flex items-center justify-center",
                         currentIcon === iconName
                           ? "bg-dark text-[var(--bone-100)] ring-1 ring-inset ring-[var(--bone-30)]"
-                          : "text-foreground/40 hover:bg-hover hover:text-foreground"
+                          : "opacity-40 hover:opacity-100 hover:bg-hover text-[var(--bone-100)]"
                       )}
                     >
                       <IconComp className="w-5 h-5" />
@@ -183,7 +184,7 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
                             "w-8 h-8 rounded-[var(--radius-small)]  flex items-center justify-center",
                             currentIcon === iconName
                               ? "bg-dark text-[var(--bone-100)] ring-1 ring-inset ring-[var(--bone-30)]"
-                              : "text-foreground/40 hover:bg-hover hover:text-foreground"
+                              : "opacity-40 hover:opacity-100 hover:bg-hover text-[var(--bone-100)]"
                           )}
                         >
                           <IconComp className="w-4 h-4" />
@@ -199,6 +200,9 @@ export function IconPicker({ entityId, anchorRect, onClose }: IconPickerProps) {
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
 }
 
 

@@ -162,7 +162,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
     if (!activeTask) {
       const timer = setTimeout(() => {
         titleInputRef.current?.focus();
-      }, 150);
+      }, 350);
       return () => clearTimeout(timer);
     }
   }, [taskId, activeTask]);

@@ -22,6 +22,38 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.4',
+    build: '1440',
+    date: '2026-07-16',
+    title: 'Multiple Brains, Flawless App Loading & Editor Polish',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'You can now create and switch between multiple distinct "Brains" for different projects or contexts.',
+          'Added a quick-picker pill in the chat bar to easily swap your active Brain.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Massive improvements to app startup: no more blank white screens or flashing skeletons before your content loads.',
+          'Split-view layouts now correctly remember which notes you had open when you refresh the page.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Fixed an issue where the slash menu would stay open while scrolling.',
+          'Fixed a bug where the Backspace or Delete key would sometimes merge text blocks incorrectly.',
+          'Checkboxes and list formatting changes now properly save to your undo history.',
+          'Fixed a bug where app shortcut keys (like Undo) would be blocked if the command palette was open.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.3',
     build: '1430',
     date: '2026-07-15',
