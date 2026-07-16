@@ -1,6 +1,7 @@
 "use client";
 
 import { useStore } from '@/data/store';
+import { useAppReady } from '@/hooks/useAppReady';
 import { ChatMessage } from '@/components/assistant/components/ChatMessage';
 import { AIAvatar } from '@/components/assistant/components/AIAvatar';
 import { useRef, useEffect, useCallback } from 'react';
@@ -22,12 +23,17 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
 
   const activeChatId = useStore(s => s.activeChatId);
   const isTempChat = useStore(s => s.isTempChat);
+  const { storeHydrated } = useAppReady();
 
-  // A new or temporary chat has zero messages and nothing to fetch — there is
-  // nothing to show a message skeleton for. Only show it when there's an
-  // actual existing chat whose messages could still be loading.
-  const hasNothingToLoad = isTempChat || !activeChatId;
-  const isMinLoading = !!isLoading || (!hasNothingToLoad && isChatMessagesLoading);
+  // The distinguishing question is NOT "is activeChatId null" — that's true
+  // both for a genuine new/temp chat AND for every chat before the store has
+  // hydrated (it just hasn't loaded yet). Only trust "no active chat" once we
+  // know we're actually hydrated; before that, we don't know what kind of
+  // chat this is, so treat it as "might have messages" (show skeleton) to
+  // avoid a broken partial layout for active chats. After hydration, a
+  // genuinely temp/new chat correctly shows no skeleton at all.
+  const hasNothingToLoad = storeHydrated && (isTempChat || !activeChatId);
+  const isMinLoading = !hasNothingToLoad && (!!isLoading || isChatMessagesLoading);
 
   const messages = aiMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);

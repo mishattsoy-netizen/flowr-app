@@ -9,6 +9,7 @@ import { Eraser, Trash2, Bookmark, Image as ImageIcon, Globe, Telescope, CheckSq
 import { Tooltip } from '@/components/layout/Tooltip';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
+import { useAppReady } from '@/hooks/useAppReady';
 
 const QUICK_ACCESS_PILLS = [
   { id: 'image', label: 'Generate Image', prefix: '/image ', icon: ImageIcon },
@@ -21,6 +22,7 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
   const activeChatId = useStore(s => s.activeChatId);
   const chatConversations = useStore(s => s.chatConversations);
   const isTempChat = useStore(s => s.isTempChat);
+  const { storeHydrated: chatPageStoreHydrated } = useAppReady();
   const aiMessages = useStore(s => s.aiMessages);
   const isAILoading = useStore(s => s.isAILoading);
   const isChatMessagesLoading = useStore(s => s.isChatMessagesLoading);
@@ -99,7 +101,14 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
   };
 
   const displayMessages = aiMessages.filter(m => (m.role === 'user' || m.role === 'assistant') && !m.isHidden);
-  const showBottomBar = displayMessages.length > 0 || isAILoading || isChatMessagesLoading || isLoading;
+  // Same distinction as ChatConversation: before hydration we don't yet know
+  // if this will turn out to be an empty/new chat or one with real history,
+  // so default to the "has content" layout (showBottomBar=true) to avoid a
+  // broken partial layout — UNLESS we're hydrated and it's genuinely a
+  // temp/new chat with definitely-zero messages, matching ChatConversation's
+  // hasNothingToLoad logic so both components agree during the same window.
+  const chatKnownEmpty = chatPageStoreHydrated && isTempChat && displayMessages.length === 0;
+  const showBottomBar = !chatKnownEmpty && (displayMessages.length > 0 || isAILoading || isChatMessagesLoading || isLoading);
 
   return (
     <div className="flex-1 flex flex-col h-full w-full min-h-0 bg-background">
@@ -130,7 +139,7 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
             {!isTempChat && activeConv?.title && (
               <div 
                 className={cn(
-                  "pointer-events-auto flex items-center max-w-[300px] bg-[var(--bone-6)] border rounded-[6px] px-2 py-1 transition-colors cursor-text",
+                  "pointer-events-auto flex items-center max-w-[300px] bg-[var(--sys-color)] border rounded-[6px] px-2 py-1 transition-colors cursor-text",
                   isEditingTitle ? "border-[var(--brand-blue)]" : "border-[var(--bone-6)] hover:border-[var(--bone-12)] focus-within:border-[var(--brand-blue)]"
                 )}
                 onDoubleClick={() => {
@@ -163,7 +172,7 @@ export default function ChatPage({ isLoading }: { isLoading?: boolean }) {
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {isTempChat && (
+            {isTempChat && aiMessages.length > 0 && (
               <>
                 <Tooltip content="Clear Chat">
                   <button
