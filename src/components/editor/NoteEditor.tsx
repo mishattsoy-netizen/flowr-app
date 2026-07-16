@@ -987,7 +987,29 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         }, 10);
       }
     }
-  }, [isReadMode, handleSlash, undo, redo]);
+
+    if (e.key === ' ') {
+      const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
+      const text = contentEl?.textContent ?? '';
+
+      const transform = (updates: Partial<EditorBlock>) => {
+        e.preventDefault();
+        if (contentEl) contentEl.innerHTML = '';
+        updateBlock(blockId, { content: '', ...updates });
+      };
+
+      if (text === '#') return transform({ type: 'text', style: 'title' });
+      if (text === '##') return transform({ type: 'text', style: 'heading' });
+      if (text === '###') return transform({ type: 'text', style: 'subheading' });
+      if (text === '-') return transform({ type: 'bulletList' });
+      if (text === '1.') return transform({ type: 'numberedList' });
+      if (text === '[]') return transform({ type: 'checklist', checked: false });
+      if (text === '"' || text === '>') return transform({ type: 'quote' });
+      if (text === '```') return transform({ type: 'text', style: 'mono' });
+      if (text === '---') return transform({ type: 'divider' });
+      if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
+    }
+  }, [isReadMode, handleSlash, undo, redo, updateBlock]);
 
   useEffect(() => {
     const host = blocksHostRef.current;

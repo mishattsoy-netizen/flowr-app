@@ -537,22 +537,7 @@ export function BlockRenderer({
 
       const text = contentRef.current.textContent ?? '';
 
-      const transform = (updates: Partial<EditorBlock>) => {
-        e.preventDefault();
-        if (contentRef.current) contentRef.current.innerHTML = '';
-        onUpdate(block.id, { content: '', ...updates });
-      };
-
-      if (text === '#') return transform({ type: 'text', style: 'title' });
-      if (text === '##') return transform({ type: 'text', style: 'heading' });
-      if (text === '###') return transform({ type: 'text', style: 'subheading' });
-      if (text === '-') return transform({ type: 'bulletList' });
-      if (text === '1.') return transform({ type: 'numberedList' });
-      if (text === '[]') return transform({ type: 'checklist', checked: false });
-      if (text === '"' || text === '>') return transform({ type: 'quote' });
-      if (text === '```') return transform({ type: 'text', style: 'mono' });
-      if (text === '---') return transform({ type: 'divider' });
-      if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
+      // Markdown shortcuts RELOCATED to NoteEditor's handleHostKeyDown.
     }
 
     // "/" slash-menu trigger RELOCATED to NoteEditor's handleHostKeyDown.
