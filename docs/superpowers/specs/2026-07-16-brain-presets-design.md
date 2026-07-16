@@ -47,12 +47,16 @@ bot_session_states -- + active_brain_id uuid REFERENCES brains(id)
 
 **Guardrails (owner decisions, 2026-07-16):**
 - A user always has at least one brain. Deleting the last remaining brain is blocked at the API layer (mirrors `updateBrainNode`'s server-owned validation pattern from P1) — the UI should grey out delete on a user's only brain rather than let the request round-trip and fail.
-- `is_default` marks the brain new sessions fall back to if `active_brain_id` is ever null (should not normally happen once new-chat always sets it, but keeps the invariant enforceable server-side rather than assumed).
-- Every brand-new user account gets its "Main" brain auto-created at account setup, not lazily on first use — the new-chat picker always has at least one real card, no empty state to design for.
+- `is_default` marks the brain new sessions fall back to if `active_brain_id` is ever null (should not normally happen once the message bar's pill always sets it — see §5's revision — but keeps the invariant enforceable server-side rather than assumed).
+- **Revised during planning (2026-07-16):** this codebase has no DB-trigger-on-signup pattern anywhere (verified — no `on_auth_user_created`/`handle_new_user` trigger exists; per-user config rows like `brain_config` are read lazily with a fallback, never trigger-created). Matching that existing convention: a user's "Main" brain is **lazily get-or-created** the first time anything touches their brain (first compile, first `list`, first `manage_brain` call), not created at account signup via a trigger. A `getOrCreateDefaultBrain(userId)` helper in `brainStore.ts` does this — check for an existing `is_default: true` row first, only insert if none exists. Two concurrent first-requests racing to create it is a known, accepted edge case (not a correctness bug — worst case is a brief duplicate that read-paths should tolerate by picking the oldest `is_default` row; do not treat this as something requiring a DB unique constraint or advisory lock for P2a).
 
 ## 3. Ownership & security
 
-Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` query already filters by `user_id`; it now also filters by `brain_id`, and `brain_id` itself is validated to belong to `user_id` before any node operation touches it (same "validate ownership before use" chokepoint pattern as `assertOwnedEntity`). A `brain_id` the caller doesn't own behaves like a nonexistent one — generic "not found," never a distinguishing error.
+Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` query already filters by `user_id`; it now also filters by `brain_id`, and `brain_id` itself is validated to belong to `user_id` before any node operation touches it via a new `assertOwnedBrain(userId, brainId)` chokepoint (mirrors `assertOwnedEntity`'s pattern exactly). A `brain_id` the caller doesn't own behaves like a nonexistent one — generic "not found," never a distinguishing error.
+
+**This is the P2a-equivalent of P1's #1 embarrassment scenario, not a minor detail.** Every one of these `brainStore.ts` functions currently filters by `user_id` alone and must gain a `brain_id` filter: `fetchBrainRows` (both the node and edge queries), `addBrainNode` (the node-count check AND the insert), `updateBrainNode`, `removeBrainNodes`, `restoreBrainNode`, `addBrainEdge` (the endpoint-ownership check AND the insert), `removeBrainEdge`, `listBrain`, and `computeBrainVersion`/`compileBrain` (via their call to `fetchBrainRows`). Missing even one = a node in Brain A silently leaks into Brain B's compiled `[BRAIN]` block for the same user — cross-brain prompt contamination. The acceptance test for this phase must include a live two-brain isolation check, not just a code read-through.
+
+**Compile-cache key.** `brain_compiles`' primary key is `(user_id, version)`. `computeBrainVersion`'s hash input must include `brain_id` explicitly (not just rely on the fetched node/edge set differing) — otherwise two structurally-identical brains (e.g. two brand-new empty brains) hash to the same version key and collide in the cache table. Cheap to add, and removes a fragile "it happens to differ because the data differs" assumption.
 
 ## 4. Tool scope: `manage_brain` targets the active brain only
 
@@ -62,18 +66,17 @@ Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` 
 
 ## 5. Session binding & the pill
 
-**New-chat page:** shows the user's brains as cards (title + description), including "Main." Picking one sets `active_brain_id` for the new session before the first message is sent.
+**Revised during planning (2026-07-16):** this codebase has no dedicated "new chat" landing page — `startNewChat()` just clears client state (`activeChatId: null`, `pendingNewChat: true`); the actual chat row is created lazily on the first message send (`sendAIMessage` in `store.ts`). There is nothing to put preset cards "on" before that point. The pill (below) subsumes both roles the original design split across two surfaces: it's clickable to pick a brain BEFORE the first message of a new session (while `pendingNewChat` is true and no session exists yet), and clickable to swap AFTER a session exists. One control, two moments — not a lost feature, a merged one.
 
-**Mid-session switch (pill in the message bar, next to the actions button — icon + current brain name):** swappable at any time, not locked once chosen. Selecting a different brain:
-1. Compiles + pins the new brain's version to the session (`active_brain_id` updates, same repin mechanism P1's `refresh` op already uses).
-2. Inserts a visible system-style divider in the message list ("Switched to Trading brain") so the transcript itself is unambiguous about which brain was active for which messages — both what the bot *read* and what `manage_brain` calls *wrote* before vs. after the divider are legible without guessing.
+**The pill** lives in the message bar's "Right Actions" row (`src/components/assistant/AIAssistant.tsx`, next to the existing mode selector — same row as "Regular"/"Thinking"/"Advisor"): icon + current brain name. Click opens a switcher listing the user's brains (title + description). Selecting one:
+1. **Before the first send of a new session** (`pendingNewChat` true): just sets the client-side `activeBrainId` the store will send as part of the first `/api/ai/chat` request body — no repin needed yet, since no session/pin exists.
+2. **Mid-session** (a real `activeChatId` already exists): calls a repin — compiles the new brain and overwrites `bot_session_states.active_brain_id` AND `pinned_brain_version` together, in the same operation (this is the exact mechanism P1's `refresh` op already performs; a swap that updates `active_brain_id` without also overwriting the pin would leave `getBrainBlockForSession` still serving the OLD brain's compile, since it short-circuits on the existing pin — this must not be split into two separate writes). Inserts a visible system-style divider in the message list ("Switched to Trading brain") so the transcript is unambiguous about which brain was active for which messages.
 
 **Cache cost, precisely:** turns before a swap are cached exactly as in P1 (pinned compile reused every turn). The swap turn itself is one cache-miss (a fresh prefix write for the new brain), identical in cost to what `refresh` already pays today. Turns after the swap cache normally again against the new pinned version. This is categorically cheaper than P3's later concern (reclassifying every message would cache-miss constantly) — a user manually swapping brains is a rare, deliberate action, not a per-message event.
 
 ## 6. UI surfaces
 
-- **New-chat page**: brain preset cards (title, description, maybe a small budget/node-count indicator) — pick one to start the session.
-- **Message bar pill**: icon + active brain name, next to the actions button. Click to open a switcher (same brain list as the new-chat cards). Triggers the mid-session swap in §5.
+- **Message bar pill** (`AIAssistant.tsx`): icon + active brain name, in the Right Actions row. Click to open a switcher (list of the user's brains). Triggers the pre-session pick or mid-session swap described in §5. This is the ONLY brain-selection surface — no separate new-chat page (see §5's revision).
 - **Brain management** (rename, edit description, create, delete): lives in the existing Brain page (P1 Task 8) — add a brain-switcher/list at the top of that panel, reusing its existing node/edge/budget views scoped to whichever brain is selected there. Not a new page.
 
 Canvas/graph view and drag-and-drop from the home-page sidebar are explicitly **out of scope for P2a** — they land in P2b, once there's a spatial graph to drop onto.
