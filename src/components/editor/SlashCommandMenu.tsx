@@ -132,6 +132,20 @@ export function SlashCommandMenu({ position, search, onClose, onInsertBlock, act
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
+  // Close on scroll of the note content. `position` is computed once (fixed
+  // viewport coordinates) when the menu opens and never recalculated, so a
+  // scroll leaves the popup visually anchored to nothing — the block it was
+  // opened for moves out from under it. Scrolling inside the menu's own
+  // command list must not trigger this.
+  useEffect(() => {
+    const handleScroll = (e: Event) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      onClose();
+    };
+    document.addEventListener('scroll', handleScroll, true);
+    return () => document.removeEventListener('scroll', handleScroll, true);
+  }, [onClose]);
+
   // Reset active index when search changes
   useEffect(() => {
     setActiveIndex(0);

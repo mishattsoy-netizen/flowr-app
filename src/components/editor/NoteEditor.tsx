@@ -1181,8 +1181,17 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                 persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                 
                 setTimeout(() => {
+                  // Row divs are passive (no contentEditable of their own —
+                  // the host is the only editing surface), so a plain
+                  // .focus() is a no-op and never actually moves the caret.
+                  // The caret must be placed with an explicit Range, like
+                  // every other row-to-row jump in this file (focusAtEnd).
+                  // Without this, Enter on a row silently leaves the caret
+                  // on the OLD row, and the very next keystroke — including
+                  // simply continuing to type — lands there instead of in
+                  // the new (apparently empty, actually just unfocused) row.
                   const newEl = host.querySelector<HTMLElement>(`[data-row-id="${newRow.id}"]`);
-                  if (newEl) newEl.focus();
+                  if (newEl) focusAtEnd(newEl);
                 }, 10);
                 return;
               }
