@@ -7,6 +7,7 @@ import { EntityPageRenderer } from '@/components/EntityPageRenderer';
 import { ColumnHeader } from './ColumnHeader';
 import { ColumnPlaceholder } from './ColumnPlaceholder';
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
+import { NoteSkeleton } from '@/components/editor/NoteSkeleton';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { isDesktop } from '@/lib/env';
 import { useAppReady } from '@/hooks/useAppReady';
@@ -181,15 +182,7 @@ export function SplitViewLayout() {
         )}
         {!isDesktopEnv && <ColumnHeader column="left" entityId={splitViewLeftId} />}
         {!storeHydrated ? (
-          <div className="flex-1 min-h-0 p-6 flex flex-col gap-3">
-            {[1, 2, 3].map(i => (
-              <div
-                key={i}
-                className="h-4 rounded bg-[var(--bone-5)] animate-pulse"
-                style={{ width: i === 1 ? '60%' : i === 2 ? '90%' : '75%' }}
-              />
-            ))}
-          </div>
+          <NoteSkeleton />
         ) : splitViewLeftId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewLeftId} />
@@ -252,15 +245,7 @@ export function SplitViewLayout() {
         )}
         {!isDesktopEnv && <ColumnHeader column="right" entityId={splitViewRightId} />}
         {!storeHydrated ? (
-          <div className="flex-1 min-h-0 p-6 flex flex-col gap-3">
-            {[1, 2, 3].map(i => (
-              <div
-                key={i}
-                className="h-4 rounded bg-[var(--bone-5)] animate-pulse"
-                style={{ width: i === 1 ? '60%' : i === 2 ? '90%' : '75%' }}
-              />
-            ))}
-          </div>
+          <NoteSkeleton />
         ) : splitViewRightId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewRightId} />
