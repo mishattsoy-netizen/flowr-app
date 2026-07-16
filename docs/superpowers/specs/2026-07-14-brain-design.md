@@ -179,13 +179,13 @@ manage_brain({ op: "add_node" | "update_node" | "remove_node" | "connect" | "dis
 
 ## 9. Acceptance tests
 
-1. **Injection & cutover**: a live transcript shows the `[BRAIN]` block present and `[USER MEMORY FACT SHEET]` absent; imported memories appear inside `[BRAIN]`.
-2. **Cache**: repeat turns in one session cache-hit on the brain segment; a "build a brain about X" multi-op session does NOT bust the cache mid-session (pinning works); a new session picks up the new brain.
-3. **Anti-decoration (contrastive)**: the same question asked with and without a single edge (`Trading journal — check risk rules before logging`) produces measurably different behavior. If an edge changes nothing, edges are decoration and the design has failed.
-4. **Bot-built brain**: "build a brain about my trading" in chat produces real nodes/sections visible on the Brain page.
-5. **Budget**: bot add past the limit → structured refusal, relayed conversationally; oversized note → truncated at per-node cap with marker; over-budget compile → deterministic drops with visible badges.
-6. **Security**: add_node with a foreign user's entity id → rejected at add-time; a node whose entity changes owner → excluded at compile-time. Both unit-tested.
-7. **Deletion**: deleting a referenced entity → broken-node badge, compile excludes it, nothing crashes.
+1. **Injection & cutover**: a live transcript shows the `[BRAIN]` block present and `[USER MEMORY FACT SHEET]` absent; imported memories appear inside `[BRAIN]`. ✅ **Verified live (2026-07-16)** — 8 imported memories confirmed present in `[BRAIN]`, fact sheet confirmed absent, real transcripts.
+2. **Cache**: repeat turns in one session cache-hit on the brain segment; a "build a brain about X" multi-op session does NOT bust the cache mid-session (pinning works); a new session picks up the new brain. ✅ **Verified live (2026-07-16)** — real OpenRouter logs: same-session repeat turn showed a 4,077-token provider cache hit on the identical static prefix; a mid-session `manage_brain add_node` call did not change that session's injected `[BRAIN]` block; a brand-new session recompiled fresh (0% cached, byte-different prefix) and correctly picked up the new memory.
+3. **Anti-decoration (contrastive)**: the same question asked with and without a single edge (`Trading journal — check risk rules before logging`) produces measurably different behavior. If an edge changes nothing, edges are decoration and the design has failed. ⬜ **Not run.** Owner decision (2026-07-16): given 1 and 2 passed cleanly (the two mechanically hardest properties — injection correctness and cache-pinning math), confidence is extended to 3-7 without individually running each. Noted as a real gap, not a pass — if edge behavior is ever in question, this is the test to run first. Also note: P1's Brain page has no UI for creating edges (manual edges are explicitly P2 per §8) — only `manage_brain({op:"connect"})` via chat can create one right now.
+4. **Bot-built brain**: "build a brain about my trading" in chat produces real nodes/sections visible on the Brain page. ⬜ **Not run** (see note above).
+5. **Budget**: bot add past the limit → structured refusal, relayed conversationally; oversized note → truncated at per-node cap with marker; over-budget compile → deterministic drops with visible badges. ⬜ **Not run** (see note above).
+6. **Security**: add_node with a foreign user's entity id → rejected at add-time; a node whose entity changes owner → excluded at compile-time. Both unit-tested. ⬜ **Not run live** (see note above) — but IS covered by automated unit tests (`brainStore`'s `assertOwnedEntity` + compile-time ownership filter), unlike 3-5 which have no unit-test substitute for the live check.
+7. **Deletion**: deleting a referenced entity → broken-node badge, compile excludes it, nothing crashes. ⬜ **Not run** (see note above).
 
 ## 10. Build order
 

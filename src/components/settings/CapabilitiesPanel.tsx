@@ -92,13 +92,12 @@ export default function CapabilitiesPanel() {
         <div>
           <h4 className="text-[14px] font-medium text-bone-100">Bot Memory</h4>
           <p className="text-[13px] text-bone-70 mt-0.5">
-            Facts and details the AI remembers about you. ({memories.length}/20 used)
+            Facts and details the AI remembers about you. Governed by your Brain's token budget, not a fixed count.
           </p>
         </div>
         <button
           onClick={handleOpenAdd}
-          disabled={memories.length >= 20}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100 transition-colors shrink-0"
         >
           <Plus className="w-4 h-4" />
           Add Memory
