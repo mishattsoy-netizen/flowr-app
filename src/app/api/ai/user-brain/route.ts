@@ -4,6 +4,8 @@ import { isSupabaseEnabled } from '@/lib/supabase'
 import {
   listBrain, addBrainNode, updateBrainNode, removeBrainNodes,
   restoreBrainNode, addBrainEdge, removeBrainEdge, compileBrain,
+  listUserBrains, createBrain, updateBrainMeta, deleteBrain,
+  getOrCreateDefaultBrain, switchActiveBrain,
 } from '@/lib/bot/services/brainStore'
 import { logger } from '@/lib/logger'
 
@@ -22,7 +24,14 @@ export async function GET(req: NextRequest) {
   try {
     const userId = await authedUserId(req)
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    return NextResponse.json(await listBrain(userId))
+    const { searchParams } = new URL(req.url)
+    const requestedBrainId = searchParams.get('brain_id')
+    const brainId = requestedBrainId || (await getOrCreateDefaultBrain(userId)).id
+    const [state, brains] = await Promise.all([
+      listBrain(userId, brainId),
+      listUserBrains(userId),
+    ])
+    return NextResponse.json({ ...state, brains })
   } catch (e: any) {
     logger.error('user-brain GET failed:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
@@ -37,26 +46,40 @@ export async function POST(req: NextRequest) {
 
     switch (body.action) {
       case 'add_node':
-        return NextResponse.json(await addBrainNode(userId, 'user', body))
+        return NextResponse.json(await addBrainNode(userId, 'user', body.brain_id, body))
       case 'update_node':
         // Safe to pass body.updates straight through: updateBrainNode
         // whitelists to UPDATABLE_NODE_FIELDS internally (mass-assignment
         // guard, see brainStore.ts) — a raw JSON body can't smuggle
-        // user_id/type/ref_id/etc. into the SET clause. Do not add a
-        // second whitelist here; one authoritative chokepoint is the point.
-        return NextResponse.json(await updateBrainNode(userId, 'user', body.node_id, body.updates ?? {}))
+        // user_id/type/ref_id/brain_id/etc. into the SET clause. Do not add
+        // a second whitelist here; one authoritative chokepoint is the point.
+        return NextResponse.json(await updateBrainNode(userId, 'user', body.brain_id, body.node_id, body.updates ?? {}))
       case 'remove_node':
-        return NextResponse.json(await removeBrainNodes(userId, 'user', body.node_ids ?? [body.node_id]))
+        return NextResponse.json(await removeBrainNodes(userId, 'user', body.brain_id, body.node_ids ?? [body.node_id]))
       case 'restore_node':
-        return NextResponse.json(await restoreBrainNode(userId, body.node_id))
+        return NextResponse.json(await restoreBrainNode(userId, body.brain_id, body.node_id))
       case 'connect':
-        return NextResponse.json(await addBrainEdge(userId, 'user', body.from, body.to, body.label))
+        return NextResponse.json(await addBrainEdge(userId, 'user', body.brain_id, body.from, body.to, body.label))
       case 'disconnect':
-        return NextResponse.json(await removeBrainEdge(userId, 'user', body.edge_id))
+        return NextResponse.json(await removeBrainEdge(userId, 'user', body.brain_id, body.edge_id))
       case 'recompile': {
-        const compiled = await compileBrain(userId)
+        const compiled = await compileBrain(userId, body.brain_id)
         return NextResponse.json({ success: true, tokenCount: compiled.tokenCount, version: compiled.version })
       }
+      case 'list_brains':
+        return NextResponse.json({ brains: await listUserBrains(userId) })
+      case 'create_brain':
+        return NextResponse.json(await createBrain(userId, body.title, body.description))
+      case 'update_brain':
+        return NextResponse.json(await updateBrainMeta(userId, body.brain_id, { title: body.title, description: body.description }))
+      case 'delete_brain':
+        return NextResponse.json(await deleteBrain(userId, body.brain_id))
+      case 'switch_active_brain':
+        // sessionId here is the chat session's id (same format chainRouter
+        // uses, e.g. "chat:<uuid>") — the client sends whatever it already
+        // uses to identify the active chat.
+        if (!body.session_id) return NextResponse.json({ error: "'session_id' is required" }, { status: 400 })
+        return NextResponse.json(await switchActiveBrain(body.session_id, userId, body.brain_id))
       default:
         return NextResponse.json({ error: `Unknown action '${body.action}'` }, { status: 400 })
     }
