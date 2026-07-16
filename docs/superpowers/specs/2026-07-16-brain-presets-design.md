@@ -1,6 +1,6 @@
 # Flowr AI Brain — Presets (P2a) — Design
 
-Date: 2026-07-16 · Status: **Approved design, not yet implemented.**
+Date: 2026-07-16 · Status: **Implemented (2026-07-16), pending live verification.**
 Relationship to `2026-07-14-brain-design.md`: this spec **extends** it, filling in the "Per-agent brains" future consideration named in that spec's §11. Does not change or reopen the P1 build (Tasks 1-5 done; Tasks 6-8 continue unchanged against a single implicit brain — this phase is additive, layered in after). §3's data model, §4's compile pipeline, and §6's security model all carry forward unchanged per-brain instead of per-user.
 
 ## 1. Vision
@@ -15,6 +15,7 @@ This is phase one of a three-phase expansion (owner-approved order):
 P2a is the dependency root for the other two: you cannot drag a note onto a graph of a brain that doesn't exist as a distinct entity yet, and you cannot auto-route between brains that aren't nameable/describable yet.
 
 ## 2. Data model
+*(Implemented 2026-07-16, pending live verification)*
 
 `brain_id` becomes a real dimension instead of an implicit "the one brain a user has." Additive migration — every existing row gets a `brain_id` pointing at an auto-created `"Main"` brain, so P1 users see zero disruption.
 
@@ -51,6 +52,7 @@ bot_session_states -- + active_brain_id uuid REFERENCES brains(id)
 - **Revised during planning (2026-07-16):** this codebase has no DB-trigger-on-signup pattern anywhere (verified — no `on_auth_user_created`/`handle_new_user` trigger exists; per-user config rows like `brain_config` are read lazily with a fallback, never trigger-created). Matching that existing convention: a user's "Main" brain is **lazily get-or-created** the first time anything touches their brain (first compile, first `list`, first `manage_brain` call), not created at account signup via a trigger. A `getOrCreateDefaultBrain(userId)` helper in `brainStore.ts` does this — check for an existing `is_default: true` row first, only insert if none exists. Two concurrent first-requests racing to create it is a known, accepted edge case (not a correctness bug — worst case is a brief duplicate that read-paths should tolerate by picking the oldest `is_default` row; do not treat this as something requiring a DB unique constraint or advisory lock for P2a).
 
 ## 3. Ownership & security
+*(Implemented 2026-07-16, pending live verification)*
 
 Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` query already filters by `user_id`; it now also filters by `brain_id`, and `brain_id` itself is validated to belong to `user_id` before any node operation touches it via a new `assertOwnedBrain(userId, brainId)` chokepoint (mirrors `assertOwnedEntity`'s pattern exactly). A `brain_id` the caller doesn't own behaves like a nonexistent one — generic "not found," never a distinguishing error.
 
@@ -59,12 +61,14 @@ Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` 
 **Compile-cache key.** `brain_compiles`' primary key is `(user_id, version)`. `computeBrainVersion`'s hash input must include `brain_id` explicitly (not just rely on the fetched node/edge set differing) — otherwise two structurally-identical brains (e.g. two brand-new empty brains) hash to the same version key and collide in the cache table. Cheap to add, and removes a fragile "it happens to differ because the data differs" assumption.
 
 ## 4. Tool scope: `manage_brain` targets the active brain only
+*(Implemented 2026-07-16, pending live verification)*
 
 `manage_brain` (P1 Task 5) gets **no new `brain_id` parameter.** It always operates on `bot_session_states.active_brain_id` for the current session — never a brain named or implied elsewhere in the conversation.
 
 **Why (owner-decided, 2026-07-16):** letting the model address a brain by name reopens the exact bug class the P1 security work (ownership validation, `assertOwnedEntity`) was built to close — the model would have to resolve a fuzzy name to an ID itself, with real chances of targeting the wrong brain or needing an extra `list_brains` round-trip. It also breaks the mental model established for the pill/UI: "you're *in* a brain for this conversation; what you tell the bot to remember goes there." If a user wants to add to a brain other than the one active in the current chat, the supported path is switching the pill first (§5), not asking the bot to cross-target.
 
 ## 5. Session binding & the pill
+*(Implemented 2026-07-16, pending live verification)*
 
 **Revised during planning (2026-07-16):** this codebase has no dedicated "new chat" landing page — `startNewChat()` just clears client state (`activeChatId: null`, `pendingNewChat: true`); the actual chat row is created lazily on the first message send (`sendAIMessage` in `store.ts`). There is nothing to put preset cards "on" before that point. The pill (below) subsumes both roles the original design split across two surfaces: it's clickable to pick a brain BEFORE the first message of a new session (while `pendingNewChat` is true and no session exists yet), and clickable to swap AFTER a session exists. One control, two moments — not a lost feature, a merged one.
 
@@ -75,6 +79,7 @@ Unchanged from P1 §6, scoped down one level: every `brain_nodes`/`brain_edges` 
 **Cache cost, precisely:** turns before a swap are cached exactly as in P1 (pinned compile reused every turn). The swap turn itself is one cache-miss (a fresh prefix write for the new brain), identical in cost to what `refresh` already pays today. Turns after the swap cache normally again against the new pinned version. This is categorically cheaper than P3's later concern (reclassifying every message would cache-miss constantly) — a user manually swapping brains is a rare, deliberate action, not a per-message event.
 
 ## 6. UI surfaces
+*(Implemented 2026-07-16, pending live verification)*
 
 - **Message bar pill** (`AIAssistant.tsx`): icon + active brain name, in the Right Actions row. Click to open a switcher (list of the user's brains). Triggers the pre-session pick or mid-session swap described in §5. This is the ONLY brain-selection surface — no separate new-chat page (see §5's revision).
 - **Brain management** (rename, edit description, create, delete): lives in the existing Brain page (P1 Task 8) — add a brain-switcher/list at the top of that panel, reusing its existing node/edge/budget views scoped to whichever brain is selected there. Not a new page.
