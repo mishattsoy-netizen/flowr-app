@@ -6,14 +6,22 @@ import { cn } from '@/lib/utils';
 import { EditorBlock, BlockType, generateId } from '@/data/store';
 import { formatCounter } from '@/lib/editor/markdownBlocks';
 
-interface ListRow {
+export interface ListRow {
   id: string;
   content: string;
   checked?: boolean;
   depth: number;
 }
 
-function flattenRows(block: EditorBlock): ListRow[] {
+/**
+ * NOTE: row[0] of the returned array is always the list BLOCK itself
+ * (id === block.id), not a child item — verified against the real render:
+ * ListBlock renders rows.map((row, i) => <RowEl rowIndex={i} .../>) for
+ * EVERY entry including index 0, so the block's own content is rendered as
+ * an ordinary row. Consumers (see src/lib/editor/listRowOps.ts) rely on
+ * this exact convention.
+ */
+export function flattenRows(block: EditorBlock): ListRow[] {
   const rows: ListRow[] = [];
 
   function walk(items: EditorBlock[], depth: number) {
@@ -31,7 +39,7 @@ function flattenRows(block: EditorBlock): ListRow[] {
   return rows;
 }
 
-function nestRows(rows: ListRow[], blockType: BlockType): { content: string; checked?: boolean; children: EditorBlock[] } {
+export function nestRows(rows: ListRow[], blockType: BlockType): { content: string; checked?: boolean; children: EditorBlock[] } {
   if (rows.length === 0) return { content: '', children: [] };
 
   function buildTree(items: ListRow[], minDepth: number): EditorBlock[] {
