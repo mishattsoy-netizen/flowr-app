@@ -7,11 +7,8 @@ import { EntityPageRenderer } from '@/components/EntityPageRenderer';
 import { ColumnHeader } from './ColumnHeader';
 import { ColumnPlaceholder } from './ColumnPlaceholder';
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
-import { NoteSkeleton } from '@/components/editor/NoteSkeleton';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { isDesktop } from '@/lib/env';
-import { useAppReady } from '@/hooks/useAppReady';
-
 const COLLAPSE_THRESHOLD_PX = 180;
 const MIN_COLUMN_PCT = 33.33;
 const MAX_COLUMN_PCT = 66.67;
@@ -19,7 +16,7 @@ const MAX_COLUMN_PCT = 66.67;
 export function SplitViewLayout() {
   const splitViewLeftId = useStore(s => s.splitViewLeftId);
   const splitViewRightId = useStore(s => s.splitViewRightId);
-  const { storeHydrated } = useAppReady();
+
   const splitViewPosition = useStore(s => s.splitViewPosition);
   const setSplitViewPosition = useStore(s => s.setSplitViewPosition);
   const setColumnEntity = useStore(s => s.setColumnEntity);
@@ -181,9 +178,7 @@ export function SplitViewLayout() {
           />
         )}
         {!isDesktopEnv && <ColumnHeader column="left" entityId={splitViewLeftId} />}
-        {!storeHydrated ? (
-          <NoteSkeleton />
-        ) : splitViewLeftId ? (
+        {splitViewLeftId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewLeftId} />
           </OverlayScrollbar>
@@ -244,9 +239,7 @@ export function SplitViewLayout() {
           />
         )}
         {!isDesktopEnv && <ColumnHeader column="right" entityId={splitViewRightId} />}
-        {!storeHydrated ? (
-          <NoteSkeleton />
-        ) : splitViewRightId ? (
+        {splitViewRightId ? (
           <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
             <EntityPageRenderer entityId={splitViewRightId} />
           </OverlayScrollbar>
