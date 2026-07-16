@@ -498,6 +498,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   const editorRef = useRef<HTMLDivElement>(null);
   const blocksHostRef = useRef<HTMLDivElement>(null);
   const pendingCursor = useRef<{ blockId: string; offset: number } | null>(null);
+  const typingHistoryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isReadMode = useStore(s => !!s.readModeStates[entity.id]);
   const setReadMode = useStore(s => s.setReadMode);
@@ -824,23 +825,38 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     // check for the more specific target first, or typing in row 2 could
     // resolve to the list's own (wrong) block id.
     const rowEl = anchorEl.closest<HTMLElement>('[data-row-id]');
+    let edited = false;
     if (rowEl && host.contains(rowEl)) {
       const rowId = rowEl.dataset.rowId;
-      if (rowId) updateBlock(rowId, { content: rowEl.innerHTML });
-      return;
+      if (rowId) {
+        updateBlock(rowId, { content: rowEl.innerHTML });
+        edited = true;
+      }
+    } else {
+      const blockEl = blockOf(anchorNode);
+      if (blockEl && host.contains(blockEl)) {
+        const blockId = blockEl.dataset.blockId;
+        const contentEl = blockId ? blockEl.querySelector<HTMLElement>('[data-block-content]') : null;
+        if (blockId && contentEl) {
+          updateBlock(blockId, { content: contentEl.innerHTML });
+          edited = true;
+        }
+      }
     }
 
-    const blockEl = blockOf(anchorNode);
-    if (!blockEl || !host.contains(blockEl)) return;
-
-    const blockId = blockEl.dataset.blockId;
-    if (!blockId) return;
-
-    const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
-    if (!contentEl) return;
-
-    updateBlock(blockId, { content: contentEl.innerHTML });
-  }, [isReadMode, updateBlock]);
+    // Coalesced undo history: one entry per pause in typing, not per
+    // keystroke, for BOTH rows and blocks. persistBlocks(blocksRef.current)
+    // pushes the post-burst state; history[historyIndex] still holds the
+    // pre-burst state at that moment because updateBlock (above) never
+    // touches `history` — so the existing history/historyIndex mechanism
+    // produces the correct undo step with no extra snapshot bookkeeping.
+    if (edited) {
+      if (typingHistoryTimer.current) clearTimeout(typingHistoryTimer.current);
+      typingHistoryTimer.current = setTimeout(() => {
+        persistBlocks(blocksRef.current);
+      }, 600);
+    }
+  }, [isReadMode, updateBlock, persistBlocks]);
 
   const deleteBlock = useCallback((id: string) => {
     isUserModified.current = true;
@@ -934,6 +950,21 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const host = blocksHostRef.current;
     if (!host) return;
 
+    // Undo/redo MUST be checked before any block/row resolution below — it
+    // has to work even when the caret isn't in a resolvable position.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (typingHistoryTimer.current) { clearTimeout(typingHistoryTimer.current); typingHistoryTimer.current = null; }
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      if (typingHistoryTimer.current) { clearTimeout(typingHistoryTimer.current); typingHistoryTimer.current = null; }
+      redo();
+      return;
+    }
+
     const sel = window.getSelection();
     const anchorNode = sel?.anchorNode ?? null;
     const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : (anchorNode as HTMLElement | null);
@@ -956,7 +987,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         }, 10);
       }
     }
-  }, [isReadMode, handleSlash]);
+  }, [isReadMode, handleSlash, undo, redo]);
 
   useEffect(() => {
     const host = blocksHostRef.current;
