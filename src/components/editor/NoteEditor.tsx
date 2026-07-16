@@ -1053,6 +1053,20 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     if (!anchorEl) return;
 
     // ROW LEVEL (Task 4)
+    //
+    // CRITICAL: this whole block MUST unconditionally `return` at the end
+    // (see the `return;` right before the block-level section below), even
+    // when no inner key branch matched. Without it, a keystroke inside a
+    // list row that isn't handled here falls through into the block-level
+    // logic, where `anchorEl.closest('[data-block-id]')` resolves to the
+    // ROW'S PARENT LIST BLOCK (rows are nested inside the list's
+    // [data-block-id] wrapper) — not a plain text block. Confirmed bug:
+    // without the return, Backspace on a row fell through to the
+    // block-level "delete empty block" logic, which found no
+    // [data-block-content] inside the list wrapper (that marker only
+    // exists on plain text blocks), read that as empty text, and deleted
+    // the ENTIRE LIST BLOCK on an ordinary same-row text-clearing
+    // Backspace. Verified via headless probe against the real app.
     const rowEl = anchorEl.closest<HTMLElement>('[data-row-id]');
     if (rowEl && host.contains(rowEl)) {
       const rowId = rowEl.dataset.rowId;
@@ -1201,8 +1215,10 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               }
             }
           }
+          return; // parentBlock resolved but was not list-like — still a row, never fall through
         }
       }
+      return; // rowId/parentBlockId resolved but no match above — never fall through to block logic
     }
 
     const blockEl = anchorEl.closest<HTMLElement>('[data-block-id]');
