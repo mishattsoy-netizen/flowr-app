@@ -634,7 +634,18 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   }, [handleHostBeforeInput]);
 
   // Put the caret at the seam after React has re-rendered the merged blocks.
-  useLayoutEffect(() => {
+  //
+  // Deliberately useEffect, NOT useLayoutEffect. Measured: this fired BEFORE
+  // BlockRenderer's own content-sync effect (which imperatively writes
+  // contentRef.current.innerHTML = block.content, since the content div has
+  // no React children). React runs child effects before parent effects
+  // within a commit, and useLayoutEffect always runs before useEffect — so a
+  // parent useLayoutEffect here walked the STALE pre-merge DOM, set a caret
+  // into a text node that was about to be destroyed, and the caret collapsed
+  // to 0 when the child's useEffect replaced it moments later. useEffect
+  // here (still before paint completes for the child's useEffect, since both
+  // are useEffect and ordered child-first) fixes the ordering.
+  useEffect(() => {
     const target = pendingCursor.current;
     const host = blocksHostRef.current;
     if (!target || !host) return;
