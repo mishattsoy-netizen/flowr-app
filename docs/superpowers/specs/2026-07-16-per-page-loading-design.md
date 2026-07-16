@@ -3,6 +3,7 @@
 **Date:** 2026-07-16
 **Status:** Approved (pending spec review)
 **Supersedes:** `2026-07-16-unified-readiness-gate-design.md` (Parts B/C — neutral shell / single gate — rejected by user; Part A is correct and carried forward here as Part A).
+**Scope:** Content-region skeletons (Parts A–C, both platforms) + desktop SSR platform-tree mismatch (Part D, Electron-only fix, web unaffected).
 
 ## Problem, corrected
 
@@ -124,10 +125,73 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
 
 Also remove the extra `500`ms `useMinimumLoadingTime` floor here — it's a sibling of the artificial delay Scope 1 already removed from `useAppReady`, and it re-introduces exactly the kind of unnecessary wait Scope 1 eliminated elsewhere. Once root cause A is fixed, `isLoading` becomes true for only as long as real hydration takes (near-instant), so the 500ms floor is pure added latency with no benefit. Drop the wrapper and use `!!isLoading || isChatMessagesLoading` directly.
 
+### D. Desktop shows the web layout tree during SSR/first paint (the "floating containers" flash)
+
+The user confirmed they want this fixed too — previously flagged as out of scope, now folded in after investigation showed it has the same cheap fix shape as root cause A ("fix the value source, not every branch").
+
+**What's actually different, not just how it looks:** `Shell.tsx` renders **two structurally different layout trees** depending on `isDesktop()`, not one tree with conditional styling. On desktop (`isDesktop() === true`): `HeaderBar` renders once, globally, above a row of separately-bordered/rounded/shadowed "floating" cards for sidebar, main content, and AI panel (`Shell.tsx` — e.g. `bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm` on the sidebar wrapper, main content wrapper, and AI panel wrapper, with `gap-2` between them). On web: `HeaderBar` renders *inside* the main content area, no floating cards, flush layout with a border-right divider instead.
+
+**Root cause:** `isDesktop()` (`src/lib/env.ts`) is `typeof window !== 'undefined' && !!window.__FLOWR_DESKTOP__` — always `false` during any SSR render, including Electron's, because `window` doesn't exist server-side. Electron's `__FLOWR_DESKTOP__` flag is only ever set client-side after mount. So the Electron SSR server always renders the *web* tree, and the client always renders the *desktop* tree — guaranteed mismatch on every single load, not just refresh.
+
+**Fix — correct the boolean's source, not the 40 call sites that read it.** Electron already runs its own dedicated forked Next server, separate from the web deployment (`electron/main.js`, `fork(serverPath, [], { env: {...} })`). That fork can be told at process birth that it's the desktop server:
+
+```js
+// electron/main.js, in the fork() call's env object:
+nextServer = fork(serverPath, [], {
+  cwd: isPackaged ? standalonePath : appPath,
+  env: {
+    ...process.env,
+    ...envVars,
+    PORT: port.toString(),
+    HOSTNAME: '127.0.0.1',
+    NODE_ENV: 'production',
+    ELECTRON_RUN_AS_NODE: '1',
+    FLOWR_DESKTOP: '1', // new — tells the SSR server it's serving the desktop client
+  },
+  stdio: 'pipe'
+});
+```
+
+```ts
+// src/lib/env.ts
+export function isDesktop(): boolean {
+  if (typeof window === 'undefined') {
+    // Server-side: true only for the dedicated Electron-forked Next server.
+    return process.env.FLOWR_DESKTOP === '1';
+  }
+  return !!(window as any).__FLOWR_DESKTOP__;
+}
+```
+
+Now the Electron SSR server renders `true` (matching the Electron client's eventual `true`), and the web server still renders `false` (matching the web client). No cookie, no "one refresh behind" — correct from the very first request, because the value comes from the process's own identity, not a prior client render.
+
+**Required companion fix — one unguarded module-level `window` access.** Audited all `isDesktop()` call sites for ones that execute outside a render/effect scope (i.e., would newly execute during SSR once `isDesktop()` can be `true` server-side). Found exactly one: `src/data/store.ts:3733`:
+
+```ts
+if (isDesktop()) {
+  useStore.subscribe((state, prevState) => {
+    // ...
+    (window as any).flowrDB?.upsertEntity(entityToSQLiteRow(entityWithContent));
+    // ...two more unguarded `window` references below (upsertTask, upsertSpace)
+  });
+}
+```
+
+This subscriber mirrors store writes to the Electron `window.flowrDB` bridge — it must only ever run in the browser, regardless of what the server believes about desktop-ness. With the fix above, `isDesktop()` now returns `true` on the Electron SSR server, so this block would newly execute at module-load time server-side and crash on the first unguarded `window` reference (`ReferenceError: window is not defined`). Fix by gating registration on `typeof window !== 'undefined'` in addition to `isDesktop()`, so it's explicitly browser-only regardless of the platform flag's source:
+
+```ts
+if (typeof window !== 'undefined' && isDesktop()) {
+  useStore.subscribe((state, prevState) => {
+    // ...unchanged...
+  });
+}
+```
+
+All other `isDesktop()` call sites checked: `partialize` (`store.ts:3654`) only executes inside `persist`'s `setItem`, which is never invoked server-side (no localStorage in Node) — safe regardless of the boolean's value. No other module-level (non-render, non-effect, non-handler) call sites exist in the codebase (verified: only one top-level `if (isDesktop())` block exists).
+
 ## Explicitly out of scope (flagged, not folded in)
 
 - **Note-content caching / silent per-block sync** ("if we can somehow cache notes so they are not even loading... only newly added note block silently loads") — this is a real, separate, larger feature: it's the note-content equivalent of Scope 2's delta sync, requiring per-block change tracking. Worth a dedicated future spec; not part of this pass.
-- **Desktop `isDesktopEnv` platform flash** (header briefly shows web chrome on Electron) — a different axis (Electron-only rendering), independent of per-page content skeletons. Known, tracked, deliberately not bundled here — the previous spec's attempt to fold this in is what caused the scope to balloon. Revisit separately if it's still bothersome after this ships.
 - **Sidebar grouping flash** and **task reorder flash** — per the previous spec's root-cause D analysis (still valid): both are synchronous derived computations with no network dependency, so once root cause A stops an extra empty-state render from happening, there's no intermediate frame to visibly resort in. No separate fix expected to be needed; verify manually after A ships.
 
 ## Testing strategy
@@ -139,3 +203,5 @@ No new pure-logic surface (this is render-routing and JSX; project vitest is `en
 - Refresh on a new/temporary chat — confirm **no** message skeleton; the empty-state ("Write like nobody's listening") UI renders immediately.
 - Refresh on a note — confirm the note's own skeleton (title + block placeholders) shows, not a blank page, not Dashboard.
 - Confirm system chrome (sidebar frame, tab bar, header) never flashes/shifts/resizes during any of the above.
+- **Desktop-specific (root cause D):** refresh the Electron app — confirm floating containers (sidebar card, main content card, AI panel card) and desktop `HeaderBar` position are present from the very first paint, with no web-layout flash beforehand. Confirm the Electron app still boots correctly with no server crash (verifies the `store.ts:3733` guard fix) — check `flowr-server-stderr.log` (referenced in `electron/main.js`) for a clean boot with no `ReferenceError`.
+- Confirm web refresh is unaffected by the `isDesktop()` change (still resolves `false` server-side, since `FLOWR_DESKTOP` is only set in the Electron fork's env, not the web deployment).
