@@ -1,7 +1,7 @@
 # Unified Readiness Gate — Design
 
 **Date:** 2026-07-16
-**Status:** Approved (pending spec review)
+**Status:** SUPERSEDED by `2026-07-16-per-page-loading-design.md` — the neutral shell / single gate (Parts B/C below) was rejected by the user in favor of per-page content-region skeletons matching Dashboard's existing pattern. Part A (routing fix) was correct and is carried forward unchanged in the successor spec.
 **Supersedes:** `2026-07-15-zero-flash-shell-ssr-design.md` (Scope 4 — abandoned; see "Why this replaces Scope 4" below)
 
 ## Problem
