@@ -27,7 +27,7 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
   // nothing to show a message skeleton for. Only show it when there's an
   // actual existing chat whose messages could still be loading.
   const hasNothingToLoad = isTempChat || !activeChatId;
-  const isMinLoading = !hasNothingToLoad && (!!isLoading || isChatMessagesLoading);
+  const isMinLoading = !!isLoading || (!hasNothingToLoad && isChatMessagesLoading);
 
   const messages = aiMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
