@@ -404,6 +404,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const setSelectedSidebarIds = useStore(state => state.setSelectedSidebarIds);
   const clearSelectedSidebarIds = useStore(state => state.clearSelectedSidebarIds);
   const addEntity = useStore(state => state.addEntity);
+  const setEditingEntityId = useStore(state => state.setEditingEntityId);
 
   const { user, signOut } = useAuth();
   const cachedDisplayName = useStore(state => state.cachedDisplayName);
@@ -449,8 +450,14 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [profilePopupPos, setProfilePopupPos] = useState<{ x: number, y?: number, bottom?: number, width: number } | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState<Record<string, boolean>>({});
   const chatEditInputRef = useRef<HTMLInputElement>(null);
-  const [isMounted, setIsMounted] = useState(false);
-  const [storeHydrated, setStoreHydrated] = useState(false);
+  // These previously started false to match the server's render (the /app
+  // interior used to be server-rendered, and a mismatch between server and
+  // first-client render causes React hydration errors). /app is now
+  // client-only (see src/app/app/AppClient.tsx), so the real values can be
+  // read immediately — the store's persist adapter is synchronous
+  // localStorage, so it has already hydrated by the time this renders.
+  const [isMounted, setIsMounted] = useState(true);
+  const [storeHydrated, setStoreHydrated] = useState(() => useStore.persist.hasHydrated());
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   // Suppress tooltips while any sidebar item is being dragged
   useTooltipSuppression(activeDragId !== null);
@@ -512,8 +519,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
 
   React.useEffect(() => {
     if (chatEditingId && chatEditInputRef.current) {
-      chatEditInputRef.current.focus();
-      chatEditInputRef.current.select();
+      const target = chatEditInputRef.current;
+      target.focus();
+      target.setSelectionRange(target.value.length, target.value.length);
     }
   }, [chatEditingId]);
 
@@ -1117,7 +1125,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           </div>
         ) : (
           <div className={cn("px-[10px] mb-0 flex-none", isDesktopEnv ? "pt-0" : (isTabsHeaderVisible ? "pt-3" : "pt-1"))}>
-            <div className="relative flex items-center p-[4px] rounded-[10px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
+            <div className="relative flex items-center p-[2px] rounded-[8px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
               {/* Sliding Pill */}
               {(() => {
                 const getTabForId = (id: string | null) => id === 'tracker' ? 1 : id === 'chat' ? 2 : 0;
@@ -1140,18 +1148,18 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     <>
                       {/* Wide background container */}
                       <div
-                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
+                        className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
                         style={{
-                          width: 'calc((100% - 8px) * 2 / 3)',
-                          left: `calc(4px + (${tabsArray[0]} * (100% - 8px) / 3))`,
+                          width: 'calc((100% - 4px) * 2 / 3)',
+                          left: `calc(2px + (${tabsArray[0]} * (100% - 4px) / 3))`,
                         }}
                       />
                       {/* Active sliding pill */}
                       <div
-                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
+                        className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
                         style={{
-                          width: 'calc((100% - 8px) / 3)',
-                          left: `calc(4px + (${getTabForId(effectiveEntityId)} * (100% - 8px) / 3))`,
+                          width: 'calc((100% - 4px) / 3)',
+                          left: `calc(2px + (${getTabForId(effectiveEntityId)} * (100% - 4px) / 3))`,
                           boxShadow: 'var(--slider-pill-shadow)'
                         }}
                       />
@@ -1165,19 +1173,19 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       {tabsArray.length > 1 && tabsArray.map(tabIndex => (
                         <div
                           key={`bg-${tabIndex}`}
-                          className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
+                          className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--bone-6)] transition-all duration-300 ease-out"
                           style={{
-                            width: 'calc((100% - 8px) / 3)',
-                            left: `calc(4px + (${tabIndex} * (100% - 8px) / 3))`,
+                            width: 'calc((100% - 4px) / 3)',
+                            left: `calc(2px + (${tabIndex} * (100% - 4px) / 3))`,
                           }}
                         />
                       ))}
                       {/* Active sliding pill */}
                       <div
-                        className="absolute top-[4px] bottom-[4px] rounded-[7px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
+                        className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out"
                         style={{
-                          width: 'calc((100% - 8px) / 3)',
-                          left: `calc(4px + (${getTabForId(effectiveEntityId)} * (100% - 8px) / 3))`,
+                          width: 'calc((100% - 4px) / 3)',
+                          left: `calc(2px + (${getTabForId(effectiveEntityId)} * (100% - 4px) / 3))`,
                           boxShadow: 'var(--slider-pill-shadow)'
                         }}
                       />
@@ -1346,18 +1354,21 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                       }}
                                     >
                                       {chatEditingId === conv.id ? (
-                                        <input
-                                          ref={chatEditInputRef}
-                                          value={chatEditTitle}
-                                          onChange={e => setChatEditTitle(e.target.value)}
-                                          onBlur={() => handleChatRenameSubmit(conv.id)}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') handleChatRenameSubmit(conv.id);
-                                            if (e.key === 'Escape') setChatEditingId(null);
-                                          }}
-                                          onClick={e => e.stopPropagation()}
-                                          className="flex-1 bg-transparent text-[14px] tracking-wide outline-none border-b border-white/30"
-                                        />
+                                        <div className="flex-1 text-[14px] tracking-wide truncate flex items-center gap-[6px]">
+                                          {conv.is_favorite && <Star className="w-4 h-4 fill-[var(--accent)] stroke-[var(--accent)] shrink-0" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
+                                          <input
+                                            ref={chatEditInputRef}
+                                            value={chatEditTitle}
+                                            onChange={e => setChatEditTitle(e.target.value)}
+                                            onBlur={() => handleChatRenameSubmit(conv.id)}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') handleChatRenameSubmit(conv.id);
+                                              if (e.key === 'Escape') setChatEditingId(null);
+                                            }}
+                                            onClick={e => e.stopPropagation()}
+                                            className="flex-1 min-w-0 bg-transparent outline-none text-[var(--bone-100)] border-none p-0 text-[14px] truncate w-full"
+                                          />
+                                        </div>
                                       ) : (
                                         <span className="flex-1 text-[14px] tracking-wide truncate flex items-center gap-[6px]">
                                           {conv.is_favorite && <Star className="w-4 h-4 fill-[var(--accent)] stroke-[var(--accent)] shrink-0" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
@@ -1411,7 +1422,10 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
-                      onClick={() => openTaskPanel(generateId(), { entityId: trackerFilterEntityIds[0] || undefined })}
+                      onClick={() => openTaskPanel(generateId(), { 
+                        entityId: trackerFilterEntityIds[0] || undefined,
+                        tag: trackerFilterTags.length === 1 ? trackerFilterTags[0] : undefined
+                      })}
                       className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <div className="w-[14px] shrink-0 flex items-center justify-center">
@@ -1806,7 +1820,25 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        openModal({ kind: 'newWorkspace' });
+                                        const baseName = 'New Workspace';
+                                        let finalName = baseName;
+                                        let counter = 1;
+                                        while (entities.some(e => e.type === 'workspace' && e.title === finalName)) {
+                                          counter++;
+                                          finalName = `${baseName} ${counter}`;
+                                        }
+                                        const newId = generateId();
+                                        addEntity({
+                                          id: newId,
+                                          title: finalName,
+                                          type: 'workspace',
+                                          parentId: null,
+                                          lastModified: Date.now()
+                                        });
+                                        // Wait a tick for the UI to render the new TreeItem before focusing it
+                                        setTimeout(() => {
+                                          setEditingEntityId(newId, 'sidebar');
+                                        }, 50);
                                       }}
                                       className="btn-sidebar-utility opacity-30 hover:opacity-100"
                                     >
