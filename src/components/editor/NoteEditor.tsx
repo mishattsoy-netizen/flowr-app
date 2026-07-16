@@ -913,10 +913,10 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const { newList, found } = insertRecursive([...blocks]);
     if (found) {
       persistBlocks(newList);
-      setTimeout(() => {
-        const el = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`) as HTMLElement;
-        if (el) {
-          el.focus();
+        setTimeout(() => {
+          const el = document.querySelector(`[data-block-id="${newBlock.id}"] [data-block-content]`) as HTMLElement;
+          if (el) {
+            el.focus();
           const range = document.createRange();
           const sel = window.getSelection();
           range.selectNodeContents(el);
@@ -1009,6 +1009,16 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       return prev;
     });
   }, [entity.id, updateEntityContent]);
+
+  const focusAtEnd = (el: HTMLElement) => {
+    el.focus();
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
 
   // PROOF-OF-CONCEPT SCAFFOLD for relocating per-block keydown handling to the
   // single editing host. Same root cause as handleHostBeforeInput/handleHostInput:
@@ -1153,7 +1163,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                     updateBlock(parentBlockId, { content: nested.content, children: nested.children });
                     setTimeout(() => {
                       const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevId}"]`);
-                      if (prevEl) restoreCursor(prevEl, 'end');
+                      if (prevEl) focusAtEnd(prevEl);
                     }, 10);
                   }
                   return;
@@ -1182,7 +1192,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       updateBlock(parentBlockId, { content: nested.content, children: nested.children });
                       setTimeout(() => {
                         const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevRow.id}"]`);
-                        if (prevEl) restoreCursor(prevEl, 'end');
+                        if (prevEl) focusAtEnd(prevEl);
                       }, 10);
                     }
                     return;
@@ -1230,6 +1240,38 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       if (e.shiftKey) unindentBlock(blockId);
       else indentBlock(blockId);
       return;
+    }
+
+    if (e.key === 'Backspace') {
+      const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
+      const text = contentEl?.textContent ?? '';
+      if (!text.trim()) {
+        e.preventDefault();
+        
+        const prevBlockEl = blockEl.previousElementSibling as HTMLElement | null;
+        const targetFocusId = prevBlockEl?.dataset?.blockId;
+
+        setBlocks(prev => {
+          // If it's the very first block, don't delete it
+          if (prev.length > 0 && prev[0].id === blockId) {
+             return prev;
+          }
+          const { list, removed } = findAndRemoveBlock(prev, blockId);
+          if (removed) {
+             setTimeout(() => updateEntityContent(entity.id, list), 0);
+             return list;
+          }
+          return prev;
+        });
+        
+        if (targetFocusId) {
+          setTimeout(() => {
+            const el = host.querySelector<HTMLElement>(`[data-block-id="\${targetFocusId}"]`);
+            if (el) focusAtEnd(el);
+          }, 10);
+        }
+        return;
+      }
     }
 
     if (e.key === ' ') {
