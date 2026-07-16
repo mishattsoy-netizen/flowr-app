@@ -526,6 +526,15 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const persistBlocks = useCallback((newBlocks: EditorBlock[], skipHistory = false) => {
+    // Any persist means a definite state is committed right now, so a
+    // still-pending coalesced-typing flush is obsolete. Harmless/redundant
+    // on its own (its target ref is live, not stale), but clearing it here
+    // is correct in spirit — a completed persist supersedes a pending one.
+    if (typingHistoryTimer.current) {
+      clearTimeout(typingHistoryTimer.current);
+      typingHistoryTimer.current = null;
+    }
+
     // 1. Structural Sanity check: Ensure columns sections only contain column blocks
     const sanitizeRecursive = (list: EditorBlock[]): EditorBlock[] => {
       return list.map(b => {
@@ -550,6 +559,26 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     setBlocks(sanitized);
     isUserModified.current = true; // User interaction recorded
     updateEntityContent(entity.id, sanitized);
+
+    // ROOT CAUSE of markdown-shortcut conversions (`- `, `# `, `--- `, etc.)
+    // silently reverting ~1s after conversion with zero further user
+    // interaction: plain typing (handleHostInput -> updateBlock) only calls
+    // setBlocks, so it never reaches here — it instead flows through the
+    // entity-sync useEffect's "CASE B: Local user update" branch, which
+    // schedules debouncedSyncToStore(entity.id, blocks) with `blocks`
+    // captured BY VALUE in that setTimeout's closure. If persistBlocks
+    // (here) then commits a DIFFERENT value (the conversion) before that
+    // 1000ms elapses, the orphaned timer still fires afterward and
+    // overwrites the store with its stale pre-conversion snapshot — this
+    // function's own synchronous updateEntityContent call above gets
+    // silently undone. Clearing the pending timer, and marking this
+    // persist as already synced, closes the race.
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
+    isUserModified.current = false;
+    lastSyncedVersion.current = JSON.stringify(sanitized);
 
     if (!skipHistory) {
       setHistory(prev => {
@@ -1543,10 +1572,19 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       return;
     }
 
+    // Preserve the original block's id (matches turnIntoBlock, the other
+    // place a block's type gets swapped in place) rather than minting a new
+    // one via createBlock. A new id meant the block the user was looking at
+    // and the block now in the array were different objects: nothing here
+    // ever restored focus/caret afterward, so the browser's leftover
+    // selection state (pointing at whatever DOM happened to still exist)
+    // decided where typed text went — reproduced landing in an unrelated
+    // sibling block.
+    const targetBlockId = slashMenu.blockId;
     const replaceRecursive = (list: EditorBlock[]): EditorBlock[] => {
       return list.map(b => {
-        if (b.id === slashMenu.blockId) {
-          return createBlock(type, extra);
+        if (b.id === targetBlockId) {
+          return { ...createBlock(type, extra), id: targetBlockId };
         }
         if (b.children) {
           return { ...b, children: replaceRecursive(b.children) };
@@ -1558,6 +1596,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const newBlocks = replaceRecursive(blocks);
     persistBlocks(newBlocks);
     setSlashMenu(null);
+
+    setTimeout(() => {
+      const el = blocksHostRef.current?.querySelector<HTMLElement>(
+        `[data-block-id="${targetBlockId}"] [data-block-content], [data-row-id="${targetBlockId}"]`
+      );
+      if (el) focusAtEnd(el);
+    }, 10);
   }, [blocks, slashMenu, persistBlocks, updateBlock]);
 
   const duplicateBlock = useCallback((id: string) => {

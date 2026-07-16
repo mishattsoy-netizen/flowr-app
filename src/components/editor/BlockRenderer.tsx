@@ -953,6 +953,12 @@ export function BlockRenderer({
       <div
         ref={elementRef}
         data-block-id={block.id}
+        // Divider has no [data-block-content] — it's a pure visual rule, no
+        // text. Without contentEditable={false} it silently inherited
+        // editability from the single-editing-host container, so a click
+        // could place a real caret inside it and native typing would write
+        // into an untracked DOM node React never learns about.
+        contentEditable={false}
         style={style}
         className={cn("editor-block group flex flex-col items-start relative px-1 before:absolute before:right-full before:top-[-4px] before:bottom-[-4px] before:w-16 before:content-['']")}
       >
