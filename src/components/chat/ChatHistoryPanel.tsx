@@ -1,8 +1,9 @@
 "use client";
 
 import { useStore } from '@/data/store';
-import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal, MessageCircleDashed, Pen } from 'lucide-react';
+import { Plus, Clock, ChevronLeft, Trash2, Pencil, MoreHorizontal, MessageCircleDashed, Pen, Brain } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
+import { BrainPanel } from '@/components/brain/BrainPanel';
 import { cn } from '@/lib/utils';
 import type { ChatConversation } from '@/lib/chat';
 
@@ -43,6 +44,7 @@ export function ChatHistoryPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [brainOpen, setBrainOpen] = useState(false);
 
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
@@ -117,6 +119,16 @@ export function ChatHistoryPanel() {
             >
               <MessageCircleDashed className="w-3.5 h-3.5" />
               Temp
+            </button>
+            <button
+              onClick={() => setBrainOpen(true)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                brainOpen ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
+              )}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              Brain
             </button>
           </div>
 
@@ -228,6 +240,7 @@ export function ChatHistoryPanel() {
           </div>
         </>
       )}
+      {brainOpen && <BrainPanel onClose={() => setBrainOpen(false)} />}
     </div>
   );
 }
