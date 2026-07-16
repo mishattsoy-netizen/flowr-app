@@ -209,7 +209,8 @@ async function startNextServer(port) {
         PORT: port.toString(),
         HOSTNAME: '127.0.0.1',
         NODE_ENV: 'production',
-        ELECTRON_RUN_AS_NODE: '1'
+        ELECTRON_RUN_AS_NODE: '1',
+        FLOWR_DESKTOP: '1'
       },
       stdio: 'pipe'
     });
