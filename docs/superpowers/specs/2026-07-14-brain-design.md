@@ -172,6 +172,8 @@ manage_brain({ op: "add_node" | "update_node" | "remove_node" | "connect" | "dis
 ## 8. UI phases (data-first, owner decision)
 
 - **P1 — plain Brain page** (chat sidebar): list grouped by section; enable/disable toggles; pin; simple priority reorder; budget meter ("Brain 6.2k / 10k"); broken/dropped badges; manual add (pick workspace/entity or write a memory); soft-delete + restore; **"view as bot sees it"** compiled preview. The bot can already build the brain via chat in P1 — the page is the honest MVP view of it.
+
+  **Status (2026-07-16): Implemented.** Settings memories UI repointed at `brain_nodes` (`be1b659`), `/api/ai/user-brain` GET/POST route (`828535f`), `BrainPanel.tsx` + sidebar button (`f572d64`). Full P1 build (Tasks 1-8) is now code-complete on `main`; `tsc`/`vitest` verified clean independently (459/459 tests). Live acceptance tests (§9 below) are the only remaining gate.
 - **P2 — canvas**: node canvas on the existing whiteboard engine (P1's nullable `position` field activates); manual edges; **split-mode integration** — clicking an entity node opens it in the existing note editor in the right/left column (the brain stores structure; content editing stays in the editor users know).
 - **P3 — magic & game**: interview flows; growth animations; meter-as-progress-bar polish; bot-initiated brain suggestions. The idle-run auto-capture idea from the old §7 (Memory v2) lands here later as "bot adds memory nodes after idle sessions" — same SYSTEM-chain infrastructure dependency as before, unchanged.
 
