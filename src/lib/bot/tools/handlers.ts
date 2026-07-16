@@ -876,7 +876,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       }
       if (!supabaseAdmin) return { error: 'Supabase not configured' }
       const brain = await import('../services/brainStore')
-      const res = await brain.removeBrainNodes(context.userId, 'bot', removeIds)
+      const brainId = sessionState?.active_brain_id || (await brain.getOrCreateDefaultBrain(context.userId)).id
+      const res = await brain.removeBrainNodes(context.userId, 'bot', brainId, removeIds)
       if (context?.sessionId) await updateSessionState(context.sessionId, { pending_action: null })
       return res
     }
@@ -884,11 +885,19 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     if (!supabaseAdmin) return { error: 'Supabase not configured' }
     const brain = await import('../services/brainStore')
     const userId = context.userId as string
+    // manage_brain deliberately has NO brain_id parameter (spec §4, owner
+    // decision) — it always targets the session's active brain, resolved
+    // the same way chainRouter resolves it for prompt injection: explicit
+    // active_brain_id on the session if set, else lazily get-or-create the
+    // user's default "Main" brain.
+    const { getSessionState } = await import('../context')
+    const sessState = context?.sessionId ? await getSessionState(context.sessionId) : null
+    const brainId = sessState?.active_brain_id || (await brain.getOrCreateDefaultBrain(userId)).id
 
     try {
       switch (op) {
         case 'list': {
-          const state = await brain.listBrain(userId)
+          const state = await brain.listBrain(userId, brainId)
           return {
             success: true,
             budget: state.budget,
@@ -904,7 +913,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         }
         case 'add_node': {
           if (!type) return { error: "'type' is required for add_node" }
-          const res = await brain.addBrainNode(userId, 'bot', {
+          const res = await brain.addBrainNode(userId, 'bot', brainId, {
             type, ref_id, content: content ? sanitizeToolContent(content) : undefined,
             label: label ? sanitizeToolContent(label) : undefined, section_id, priority, pinned,
           })
@@ -920,7 +929,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           if (priority !== undefined) updates.priority = priority
           if (pinned !== undefined) updates.pinned = pinned
           if (enabled !== undefined) updates.enabled = enabled
-          return await brain.updateBrainNode(userId, 'bot', node_id, updates)
+          return await brain.updateBrainNode(userId, 'bot', brainId, node_id, updates)
         }
         case 'remove_node': {
           // The multi-id + confirmed:true path is handled above, before any
@@ -933,7 +942,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           // Is a section among the targets? Sections and multi-removes are
           // destructive enough for the §6b dry-run → next-turn-confirm gate.
           const { data: targets } = await supabaseAdmin.from('brain_nodes')
-            .select('id, type, label').in('id', ids).eq('user_id', userId).is('deleted_at', null)
+            .select('id, type, label').in('id', ids).eq('user_id', userId).eq('brain_id', brainId).is('deleted_at', null)
           const needsConfirmation = ids.length > 1 || (targets ?? []).some((t: any) => t.type === 'section')
 
           if (needsConfirmation && confirmed !== true) {
@@ -966,24 +975,24 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
             if (!idsMatch) {
               return { error: 'No matching pending confirmation found for these brain nodes. Call remove_node without confirmed first to get a fresh dry-run, then confirm with the user before retrying.' }
             }
-            const res = await brain.removeBrainNodes(userId, 'bot', ids)
+            const res = await brain.removeBrainNodes(userId, 'bot', brainId, ids)
             if (context?.sessionId) await updateSessionState(context.sessionId, { pending_action: null })
             return res
           }
-          return await brain.removeBrainNodes(userId, 'bot', ids)
+          return await brain.removeBrainNodes(userId, 'bot', brainId, ids)
         }
         case 'connect': {
           if (!from || !to || !edge_label) return { error: "'from', 'to' and 'edge_label' are required for connect" }
-          const res = await brain.addBrainEdge(userId, 'bot', from, to, sanitizeToolContent(edge_label))
+          const res = await brain.addBrainEdge(userId, 'bot', brainId, from, to, sanitizeToolContent(edge_label))
           if ('error' in res) return res
           return { success: true, id: res.id, op: 'connect' }
         }
         case 'disconnect': {
           if (!edge_id) return { error: "'edge_id' is required for disconnect" }
-          return await brain.removeBrainEdge(userId, 'bot', edge_id)
+          return await brain.removeBrainEdge(userId, 'bot', brainId, edge_id)
         }
         case 'refresh': {
-          const compiled = await brain.compileBrain(userId)
+          const compiled = await brain.compileBrain(userId, brainId)
           if (context?.sessionId) {
             const { updateSessionState } = await import('../context')
             await updateSessionState(context.sessionId, { pinned_brain_version: compiled.version } as any)
