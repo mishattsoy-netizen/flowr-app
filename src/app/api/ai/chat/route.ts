@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     supabaseClient = supabase;
   }
 
-  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext, clientTime } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeBrainId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext, clientTime } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -194,6 +194,7 @@ export async function POST(req: NextRequest) {
             aiApiKey,
             activeEntityId,
             activeChatId: activeChatId ?? null,
+            activeBrainId: activeBrainId ?? null,
             activeSpaceId,
             classificationModelId,
             mode: activeMode,

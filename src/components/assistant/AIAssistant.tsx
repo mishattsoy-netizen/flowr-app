@@ -108,6 +108,9 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
 
   const activeMode = useStore(state => state.activeMode)
   const setActiveMode = useStore(state => state.setActiveMode)
+
+  const activeBrainId = useStore(state => state.activeBrainId)
+  const setActiveBrainId = useStore(state => state.setActiveBrainId)
   const activeReplyMessage = useStore(state => state.activeReplyMessage)
   const setReplyMessage = useStore(state => state.setReplyMessage)
   const thinkingEnabled = useStore(state => state.thinkingEnabled)
@@ -124,6 +127,53 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
   const [showModeMenu, setShowModeMenu] = useState(false)
   const modeMenuBtnRef = useRef<HTMLButtonElement>(null)
   const [modeMenuPos, setModeMenuPos] = useState<{ bottom: number; right: number } | null>(null)
+
+  const [brains, setBrains] = useState<{ id: string; title: string; description: string | null; is_default: boolean }[]>([])
+  const [showBrainMenu, setShowBrainMenu] = useState(false)
+  const [brainMenuPos, setBrainMenuPos] = useState<{ bottom: number; right: number } | null>(null)
+  const brainMenuBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (isSupabaseEnabled) {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+        }
+        const res = await fetch('/api/ai/user-brain', { method: 'POST', headers, body: JSON.stringify({ action: 'list_brains' }) })
+        if (res.ok) {
+          const data = await res.json()
+          setBrains(data.brains ?? [])
+          if (!activeBrainId && data.brains?.length > 0) {
+            const main = data.brains.find((b: any) => b.is_default) ?? data.brains[0]
+            setActiveBrainId(main.id)
+          }
+        }
+      } catch { /* non-fatal — pill just won't populate this session */ }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const title = (e as CustomEvent).detail?.title ?? 'a different brain'
+      const { activeChatId } = useStore.getState()
+      if (!activeChatId) return
+      const dividerMessage = {
+        id: generateId(),
+        role: 'system' as const,
+        content: `Switched to ${title} brain`,
+        timestamp: Date.now(),
+      }
+      useStore.setState(s => ({
+        chatMessagesMap: { ...s.chatMessagesMap, [activeChatId]: [...(s.chatMessagesMap[activeChatId] || s.aiMessages), dividerMessage] },
+        aiMessages: [...s.aiMessages, dividerMessage],
+      }))
+    }
+    window.addEventListener('ai-brain-switched', handler)
+    return () => window.removeEventListener('ai-brain-switched', handler)
+  }, [])
 
   const assistantInput = useStore(state => state.assistantInput);
   const setAssistantInput = useStore(state => state.setAssistantInput);
@@ -382,6 +432,29 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       }
     }
   }, [isAIAssistantOpen, chatPageMode, actualExtended, scrollToBottom]);
+
+  const handleSwitchBrain = async (brainId: string) => {
+    setActiveBrainId(brainId)
+    setShowBrainMenu(false)
+    const { activeChatId, pendingNewChat } = useStore.getState()
+    if (!activeChatId || pendingNewChat) return
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (isSupabaseEnabled) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+      }
+      const sessionId = `chat:${activeChatId}`
+      await fetch('/api/ai/user-brain', {
+        method: 'POST', headers,
+        body: JSON.stringify({ action: 'switch_active_brain', session_id: sessionId, brain_id: brainId }),
+      })
+      const brainTitle = brains.find(b => b.id === brainId)?.title ?? 'a different brain'
+      window.dispatchEvent(new CustomEvent('ai-brain-switched', { detail: { title: brainTitle } }))
+    } catch (e) {
+      console.error('Failed to switch active brain:', e)
+    }
+  }
 
   const handleSend = async (overrideContent?: string, overrideAttachments?: AIAttachment[]) => {
     const finalContent = overrideContent !== undefined ? overrideContent : assistantInput.trim();
@@ -1201,6 +1274,61 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
               {/* Right Actions */}
               <div className="flex items-center gap-0.5">
                 {/* Mode selector */}
+                <div className="relative">
+                  <Tooltip content="Switch Brain">
+                    <button
+                      ref={brainMenuBtnRef}
+                      onClick={() => {
+                        if (brainMenuBtnRef.current) {
+                          const r = brainMenuBtnRef.current.getBoundingClientRect()
+                          setBrainMenuPos({ bottom: window.innerHeight - r.top + 8, right: window.innerWidth - r.right })
+                        }
+                        setShowBrainMenu(v => !v)
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2 py-1 rounded-[8px]",
+                        showBrainMenu
+                          ? "bg-dark text-foreground"
+                          : "text-bone-70 hover:text-foreground hover:bg-dark"
+                      )}
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline text-[13px] font-normal tracking-wide">
+                        {brains.find(b => b.id === activeBrainId)?.title ?? 'Main'}
+                      </span>
+                    </button>
+                  </Tooltip>
+
+                  {showBrainMenu && brainMenuPos && createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[140]" onClick={() => setShowBrainMenu(false)} />
+                      <div
+                        className="fixed z-[150] bg-[var(--color-panel)] border border-[var(--bone-12)] rounded-[var(--radius-regular)] overflow-hidden min-w-[200px] backdrop-blur-3xl shadow-2xl p-1 flex flex-col gap-[2px]"
+                        style={{ bottom: brainMenuPos.bottom, right: brainMenuPos.right }}
+                      >
+                        {brains.map(b => (
+                          <button
+                            key={b.id}
+                            onClick={() => handleSwitchBrain(b.id)}
+                            className={cn(
+                              'w-full flex items-center px-3 py-[4px] rounded-[var(--radius-medium)] text-[13.5px] text-left group transition-none text-[var(--bone-70)] hover:bg-[var(--bone-6)] hover:text-bone-100',
+                              activeBrainId === b.id && 'bg-dark text-bone-100'
+                            )}
+                          >
+                            <div className="flex flex-col">
+                              <p className="tracking-wide">{b.title}</p>
+                              {b.description && (
+                                <p className="text-[12px] tracking-[0.06em] opacity-30 leading-none mt-0.5 line-clamp-1">{b.description}</p>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>,
+                    document.body
+                  )}
+                </div>
+
                 <div className="relative">
                   <Tooltip content="Switch Model">
                     <button

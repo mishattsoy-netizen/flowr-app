@@ -935,6 +935,16 @@ export const ChatMessage = memo(({
   onReply: (msg: AIMessage) => void;
   compact?: boolean; chatPageMode?: boolean;
 }) => {
+  if (msg.role === 'system') {
+    return (
+      <div className="flex justify-center w-full my-6">
+        <span className="text-[12px] uppercase tracking-widest text-[var(--bone-40)] font-medium">
+          {msg.content}
+        </span>
+      </div>
+    );
+  }
+
   const openModal = useStore(state => state.openModal);
   const activeEntityId = useStore(state => state.activeEntityId);
   const entities = useStore(state => state.entities);

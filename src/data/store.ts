@@ -320,6 +320,7 @@ export const useStore = create<AppState>()(
       taskPanelWidth: 500,
       aiWasOpenBeforeTaskPanel: false,
       activeChatId: null,
+      activeBrainId: null,
       newEmptyChatId: null,
       isTempChat: true,
       pendingNewChat: false,
@@ -834,7 +835,7 @@ export const useStore = create<AppState>()(
           await fetch('/api/ai/memory/clear', { 
             method: 'POST', 
             headers,
-            body: JSON.stringify({ activeEntityId: sid }) 
+            body: JSON.stringify({ activeEntityId: sid, activeBrainId: get().activeBrainId }) 
           });
           
           await fetchAISessionContext(sid);
@@ -844,6 +845,7 @@ export const useStore = create<AppState>()(
       },
 
       setActiveChatId: (id) => set({ activeChatId: id }),
+      setActiveBrainId: (id) => set({ activeBrainId: id }),
       setIsTempChat: (temp) => set({ isTempChat: temp }),
       setChatHistoryOpen: (open) => set({ chatHistoryOpen: open }),
       setShowTempNotice: (show) => set({ showTempNotice: show }),
@@ -1492,6 +1494,7 @@ export const useStore = create<AppState>()(
               images: imagesArray,
               activeEntityId: finalTargetChatId,
               activeChatId: finalActiveChatId,
+              activeBrainId: get().activeBrainId,
               aiApiKey,
               activeSpaceId,
               classificationModelId: aiClassificationModelId,
@@ -2051,6 +2054,7 @@ export const useStore = create<AppState>()(
               images: imagesArray,
               activeEntityId: get().activeEntityId,
               activeChatId: get().activeChatId,
+              activeBrainId: get().activeBrainId,
               aiApiKey: get().aiApiKey,
               activeSpaceId: get().activeSpaceId,
               classificationModelId: get().aiClassificationModelId,
