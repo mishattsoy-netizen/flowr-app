@@ -1068,6 +1068,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   }, [entity.id, updateEntityContent]);
 
   const focusAtEnd = (el: HTMLElement) => {
+    // Every call site reaches `el` through a setTimeout (10ms after a
+    // structural blocks/rows update), so a fast follow-up keystroke can
+    // remove that exact node from the DOM before this fires. Building a
+    // Range against a detached node throws; isConnected is a cheap guard
+    // against that race rather than a fix for a specific reproduced crash.
+    if (!el.isConnected) return;
     el.focus();
     const range = document.createRange();
     const sel = window.getSelection();
@@ -1348,7 +1354,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         
         if (targetFocusId) {
           setTimeout(() => {
-            const el = host.querySelector<HTMLElement>(`[data-block-id="\${targetFocusId}"]`);
+            // Was a broken literal `\${targetFocusId}` (unescaped $ inside a
+            // template literal), so this selector never matched anything and
+            // the caret silently failed to land after deleting an empty
+            // block — the deletion itself worked, only the focus restore
+            // was a no-op.
+            const el = host.querySelector<HTMLElement>(`[data-block-id="${targetFocusId}"] [data-block-content]`);
             if (el) focusAtEnd(el);
           }, 10);
         }
