@@ -382,7 +382,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
               isDesktop() && "bg-sidebar border border-[var(--bone-10)] rounded-2xl shadow-sm"
             )}>
               <div className="h-full">
-                <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} />
+                <Sidebar forceFull={currentSidebarCollapsed && isTabsHeaderVisible} initialEntityId={initialEntityId} />
               </div>
             </div>
 
