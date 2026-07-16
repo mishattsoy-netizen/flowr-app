@@ -107,57 +107,25 @@ export function BlockRenderer({
         { type: 'note-block', blockId: block.id, blockType: block.type },
         { input, element, allowedEdges: block.type === 'column' ? ['left', 'right'] : ['top', 'bottom'] }
       ),
-      onDragEnter: ({ self, source }) => {
-        const edge = extractClosestEdge(self.data);
-        setClosestEdge(edge);
-
-        if (source.data.type === 'note-block') {
-          const draggedEl = document.querySelector(`[data-block-id="${source.data.blockId}"]`) as HTMLElement;
-          const targetEl = elementRef.current;
-          if (draggedEl && targetEl && draggedEl !== targetEl) {
-            const parent = targetEl.parentNode;
-            if (parent) {
-              const isColDrag = source.data.blockType === 'column' && block.type === 'column';
-              const isVertDrag = source.data.blockType !== 'column' && block.type !== 'column';
-
-              if (isColDrag || isVertDrag) {
-                if (edge === 'top' || edge === 'left') {
-                  parent.insertBefore(draggedEl, targetEl);
-                } else if (edge === 'bottom' || edge === 'right') {
-                  parent.insertBefore(draggedEl, targetEl.nextSibling);
-                }
-              }
-            }
-          }
-        }
+      // Deliberately NOT moving DOM nodes here (no manual insertBefore).
+      // This used to reach into the live DOM with document.querySelector +
+      // parent.insertBefore(draggedEl, ...) on every dragenter/dragover, to
+      // give a live-reflow preview during the drag. That fought React for
+      // ownership of the DOM: NoteEditor's onDrop commits the real reorder
+      // via setBlocks (React state, derived from target.data.blockId + the
+      // drop edge — never from DOM position), so after a drag React's fiber
+      // tree still expected the ORIGINAL pre-drag sibling order, while the
+      // actual DOM had already been shuffled multiple times by hand. On the
+      // next render React's reconciler tried to insertBefore a sibling
+      // reference that the manual mutation had already moved elsewhere,
+      // throwing "NotFoundError: ... is not a child of this node." The drop
+      // indicator (closestEdge, the blue line) plus the dragged block's
+      // reduced opacity is sufficient drag feedback without a live reflow.
+      onDragEnter: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
       },
-      onDrag: ({ self, source }) => {
-        const edge = extractClosestEdge(self.data);
-        setClosestEdge(edge);
-
-        if (source.data.type === 'note-block') {
-          const draggedEl = document.querySelector(`[data-block-id="${source.data.blockId}"]`) as HTMLElement;
-          const targetEl = elementRef.current;
-          if (draggedEl && targetEl && draggedEl !== targetEl) {
-            const parent = targetEl.parentNode;
-            if (parent) {
-              const isColDrag = source.data.blockType === 'column' && block.type === 'column';
-              const isVertDrag = source.data.blockType !== 'column' && block.type !== 'column';
-
-              if (isColDrag || isVertDrag) {
-                if (edge === 'top' || edge === 'left') {
-                  if (targetEl.previousSibling !== draggedEl) {
-                    parent.insertBefore(draggedEl, targetEl);
-                  }
-                } else if (edge === 'bottom' || edge === 'right') {
-                  if (targetEl.nextSibling !== draggedEl) {
-                    parent.insertBefore(draggedEl, targetEl.nextSibling);
-                  }
-                }
-              }
-            }
-          }
-        }
+      onDrag: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
       },
       onDragLeave: () => setClosestEdge(null),
       onDrop: () => setClosestEdge(null),
