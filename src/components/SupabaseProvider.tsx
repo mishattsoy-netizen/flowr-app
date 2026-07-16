@@ -54,6 +54,11 @@ export function mergeCloudData(data: {
   const store = useStore.getState;
   const desktop = isDesktop();
 
+  // Applied after setSpaces below: setEntities reassigns activeSpaceId if the
+  // current one isn't found in state.spaces, so it must never run before the
+  // fresh spaces have landed or it clobbers the user's active space.
+  let pendingEntities: Entity[] | null = null;
+
   // ── Entities ──
   if (data.entities.length > 0) {
     const localEntities = store().entities;
@@ -75,7 +80,7 @@ export function mergeCloudData(data: {
       const cloudTs = ce.lastModified ?? 0;
       if (localTs > cloudTs) byId.set(le.id, le);
     }
-    store().setEntities(Array.from(byId.values()));
+    pendingEntities = Array.from(byId.values());
   }
 
   // ── Tasks ──
@@ -112,6 +117,10 @@ export function mergeCloudData(data: {
       if (localTs > cloudTs) byId.set(lw.id, lw);
     }
     store().setSpaces(Array.from(byId.values()));
+  }
+
+  if (pendingEntities) {
+    store().setEntities(pendingEntities);
   }
 
   // ── UI State ──
@@ -208,9 +217,16 @@ export function mergeDeltaData(delta: {
     return Array.from(byId.values());
   };
 
-  store().setEntities(reconcile(store().entities, delta.entities, delta.entityIds));
-  store().setTasks(reconcile(store().tasks, delta.tasks, delta.taskIds));
-  store().setSpaces(reconcile(store().spaces, delta.spaces, delta.spaceIds));
+  // setSpaces must run before setEntities: setEntities reassigns activeSpaceId
+  // if the current one isn't found in state.spaces, so running it against the
+  // pre-merge spaces clobbers the user's active space (emptying the Kanban
+  // board's space filter until the correct value is restored).
+  const nextEntities = reconcile(store().entities, delta.entities, delta.entityIds);
+  const nextTasks = reconcile(store().tasks, delta.tasks, delta.taskIds);
+  const nextSpaces = reconcile(store().spaces, delta.spaces, delta.spaceIds);
+  store().setSpaces(nextSpaces);
+  store().setEntities(nextEntities);
+  store().setTasks(nextTasks);
 
   // Settings reuse the same non-destructive union as the full path.
   if (delta.settings) {
@@ -278,9 +294,11 @@ export default function SupabaseProvider({ children }: { children: React.ReactNo
           }
           return loadFromSQLite().then((localData) => {
             const s = useStore.getState();
+            // setSpaces first: setEntities reassigns activeSpaceId if the
+            // current one isn't in state.spaces, so it must not run first.
+            s.setSpaces(localData.spaces);
             s.setEntities(localData.entities);
             s.setTasks(localData.tasks);
-            s.setSpaces(localData.spaces);
           });
         })().catch(err => {
           console.error('[Flowr sync] SQLite hydration/import failed:', err);
