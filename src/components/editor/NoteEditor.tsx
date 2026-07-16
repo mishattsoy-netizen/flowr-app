@@ -988,6 +988,17 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       }
     }
 
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const block = blocks.find(b => b.id === blockId);
+      if (!block) return;
+      const isListLike = ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(block.type);
+      if (isListLike) return; // handled by the row-level Enter logic (Task 4)
+
+      e.preventDefault();
+      insertAfter(blockId, 'text');
+      return;
+    }
+
     if (e.key === ' ') {
       const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
       const text = contentEl?.textContent ?? '';
@@ -1009,7 +1020,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       if (text === '---') return transform({ type: 'divider' });
       if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
     }
-  }, [isReadMode, handleSlash, undo, redo, updateBlock]);
+  }, [isReadMode, handleSlash, undo, redo, updateBlock, blocks, insertAfter]);
 
   useEffect(() => {
     const host = blocksHostRef.current;
