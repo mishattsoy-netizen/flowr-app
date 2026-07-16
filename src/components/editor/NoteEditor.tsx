@@ -1121,8 +1121,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                const contentEl = rowEl.hasAttribute('contenteditable') ? rowEl : rowEl.querySelector<HTMLElement>('[contenteditable]');
-                const contentText = contentEl?.textContent ?? '';
+                const contentEl = rowEl;
+                const contentText = contentEl.textContent ?? '';
 
                 if (!contentText.trim()) {
                   if (row.depth > 0) {
@@ -1187,8 +1187,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               }
 
               if (e.key === 'Backspace') {
-                const contentEl = rowEl.hasAttribute('contenteditable') ? rowEl : rowEl.querySelector<HTMLElement>('[contenteditable]');
-                const text = contentEl?.textContent ?? '';
+                const contentEl = rowEl;
+                const text = contentEl.textContent ?? '';
                 if (!text.trim()) {
                   e.preventDefault();
                   if (row.depth > 0) {
@@ -1775,7 +1775,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
           block={block}
           index={idx}
           depth={depth}
-          onUpdate={updateBlock}
+          onUpdate={persistBlockUpdate}
           onDelete={deleteBlock}
           onIndent={indentBlock}
           onUnindent={unindentBlock}
@@ -2073,7 +2073,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             block={findBlockById(blocks, activeOptionsMenu.blockId)!}
             position={activeOptionsMenu.position}
             onClose={() => setActiveOptionsMenu(null)}
-            onUpdate={updateBlock}
+            onUpdate={persistBlockUpdate}
             onDelete={deleteBlock}
             onDuplicate={duplicateBlock}
             onMoveToTop={moveToTop}
