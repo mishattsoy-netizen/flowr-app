@@ -813,6 +813,14 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     setBlocks(next);
   }, []);
 
+  // Same as updateBlock but recorded in undo history. Use for STRUCTURAL
+  // one-shot edits (row insert/remove/indent, markdown conversions).
+  // Per-keystroke typing must keep using updateBlock — its history entry is
+  // coalesced separately by the typing timer in handleHostInput.
+  const persistBlockUpdate = useCallback((id: string, updates: Partial<EditorBlock>) => {
+    persistBlocks(updateBlockRecursive(blocksRef.current, id, updates));
+  }, [persistBlocks]);
+
   // Single-block edits: the browser applies its own default DOM edit (we did
   // NOT preventDefault for these in handleHostBeforeInput), so by the time
   // "input" fires the block's own contentEditable div already has the new
@@ -1112,7 +1120,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                     const newRows = [...rows];
                     newRows[rowIndex] = { ...row, depth: row.depth - 1 };
                     const nested = nestRows(newRows, parentBlock.type);
-                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                   } else if (rowIndex === rows.length - 1) {
                     const newRows = rows.slice(0, rowIndex);
                     if (newRows.length === 0) {
@@ -1124,7 +1132,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       });
                     } else {
                       const nested = nestRows(newRows, parentBlock.type);
-                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                      persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                       insertAfter(parentBlockId, 'text');
                     }
                   } else {
@@ -1141,7 +1149,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                 };
                 const newRows = [...rows.slice(0, rowIndex + 1), newRow, ...rows.slice(rowIndex + 1)];
                 const nested = nestRows(newRows, parentBlock.type);
-                updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                 
                 setTimeout(() => {
                   const newEl = host.querySelector<HTMLElement>(`[data-row-id="${newRow.id}"]`);
@@ -1157,14 +1165,14 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                   const newRows = [...rows];
                   newRows[rowIndex] = { ...row, depth: row.depth - 1 };
                   const nested = nestRows(newRows, parentBlock.type);
-                  updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                  persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                 } else {
                   if (rowIndex === 0) return;
                   const maxDepth = rows[rowIndex - 1].depth + 1;
                   const newRows = [...rows];
                   newRows[rowIndex] = { ...row, depth: Math.min(row.depth + 1, maxDepth) };
                   const nested = nestRows(newRows, parentBlock.type);
-                  updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                  persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                 }
                 return;
               }
@@ -1178,7 +1186,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                     const newRows = [...rows];
                     newRows[rowIndex] = { ...row, depth: row.depth - 1 };
                     const nested = nestRows(newRows, parentBlock.type);
-                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                   } else if (rowIndex === 0 && rows.length === 1) {
                     insertAfter(parentBlockId, 'text');
                     setBlocks(prev => {
@@ -1189,12 +1197,12 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                   } else if (rowIndex === 0) {
                     const newRows = rows.slice(1);
                     const nested = nestRows(newRows, parentBlock.type);
-                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                   } else {
                     const prevId = rows[rowIndex - 1].id;
                     const newRows = [...rows.slice(0, rowIndex), ...rows.slice(rowIndex + 1)];
                     const nested = nestRows(newRows, parentBlock.type);
-                    updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                    persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                     setTimeout(() => {
                       const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevId}"]`);
                       if (prevEl) focusAtEnd(prevEl);
@@ -1215,7 +1223,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       const newRows = [...rows];
                       newRows[rowIndex] = { ...row, depth: row.depth - 1 };
                       const nested = nestRows(newRows, parentBlock.type);
-                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                      persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                     } else if (rowIndex > 0) {
                       const prevRow = rows[rowIndex - 1];
                       const prevContent = prevRow.content || '';
@@ -1223,7 +1231,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       const newContent = prevContent + curContent;
                       const mergedRows = [...rows.slice(0, rowIndex - 1), { ...prevRow, content: newContent }, ...rows.slice(rowIndex + 1)];
                       const nested = nestRows(mergedRows, parentBlock.type);
-                      updateBlock(parentBlockId, { content: nested.content, children: nested.children });
+                      persistBlockUpdate(parentBlockId, { content: nested.content, children: nested.children });
                       setTimeout(() => {
                         const prevEl = host.querySelector<HTMLElement>(`[data-row-id="${prevRow.id}"]`);
                         if (prevEl) focusAtEnd(prevEl);
@@ -1317,13 +1325,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       const transform = (updates: Partial<EditorBlock>) => {
         e.preventDefault();
         if (contentEl) contentEl.innerHTML = '';
-        updateBlock(blockId, { content: '', ...updates });
+        persistBlockUpdate(blockId, { content: '', ...updates });
       };
 
       if (text === '#') return transform({ type: 'text', style: 'title' });
       if (text === '##') return transform({ type: 'text', style: 'heading' });
       if (text === '###') return transform({ type: 'text', style: 'subheading' });
-      if (text === '-') return transform({ type: 'bulletList' });
+      if (text === '-' || text === '*') return transform({ type: 'bulletList' });
       if (text === '1.') return transform({ type: 'numberedList' });
       if (text === '[]') return transform({ type: 'checklist', checked: false });
       if (text === '"' || text === '>') return transform({ type: 'quote' });
@@ -1331,7 +1339,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       if (text === '---') return transform({ type: 'divider' });
       if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
     }
-  }, [isReadMode, handleSlash, undo, redo, updateBlock, blocks, insertAfter, indentBlock, unindentBlock, setBlocks, entity.id, updateEntityContent]);
+  }, [isReadMode, handleSlash, undo, redo, persistBlockUpdate, blocks, insertAfter, indentBlock, unindentBlock, setBlocks, entity.id, updateEntityContent]);
 
   useEffect(() => {
     const host = blocksHostRef.current;
