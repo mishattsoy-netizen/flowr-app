@@ -302,6 +302,23 @@ export function BlockRenderer({
     }
   }, [isDraggingGlobal]);
 
+  // Local buffer + debounce for the caption input: onUpdate is now
+  // persistBlockUpdate (records undo history) since it also carries
+  // one-shot structural edits from this component (fold toggle, media
+  // width, type conversions). Calling it on every keystroke would push a
+  // raw history entry per character; buffer locally and commit on a pause,
+  // matching the coalescing pattern NoteEditor uses for block text typing.
+  const [captionDraft, setCaptionDraft] = useState<string | null>(null);
+  const captionCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitCaption = (value: string) => {
+    setCaptionDraft(value);
+    if (captionCommitTimer.current) clearTimeout(captionCommitTimer.current);
+    captionCommitTimer.current = setTimeout(() => {
+      onUpdate(block.id, { mediaCaption: value });
+      setCaptionDraft(null);
+    }, 600);
+  };
+
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [labelInput, setLabelInput] = useState(block.content || '');
   const [isEditingUrl, setIsEditingUrl] = useState(false);
@@ -1034,7 +1051,7 @@ export function BlockRenderer({
                   {isEmbed ? <iframe src={videoUrl} className="w-full h-full border-none" allowFullScreen /> : <video src={videoUrl} controls className="w-full h-full" />}
                 </div>
               )}
-              <input type="text" placeholder="Add a caption..." value={block.mediaCaption || ''} onChange={(e) => onUpdate(block.id, { mediaCaption: e.target.value })} className="w-full bg-white/[0.03] backdrop-blur-md px-5 py-3 text-[11px] font-medium text-muted-foreground/40 outline-none opacity-0 group-hover/media:opacity-100 focus:opacity-100 border-t border-white/5 focus:text-foreground/80 placeholder:opacity-20" />
+              <input type="text" placeholder="Add a caption..." value={captionDraft ?? (block.mediaCaption || '')} onChange={(e) => commitCaption(e.target.value)} className="w-full bg-white/[0.03] backdrop-blur-md px-5 py-3 text-[11px] font-medium text-muted-foreground/40 outline-none opacity-0 group-hover/media:opacity-100 focus:opacity-100 border-t border-white/5 focus:text-foreground/80 placeholder:opacity-20" />
             </div>
           </div>
         </div>

@@ -728,12 +728,22 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     }
   }, [blocks, persistBlocks]);
 
+  // Ref, not the state value directly: this effect's listener is registered
+  // once (mount-only deps) so a captured `slashMenu` would be a stale
+  // closure frozen at its initial `null` — the listener must read the
+  // CURRENT value every time it fires, not the value from when it mounted.
+  const slashMenuRef = useRef(slashMenu);
+  useEffect(() => {
+    slashMenuRef.current = slashMenu;
+  }, [slashMenu]);
+
   useEffect(() => {
     const handleDocumentMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
 
       // Determine if we clicked inside a block container
-      const clickedInsideBlock = !!target.closest('[data-block-id]');
+      const clickedBlockEl = target.closest<HTMLElement>('[data-block-id]');
+      const clickedInsideBlock = !!clickedBlockEl;
 
       // Determine if we clicked inside an active popup menu (like block options, slash command, or toolbar)
       const clickedInsidePopup = !!target.closest('.popup-glass-small') || !!target.closest('.popup-glass');
@@ -742,6 +752,16 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       if (!clickedInsideBlock && !clickedInsidePopup) {
         setSelectedBlockIds(new Set());
         setActiveOptionsMenu(null);
+        setSlashMenu(null);
+        return;
+      }
+
+      // Clicking a DIFFERENT block than the one the slash menu is anchored
+      // to must also close it — "inside a block" alone isn't "outside the
+      // menu": every ordinary block click passes clickedInsideBlock, so the
+      // menu never closed on any block-to-block click before this check.
+      const currentSlashMenu = slashMenuRef.current;
+      if (!clickedInsidePopup && currentSlashMenu && clickedBlockEl?.dataset.blockId !== currentSlashMenu.blockId) {
         setSlashMenu(null);
       }
     };
