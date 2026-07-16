@@ -36,17 +36,35 @@ export function NoteSkeleton() {
         </div>
 
         {/* Content blocks */}
-        <div className="pt-8 space-y-6">
-          <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
-          <Skeleton className="h-4 w-[95%] rounded-md bg-[var(--bone-5)]" />
-          <Skeleton className="h-4 w-[90%] rounded-md bg-[var(--bone-5)]" />
-          <Skeleton className="h-4 w-[80%] rounded-md bg-[var(--bone-5)]" />
-        </div>
+        <div className="pt-10 flex flex-col gap-8">
+          {/* Section 1 */}
+          <div className="space-y-4">
+            <Skeleton className="h-7 w-[40%] rounded-md bg-[var(--bone-5)]" />
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[96%] rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[85%] rounded-md bg-[var(--bone-5)]" />
+            </div>
+          </div>
 
-        <div className="pt-6 space-y-6">
-          <Skeleton className="h-4 w-[85%] rounded-md bg-[var(--bone-5)]" />
-          <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
-          <Skeleton className="h-4 w-[75%] rounded-md bg-[var(--bone-5)]" />
+          {/* Section 2 with 'bullets' */}
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-[30%] rounded-md bg-[var(--bone-5)]" />
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-4 rounded-full shrink-0 bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[75%] rounded-md bg-[var(--bone-5)]" />
+              </div>
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-4 rounded-full shrink-0 bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[85%] rounded-md bg-[var(--bone-5)]" />
+              </div>
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-4 rounded-full shrink-0 bg-[var(--bone-5)]" />
+                <Skeleton className="h-4 w-[60%] rounded-md bg-[var(--bone-5)]" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
