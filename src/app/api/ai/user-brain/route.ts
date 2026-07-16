@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { isSupabaseEnabled } from '@/lib/supabase'
+import { isSupabaseEnabled, supabaseUrl, supabaseAnonKey } from '@/lib/supabase'
 import {
   listBrain, addBrainNode, updateBrainNode, removeBrainNodes,
   restoreBrainNode, addBrainEdge, removeBrainEdge, compileBrain,
@@ -11,9 +11,16 @@ import { logger } from '@/lib/logger'
 
 async function authedUserId(req: NextRequest): Promise<string | null> {
   if (!isSupabaseEnabled) return null
+  // Use the resolved supabaseUrl (matches this app's real proxy/port setup,
+  // see lib/supabase.ts's getSupabaseUrl), NOT the raw NEXT_PUBLIC_SUPABASE_URL
+  // env var directly — that raw value can point at the wrong host/port in a
+  // server context (e.g. a stale localhost:3000 while the app runs on a
+  // different port), which makes auth.getUser() silently fail to validate
+  // the token and return no user, producing an unhelpful 401. Matches the
+  // already-working pattern in /api/usage/route.ts.
   const supabaseClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl!,
+    supabaseAnonKey!,
     { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
   )
   const { data } = await supabaseClient.auth.getUser()

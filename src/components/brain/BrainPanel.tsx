@@ -32,6 +32,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 export function BrainPanel({ onClose }: { onClose: () => void }) {
   const [state, setState] = useState<BrainState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [newMemory, setNewMemory] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,7 +45,15 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
     if (res.ok) {
       const data = await res.json();
       setState(data);
+      setLoadError(null);
       if (!selectedBrainId) setSelectedBrainId(data.brainId);
+    } else {
+      // Surface real failures (401/500) distinctly from "brain has zero
+      // nodes" — the two states look identical if you only check state's
+      // presence, and that ambiguity is exactly what made a real auth bug
+      // read as "the brain is just empty" during live testing.
+      const body = await res.json().catch(() => ({}));
+      setLoadError(body?.error || `Failed to load brain (${res.status})`);
     }
   }, [selectedBrainId]);
 
@@ -171,6 +180,11 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
+          {loadError && (
+            <div className="px-3 py-2 rounded-[10px] border border-red-500/30 bg-red-500/10 text-red-400 text-[13px]">
+              Failed to load your brain: {loadError}
+            </div>
+          )}
           {showPreview ? (
             <pre className="text-[11px] leading-relaxed text-[var(--bone-70)] whitespace-pre-wrap bg-[var(--app-dark)] rounded-[10px] p-4 border border-[var(--bone-10)]">
               {state?.compiledPreview || 'Brain is empty — nothing is injected yet.'}
