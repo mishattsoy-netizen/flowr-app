@@ -16,6 +16,23 @@ import { NoteSkeleton } from './editor/NoteSkeleton';
 
 import { useAppReady } from '@/hooks/useAppReady';
 
+function EntityLoadingSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col p-8 gap-4 max-w-3xl mx-auto w-full">
+      <div className="h-10 w-1/2 rounded-lg bg-[var(--bone-5)] animate-pulse" />
+      <div className="flex flex-col gap-3 mt-4">
+        {[1, 2, 3, 4, 5].map(i => (
+          <div
+            key={i}
+            className="h-4 rounded bg-[var(--bone-5)] animate-pulse"
+            style={{ width: i % 3 === 0 ? '100%' : i % 3 === 1 ? '80%' : '60%' }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Renders the appropriate page component for a given entity ID.
  * Used by both WorkspaceRouter (single-column) and SplitViewLayout (two-column).
@@ -46,9 +63,14 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
   }
 
   if (!entity) {
-    // Store is hydrated (isLoading is instant now — see useAppReady). A missing
-    // entity here genuinely means the id resolves to nothing, so show the empty
-    // state rather than guessing a page type and flashing the wrong layout.
+    if (!storeHydrated) {
+      // We don't know what this entity is yet because the store hasn't
+      // loaded from storage — show a content skeleton, not the "missing"
+      // empty-state message. This is NOT the same case as below.
+      return <EntityLoadingSkeleton />;
+    }
+    // Store IS hydrated and we still can't find this entity — it genuinely
+    // doesn't exist (deleted, bad id, etc).
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         Select an item from the sidebar.
