@@ -3679,6 +3679,13 @@ export const useStore = create<AppState>()(
         aiSidebarWidth: state.aiSidebarWidth,
         taskPanelWidth: state.taskPanelWidth,
         splitViewActive: state.splitViewActive,
+        // These two were missing from the persist allowlist while
+        // splitViewActive was present — so split view would re-open after a
+        // refresh with both columns empty (the ids restored to their null
+        // default). They're already part of the cloud ui_state sync, so
+        // persisting them locally too is consistent with that intent.
+        splitViewLeftId: state.splitViewLeftId,
+        splitViewRightId: state.splitViewRightId,
         splitViewPosition: state.splitViewPosition,
         isFullWidth: state.isFullWidth,
         isTabsHeaderVisible: state.isTabsHeaderVisible,
