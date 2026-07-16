@@ -207,7 +207,7 @@ const StaticTabPill = ({ tabId, isDesktopEnv, R_INACTIVE, R_ACTIVE, BAR_H, isDra
   );
 };
 
-export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { leftWidth?: number, rightWidth?: number }) {
+export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth, resolvedEntityId }: { leftWidth?: number, rightWidth?: number, resolvedEntityId?: string }) {
   const activeEntityId = useStore(s => s.activeEntityId);
   const entities = useStore(s => s.entities);
   const goBack = useStore(s => s.goBack);
@@ -495,7 +495,15 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
   }, [openTabIds, releaseTick]);
 
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const isDashboard = activeEntityId === 'dashboard' || !activeEntityId;
+  // Prefer the hydration-safe resolved id (from Shell) over the raw store
+  // value for the tab-highlight/title computation specifically — this is the
+  // one place a stale/un-hydrated activeEntityId was visibly wrong during
+  // every page load. Other activeEntityId reads in this file (inside click
+  // handlers, e.g. around line 403-415) are unaffected — they only run after
+  // a user interaction, which can't happen before mount, so they don't need
+  // this.
+  const effectiveHeaderEntityId = resolvedEntityId ?? activeEntityId;
+  const isDashboard = effectiveHeaderEntityId === 'dashboard' || !effectiveHeaderEntityId;
 
   const getPath = (id: string | null): any[] => {
     if (!id || id === 'dashboard') return [];
@@ -583,8 +591,8 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth }: { le
 
       {/* Mobile title */}
       <div className="flex md:hidden flex-1 items-center px-1 min-w-0 font-semibold text-sm text-[var(--bone-100)] truncate z-10">
-        {isDashboard ? 'Home' : activeEntityId === 'tracker' ? 'Tasks' : activeEntityId === 'chat' ? 'Chat' :
-          stripHtml(entities.find(e => e.id === activeEntityId)?.title || '')}
+        {isDashboard ? 'Home' : effectiveHeaderEntityId === 'tracker' ? 'Tasks' : effectiveHeaderEntityId === 'chat' ? 'Chat' :
+          stripHtml(entities.find(e => e.id === effectiveHeaderEntityId)?.title || '')}
       </div>
 
       {/* ——————————————————————————————————————————————————————————————————————————————————————————————————

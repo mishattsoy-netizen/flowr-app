@@ -39,6 +39,15 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
   const isSidebarPinned = useStore(state => state.isSidebarPinned);
   const toggleSidebar = useStore(state => state.toggleSidebar);
   const activeEntityId = useStore(state => state.activeEntityId);
+  // Same hydration-safe resolution WorkspaceRouter uses (Round 1 Task 1) —
+  // before hydration, activeEntityId is the store's un-hydrated default
+  // ('dashboard'), not the real page, so HeaderBar's tab highlight needs this
+  // too or it shows Home selected during every load regardless of real page.
+  // NOTE: destructured as `shellStoreHydrated`, not `storeHydrated` — this
+  // file already has an unrelated, unused local `const [storeHydrated, ...]
+  // = useState(false)` a few lines below (harmless dead code, not part of
+  // this task, do not touch it) and reusing the name would shadow/collide.
+  const { storeHydrated: shellStoreHydrated } = useAppReady();
   const setActiveEntityId = useStore(state => state.setActiveEntityId);
   const setNavigationState = useStore(state => state.setNavigationState);
   const navigationHistory = useStore(state => state.navigationHistory);
@@ -341,7 +350,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
 
         {/* Global Desktop Header */}
         {isDesktop() && (
-          <HeaderBar leftWidth={leftWidth} rightWidth={rightWidth} />
+          <HeaderBar leftWidth={leftWidth} rightWidth={rightWidth} resolvedEntityId={shellStoreHydrated ? (activeEntityId ?? 'dashboard') : (initialEntityId ?? 'dashboard')} />
         )}
 
         {/* Middle Layout (Sidebar + Main + AI Sidebar) */}
@@ -415,7 +424,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
                 <SplitViewLayout />
               ) : (
                 <>
-                  {!isDesktop() && <HeaderBar />}
+                  {!isDesktop() && <HeaderBar resolvedEntityId={shellStoreHydrated ? (activeEntityId ?? 'dashboard') : (initialEntityId ?? 'dashboard')} />}
                   <main className="flex-1 flex flex-col overflow-hidden relative min-h-0">
                     {children}
                   </main>
