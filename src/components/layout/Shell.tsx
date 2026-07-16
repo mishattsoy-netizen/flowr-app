@@ -114,9 +114,13 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
         } else if (e.altKey && e.key === 'ArrowRight') {
           e.preventDefault();
           window.history.forward();
-        } else if (e.shiftKey && e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          toggleCommandPalette();
+        } else if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'z') {
+          const t = e.target as HTMLElement | null;
+          const isTyping = !!t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+          if (!isTyping) {
+            e.preventDefault();
+            toggleCommandPalette();
+          }
         } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
           e.preventDefault();
           window.location.reload();
