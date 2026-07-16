@@ -593,7 +593,16 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     if (!DESTRUCTIVE.has(native.inputType)) return;
 
     const selection = getBlockSelection(host);
-    if (!selection) return;   // single block or caret → native behavior
+    if (!selection) {
+      // Collapsed caret / single block. Everything is native EXCEPT
+      // insertParagraph: every legitimate Enter is already handled (and
+      // preventDefaulted) in handleHostKeyDown, so one reaching here means
+      // the caret was somewhere we couldn't resolve (chrome, gap). Letting
+      // the browser split host children creates unmanaged divs React
+      // doesn't know about — swallow it instead.
+      if (native.inputType === 'insertParagraph') native.preventDefault();
+      return;
+    }
 
     native.preventDefault();
 
@@ -1316,6 +1325,75 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         }
         return;
       }
+
+      // Non-empty block, caret at its very start → merge into the previous
+      // block ourselves ("first block wins", caret at the seam). Without
+      // this preventDefault the browser natively merges two React-owned
+      // divs and the DOM desyncs from the store permanently.
+      const selB = window.getSelection();
+      if (contentEl && selB?.rangeCount && selB.getRangeAt(0).collapsed) {
+        const r = selB.getRangeAt(0);
+        const test = document.createRange();
+        test.selectNodeContents(contentEl);
+        test.setEnd(r.startContainer, r.startOffset);
+        if (test.toString().length === 0) {
+          e.preventDefault();
+          const idx = blocks.findIndex(b => b.id === blockId);
+          if (idx > 0) {
+            const prev = blocks[idx - 1];
+            const cur = blocks[idx];
+            if (prev.type === 'divider') {
+              // Backspace against a divider deletes the divider.
+              pendingCursor.current = { blockId: cur.id, offset: 0 };
+              persistBlocks(blocks.filter(b => b.id !== prev.id));
+            } else if ((prev.type === 'text' || prev.type === 'quote') && (cur.type === 'text' || cur.type === 'quote')) {
+              const prevEl = host.querySelector<HTMLElement>(`[data-block-id="${prev.id}"] [data-block-content]`);
+              const prevLen = (prevEl?.textContent ?? '').length;
+              const merged = blocks.slice();
+              merged[idx - 1] = { ...prev, content: prev.content + cur.content };
+              merged.splice(idx, 1);
+              pendingCursor.current = { blockId: prev.id, offset: prevLen };
+              persistBlocks(merged);
+            }
+            // Other neighbor types (lists, media, tables): swallow the key.
+            // No merge yet (Phase 2), but crucially no native DOM corruption.
+          }
+          return;
+        }
+      }
+      return;
+    }
+
+    if (e.key === 'Delete') {
+      const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
+      const selD = window.getSelection();
+      if (contentEl && selD?.rangeCount && selD.getRangeAt(0).collapsed) {
+        const r = selD.getRangeAt(0);
+        const test = document.createRange();
+        test.selectNodeContents(contentEl);
+        test.setStart(r.startContainer, r.startOffset);
+        if (test.toString().length === 0) {
+          // Caret at the very end of this block → forward-merge next block in.
+          e.preventDefault();
+          const idx = blocks.findIndex(b => b.id === blockId);
+          if (idx !== -1 && idx < blocks.length - 1) {
+            const cur = blocks[idx];
+            const next = blocks[idx + 1];
+            if (next.type === 'divider') {
+              persistBlocks(blocks.filter(b => b.id !== next.id));
+            } else if ((cur.type === 'text' || cur.type === 'quote') && (next.type === 'text' || next.type === 'quote')) {
+              const curLen = (contentEl.textContent ?? '').length;
+              const merged = blocks.slice();
+              merged[idx] = { ...cur, content: cur.content + next.content };
+              merged.splice(idx + 1, 1);
+              pendingCursor.current = { blockId: cur.id, offset: curLen };
+              persistBlocks(merged);
+            }
+          }
+          return;
+        }
+      }
+      return;
     }
 
     if (e.key === ' ') {
