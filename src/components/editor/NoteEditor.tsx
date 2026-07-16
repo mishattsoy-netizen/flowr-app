@@ -783,9 +783,28 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
     const selection = getBlockSelection(host);
     if (selection) return;   // cross-block edit — handleHostBeforeInput already persisted it
+    // NOTE: a selection spanning two rows of the SAME list also returns null
+    // here, because both endpoints climb to the same [data-block-id] (the list
+    // wrapper) in blockOf/getBlockSelection. Cross-row destructive edits are
+    // therefore not intercepted by the merge path — consistent with nested
+    // children being out of scope for Phase 1 (see mergeSelection.ts).
 
     const sel = window.getSelection();
-    const blockEl = sel ? blockOf(sel.anchorNode) : null;
+    const anchorNode = sel?.anchorNode ?? null;
+    const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : (anchorNode as HTMLElement | null);
+    if (!anchorEl) return;
+
+    // A list row is nested inside its list block's [data-block-id] wrapper —
+    // check for the more specific target first, or typing in row 2 could
+    // resolve to the list's own (wrong) block id.
+    const rowEl = anchorEl.closest<HTMLElement>('[data-row-id]');
+    if (rowEl && host.contains(rowEl)) {
+      const rowId = rowEl.dataset.rowId;
+      if (rowId) updateBlock(rowId, { content: rowEl.innerHTML });
+      return;
+    }
+
+    const blockEl = blockOf(anchorNode);
     if (!blockEl || !host.contains(blockEl)) return;
 
     const blockId = blockEl.dataset.blockId;

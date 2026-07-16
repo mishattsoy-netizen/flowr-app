@@ -181,6 +181,13 @@ function RowEl({
       </div>
       <div
         ref={elRef}
+        // NoteEditor's container is the single contentEditable host; a nested
+        // contentEditable here is not document.activeElement and its own
+        // onInput/onKeyDown never fire (measured — see the container's
+        // handleHostInput). Marks the row for that container-level handler:
+        // it climbs to [data-row-id] BEFORE [data-block-id], since a row is
+        // nested inside the list's block wrapper and is the more specific target.
+        data-row-id={row.id}
         contentEditable={(isFocused && !isReadOnly) ? true : undefined}
         suppressContentEditableWarning
         className={cn(
