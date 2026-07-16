@@ -1331,7 +1331,8 @@ export const useStore = create<AppState>()(
 
         // Optimistically trigger UI transition and append messages
         set(s => {
-          const updated = [...(s.chatMessagesMap[initialTargetChatId] || s.aiMessages), userMessage, placeholderMessage];
+          const baseMessages = s.pendingNewChat ? [] : (s.chatMessagesMap[initialTargetChatId] || s.aiMessages);
+          const updated = [...baseMessages, userMessage, placeholderMessage];
           return {
             chatMessagesMap: {
               ...s.chatMessagesMap,
@@ -1385,6 +1386,7 @@ export const useStore = create<AppState>()(
                 chatConversations: [conv, ...s.chatConversations],
                 chatMessagesMap: {
                   ...s.chatMessagesMap,
+                  [initialTargetChatId]: [],
                   [newTargetChatId]: currentMessages
                 },
                 loadingStatesMap: {
@@ -1489,7 +1491,7 @@ export const useStore = create<AppState>()(
               buffer: imageBuffer,
               images: imagesArray,
               activeEntityId: finalTargetChatId,
-              activeChatId,
+              activeChatId: finalActiveChatId,
               aiApiKey,
               activeSpaceId,
               classificationModelId: aiClassificationModelId,
@@ -1868,13 +1870,13 @@ export const useStore = create<AppState>()(
               } catch (e) { /* ignore parse errors */ }
             }
             // Persist assistant reply
-            if (activeChatId && !isTemp && accumulatedContent) {
-              insertMessage(activeChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations, undefined, lastToolResults).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
+            if (finalActiveChatId && !isTemp && accumulatedContent) {
+              insertMessage(finalActiveChatId, 'assistant', accumulatedContent, lastModel, lastPipelineSteps, lastImageDescription, lastImagePrompt, undefined, lastCitations, undefined, lastToolResults).catch(e => console.warn('[Store] Failed to persist assistant message:', e));
               // Auto-set title from first message if still default
-              const conv = get().chatConversations.find(c => c.id === activeChatId);
+              const conv = get().chatConversations.find(c => c.id === finalActiveChatId);
               if (conv && conv.title === 'New Chat' && content) {
                 const title = content.slice(0, 60);
-                get().renameChatConversation(activeChatId, title);
+                get().renameChatConversation(finalActiveChatId, title);
               }
             }
 
@@ -1916,13 +1918,13 @@ export const useStore = create<AppState>()(
           await get().finishAILoading(finalTargetChatId);
 
           // Persist non-streaming assistant reply
-          if (activeChatId && !isTemp && data.content) {
-            insertMessage(activeChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt, undefined, undefined, undefined, (data as any).toolResults).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
+          if (finalActiveChatId && !isTemp && data.content) {
+            insertMessage(finalActiveChatId, 'assistant', data.content, data.model, data.pipeline_steps, data.image_description, data.image_prompt, undefined, undefined, undefined, (data as any).toolResults).catch(e => console.warn('[Store] Failed to persist non-stream assistant message:', e));
             // Auto-set title from first message if still default
-            const conv = get().chatConversations.find(c => c.id === activeChatId);
+            const conv = get().chatConversations.find(c => c.id === finalActiveChatId);
             if (conv && conv.title === 'New Chat' && content) {
               const title = content.slice(0, 60);
-              get().renameChatConversation(activeChatId, title);
+              get().renameChatConversation(finalActiveChatId, title);
             }
           }
         } catch (e: any) {
@@ -1943,8 +1945,8 @@ export const useStore = create<AppState>()(
               };
             });
             await get().finishAILoading(finalTargetChatId);
-            if (activeChatId && !isTemp) {
-              insertMessage(activeChatId, 'assistant', interruptedContent).catch(e => console.warn('[Store] Failed to persist interrupted message:', e));
+            if (finalActiveChatId && !isTemp) {
+              insertMessage(finalActiveChatId, 'assistant', interruptedContent).catch(e => console.warn('[Store] Failed to persist interrupted message:', e));
             }
           } else {
             const errMsg = e?.message ? `Connection error: ${e.message}. Please check your connection and try again.` : 'Connection error. Please try again.';
@@ -3728,7 +3730,7 @@ export async function drainPendingModeWrites(fns?: {
   useStore.setState({ pendingModeWrites: stillPending });
 }
 
-if (isDesktop()) {
+if (typeof window !== 'undefined' && isDesktop()) {
   useStore.subscribe((state, prevState) => {
     for (const entity of state.entities) {
       if (entity.type !== 'note' && entity.type !== 'canvas') continue;
