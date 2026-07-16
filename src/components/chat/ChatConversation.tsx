@@ -8,7 +8,7 @@ import { Brain, ArrowRight, Image as ImageIcon, Globe, Telescope, Terminal, Chec
 import { StatusTyping } from '@/components/assistant/components/StatusTyping';
 import { DEFAULT_STATUS_MESSAGES } from '@/lib/router-config';
 import { ChatMainSkeleton } from './ChatSkeleton';
-import { useMinimumLoadingTime } from '@/hooks/use-minimum-loading-time';
+
 
 export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
   const aiMessages = useStore(s => s.aiMessages);
@@ -20,8 +20,14 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
   const aiSessionContext = useStore(s => s.aiSessionContext);
   const isCompacting = useStore(s => s.isCompacting);
 
-  const isMinLoading = useMinimumLoadingTime(!!isLoading || isChatMessagesLoading, 500);
   const activeChatId = useStore(s => s.activeChatId);
+  const isTempChat = useStore(s => s.isTempChat);
+
+  // A new or temporary chat has zero messages and nothing to fetch — there is
+  // nothing to show a message skeleton for. Only show it when there's an
+  // actual existing chat whose messages could still be loading.
+  const hasNothingToLoad = isTempChat || !activeChatId;
+  const isMinLoading = !hasNothingToLoad && (!!isLoading || isChatMessagesLoading);
 
   const messages = aiMessages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
