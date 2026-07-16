@@ -58,7 +58,7 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
 
   switch (entity.type) {
     case 'note':
-      return <NotePage entity={entity} />; // TODO pass isLoading
+      return <NotePage entity={entity} isLoading={isLoading} />;
     case 'canvas':
       return <CanvasPage entity={entity} />;
     case 'workspace':
