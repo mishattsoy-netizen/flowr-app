@@ -3769,3 +3769,30 @@ if (typeof window !== 'undefined' && isDesktop()) {
     }
   });
 }
+
+// Keep the initial-entity cookie/attribute fresh across in-app navigation.
+// The <head> script in layout.tsx only writes these once, on full page load —
+// never on client-side route changes. Without this subscriber, navigating
+// between pages without reloading leaves the cookie pointing at the PREVIOUS
+// page, so the next refresh briefly shows the wrong page during the
+// pre-hydration window (before the real activeEntityId loads from storage).
+if (typeof window !== 'undefined') {
+  let lastWrittenRouteKey: string | null = null;
+  useStore.subscribe((state) => {
+    const routeKey = JSON.stringify({
+      activeEntityId: state.activeEntityId,
+      splitViewActive: state.splitViewActive,
+      splitViewLeftId: state.splitViewLeftId,
+      splitViewRightId: state.splitViewRightId,
+    });
+    if (routeKey === lastWrittenRouteKey) return;
+    lastWrittenRouteKey = routeKey;
+
+    if (state.activeEntityId) {
+      try {
+        document.documentElement.setAttribute('data-initial-entity', state.activeEntityId);
+        document.cookie = "flowr-initial-entity=" + state.activeEntityId + "; path=/; max-age=31536000; SameSite=Lax";
+      } catch (e) { /* localStorage/cookie access can fail in some embedded contexts — non-fatal */ }
+    }
+  });
+}
