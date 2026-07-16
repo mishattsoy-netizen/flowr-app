@@ -21,9 +21,42 @@ import dynamic from 'next/dynamic';
 //
 // `ssr: false` is only permitted inside a Client Component in the App Router,
 // which is the only reason this wrapper file exists.
+/**
+ * Shown only while the app's JavaScript chunk is downloading, before any app
+ * code exists on the page.
+ *
+ * This deliberately contains ONLY the app's outer frame — a sidebar-width
+ * column and a header strip — and no content whatsoever.
+ *
+ * That is not an oversight. At this point nothing about the user is known:
+ * not their open page, tabs, split view, sidebar tree, or content. Anything
+ * resembling content here would be a guess, and a wrong guess produces
+ * exactly the "wrong UI appears then snaps to the real thing" flash that
+ * rendering this route client-only was meant to eliminate. Only draw things
+ * that are identical for every user on every page.
+ *
+ * Do not add skeleton rows, cards, icons, or placeholder text here.
+ */
+function AppFrameFallback() {
+  return (
+    <div className="flex flex-col h-screen w-full bg-[var(--app-dark)]">
+      {/* Header strip */}
+      <div className="w-full shrink-0" style={{ height: 42 }} />
+      {/* Sidebar column + main area */}
+      <div className="flex-1 flex flex-row min-h-0 w-full">
+        <div
+          className="h-full shrink-0"
+          style={{ width: 'var(--sidebar-w, 280px)' }}
+        />
+        <div className="flex-1 h-full min-w-0" />
+      </div>
+    </div>
+  );
+}
+
 const Shell = dynamic(
   () => import('@/components/layout/Shell').then(m => m.Shell),
-  { ssr: false },
+  { ssr: false, loading: () => <AppFrameFallback /> },
 );
 
 const WorkspaceRouter = dynamic(
