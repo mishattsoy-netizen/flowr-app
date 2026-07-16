@@ -6,7 +6,7 @@ import type { EntityType, Entity, SidebarSectionId, AppTask } from '@/data/store
 import { getDescendantIds } from '@/data/store.helpers';
 import { getEntityIcon } from '@/data/icons';
 
-import { Search, Home, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag, Inbox } from 'lucide-react';
+import { Search, Home, LayoutDashboard, Star, ChevronRight, ChevronDown, Moon, Plus, ChevronLeft, Folder, Sun, X, FileText, Frame, MoreHorizontal, Settings, Columns, GripVertical, Activity, ListTodo, ChevronsUpDown, MessageCircle, Calendar, Clock, Trash2, RefreshCw, Pencil, ExternalLink, PanelLeft, MessageCircleDashed, Pen, CheckSquare, Settings2, LogOut, Tag, Inbox, Brain } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ import InstallButton from '@/components/pwa/InstallButton';
 import UpdateBanner from './UpdateBanner';
 import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
+import { BrainPanel } from '@/components/brain/BrainPanel';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
 import { createPortal } from 'react-dom';
@@ -449,6 +450,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [newPagePopupPos, setNewPagePopupPos] = useState<{ x: number, y: number } | null>(null);
   const [profilePopupPos, setProfilePopupPos] = useState<{ x: number, y?: number, bottom?: number, width: number } | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState<Record<string, boolean>>({});
+  const [brainOpen, setBrainOpen] = useState(false);
   const chatEditInputRef = useRef<HTMLInputElement>(null);
   // These previously started false to match the server's render (the /app
   // interior used to be server-rendered, and a mismatch between server and
@@ -1282,6 +1284,16 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                     >
                       <MessageCircleDashed strokeWidth={2} className="w-3.5 h-3.5" />
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Temp Chat</span>
+                    </button>
+                    <button
+                      onClick={() => setBrainOpen(true)}
+                      className={cn(
+                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent ",
+                        brainOpen ? "bg-dark text-[var(--bone-100)] font-normal" : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                      )}
+                    >
+                      <Brain strokeWidth={2} className="w-3.5 h-3.5" />
+                      <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Brain</span>
                     </button>
                     <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
                   </div>
@@ -2151,6 +2163,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           </div>
         </>
       )}
+      {brainOpen && <BrainPanel onClose={() => setBrainOpen(false)} />}
     </aside>
   );
 });
