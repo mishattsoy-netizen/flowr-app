@@ -162,6 +162,7 @@ export async function runChain(
     aiApiKey?: string;
     activeEntityId?: string;
     activeChatId?: string | null;
+    activeBrainId?: string | null;
     activeSpaceId?: string;
     classificationModelId?: string;
     temperature?: number;
@@ -504,9 +505,26 @@ export async function runChain(
     : true
 
   const skipSummary = category === 'WEB_SEARCH' || category === 'RESEARCH' || context?._skipSessionSummary || context?.isTempChat
-  const brainBlock = isGlobalPromptEnabled
-    ? await (await import('./services/brainStore')).getBrainBlockForSession(sessionId, sessionState, context?.userId)
-    : ''
+  let brainBlock = ''
+  if (isGlobalPromptEnabled && context?.userId && context.userId !== 'anonymous') {
+    const brainStore = await import('./services/brainStore')
+    // Resolve which brain is active for this session. ORDER MATTERS:
+    // sessionState.active_brain_id (server-persisted, set by
+    // switchActiveBrain on an explicit pill swap) is checked FIRST and wins
+    // whenever it's set. context.activeBrainId (whatever the client happens
+    // to have in its local store, sent on every request) is ONLY the
+    // fallback for the very first turn of a brand-new session, where no
+    // server-side active_brain_id exists yet to pin against. Reversing this
+    // order would let a stale/desynced client-side value silently override
+    // an already-pinned session without going through switchActiveBrain's
+    // repin — the exact "pin and active_brain_id diverge" bug this plan's
+    // global constraints warn about, just approached from the read side
+    // instead of the write side.
+    const activeBrainId = sessionState?.active_brain_id
+      || context?.activeBrainId
+      || (await brainStore.getOrCreateDefaultBrain(context.userId)).id
+    brainBlock = await brainStore.getBrainBlockForSession(sessionId, sessionState, context.userId, activeBrainId)
+  }
   let { staticPrompt: system_prompt, dynamicContext } = await buildSystemPrompt(category, {
     userId: context?.userId,
     pageContext: typeof context?.pageContext === 'object' ? JSON.stringify(context?.pageContext) : context?.pageContext,

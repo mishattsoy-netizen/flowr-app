@@ -13,6 +13,7 @@ export interface SessionState {
   turn_seq: number
   last_compacted_message_id: number | null
   pinned_brain_version: string | null
+  active_brain_id: string | null
 }
 
 const CHARS_PER_TOKEN = 3.5
@@ -70,7 +71,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       pending_action: null,
       turn_seq: 0,
       last_compacted_message_id: null,
-      pinned_brain_version: null
+      pinned_brain_version: null,
+      active_brain_id: null
     }
   }
 
@@ -85,7 +87,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
       pending_action: null,
       turn_seq: 0,
       last_compacted_message_id: null,
-      pinned_brain_version: null
+      pinned_brain_version: null,
+      active_brain_id: null
     }
   }
 
@@ -113,7 +116,8 @@ export async function getSessionState(chatId: string): Promise<SessionState | nu
     pending_action: null,
     turn_seq: 0,
     last_compacted_message_id: null,
-    pinned_brain_version: null
+    pinned_brain_version: null,
+    active_brain_id: null
   }
 
   return {
