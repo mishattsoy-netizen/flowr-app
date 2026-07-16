@@ -28,6 +28,7 @@ interface BlockViewProps {
   onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean) => void;
   onFocus?: (id: string) => void;
   isSelected?: boolean;
+  isActive?: boolean;
   isInsideColumn?: boolean;
   isDragging?: boolean;
   style?: React.CSSProperties;
@@ -71,6 +72,7 @@ export function BlockRenderer({
   depth = 0,
   isDraggingGlobal = false,
   isReadOnly = false,
+  isActive = false,
 }: any) {
   const elementRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
@@ -172,13 +174,12 @@ export function BlockRenderer({
 
   const contentRef = useRef<HTMLDivElement>(null);
   const lastTypedContent = useRef<string | null>(null);
-  const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (isFocused && contentRef.current && document.activeElement !== contentRef.current) {
-      contentRef.current.focus();
-    }
-  }, [isFocused]);
+  // Derived from the real caret position (NoteEditor's selectionchange
+  // listener). Local focus state is impossible here: under the single
+  // contentEditable host this div never receives focus, so onBlur never
+  // fires and any locally-set flag sticks forever (the "stuck highlight" bug).
+  const isFocused = isActive && !isReadOnly;
 
   const [copied, setCopied] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -1459,6 +1460,7 @@ export function BlockRenderer({
         <div className="flex-1 flex items-start w-full min-h-[1.5em] h-full relative">
           {block.foldingEnabled && (
             <div
+              contentEditable={false}
               className={cn(
                 "mr-1.5 shrink-0 flex items-center justify-center cursor-pointer hover:bg-[var(--bone-10)] rounded transition-colors text-muted-foreground/40 hover:text-foreground",
                 getLineHeightClass(effectiveStyle),
@@ -1487,13 +1489,6 @@ export function BlockRenderer({
             data-block-content
             suppressContentEditableWarning
             spellCheck={effectiveStyle === 'mono' ? "false" : "true"}
-            onFocus={() => {
-              if (!isReadOnly) {
-                setIsFocused(true);
-                onFocus?.(block.id);
-              }
-            }}
-            onBlur={() => setIsFocused(false)}
             data-placeholder={getPlaceholder(effectiveStyle, block.type, isFocused)}
             className={cn(
               "flex-1 outline-none min-h-[1.5em] leading-[1.6]",
@@ -1516,9 +1511,6 @@ export function BlockRenderer({
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onClick={handleContentClick}
-            onMouseDown={() => {
-              if (!isReadOnly && !isFocused) setIsFocused(true);
-            }}
             onMouseMove={handleContentMouseMove}
             onContextMenu={handleContextMenu}
             onMouseLeave={handleInlineMouseLeave}
@@ -1676,6 +1668,7 @@ function BlockControls({
 
   return (
     <div
+      contentEditable={false}
       className={cn(
         "absolute right-full pr-[8px] flex items-start justify-center gap-1",
         heightClass,
@@ -1700,6 +1693,7 @@ function BlockControls({
         <div
           ref={dragHandleRef}
           onClick={handleGripClick}
+          onMouseDown={() => { window.getSelection()?.removeAllRanges(); }}
           className={cn(
             markerBtnClass,
             "cursor-grab active:cursor-grabbing",
