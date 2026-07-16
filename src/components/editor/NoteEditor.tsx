@@ -564,12 +564,20 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   // Let the browser handle everything inside a single block; intercept only
   // DESTRUCTIVE edits that span two or more blocks, so the store cannot fall
   // out of sync with a DOM the browser rewrote across several blocks at once.
-  const handleHostBeforeInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+  //
+  // MUST be a native `addEventListener('beforeinput', ...)`, not React's
+  // `onBeforeInput` prop. Measured: React's onBeforeInput is a legacy
+  // polyfilled synthetic event (predates the native Input Events API) —
+  // native.inputType came through as undefined for typing, and the handler
+  // never fired at all for deleteContentBackward/Forward. A raw capture-phase
+  // listener on the same host received the real native `beforeinput` with the
+  // correct inputType every time. Without this, the entire cross-block merge
+  // path (type-over, Backspace, Cut, Paste) silently never ran in the browser.
+  const handleHostBeforeInput = useCallback((native: InputEvent) => {
     if (isReadMode) return;
     const host = blocksHostRef.current;
     if (!host) return;
 
-    const native = e.nativeEvent as InputEvent;
     const DESTRUCTIVE = new Set([
       'insertText',
       'insertParagraph',
@@ -585,7 +593,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const selection = getBlockSelection(host);
     if (!selection) return;   // single block or caret → native behavior
 
-    e.preventDefault();
+    native.preventDefault();
 
     const insert =
       native.inputType === 'insertText' ? (native.data ?? '')
@@ -617,6 +625,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     pendingCursor.current = { blockId: result.cursorBlockId, offset: result.cursorOffset };
     persistBlocks(result.blocks);
   }, [blocks, isReadMode, persistBlocks]);
+
+  useEffect(() => {
+    const host = blocksHostRef.current;
+    if (!host) return;
+    host.addEventListener('beforeinput', handleHostBeforeInput);
+    return () => host.removeEventListener('beforeinput', handleHostBeforeInput);
+  }, [handleHostBeforeInput]);
 
   // Put the caret at the seam after React has re-rendered the merged blocks.
   useLayoutEffect(() => {
@@ -1527,7 +1542,6 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                 ref={blocksHostRef}
                 contentEditable={!isReadMode}
                 suppressContentEditableWarning
-                onBeforeInput={handleHostBeforeInput}
                 onInput={handleHostInput}
                 className="space-y-2 min-h-[50vh] note-editor-bg outline-none"
               >
