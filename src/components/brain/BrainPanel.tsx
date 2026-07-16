@@ -11,11 +11,14 @@ interface BrainNode {
   pinned: boolean; enabled: boolean;
 }
 interface BrainEdge { id: string; from_node: string; to_node: string; label: string }
+interface BrainMeta { id: string; title: string; description: string | null; is_default: boolean }
 interface BrainState {
+  brainId: string;
   nodes: BrainNode[]; edges: BrainEdge[]; compiledPreview: string;
   deletedNodes: BrainNode[];
   availableWorkspaces: { id: string; title: string }[];
   budget: { used: number; limit: number; dropped: string[]; broken: string[] };
+  brains: BrainMeta[];
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -33,17 +36,27 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
   const [newMemory, setNewMemory] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const [selectedBrainId, setSelectedBrainId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
-    const res = await fetch('/api/ai/user-brain', { headers: await authHeaders() });
-    if (res.ok) setState(await res.json());
-  }, []);
+    const qs = selectedBrainId ? `?brain_id=${selectedBrainId}` : '';
+    const res = await fetch(`/api/ai/user-brain${qs}`, { headers: await authHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      setState(data);
+      if (!selectedBrainId) setSelectedBrainId(data.brainId);
+    }
+  }, [selectedBrainId]);
 
   useEffect(() => { load(); }, [load]);
 
   const mutate = async (body: object) => {
     setBusy(true);
     try {
-      await fetch('/api/ai/user-brain', { method: 'POST', headers: await authHeaders(), body: JSON.stringify(body) });
+      await fetch('/api/ai/user-brain', {
+        method: 'POST', headers: await authHeaders(),
+        body: JSON.stringify({ brain_id: selectedBrainId, ...body }),
+      });
       await load();
     } finally { setBusy(false); }
   };
@@ -102,9 +115,42 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--bone-10)]">
           <div className="flex items-center gap-2">
             <Brain className="w-4 h-4 text-[var(--brand-blue)]" />
-            <h2 className="text-base font-semibold text-foreground">Brain</h2>
+            <select
+              value={selectedBrainId ?? ''}
+              onChange={e => setSelectedBrainId(e.target.value)}
+              className="bg-transparent text-base font-semibold text-foreground outline-none cursor-pointer"
+            >
+              {(state?.brains ?? []).map(b => (
+                <option key={b.id} value={b.id}>{b.title}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const title = prompt('Name this brain (e.g. "Trading", "Studying"):');
+                if (!title?.trim()) return;
+                await mutate({ action: 'create_brain', title: title.trim() });
+              }}
+              className="text-[11px] px-2.5 py-1 rounded-full border border-[var(--bone-10)] text-[var(--bone-60)] hover:text-foreground"
+            >
+              + New Brain
+            </button>
+            {state && !state.brains.find(b => b.id === selectedBrainId)?.is_default && (
+              <button
+                onClick={async () => {
+                  if (!confirm('Delete this brain? Its nodes and edges will be removed.')) return;
+                  const res = await fetch('/api/ai/user-brain', {
+                    method: 'POST', headers: await authHeaders(),
+                    body: JSON.stringify({ action: 'delete_brain', brain_id: selectedBrainId }),
+                  });
+                  if (res.ok) { setSelectedBrainId(null); await load(); }
+                }}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-[var(--bone-10)] text-red-400/70 hover:text-red-400"
+              >
+                Delete Brain
+              </button>
+            )}
             <button onClick={() => setShowPreview(p => !p)} className="text-[11px] px-2.5 py-1 rounded-full border border-[var(--bone-10)] text-[var(--bone-60)] hover:text-foreground">
               {showPreview ? 'Hide' : 'View as bot sees it'}
             </button>
