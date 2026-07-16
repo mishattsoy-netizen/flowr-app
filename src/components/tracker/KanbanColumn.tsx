@@ -107,23 +107,21 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-2">
           {/* Dot */}
-          <span 
-            className="w-2 h-2 rounded-full shrink-0" 
-            style={{ backgroundColor: DOT_COLORS[id] || 'var(--bone-20)' }} 
+          <span
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: DOT_COLORS[id] || 'var(--bone-20)' }}
           />
+          {/* Title */}
+          <span className="text-[13px] font-sans font-semibold text-[var(--bone-90)] tracking-wide leading-none select-none">
+            {title}
+          </span>
+          {/* Count Badge */}
           {isLoading ? (
-            <Skeleton className="h-5 w-24 rounded-md bg-[var(--bone-5)]" />
+            <Skeleton className="w-[22px] h-[22px] rounded-[var(--radius-small)] bg-[var(--bone-6)] shrink-0" />
           ) : (
-            <>
-              {/* Title */}
-              <span className="text-[13px] font-sans font-semibold text-[var(--bone-90)] tracking-wide leading-none select-none">
-                {title}
-              </span>
-              {/* Count Badge */}
-              <span className="flex items-center justify-center w-[22px] h-[22px] rounded-[4px] text-[12px] font-ui font-medium bg-[var(--bone-6)] text-[var(--bone-70)] shrink-0 select-none">
-                {tasks.length}
-              </span>
-            </>
+            <span className="flex items-center justify-center w-[22px] h-[22px] rounded-[var(--radius-small)] text-[12px] font-ui font-medium bg-[var(--bone-6)] text-[var(--bone-70)] shrink-0 select-none">
+              {tasks.length}
+            </span>
           )}
         </div>
 
@@ -148,7 +146,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
               ref={sortButtonRef}
               onClick={() => setIsSortMenuOpen(prev => !prev)}
               className={cn(
-                "p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] transition-none",
+                "flex items-center justify-center w-[22px] h-[22px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] transition-none",
                 isSortMenuOpen ? "text-[var(--bone-100)] bg-[var(--app-dark)]" : "hover:text-[var(--bone-100)]"
               )}
             >
@@ -238,7 +236,10 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
               <button
                 onClick={() => {
                   const state = useStore.getState();
-                  const presets: any = { entityId: state.trackerFilterEntityIds[0] || undefined };
+                  const presets: any = {
+                    entityId: state.trackerFilterEntityIds[0] || undefined,
+                    tag: state.trackerFilterTags.length === 1 ? state.trackerFilterTags[0] : undefined
+                  };
                   if (id === 'todo') {
                     presets.status = 'todo';
                   } else if (id === 'inProgress') {
@@ -254,7 +255,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
                   }
                   useStore.getState().openTaskPanel(generateId(), presets);
                 }}
-                className="p-1 rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
+                className="flex items-center justify-center w-[22px] h-[22px] rounded-[var(--radius-small)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] transition-none"
               >
                 <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
               </button>
@@ -285,7 +286,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
               heights.push(80 + (Math.abs(hash + i * 123) % 80));
             }
             return (
-              <div className="flex flex-col gap-3 min-h-0">
+              <div className="flex flex-col gap-[8px] min-h-0">
                 {heights.map((h, i) => (
                   <Skeleton key={i} className="w-full rounded-[var(--radius-medium)] bg-[var(--bone-5)]" style={{ height: h }} />
                 ))}
@@ -308,7 +309,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
           }
 
           return (
-            <div className="flex flex-col gap-3 min-h-0">
+            <div className="flex flex-col gap-[8px] min-h-0">
               {/* Gap before the first card */}
               {gap && gap.afterTaskId === null && gapBox}
               {tasks.map(task => (
