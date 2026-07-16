@@ -65,6 +65,26 @@ export function NoteSkeleton() {
               </div>
             </div>
           </div>
+
+          {/* Section 3 (Paragraph) */}
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-[25%] rounded-md bg-[var(--bone-5)]" />
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-[90%] rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[95%] rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-full rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[70%] rounded-md bg-[var(--bone-5)]" />
+            </div>
+          </div>
+
+          {/* Section 4 (Paragraph) */}
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-[85%] rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[90%] rounded-md bg-[var(--bone-5)]" />
+              <Skeleton className="h-4 w-[60%] rounded-md bg-[var(--bone-5)]" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
