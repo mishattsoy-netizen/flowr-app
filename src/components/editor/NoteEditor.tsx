@@ -922,6 +922,49 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     });
   }, []);
 
+  // PROOF-OF-CONCEPT SCAFFOLD for relocating per-block keydown handling to the
+  // single editing host. Same root cause as handleHostBeforeInput/handleHostInput:
+  // once the container is the sole contentEditable host, per-block onKeyDown
+  // never fires (keydown targets document.activeElement, which is the host).
+  // This wires ONLY "/" opening the slash menu, as a proven pattern — the rest
+  // of BlockRenderer's and ListBlock's keydown logic (markdown shortcuts, Enter,
+  // Tab, Backspace) still needs the same relocation and is NOT done here.
+  const handleHostKeyDown = useCallback((e: KeyboardEvent) => {
+    if (isReadMode) return;
+    const host = blocksHostRef.current;
+    if (!host) return;
+
+    const sel = window.getSelection();
+    const anchorNode = sel?.anchorNode ?? null;
+    const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : (anchorNode as HTMLElement | null);
+    if (!anchorEl) return;
+    const blockEl = anchorEl.closest<HTMLElement>('[data-block-id]');
+    if (!blockEl || !host.contains(blockEl)) return;
+    const blockId = blockEl.dataset.blockId;
+    if (!blockId) return;
+
+    if (e.key === '/') {
+      const contentEl = blockEl.querySelector<HTMLElement>('[data-block-content]');
+      const text = contentEl?.textContent ?? '';
+      // Matches the ORIGINAL per-block check (BlockRenderer.tsx, now removed):
+      // only opens when the block is empty or already just "/" (avoids
+      // re-triggering on every slash typed inside existing text).
+      if (text === '' || text === '/') {
+        setTimeout(() => {
+          const rect = contentEl?.getBoundingClientRect();
+          if (rect) handleSlash(blockId, rect);
+        }, 10);
+      }
+    }
+  }, [isReadMode, handleSlash]);
+
+  useEffect(() => {
+    const host = blocksHostRef.current;
+    if (!host) return;
+    host.addEventListener('keydown', handleHostKeyDown);
+    return () => host.removeEventListener('keydown', handleHostKeyDown);
+  }, [handleHostKeyDown]);
+
   const indentBlock = useCallback((id: string) => {
     setBlocks(prev => {
       const findAndIndent = (list: EditorBlock[]): { newList: EditorBlock[], found: boolean } => {

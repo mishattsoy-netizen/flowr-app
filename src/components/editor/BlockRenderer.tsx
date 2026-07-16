@@ -555,15 +555,13 @@ export function BlockRenderer({
       if (text === '/table' || text === '|') return transform({ type: 'table', tableData: [['', '', ''], ['', '', ''], ['', '', '']] });
     }
 
-    if (e.key === '/' && contentRef.current) {
-      const text = contentRef.current.textContent ?? '';
-      if (text === '' || text === '/') {
-        setTimeout(() => {
-          const rect = contentRef.current?.getBoundingClientRect();
-          if (rect) onSlash(block.id, rect);
-        }, 10);
-      }
-    }
+    // "/" slash-menu trigger RELOCATED to NoteEditor's handleHostKeyDown.
+    // This per-block onKeyDown never fires once the container became the
+    // single contentEditable host (native keydown targets the host, i.e.
+    // document.activeElement — see handleHostBeforeInput's comment for the
+    // fuller explanation of why per-block handlers are dead here). Left
+    // this comment as the pattern reference for relocating the rest of
+    // this function's logic (markdown shortcuts, Enter, Tab, Backspace).
   }, [block.id, block.type, block.children, index, depth, isList, isChecklist, onInsertAfter, onDelete, onUpdate, onSlash, onIndent, onUnindent, slashMenuOpen]);
 
   const handleContentClick = useCallback((e: React.MouseEvent) => {
