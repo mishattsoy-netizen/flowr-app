@@ -1139,6 +1139,29 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       return;
     }
 
+    // Ctrl+Enter: insert a new plain text block immediately after the
+    // CURRENT TOP-LEVEL BLOCK, regardless of what's focused inside it — a
+    // list row, a table cell, plain paragraph text, anything. This is the
+    // escape hatch for "I'm inside a list and want a normal block below
+    // it" without needing to empty a row first (previously the only way to
+    // exit a list). Checked here, before the row-vs-block resolution split
+    // below, because the answer is the same either way: resolve to the
+    // nearest [data-block-id] ancestor. For a list row that's the list's
+    // own wrapper (rows live nested inside it) — exactly the "parent
+    // block" id insertAfter needs.
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const selCE = window.getSelection();
+      const anchorNodeCE = selCE?.anchorNode ?? null;
+      const anchorElCE = anchorNodeCE?.nodeType === Node.TEXT_NODE ? anchorNodeCE.parentElement : (anchorNodeCE as HTMLElement | null);
+      const targetBlockEl = anchorElCE?.closest<HTMLElement>('[data-block-id]');
+      const targetBlockId = targetBlockEl?.dataset.blockId;
+      if (targetBlockId && host.contains(targetBlockEl!)) {
+        insertAfter(targetBlockId, 'text');
+      }
+      return;
+    }
+
     const sel = window.getSelection();
     const anchorNode = sel?.anchorNode ?? null;
     const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : (anchorNode as HTMLElement | null);
@@ -1423,9 +1446,37 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               merged.splice(idx, 1);
               pendingCursor.current = { blockId: prev.id, offset: prevLen };
               persistBlocks(merged);
+            } else if (
+              (cur.type === 'text' || cur.type === 'quote') &&
+              ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(prev.type)
+            ) {
+              // Backspace at the start of a paragraph whose PREVIOUS block is
+              // a list: append this block's content onto the list's LAST
+              // row, matching "first block wins" for text-to-text but
+              // mirrored — here the LIST is first in document order, so the
+              // list's own content survives and the paragraph's content is
+              // what gets appended into it. Previously this whole branch
+              // fell through the unconditional "swallow the key" comment
+              // below and did nothing at all — reproduced live: Backspace
+              // (and the symmetric Delete case) at a text<->list boundary
+              // silently no-op'd every time.
+              const rows = flattenRows(prev);
+              const lastRow = rows[rows.length - 1];
+              const lastRowLen = (lastRow.content ?? '').length;
+              const newRows = rows.slice();
+              newRows[newRows.length - 1] = { ...lastRow, content: (lastRow.content ?? '') + cur.content };
+              const nested = nestRows(newRows, prev.type as BlockType);
+              const merged = blocks.slice();
+              merged[idx - 1] = { ...prev, content: nested.content, checked: nested.checked, children: nested.children };
+              merged.splice(idx, 1);
+              pendingCursor.current = { blockId: lastRow.id, offset: lastRowLen };
+              persistBlocks(merged);
             }
-            // Other neighbor types (lists, media, tables): swallow the key.
-            // No merge yet (Phase 2), but crucially no native DOM corruption.
+            // Other neighbor types (media, tables): swallow the key. No
+            // merge yet — text<->text and text<->list are the two cases
+            // this codebase's users have actually hit; media/table merges
+            // are a separate, larger design question (what does merging
+            // TEXT into a TABLE CELL even mean?) deferred until requested.
           }
           return;
         }
@@ -1455,6 +1506,31 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               const merged = blocks.slice();
               merged[idx] = { ...cur, content: cur.content + next.content };
               merged.splice(idx + 1, 1);
+              pendingCursor.current = { blockId: cur.id, offset: curLen };
+              persistBlocks(merged);
+            } else if (
+              (cur.type === 'text' || cur.type === 'quote') &&
+              ['bulletList', 'numberedList', 'dashedList', 'checklist'].includes(next.type)
+            ) {
+              // Delete at the true end of a paragraph whose NEXT block is a
+              // list: pull the list's FIRST row's content up onto the end
+              // of this paragraph, then remove just that first row from the
+              // list (the list block itself survives with one fewer row,
+              // unless it only had one row — mirrors "empty row removal"
+              // elsewhere in this file). Symmetric to the Backspace case
+              // above; same previously-silent no-op this fixes.
+              const curLen = (contentEl.textContent ?? '').length;
+              const rows = flattenRows(next);
+              const firstRow = rows[0];
+              const remainingRows = rows.slice(1);
+              const merged = blocks.slice();
+              merged[idx] = { ...cur, content: cur.content + (firstRow.content ?? '') };
+              if (remainingRows.length === 0) {
+                merged.splice(idx + 1, 1);
+              } else {
+                const nested = nestRows(remainingRows, next.type as BlockType);
+                merged[idx + 1] = { ...next, content: nested.content, checked: nested.checked, children: nested.children };
+              }
               pendingCursor.current = { blockId: cur.id, offset: curLen };
               persistBlocks(merged);
             }
@@ -1967,6 +2043,21 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       onDoubleClick={(e) => { e.stopPropagation(); setEditingEntityId(entity.id, 'view'); }}
                       onBlur={handleTitleBlur}
                       onKeyDown={e => {
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && isEditingTitle) {
+                          // The title isn't a block (no data-block-id, lives
+                          // outside blocksHostRef entirely) — there's no
+                          // "afterId" to reuse insertAfter with. Insert a
+                          // fresh text block at the very front of the array
+                          // instead.
+                          e.preventDefault();
+                          const newBlock = createBlock('text');
+                          persistBlocks([newBlock, ...blocks]);
+                          setTimeout(() => {
+                            const el = document.querySelector(`[data-block-id="${newBlock.id}"] [data-block-content]`) as HTMLElement;
+                            if (el) focusAtEnd(el);
+                          }, 50);
+                          return;
+                        }
                         if (e.key === 'Enter' && isEditingTitle) {
                           e.preventDefault();
                           e.currentTarget.blur();
