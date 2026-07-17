@@ -108,23 +108,19 @@ export default function AISettingsSection() {
 
 
   return (
-    <div className="space-y-12 max-w-2xl pb-10">
-
-      {/* Timezone Section */}
-      <div className="space-y-4">
+    <div className="max-w-2xl pb-10">
+      <div className="rounded-2xl bg-[var(--app-dark)] p-4 space-y-3">
         <div>
-          <h4 className="text-sm font-semibold text-[var(--bone-100)]">AI Timezone Context</h4>
-          <p className="text-xs text-[var(--bone-70)] mt-1">
-            By default, the AI infers your timezone from your device. If you travel frequently or use a VPN, you can lock it to a specific timezone here.
+          <h4 className="text-[14px] font-semibold text-[var(--bone-100)]">AI Timezone Context</h4>
+          <p className="text-[13px] text-[var(--bone-60)] mt-1">
+            By default, the AI infers your timezone from your device. Lock it if you travel or use a VPN.
           </p>
         </div>
-        
-        <TimezoneSelect
-          value={manualTimezone}
-          onChange={handleTimezoneChange}
-          timezones={timezones}
-        />
+        <TimezoneSelect value={manualTimezone} onChange={handleTimezoneChange} timezones={timezones} />
       </div>
+      <p className="text-[13px] text-[var(--bone-60)] mt-6">
+        Memory and personal facts are managed in Brain, not here.
+      </p>
     </div>
   );
 }
