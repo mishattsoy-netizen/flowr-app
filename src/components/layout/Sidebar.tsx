@@ -23,7 +23,7 @@ import InstallButton from '@/components/pwa/InstallButton';
 import UpdateBanner from './UpdateBanner';
 import { SidebarSkeleton } from './SidebarSkeleton';
 import { ChatHistorySkeleton } from '../chat/ChatSkeleton';
-import { BrainPanel } from '@/components/brain/BrainPanel';
+import { BrainSidebarContent } from '@/components/brain/canvas/BrainSidebarContent';
 import React from 'react';
 import { stripHtml } from '@/lib/utils';
 import { createPortal } from 'react-dom';
@@ -450,7 +450,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   const [newPagePopupPos, setNewPagePopupPos] = useState<{ x: number, y: number } | null>(null);
   const [profilePopupPos, setProfilePopupPos] = useState<{ x: number, y?: number, bottom?: number, width: number } | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState<Record<string, boolean>>({});
-  const [brainOpen, setBrainOpen] = useState(false);
   const chatEditInputRef = useRef<HTMLInputElement>(null);
   // These previously started false to match the server's render (the /app
   // interior used to be server-rendered, and a mismatch between server and
@@ -1252,7 +1251,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              {activeEntityId === 'chat' ? (
+              {activeEntityId === 'brain' ? (
+                <BrainSidebarContent />
+              ) : activeEntityId === 'chat' ? (
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
@@ -1286,11 +1287,11 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Temp Chat</span>
                     </button>
                     <button
-                      onClick={() => setBrainOpen(true)}
-                      className={cn(
-                        "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent ",
-                        brainOpen ? "bg-dark text-[var(--bone-100)] font-normal" : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
-                      )}
+                      onClick={() => {
+                        clearSelectedSidebarIds();
+                        useStore.getState().setActiveEntityId('brain');
+                      }}
+                      className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                     >
                       <Brain strokeWidth={2} className="w-3.5 h-3.5" />
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Brain</span>
@@ -2163,7 +2164,6 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
           </div>
         </>
       )}
-      {brainOpen && <BrainPanel onClose={() => setBrainOpen(false)} />}
     </aside>
   );
 });
