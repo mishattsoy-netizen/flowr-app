@@ -153,109 +153,116 @@ export function SettingsModal() {
               activeTab === 'updates' && "flex-1 min-h-0 flex flex-col"
             )}>
               {activeTab === 'general' && (
-                <div className="space-y-12">
+                <div className="space-y-8">
                   <section>
-                    <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Preferences</h3>
-                    
-                    {/* Visual Theme */}
-                    <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Appearance</h4>
-                      </div>
-                      <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[140px]">
-                        <div
-                          className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
-                          style={{
-                            width: 'calc((100% - 4px) / 3)',
-                            left: `calc(2px + (${
-                              (!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
-                            } * (100% - 4px) / 3))`
-                          }}
-                        />
-                        <button
-                          onClick={() => setTheme('system')}
-                          className={cn(
-                            "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
-                            (!isMounted || theme === 'system') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
-                          )}
-                          title="System"
-                        >
-                          <Monitor className="w-4 h-4" strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={() => setTheme('light')}
-                          className={cn(
-                            "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
-                            (isMounted && theme === 'light') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
-                          )}
-                          title="Light"
-                        >
-                          <Sun className="w-4 h-4" strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={() => setTheme('dark')}
-                          className={cn(
-                            "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
-                            (isMounted && theme === 'dark') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
-                          )}
-                          title="Dark"
-                        >
-                          <Moon className="w-4 h-4" strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    </div>
+                    <h3 className="text-[15px] font-semibold text-[var(--bone-100)]">Preferences</h3>
+                    <p className="text-[13px] text-[var(--bone-60)] mt-1">
+                      Appearance and interface controls for this device.
+                    </p>
 
-                    {/* Interface Scaling */}
-                    <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Interface Scaling</h4>
-                      </div>
-                      <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[240px]">
-                        <div
-                          className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
-                          style={{
-                            width: 'calc((100% - 4px) / 3)',
-                            left: `calc(2px + (${
-                              interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
-                            } * (100% - 4px) / 3))`
-                          }}
-                        />
-                        {['small', 'regular', 'big'].map((size) => (
+                    <div className="mt-5 rounded-2xl bg-[var(--app-dark)] p-4 space-y-0">
+                      {/* Appearance */}
+                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Appearance</h4>
+                        </div>
+                        <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[140px]">
+                          <div
+                            className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                            style={{
+                              width: 'calc((100% - 4px) / 3)',
+                              left: `calc(2px + (${
+                                (!isMounted || theme === 'system') ? 0 : (theme === 'light' ? 1 : 2)
+                              } * (100% - 4px) / 3))`
+                            }}
+                          />
                           <button
-                            key={size}
-                            onClick={() => setInterfaceSize(size as 'small' | 'regular' | 'big')}
+                            onClick={() => setTheme('system')}
                             className={cn(
-                              "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium capitalize transition-colors text-center",
-                              interfaceSize === size ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                              "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                              (!isMounted || theme === 'system') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
                             )}
+                            title="System"
                           >
-                            {size === 'regular' ? 'Default' : size}
+                            <Monitor className="w-4 h-4" strokeWidth={1.5} />
                           </button>
-                        ))}
+                          <button
+                            onClick={() => setTheme('light')}
+                            className={cn(
+                              "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                              (isMounted && theme === 'light') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                            )}
+                            title="Light"
+                          >
+                            <Sun className="w-4 h-4" strokeWidth={1.5} />
+                          </button>
+                          <button
+                            onClick={() => setTheme('dark')}
+                            className={cn(
+                              "relative z-10 flex-1 px-3 py-1.5 rounded-[7px] transition-colors flex items-center justify-center",
+                              (isMounted && theme === 'dark') ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                            )}
+                            title="Dark"
+                          >
+                            <Moon className="w-4 h-4" strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Interface Scaling */}
+                      <div className="flex items-center justify-between py-3">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Interface Scaling</h4>
+                        </div>
+                        <div className="relative flex items-center p-[2px] bg-[var(--slider-track)] rounded-[8px] w-[240px]">
+                          <div
+                            className="absolute top-[2px] bottom-[2px] rounded-[6px] bg-[var(--slider-pill)] transition-all duration-300 ease-out shadow-[var(--slider-pill-shadow)]"
+                            style={{
+                              width: 'calc((100% - 4px) / 3)',
+                              left: `calc(2px + (${
+                                interfaceSize === 'small' ? 0 : interfaceSize === 'regular' ? 1 : 2
+                              } * (100% - 4px) / 3))`
+                            }}
+                          />
+                          {['small', 'regular', 'big'].map((size) => (
+                            <button
+                              key={size}
+                              onClick={() => setInterfaceSize(size as 'small' | 'regular' | 'big')}
+                              className={cn(
+                                "relative z-10 flex-1 px-2 py-1.5 rounded-[7px] text-[13px] font-medium capitalize transition-colors text-center",
+                                interfaceSize === size ? "text-bone-100" : "text-bone-70 hover:text-bone-100"
+                              )}
+                            >
+                              {size === 'regular' ? 'Default' : size}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Tabs Navigation */}
-                    <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Tabs Navigation</h4>
+                    <div className="mt-6">
+                      {/* Tabs Navigation */}
+                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Tabs Navigation</h4>
+                        </div>
+                        <Toggle
+                          checked={isTabsHeaderVisible}
+                          onChange={() => toggleTabsHeader()}
+                        />
                       </div>
-                      <Toggle
-                        checked={isTabsHeaderVisible}
-                        onChange={() => toggleTabsHeader()}
-                      />
-                    </div>
 
-                    {/* Chat Action Button */}
-                    <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Chat 'New Note' Button</h4>
-                        <p className="text-[13px] text-bone-70 mt-0.5">Show the quick action button under AI messages.</p>
+                      {/* Chat Action Button */}
+                      <div className="flex items-center justify-between py-3">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Chat 'New Note' Button</h4>
+                          <p className="text-[13px] text-[var(--bone-60)] mt-0.5">Show the quick action button under AI messages.</p>
+                        </div>
+                        <Toggle
+                          checked={isChatNewNoteButtonVisible}
+                          onChange={(checked) => setChatNewNoteButtonVisible(checked)}
+                        />
                       </div>
-                      <Toggle
-                        checked={isChatNewNoteButtonVisible}
-                        onChange={(checked) => setChatNewNoteButtonVisible(checked)}
-                      />
                     </div>
                   </section>
                 </div>
