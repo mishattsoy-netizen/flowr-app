@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../../supabase'
 import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../editor/markdownBlocks'
 import { sanitizeToolContent } from '../services/imagePromptGuard'
 import type { BlockInput } from '../../editor/markdownBlocks'
+import { extractContent } from '../providers/content-extract'
+import { extractYoutubeTranscript, isYouTubeUrl } from '../providers/youtube-extract'
 
 /** Recursively sanitizes each block's `content` string (and any nested `children`) in place. */
 export function sanitizeBlocks(blocks: BlockInput[] | undefined): BlockInput[] | undefined {
@@ -238,6 +240,12 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         } else if (status === 'overdue') {
           finalStatus = 'todo'
           finalDueDate = yesterdayStr
+        }
+
+        // Strict DB constraint validation
+        if (finalStatus === 'in_progress') finalStatus = 'in-progress'
+        if (!['todo', 'in-progress', 'done'].includes(finalStatus)) {
+          finalStatus = 'todo'
         }
 
         const id = 'task-' + Date.now().toString()
@@ -808,9 +816,9 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
       rawResults = rawResults.slice(0, actualLimit)
 
-      // 4. Dynamic Payload Truncation (40k chars ~ 13k tokens)
+      // 4. Dynamic Payload Truncation (100k chars ~ 33k tokens)
       let runningLength = 0
-      const MAX_CHARS = 40000
+      const MAX_CHARS = 100000
 
       const processedResults = rawResults.map((item: any) => {
         let itemString = JSON.stringify(item)
@@ -829,6 +837,36 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     } catch (e: any) {
       logger.error('list_content failed:', e.message)
       return { error: e.message }
+    }
+  },
+
+  // ── READ URL ──────────────────────────────────────────────────────────────────
+  async read_url(args: any, context: any) {
+    const { url, startTime, endTime, lang } = args;
+    if (!url) return { error: "'url' is required" };
+
+    try {
+      if (isYouTubeUrl(url)) {
+        const ytPage = await extractYoutubeTranscript(url, {
+          startTime: startTime !== undefined ? Number(startTime) : undefined,
+          endTime: endTime !== undefined ? Number(endTime) : undefined,
+          lang: lang || undefined,
+        });
+        if (ytPage) {
+          return { success: true, url, content: ytPage.content };
+        }
+        return { error: 'Failed to extract YouTube transcript. The video might not have captions enabled.' };
+      }
+
+      // Non-YouTube URL: use existing Exa → Tavily → fetch pipeline
+      const webPages = await extractContent([url], context);
+      if (webPages && webPages.length > 0 && webPages[0].content) {
+        return { success: true, url, content: webPages[0].content };
+      }
+      return { error: 'Failed to extract readable text from the URL.' };
+    } catch (e: any) {
+      logger.error('read_url failed:', e.message);
+      return { error: e.message };
     }
   },
 
