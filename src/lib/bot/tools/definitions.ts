@@ -56,7 +56,7 @@ export const FLOWR_TOOLS = [
         parentId: { type: "string", description: "For notes/folders: parent workspace or folder ID. Omit to put in unsorted. CRITICAL: If the user provides a natural language name for the destination (e.g. 'Atlantis workspace', 'Personal folder'), you MUST use list_content first to find its ID, even if it's a note. Do NOT omit parentId if the user explicitly asked to place it somewhere." },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: ID of the workspace to assign this task to." },
-        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done' | 'today' | 'overdue'. Defaults to 'todo'." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time. If a user asks for a 'start date', put it here." },
@@ -106,7 +106,7 @@ export const FLOWR_TOOLS = [
         },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: reassign task to a different workspace." },
-        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done' | 'today' | 'overdue'." },
+        status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'." },
         priority: { type: "string", enum: ["low", "medium", "high"], description: "For tasks: priority level." },
         tag: { type: "string", description: "For tasks: custom tag. Leave empty or omit if no tag is needed. Do not use 'none'." },
         dueDate: { type: "string", description: "For tasks: due date/time." },
@@ -230,6 +230,30 @@ export const FLOWR_TOOLS = [
           }
         }
       }
+    }
+  },
+
+  {
+    name: "read_url",
+    description: "Read the full text content or transcript of a specific URL (articles, docs, YouTube videos). Use this when the user provides a link and asks you to summarize, read, or analyze it. Supports YouTube time ranges — pass startTime/endTime as seconds if the user says 'from X to Y'.",
+    parameters: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The URL to read. REQUIRED." },
+        startTime: {
+          type: "number",
+          description: "Optional. Start time in seconds for YouTube transcript (e.g. 300 for 5:00). Only use for YouTube URLs."
+        },
+        endTime: {
+          type: "number",
+          description: "Optional. End time in seconds for YouTube transcript (e.g. 600 for 10:00). Only use for YouTube URLs."
+        },
+        lang: {
+          type: "string",
+          description: "Optional. Language code for YouTube transcript (e.g. 'en' for English, 'de' for German)."
+        }
+      },
+      required: ["url"]
     }
   },
 
