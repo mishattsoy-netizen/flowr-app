@@ -111,9 +111,11 @@ Is your page's data in the persist allowlist (§5)?
 
 From `partialize` in `src/data/store.ts`. If it's here, it's on frame 1:
 
-`entities`, `tasks`, `blocks`, `spaces`, `chatMessagesMap`, `activeSpaceId`, `syncCursors`, `pendingModeWrites`, `activeEntityId`, `activeTabId`, `openTabIds`, `favoriteIds`, `collapsedIds`, `theme`, `interfaceSize`, `isSidebarCollapsed`, `isSidebarPinned`, `isToolbarVisible`, `isChatNewNoteButtonVisible`, `toolbarPosition`, `sidebarWidth`, `aiSidebarWidth`, `taskPanelWidth`, `splitViewActive`, `splitViewLeftId`, `splitViewRightId`, `splitViewPosition`, `isFullWidth`, `isTabsHeaderVisible`, `appStyle`, `dashboardLayout`, `defaultDashboardLayout`, `aiMessages`, `aiBehaviorMode`, `aiApiKey`, `copiedBlock`, `sidebarSectionSettings`, `readModeStates`, `trackerColumnSortModes`, `trackerColumnSortLocks`, `hiddenEntityIds`, `recentEntityIds`, `activeMode`, `activeChatId`, `isTempChat`, `pendingNewChat`, `chatHistoryOpen`, `defaultsSeeded`, `chatInputs`, `sessionContextsMap`, `shortcuts`, `cachedDisplayName`
+`entities`, `tasks`, `blocks`, `spaces`, `chatMessagesMap`, `chatConversations`, `brainCanvasState`, `activeSpaceId`, `syncCursors`, `pendingModeWrites`, `activeEntityId`, `activeTabId`, `openTabIds`, `favoriteIds`, `collapsedIds`, `theme`, `interfaceSize`, `isSidebarCollapsed`, `isSidebarPinned`, `isToolbarVisible`, `isChatNewNoteButtonVisible`, `toolbarPosition`, `sidebarWidth`, `aiSidebarWidth`, `taskPanelWidth`, `splitViewActive`, `splitViewLeftId`, `splitViewRightId`, `splitViewPosition`, `isFullWidth`, `isTabsHeaderVisible`, `appStyle`, `dashboardLayout`, `defaultDashboardLayout`, `aiMessages`, `aiBehaviorMode`, `aiApiKey`, `copiedBlock`, `sidebarSectionSettings`, `readModeStates`, `trackerColumnSortModes`, `trackerColumnSortLocks`, `hiddenEntityIds`, `recentEntityIds`, `activeMode`, `activeChatId`, `isTempChat`, `pendingNewChat`, `chatHistoryOpen`, `defaultsSeeded`, `chatInputs`, `sessionContextsMap`, `shortcuts`, `cachedDisplayName`
 
-**Notably NOT persisted:** `chatConversations` (the chat history list). That's the one remaining network-gated list.
+`chatConversations` (metadata only — no message content) and `brainCanvasState` (the full `/api/ai/user-brain` response, incl. node content) were added 2026-07-17 to fix the chat-history sidebar and the brain canvas/sidebar, which previously had no local cache at all and always showed a full loading state on every mount. `brainCanvasState` is loosely typed as `Record<string, any> | null` in `store.types.ts` (see `useBrainData.ts` for the real `BrainCanvasState` shape) to avoid the foundation layer depending on a component-layer type — same pattern as `sessionContextsMap`.
+
+**No longer un-persisted / all local data now caches.** If you find another page with a hook-local `useState(null)` + `fetch` pattern and no store involvement (that's what both of these were), it's a strong signal it needs the same treatment: move the state into the store, `partialize` it, initialize the hook's local state from the store selector instead of `null`.
 
 **To make new data instant:** add the key to `partialize`. Additive changes need **no version bump** — the store's `create()` initializer already provides defaults, so old persisted blobs lacking the key are harmless. (`version: 22` migrations are only for *transforming* existing data.)
 
@@ -155,6 +157,14 @@ It was built to *fight* SSR. Now that `/app` is client-only and the store hydrat
 `SidebarSkeleton`, `ChatHistorySkeleton`, `ChatMainSkeleton`, `NoteSkeleton`, `TrackerSkeleton` all exist. Most are now unreachable because their `isLoading` gate is always `false`.
 
 Two of these are **hand-drawn duplicates** of the real UI (`SidebarSkeleton` re-implements the sidebar's buttons as static divs). They drift from the real UI and caused "inaccurate replica" complaints. **Don't add more hand-drawn skeleton duplicates.** If a skeleton is genuinely needed, derive it from the same component that renders the real thing.
+
+### 6.5 A "fifth loading system" can hide in a feature-local hook
+
+The four systems in §3 aren't exhaustive — they're what existed in the core app shell as of this doc's first version. `src/components/brain/canvas/useBrainData.ts` was a **fifth**, independent one: a plain `useState<T | null>(null)` + `fetch`, no Zustand involvement, no cache, `!state` gating a full-page loader. It was also called from **two unrelated components** (`BrainCanvasPage` and `BrainSidebarContent`), each with its own separate instance — meaning two redundant fetches, and the sidebar rendering genuinely empty (not skeleton) until its own fetch resolved.
+
+Fixed 2026-07-17 the same way as §5: added `brainCanvasState` to the store + `partialize`, and `useBrainData` now initializes its local `useState` from the store selector instead of `null`, and writes through the store on every update. Both hook instances now read the same cached value, so the sidebar and canvas both paint instantly and the redundant-fetch problem disappears as a side effect (fetches still happen for freshness, they just don't gate the first paint).
+
+**When auditing a new/unfamiliar page for slow loading, don't assume it uses one of the four systems in §3.** Grep for `useState<...>(null)` combined with a `fetch(...)` call in the same file — that pattern means "sixth system," not a bug in an existing one.
 
 ---
 

@@ -328,6 +328,8 @@ export const useStore = create<AppState>()(
       tempChatMessages: [],
       chatHistoryOpen: true,
       chatConversations: [],
+      brainCanvasState: null,
+      setBrainCanvasState: (state) => set({ brainCanvasState: state }),
       tempChatGreeting: "Write like nobody's listening.",
       isAIAssistantExtended: true,
       isAILoading: false,
@@ -3764,6 +3766,9 @@ export const useStore = create<AppState>()(
           // the sidebar's chat history list renders instantly from cache on
           // refresh instead of always skeleton-ing while it re-fetches.
           chatConversations: state.chatConversations,
+          // So the brain canvas and sidebar brain list render instantly from
+          // cache instead of a full-page loader / blank list on every mount.
+          brainCanvasState: state.brainCanvasState,
         }),
         activeSpaceId: state.activeSpaceId,
         syncCursors: state.syncCursors,
