@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/components/AuthProvider'
-import { User, LogOut, Save, Camera, Check } from 'lucide-react'
+import { User, Camera, Check } from 'lucide-react'
 
 export default function ProfileSection() {
   const { user, signInWithGoogle, signOut, updateProfile } = useAuth()
   const [displayName, setDisplayName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const initialized = useRef(false)
 
   useEffect(() => {
@@ -74,51 +74,54 @@ export default function ProfileSection() {
   const email = user.email || ''
 
   return (
-    <div className="space-y-0 text-[14px]">
-      {/* Avatar */}
-      <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-        <div>
-          <h4 className="font-medium text-bone-100">Avatar</h4>
+    <div className="space-y-6 text-[14px]">
+      {/* Hero: Avatar + Full name + Email */}
+      <div className="rounded-2xl bg-[var(--app-dark)] p-4 space-y-0">
+        {/* Avatar */}
+        <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+          <div>
+            <h4 className="text-[14px] font-medium text-bone-100">Avatar</h4>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-8 h-8 rounded-full bg-[#2a2a29] flex items-center justify-center overflow-hidden shrink-0 border border-[#3f3f3e]">
+              {effectiveAvatar ? (
+                <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              ) : (
+                <Camera className="w-4 h-4 text-bone-70" />
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 rounded-full bg-[#2a2a29] flex items-center justify-center overflow-hidden shrink-0 border border-[#3f3f3e]">
-            {effectiveAvatar ? (
-              <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-            ) : (
-              <Camera className="w-4 h-4 text-bone-70" />
-            )}
+
+        {/* Display Name */}
+        <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+          <div>
+            <h4 className="text-[14px] font-medium text-bone-100">Full name</h4>
+          </div>
+          <input
+            type="text"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            className="w-64 bg-[var(--bone-6)] border border-transparent hover:border-[var(--bone-12)] focus:border-[var(--brand-blue)] focus:shadow-[0_0_0_0.5px_var(--brand-blue)] rounded-md px-3 py-1.5 text-[13px] text-bone-100 placeholder:text-bone-70/50 outline-none transition-colors"
+          />
+        </div>
+
+        {/* Email */}
+        <div className="flex items-center justify-between py-3">
+          <div>
+            <h4 className="text-[14px] font-medium text-bone-100">Email</h4>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] text-[var(--bone-60)]">{email}</span>
+            <span className="text-[10px] font-medium bg-[var(--brand-blue)]/10 text-[var(--brand-blue)] px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Verified</span>
           </div>
         </div>
       </div>
 
-      {/* Display Name */}
-      <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
+      {/* Connected Accounts — outside hero */}
+      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
         <div>
-          <h4 className="font-medium text-bone-100">Full name</h4>
-        </div>
-        <input
-          type="text"
-          value={displayName}
-          onChange={e => setDisplayName(e.target.value)}
-          className="w-64 bg-[var(--bone-6)] border border-transparent hover:border-[var(--bone-12)] focus:border-[var(--brand-blue)] focus:shadow-[0_0_0_0.5px_var(--brand-blue)] rounded-md px-3 py-1.5 text-[13px] text-bone-100 placeholder:text-bone-70/50 outline-none transition-colors"
-        />
-      </div>
-
-      {/* Email */}
-      <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-        <div>
-          <h4 className="font-medium text-bone-100">Email</h4>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[13px] text-bone-70">{email}</span>
-          <span className="text-[10px] font-medium bg-accent/20 text-accent px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Verified</span>
-        </div>
-      </div>
-
-      {/* Providers */}
-      <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-        <div>
-          <h4 className="font-medium text-bone-100">Connected Accounts</h4>
+          <h4 className="text-[14px] font-medium text-bone-100">Connected Accounts</h4>
         </div>
         <div className="flex items-center gap-2">
           {[
@@ -146,7 +149,7 @@ export default function ProfileSection() {
 
       {/* Messages */}
       {message && (
-        <div className={`mt-4 px-3 py-2 rounded-md text-[13px] ${
+        <div className={`px-3 py-2 rounded-md text-[13px] ${
           message.type === 'success'
             ? 'bg-emerald-500/10 text-emerald-400'
             : 'bg-red-500/10 text-red-400'
@@ -155,11 +158,11 @@ export default function ProfileSection() {
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-2 pt-6">
+      {/* Actions — neutral Save, no danger actions */}
+      <div className="flex items-center justify-end gap-2">
         <button
           onClick={handleSignOut}
-          className="px-3 py-1.5 rounded-md text-[13px] font-medium text-bone-70 hover:bg-[#2b2a29] hover:text-bone-100 transition-colors"
+          className="px-3 py-1.5 rounded-md text-[13px] font-medium text-[var(--bone-60)] hover:bg-[#2b2a29] hover:text-bone-100 transition-colors"
         >
           Sign Out
         </button>

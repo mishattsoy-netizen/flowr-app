@@ -269,37 +269,43 @@ export function SettingsModal() {
               )}
 
               {activeTab === 'account' && (
-                <div className="space-y-12">
+                <div className="space-y-8">
                   <section>
-                    <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Profile</h3>
-                    <ProfileSection />
+                    <h3 className="text-[15px] font-semibold text-[var(--bone-100)]">Profile</h3>
+                    <p className="text-[13px] text-[var(--bone-60)] mt-1">Your identity on Flowr.</p>
+                    <div className="mt-5">
+                      <ProfileSection />
+                    </div>
                   </section>
 
                   <section>
-                    <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Data</h3>
-                    {/* Clear Local Cache */}
-                    <div className="flex items-center justify-between py-4 border-b border-[#2e2e2e]">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Local Cache</h4>
+                    <h3 className="text-[15px] font-semibold text-[var(--bone-100)]">Data</h3>
+                    <p className="text-[13px] text-[var(--bone-60)] mt-1">Local cache and irreversible workspace actions.</p>
+                    <div className="mt-4">
+                      {/* Clear Local Cache */}
+                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Local Cache</h4>
+                        </div>
+                        <ClearCacheButton />
                       </div>
-                      <ClearCacheButton />
-                    </div>
 
-                    {/* Delete All Data */}
-                    <div className="flex items-center justify-between py-4">
-                      <div>
-                        <h4 className="text-[14px] font-medium text-bone-100">Delete All Data</h4>
-                        <p className="text-[13px] text-bone-70 mt-0.5 max-w-sm">
-                          Permanently removes all entities, tasks, conversations, shortcuts, and the entire workspace. Cannot be undone.
-                        </p>
+                      {/* Delete All Data — danger row outside any app-dark hero */}
+                      <div className="flex items-center justify-between py-3">
+                        <div>
+                          <h4 className="text-[14px] font-medium text-bone-100">Delete All Data</h4>
+                          <p className="text-[13px] text-[var(--bone-60)] mt-0.5 max-w-sm">
+                            Permanently removes all entities, tasks, conversations, shortcuts, and the entire workspace. Cannot be undone.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => openModal({ kind: 'deleteAllDataConfirm' })}
+                          className="flex items-center gap-2 px-4 py-2 rounded-md text-[13px] font-medium bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Everything
+                        </button>
                       </div>
-                      <button
-                        onClick={() => openModal({ kind: 'deleteAllDataConfirm' })}
-                        className="flex items-center gap-2 px-4 py-2 rounded-md text-[13px] font-medium bg-red-500/5 border border-red-500/10 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete Everything
-                      </button>
                     </div>
                   </section>
                 </div>
