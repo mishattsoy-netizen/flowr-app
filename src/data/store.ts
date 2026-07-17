@@ -1080,7 +1080,13 @@ export const useStore = create<AppState>()(
           return;
         }
         try {
-          set({ isChatHistoryLoading: true });
+          // Only show the loading skeleton if nothing is cached yet — a
+          // cached list (persisted, see partialize) should stay visible and
+          // update quietly in place once the fetch resolves, not be replaced
+          // by a skeleton on every refresh.
+          if (get().chatConversations.length === 0) {
+            set({ isChatHistoryLoading: true });
+          }
           const { activeSpaceId } = get();
           const convs = await fetchConversations(activeSpaceId || undefined);
           const { activeChatId } = get();
@@ -3754,14 +3760,18 @@ export const useStore = create<AppState>()(
           blocks: state.blocks,
           spaces: state.spaces,
           chatMessagesMap: state.chatMessagesMap,
+          // Metadata only (title/timestamps/flags) — no message content — so
+          // the sidebar's chat history list renders instantly from cache on
+          // refresh instead of always skeleton-ing while it re-fetches.
+          chatConversations: state.chatConversations,
         }),
         activeSpaceId: state.activeSpaceId,
         syncCursors: state.syncCursors,
         pendingModeWrites: state.pendingModeWrites,
 
-        activeEntityId: state.activeEntityId,
-        activeTabId: state.activeTabId,
-        openTabIds: state.openTabIds,
+        activeEntityId: state.activeEntityId === 'brain' ? 'dashboard' : state.activeEntityId,
+        activeTabId: state.activeTabId === 'brain' ? 'dashboard' : state.activeTabId,
+        openTabIds: state.openTabIds.filter(id => id !== 'brain'),
 
         favoriteIds: state.favoriteIds,
         collapsedIds: state.collapsedIds,
@@ -3775,14 +3785,20 @@ export const useStore = create<AppState>()(
         sidebarWidth: state.sidebarWidth,
         aiSidebarWidth: state.aiSidebarWidth,
         taskPanelWidth: state.taskPanelWidth,
-        splitViewActive: state.splitViewActive,
+        // 'brain' is a pseudo-entity id (like 'chat'/'dashboard'), not a real
+        // entity — restoring split view with it after a refresh would show
+        // the canvas in the main area while activeEntityId/activeTabId above
+        // already coerced back to 'dashboard', desyncing sidebar vs content.
+        // Close split view entirely in that case, matching activeEntityId's
+        // own 'brain' coercion above.
+        splitViewActive: (state.splitViewLeftId === 'brain' || state.splitViewRightId === 'brain') ? false : state.splitViewActive,
         // These two were missing from the persist allowlist while
         // splitViewActive was present — so split view would re-open after a
         // refresh with both columns empty (the ids restored to their null
         // default). They're already part of the cloud ui_state sync, so
         // persisting them locally too is consistent with that intent.
-        splitViewLeftId: state.splitViewLeftId,
-        splitViewRightId: state.splitViewRightId,
+        splitViewLeftId: state.splitViewLeftId === 'brain' ? null : state.splitViewLeftId,
+        splitViewRightId: state.splitViewRightId === 'brain' ? null : state.splitViewRightId,
         splitViewPosition: state.splitViewPosition,
         isFullWidth: state.isFullWidth,
         isTabsHeaderVisible: state.isTabsHeaderVisible,
