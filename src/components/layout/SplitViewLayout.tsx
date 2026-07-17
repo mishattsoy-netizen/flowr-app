@@ -148,6 +148,32 @@ export function SplitViewLayout() {
 
   const clampedPosition = Math.max(MIN_COLUMN_PCT, Math.min(MAX_COLUMN_PCT, splitViewPosition));
 
+  // Single-column mode: when only one column has an ID, render it full-width
+  // with no divider/placeholder. Used by brain canvas (left='brain', right=null).
+  const leftOnly = splitViewLeftId && !splitViewRightId;
+  const rightOnly = !splitViewLeftId && splitViewRightId;
+  const singleColumn = leftOnly || rightOnly;
+
+  if (singleColumn) {
+    const singleId = leftOnly ? splitViewLeftId : splitViewRightId;
+    return (
+      <div ref={containerRef} className="flex-1 flex flex-row relative min-h-0">
+        <div className={cn(
+          "flex flex-col h-full min-h-0 overflow-hidden relative flex-1",
+          isDesktopEnv ? cn(
+            "bg-[var(--app-background)] border rounded-2xl shadow-sm",
+            columnDragOver === (leftOnly ? 'left' : 'right') ? "border-[var(--bone-15)]" : "border-[var(--bone-10)]"
+          ) : "bg-[var(--app-background)]"
+        )}>
+          {!isDesktopEnv && <ColumnHeader column={leftOnly ? 'left' : 'right'} entityId={singleId} />}
+          <OverlayScrollbar className="flex-1 min-h-0" thumbOffsetRight={0} thumbRightClass="right-0">
+            <EntityPageRenderer entityId={singleId!} />
+          </OverlayScrollbar>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
