@@ -34,6 +34,7 @@ interface BrainMeta {
   title: string;
   description: string | null;
   is_default: boolean;
+  icon?: string | null;
 }
 
 export interface BrainCanvasState {
@@ -158,11 +159,13 @@ export function useBrainData() {
 
   const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
     setLoading(!opts?.backgroundReload);
+    // body.brain_id wins so callers can mutate a non-selected brain (sidebar rows).
+    const brainId = (typeof body.brain_id === 'string' && body.brain_id) || selectedBrainId;
     try {
       const res = await fetch('/api/ai/user-brain', {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ brain_id: selectedBrainId, ...body }),
+        body: JSON.stringify({ brain_id: brainId, ...body }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result?.error || `Mutation failed (${res.status})`);
@@ -171,9 +174,9 @@ export function useBrainData() {
       // may have already applied the real result locally (e.g. addLocalEdge)
       // for instant feedback.
       if (opts?.backgroundReload) {
-        load(selectedBrainId);
+        load(brainId);
       } else {
-        await load(selectedBrainId);
+        await load(brainId);
       }
       return result;
     } catch (e: any) {

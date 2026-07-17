@@ -35,6 +35,7 @@ interface BrainNodeCardProps {
   multiSelected?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
   onClick?: (e: React.MouseEvent) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   /** Reports this card's actual rendered height (content-driven, varies with
    *  preview text length) so connector-line geometry can target the real
    *  bottom edge instead of assuming a fixed CARD_H for every card. */
@@ -72,6 +73,7 @@ export function BrainNodeCard({
   multiSelected,
   onPointerDown,
   onClick,
+  onContextMenu,
   onHeightChange,
   connectCursor,
   connectedSides = [],
@@ -128,7 +130,7 @@ export function BrainNodeCard({
         // Highlight uses the real border (same edge geometry as dots/lines),
         // not outline/box-shadow which sat outside the discs.
         (connectSelected || multiSelected || selected)
-          ? "bg-[var(--app-dark)] border-2 border-[var(--accent)]"
+          ? "bg-[var(--app-dark)] border-2 border-[var(--brand-blue)]"
           : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]"
       )}
       style={{
@@ -136,6 +138,12 @@ export function BrainNodeCard({
       }}
       onPointerDown={onPointerDown}
       onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
+      onContextMenu={(e) => {
+        if (!onContextMenu) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e);
+      }}
     >
       {/* Header + title: fixed at top, padded */}
       <div className="shrink-0 pt-3.5 px-4">
@@ -196,8 +204,8 @@ export function BrainNodeCard({
     </div>
 
       {/* Endpoint discs sit above the card body (z-20) so paths under the
-          card never paint over them. Grey base + orange overlay at the same
-          anchor; orange fades in with proximity (no hard swap). */}
+          card never paint over them. Grey base + brand-blue overlay at the
+          same anchor; blue fades in with proximity (no hard swap). */}
       {SIDES.map(side => {
         // Border width matches the card class: 2px when highlighted, else 1px.
         // Anchors use the same midline as that stroke so idle + selected both
@@ -226,7 +234,7 @@ export function BrainNodeCard({
         const show = connected || connectMode || connectSelected;
         if (!show) return null;
 
-        const orangeOpacity = connectSelected ? 1 : (connectMode ? proximity : 0);
+        const blueOpacity = connectSelected ? 1 : (connectMode ? proximity : 0);
         const disc = {
           left: hit / 2 - r,
           top: hit / 2 - r,
@@ -259,8 +267,8 @@ export function BrainNodeCard({
               className="absolute rounded-full pointer-events-none transition-opacity duration-150 ease-out"
               style={{
                 ...disc,
-                backgroundColor: 'var(--accent)',
-                opacity: orangeOpacity,
+                backgroundColor: 'var(--brand-blue)',
+                opacity: blueOpacity,
               }}
             />
           </div>

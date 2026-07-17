@@ -10,6 +10,7 @@ interface BrainToolbarProps {
   newNodeActive: boolean;
   addExistingOpen: boolean;
   onToggleAddExisting: () => void;
+  onSelectTool: () => void;
 }
 
 export function BrainToolbar({
@@ -19,49 +20,63 @@ export function BrainToolbar({
   newNodeActive,
   addExistingOpen,
   onToggleAddExisting,
+  onSelectTool,
 }: BrainToolbarProps) {
   const btnClass = (active?: boolean) => cn(
-    "flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-medium transition-colors border",
+    "group w-[34px] h-[30px] rounded-[var(--radius-small)] flex items-center justify-center transition-all duration-150 ease-in-out",
     active
-      ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-      : "bg-[var(--app-dark)] text-[var(--bone-70)] border-[var(--bone-10)] hover:border-[var(--bone-20)] hover:text-foreground"
+      ? "bg-[var(--bone-12)] text-[var(--bone-100)] font-semibold"
+      : "bg-transparent text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
   );
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-panel border border-[var(--bone-10)] shadow-md">
+    <div 
+      className="flex items-center bg-panel border border-[var(--bone-12)] shadow-[0_4px_12px_rgba(0,0,0,0.12)] rounded-[11px] p-[5px] gap-[4px] select-none canvas-floating-panel"
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <button
-        onClick={() => {}}
-        className={btnClass(false)}
-        title="Select / Pan (default)"
+        onClick={onSelectTool}
+        className={btnClass(!connectMode && !newNodeActive && !addExistingOpen)}
+        title="Select (V)"
       >
-        <MousePointer2 className="w-3.5 h-3.5" strokeWidth={2} />
-        <span>Select</span>
+        <span className={(!connectMode && !newNodeActive && !addExistingOpen) ? "" : "opacity-60 group-hover:opacity-100"}>
+          <MousePointer2 className="w-4 h-4 text-[var(--bone-100)]" />
+        </span>
       </button>
-      <div className="w-px h-5 bg-[var(--bone-8)]" />
+
+      <div className="w-px h-[18px] bg-border/30 mx-[3px]" />
+
       <button
         onClick={onNewNode}
         className={btnClass(newNodeActive)}
-        title="Create a new note and add it to the brain"
+        title="Create a new note and add it to the brain (N)"
       >
-        <StickyNote className="w-3.5 h-3.5" strokeWidth={2} />
-        <span>New node</span>
+        <span className={newNodeActive ? "" : "opacity-60 group-hover:opacity-100"}>
+          <StickyNote className="w-4 h-4 text-[var(--bone-100)]" />
+        </span>
       </button>
+
       <button
         onClick={onToggleAddExisting}
         className={btnClass(addExistingOpen)}
-        title="Add an existing note or workspace to the brain"
+        title="Add an existing note or workspace to the brain (F)"
       >
-        <Search className="w-3.5 h-3.5" strokeWidth={2} />
-        <span>Add existing</span>
+        <span className={addExistingOpen ? "" : "opacity-60 group-hover:opacity-100"}>
+          <Search className="w-4 h-4 text-[var(--bone-100)]" />
+        </span>
       </button>
-      <div className="w-px h-5 bg-[var(--bone-8)]" />
+
+      <div className="w-px h-[18px] bg-border/30 mx-[3px]" />
+
       <button
         onClick={onToggleConnect}
         className={btnClass(connectMode)}
-        title="Connect nodes — click a connector dot, then another"
+        title="Connect nodes (C)"
       >
-        <Link2 className="w-3.5 h-3.5" strokeWidth={2} />
-        <span>Connect</span>
+        <span className={connectMode ? "" : "opacity-60 group-hover:opacity-100"}>
+          <Link2 className="w-4 h-4 text-[var(--bone-100)]" />
+        </span>
       </button>
     </div>
   );

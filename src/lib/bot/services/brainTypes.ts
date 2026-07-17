@@ -12,6 +12,10 @@ export interface BrainNodeRow {
   id: string
   user_id: string
   brain_id: string
+  // 'memory' is retired for NEW nodes (addBrainNode rejects it, see
+  // brainStore.ts) but kept in this union because it's the DB row's actual
+  // shape — existing memory-type rows (in any environment where the
+  // migration script hasn't been run) must still resolve/render correctly.
   type: 'workspace' | 'entity' | 'memory' | 'section'
   ref_id: string | null
   content: string | null

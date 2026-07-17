@@ -103,13 +103,14 @@ export async function createBrain(
 }
 
 export async function updateBrainMeta(
-  userId: string, brainId: string, updates: { title?: string; description?: string }
+  userId: string, brainId: string, updates: { title?: string; description?: string; icon?: string | null }
 ): Promise<{ success: true } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
   if (!(await assertOwnedBrain(userId, brainId))) return { error: `Brain '${brainId}' not found.` }
   const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() }
   if (updates.title !== undefined) safeUpdates.title = updates.title
   if (updates.description !== undefined) safeUpdates.description = updates.description
+  if (updates.icon !== undefined) safeUpdates.icon = updates.icon
   const { error } = await supabaseAdmin.from('brains').update(safeUpdates).eq('id', brainId).eq('user_id', userId)
   if (error) return { error: error.message }
   return { success: true }
@@ -316,7 +317,7 @@ export async function addBrainNode(
     if (!ref_id) return { error: `'ref_id' is required for type '${type}'` }
     if (!(await assertOwnedEntity(userId, ref_id))) return { error: `Entity '${ref_id}' not found.` }
   }
-  if (type === 'memory' && !content) return { error: "'content' is required for type 'memory'" }
+  if ((type as string) === 'memory') return { error: "Node type 'memory' has been retired — create a note via create_content and reference it with type 'entity' instead." }
   if (type === 'section' && !label) return { error: "'label' is required for type 'section'" }
 
   const { count } = await supabaseAdmin.from('brain_nodes')

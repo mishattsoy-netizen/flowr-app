@@ -235,7 +235,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "read_url",
-    description: "Read the full text content or transcript of a specific URL (articles, docs, YouTube videos). Use this when the user provides a link and asks you to summarize, read, or analyze it. Supports YouTube time ranges — pass startTime/endTime as seconds if the user says 'from X to Y'.",
+    description: "Read the full text content or transcript of a specific URL (articles, docs, YouTube videos). Use this when the user provides a link and asks you to summarize, read, or analyze it. Supports YouTube time ranges — pass startTime/endTime as seconds ONLY if the user explicitly gives a range (e.g. 'from 5:00 to 10:00'); never pick a time range on your own. LIMIT: only 1 YouTube video can be fetched per request — if the user sends multiple YouTube links, fetch the first and tell them to send the others one at a time.",
     parameters: {
       type: "object",
       properties: {
@@ -259,14 +259,13 @@ export const FLOWR_TOOLS = [
 
   {
     name: "manage_brain",
-    description: "Manage your Brain — the curated knowledge base injected into your context every conversation. Nodes are workspaces/notes (by ref), freetext memories, or section headers; edges are labeled relationships between nodes. Use it to remember durable facts, organize knowledge into sections, and connect related items. The brain has a token budget — if an add is rejected as full, tell the user and suggest removing/unpinning something. Changes apply from the NEXT conversation (this session keeps its pinned snapshot).",
+    description: "Manage your Brain — the curated knowledge base injected into your context every conversation. Nodes are workspaces/notes (by ref) or section headers; edges are labeled relationships between nodes. Use it to remember durable facts (via a note entity), organize knowledge into sections, and connect related items. The brain has a token budget — if an add is rejected as full, tell the user and suggest removing/unpinning something. Changes apply from the NEXT conversation (this session keeps its pinned snapshot).",
     parameters: {
       type: "object",
       properties: {
         op: { type: "string", enum: ["add_node", "update_node", "remove_node", "connect", "disconnect", "list", "refresh"], description: "Operation. REQUIRED. 'list' shows all nodes with token costs and budget; use it before reorganizing." },
-        type: { type: "string", enum: ["workspace", "entity", "memory", "section"], description: "For add_node. 'workspace'/'entity' reference existing items by ref_id (content stays live); 'memory' is freetext; 'section' is a grouping header." },
+        type: { type: "string", enum: ["workspace", "entity", "section"], description: "For add_node. 'workspace'/'entity' reference existing items by ref_id (content stays live); 'section' is a grouping header. To remember a new fact, create a note via create_content first, then add it here as type 'entity'." },
         ref_id: { type: "string", description: "For add_node with type workspace/entity: the entity ID (find it with list_content first — never guess)." },
-        content: { type: "string", description: "For memory nodes: the fact to remember. Durable, atomic facts — not chat transcripts." },
         label: { type: "string", description: "Display label. Required for sections; optional elsewhere." },
         section_id: { type: "string", description: "Brain node id of the section this node belongs under." },
         priority: { type: "number", description: "Higher survives budget pressure longer. Default 0." },
@@ -276,7 +275,7 @@ export const FLOWR_TOOLS = [
         node_ids: { type: "array", items: { type: "string" }, description: "For remove_node: multiple targets. Removing multiple nodes or a section requires the dry-run → confirmed:true flow, same as delete_content." },
         from: { type: "string", description: "For connect: source node id." },
         to: { type: "string", description: "For connect: target node id." },
-        edge_label: { type: "string", description: "For connect: the relationship, as a plain statement (e.g. 'check risk rules before logging trades'). REQUIRED — unlabeled edges mean nothing." },
+        edge_label: { type: "string", description: "For connect: the relationship, as a plain statement (e.g. 'check risk rules before logging trades'). Strongly recommended — an unlabeled edge only tells you the two nodes are related, not how." },
         edge_id: { type: "string", description: "For disconnect: the edge to remove." },
         confirmed: { type: "boolean", description: "For remove_node of a section or multiple nodes: omit first to get a dry-run, set true only after the user explicitly confirmed on the previous turn." }
       },

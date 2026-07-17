@@ -17,12 +17,14 @@ import { logger } from '@/lib/logger';
 import { formatAge } from '@/lib/brain/formatAge';
 import { hasEdgeBetween } from '@/lib/bot/services/brainEdgeUtils';
 import { closestSides, type ConnectorSide } from './connectorGeometry';
-import { FileText, Folder, Brain } from 'lucide-react';
+import { blocksToMarkdown } from '@/lib/editor/markdownBlocks';
+import type { EditorBlock } from '@/data/store.types';
+import { FileText, Folder, Brain, Trash2 } from 'lucide-react';
 
 /** Derive display info for a brain node from brain state + entity store. */
 function computeDisplayInfo(
   node: BrainCanvasNode,
-  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number }>,
+  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number; content?: EditorBlock[] }>,
   perNodeTokens: Record<string, number>,
 ): NodeDisplayInfo {
   if (node.type === 'section') {
@@ -59,7 +61,11 @@ function computeDisplayInfo(
     parentLabel: parentEntity?.title || (entity?.type === 'workspace' ? 'Workspace' : 'Unsorted'),
     ageLabel: entity?.lastModified ? formatAge(new Date(entity.lastModified).toISOString()) : formatAge(node.created_at),
     title: node.label || entity?.title || node.content?.slice(0, 60) || 'Untitled',
-    preview: node.type === 'memory' ? (node.content?.slice(0, 120) ?? undefined) : undefined,
+    preview: node.type === 'memory'
+      ? (node.content?.slice(0, 120) ?? undefined)
+      : (entity?.type === 'note' && entity.content?.length
+        ? blocksToMarkdown(entity.content).slice(0, 120)
+        : undefined),
     priority: node.priority,
     tokenCount: perNodeTokens[node.id],
   };
@@ -144,6 +150,19 @@ export function BrainCanvasPage() {
     }
     return false;
   }, []);
+
+  // Right-click delete menu — a small local menu rather than the app's
+  // global sidebar ContextMenu (that one is entity/sidebar-specific; brain
+  // nodes are a different data model with their own delete path).
+  const [nodeContextMenu, setNodeContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    setNodeContextMenu(null);
+    try {
+      await mutate({ action: 'remove_node', node_id: nodeId });
+    } catch (e) {
+      logger.error('Failed to delete brain node:', e);
+    }
+  }, [mutate]);
 
   // Reset positions when data loads (fresh from API)
   useEffect(() => {
@@ -673,10 +692,32 @@ export function BrainCanvasPage() {
                 // have no useful single-note editor view here.
                 if (node.type === 'entity' && node.ref_id) openBrainNode(node.ref_id);
               }}
+              onContextMenu={connectMode ? undefined : (e) => {
+                setNodeContextMenu({ nodeId: node.id, x: e.clientX, y: e.clientY });
+              }}
             />
           );
         })}
       </div>
+
+      {/* Right-click node menu — delete only, for now. */}
+      {nodeContextMenu && (
+        <>
+          <div className="fixed inset-0 z-[299]" onClick={() => setNodeContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setNodeContextMenu(null); }} />
+          <div
+            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+            style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
+          >
+            <button
+              onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
+              className="popup-item popup-item-danger w-full flex items-center gap-2 px-3 py-[4px] text-sm"
+            >
+              <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left font-medium tracking-wide">Delete</span>
+            </button>
+          </div>
+        </>
+      )}
 
       {/* ── Toolbar ── */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">

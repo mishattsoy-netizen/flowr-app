@@ -5,7 +5,7 @@ import {
   listBrain, addBrainNode, updateBrainNode, removeBrainNodes,
   restoreBrainNode, addBrainEdge, removeBrainEdge, compileBrain,
   listUserBrains, createBrain, updateBrainMeta, deleteBrain,
-  getOrCreateDefaultBrain, switchActiveBrain,
+  getOrCreateDefaultBrain, switchActiveBrain, fetchBrainRows,
 } from '@/lib/bot/services/brainStore'
 import { logger } from '@/lib/logger'
 
@@ -33,6 +33,15 @@ export async function GET(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { searchParams } = new URL(req.url)
     const requestedBrainId = searchParams.get('brain_id')
+
+    // Lightweight mode for the sidebar's per-brain node list: raw rows only,
+    // skips compileBrain (budget/dropped/broken calc) since the sidebar just
+    // needs titles/types to render rows, not the compiled preview.
+    if (searchParams.get('nodes_only') === 'true' && requestedBrainId) {
+      const { nodes } = await fetchBrainRows(userId, requestedBrainId)
+      return NextResponse.json({ brainId: requestedBrainId, nodes })
+    }
+
     const brainId = requestedBrainId || (await getOrCreateDefaultBrain(userId)).id
     const [state, brains] = await Promise.all([
       listBrain(userId, brainId),
@@ -78,7 +87,11 @@ export async function POST(req: NextRequest) {
       case 'create_brain':
         return NextResponse.json(await createBrain(userId, body.title, body.description))
       case 'update_brain':
-        return NextResponse.json(await updateBrainMeta(userId, body.brain_id, { title: body.title, description: body.description }))
+        return NextResponse.json(await updateBrainMeta(userId, body.brain_id, {
+          title: body.title,
+          description: body.description,
+          icon: body.icon,
+        }))
       case 'delete_brain':
         return NextResponse.json(await deleteBrain(userId, body.brain_id))
       case 'switch_active_brain':
