@@ -2,12 +2,11 @@
 
 import { useStore } from '@/data/store';
 import { TelegramConnector } from './TelegramConnector';
-import { User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, RefreshCw, Brain } from 'lucide-react';
+import { User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, RefreshCw } from 'lucide-react';
 import { useEffect, useState, useCallback, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
 import UsagePanel from '@/components/settings/UsagePanel';
-import CapabilitiesPanel from '@/components/settings/CapabilitiesPanel';
 import { useAuth } from '@/components/AuthProvider';
 import AISettingsSection from '@/components/settings/AISettingsSection';
 import { useTheme } from '@/components/ThemeProvider';
@@ -70,7 +69,6 @@ export function SettingsPage() {
     { id: 'account', label: 'Account', icon: User },
     { id: 'usage', label: 'Usage', icon: Zap },
     { id: 'ai', label: 'Flowr AI', icon: Sparkles },
-    { id: 'capabilities', label: 'Capabilities', icon: Brain },
     { id: 'connectors', label: 'Connectors', icon: FolderOpen },
   ];
 
@@ -286,12 +284,6 @@ export function SettingsPage() {
                 <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Flowr AI</h3>
                 <AISettingsSection />
               </section>
-            </div>
-          )}
-
-          {activeTab === 'capabilities' && (
-            <div className="py-2">
-              <CapabilitiesPanel />
             </div>
           )}
 

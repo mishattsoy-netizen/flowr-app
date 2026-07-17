@@ -1861,7 +1861,7 @@ export const ChatMessage = memo(({
                               key={i}
                               onClick={() => {
                                 if (actionName === 'manage_brain') {
-                                  useStore.getState().openModal({ kind: 'settings', tab: 'capabilities' });
+                                  useStore.getState().setActiveEntityId('brain');
                                   return;
                                 }
                                 if (!tr.id) return;

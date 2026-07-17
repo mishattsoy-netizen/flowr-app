@@ -2,7 +2,7 @@
 
 import { useStore } from '@/data/store';
 import { TelegramConnector } from '@/components/settings/TelegramConnector';
-import { X, User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, Brain, Rocket } from 'lucide-react';
+import { X, User, Monitor, Zap, Settings as SettingsIcon, Sparkles, FolderOpen, Sun, Moon, Trash2, Rocket } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import ProfileSection from '@/components/profile/ProfileSection';
@@ -12,10 +12,9 @@ import AISettingsSection from '@/components/settings/AISettingsSection';
 import { useTheme } from '@/components/ThemeProvider';
 import { ClearCacheButton } from '@/components/settings/SettingsPage';
 import { Toggle } from '@/components/ui/Toggle';
-import CapabilitiesPanel from '@/components/settings/CapabilitiesPanel';
 import UpdatesSection from '@/components/settings/UpdatesSection';
 
-export type SettingsTab = 'general' | 'account' | 'usage' | 'ai' | 'capabilities' | 'connectors' | 'updates';
+export type SettingsTab = 'general' | 'account' | 'usage' | 'ai' | 'connectors' | 'updates';
 
 export function SettingsModal() {
   const { modal, closeModal, openModal, interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, isChatNewNoteButtonVisible, setChatNewNoteButtonVisible } = useStore();
@@ -38,7 +37,14 @@ export function SettingsModal() {
 
   useEffect(() => {
     if (modal?.kind === 'settings') {
-      if (modal.tab) setActiveTab(modal.tab as SettingsTab);
+      if (modal.tab) {
+        // Legacy deep-link: capabilities tab removed (memories live on Brain)
+        if ((modal.tab as string) === 'capabilities') {
+          setActiveTab('general');
+        } else {
+          setActiveTab(modal.tab as SettingsTab);
+        }
+      }
       setIsVisible(true);
     } else {
       setIsVisible(false);
@@ -63,7 +69,6 @@ export function SettingsModal() {
     { id: 'account', label: 'Account', icon: User },
     { id: 'usage', label: 'Usage', icon: Zap },
     { id: 'ai', label: 'Flowr AI', icon: Sparkles },
-    { id: 'capabilities', label: 'Capabilities', icon: Brain },
     { id: 'connectors', label: 'Connectors', icon: FolderOpen },
     { id: 'updates', label: "What's New", icon: Rocket },
   ];
@@ -305,12 +310,6 @@ export function SettingsModal() {
                     <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Flowr AI</h3>
                     <AISettingsSection />
                   </section>
-                </div>
-              )}
-
-              {activeTab === 'capabilities' && (
-                <div className="py-2">
-                  <CapabilitiesPanel />
                 </div>
               )}
 

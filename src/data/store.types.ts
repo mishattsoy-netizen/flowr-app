@@ -228,7 +228,7 @@ export interface AppTask {
   tag?: string;
 }
 
-export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai' | 'general' | 'usage' | 'capabilities' | 'connectors';
+export type SettingsTab = 'profile' | 'interface' | 'account' | 'notifications' | 'integrations' | 'subscription' | 'security' | 'admin' | 'logs' | 'updates' | 'ai' | 'general' | 'usage' | 'connectors';
 
 export interface PendingModeWrite {
   entityIds: string[];
