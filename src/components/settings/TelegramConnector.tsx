@@ -26,7 +26,7 @@ export function TelegramConnector() {
 
   if (loading) {
     return (
-      <div className="p-4 bg-[var(--bone-3)] border border-[var(--bone-6)] rounded-lg animate-pulse">
+      <div className="p-4 rounded-2xl bg-[var(--app-dark)] animate-pulse">
         <div className="h-4 bg-[var(--bone-10)] rounded w-1/4 mb-2"></div>
         <div className="h-3 bg-[var(--bone-10)] rounded w-1/2"></div>
       </div>
@@ -34,7 +34,7 @@ export function TelegramConnector() {
   }
 
   return (
-    <div className="p-4 bg-[var(--bone-3)] border border-[var(--bone-10)] rounded-lg flex items-center justify-between">
+    <div className="p-4 rounded-2xl bg-[var(--app-dark)] flex items-center justify-between gap-4">
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 rounded-full bg-[#24A1DE]/10 flex items-center justify-center shrink-0">
           <svg className="w-5 h-5 text-[#24A1DE]" viewBox="0 0 24 24" fill="currentColor">

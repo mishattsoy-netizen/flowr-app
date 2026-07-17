@@ -303,8 +303,11 @@ export function SettingsPage() {
           {activeTab === 'connectors' && (
             <div className="space-y-12">
               <section>
-                <h3 className="text-[15px] font-semibold text-bone-100 mb-6">Connectors</h3>
-                <div className="space-y-4">
+                <h3 className="text-[15px] font-semibold text-[var(--bone-100)]">Connectors</h3>
+                <p className="text-[13px] text-[var(--bone-60)] mt-1">
+                  Link external accounts and messaging services.
+                </p>
+                <div className="mt-5">
                   <TelegramConnector />
                 </div>
               </section>

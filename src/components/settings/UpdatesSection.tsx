@@ -62,7 +62,7 @@ export default function UpdatesSection() {
       scrollClassName="space-y-6 px-1 pt-4 pb-8"
     >
       {isDesktop() && (
-        <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--bone-6)] bg-[var(--color-panel)] mb-2">
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-[var(--app-dark)] mb-2">
           <div className="text-left">
             <h4 className="text-sm font-semibold text-[var(--bone-100)]">App Updates</h4>
             <p className="text-xs text-[var(--bone-40)] mt-0.5">
