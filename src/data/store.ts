@@ -562,6 +562,25 @@ export const useStore = create<AppState>()(
           splitViewPinned: false,
         });
       },
+      openBrainNode: (entityId: string) => {
+        const state = get();
+        // Only valid in brain mode
+        if (state.activeEntityId !== 'brain' && state.splitViewLeftId !== 'brain') return;
+        if (!state.splitViewActive) {
+          // Activate split with canvas on left, entity on right
+          set({
+            splitViewActive: true,
+            splitViewLeftId: 'brain',
+            splitViewRightId: entityId,
+            activeEntityId: 'brain',
+            activeTabId: 'brain',
+            splitViewPinned: false,
+          });
+        } else {
+          // Split already active, set the right column (doesn't change left/canvas)
+          get().setColumnEntity('right', entityId);
+        }
+      },
       setSplitViewPosition: (pos) => set({ splitViewPosition: Math.max(15, Math.min(85, pos)) }),
       setColumnDragOver: (col) => set({ columnDragOver: col }),
       toggleFullWidth: () => set((state) => ({ isFullWidth: !state.isFullWidth })),
@@ -2214,7 +2233,7 @@ export const useStore = create<AppState>()(
 
         // Update Recent Entities (exclude dashboard)
         let nextRecent = [...state.recentEntityIds];
-        if (id && id !== 'dashboard') {
+        if (id && id !== 'dashboard' && id !== 'brain' && id !== 'tracker') {
           nextRecent = [id, ...nextRecent.filter(rid => rid !== id)].slice(0, 10);
           import('@/lib/sync').then(({ upsertSetting }) => upsertSetting('recentEntityIds', nextRecent));
         }
@@ -2250,6 +2269,45 @@ export const useStore = create<AppState>()(
             });
             return;
           }
+        }
+
+        // Brain canvas mode: enter split view with canvas on the left.
+        // Keeps the right column if something is already open there (e.g. a note
+        // the user was viewing). Does NOT force-exit split view (unlike 'chat').
+        if (id === 'brain') {
+          if (!state.splitViewActive) {
+            // New brain mode: activate split with canvas on left, right stays empty
+            if (!nextTabs.includes('brain')) nextTabs.push('brain');
+            set({
+              openTabIds: nextTabs,
+              activeTabId: 'brain',
+              activeEntityId: 'brain',
+              recentEntityIds: nextRecent,
+              splitViewActive: true,
+              splitViewLeftId: 'brain',
+              splitViewRightId: state.splitViewRightId ?? null,
+              splitViewPinned: false,
+            });
+          } else {
+            // Already in split: replace the active column with brain canvas
+            const isLeftActive = state.activeEntityId === state.splitViewLeftId;
+            const newLeftId = 'brain'; // always force brain to left
+            const newRightId = isLeftActive ? state.splitViewRightId : null;
+            if (!nextTabs.includes('brain')) nextTabs.push('brain');
+            set({
+              openTabIds: nextTabs,
+              activeTabId: 'brain',
+              activeEntityId: 'brain',
+              splitViewLeftId: newLeftId,
+              splitViewRightId: newRightId,
+              splitViewPinned: false,
+              recentEntityIds: nextRecent,
+            });
+          }
+          const newHistory = state.navigationHistory.slice(0, state.historyIndex + 1);
+          newHistory.push('brain');
+          set({ navigationHistory: newHistory, historyIndex: newHistory.length - 1 });
+          return;
         }
 
         // When split view is active and the user navigates, replace the current active column
@@ -3286,14 +3344,32 @@ export const useStore = create<AppState>()(
           if (tr.tool === 'create_content' && tr.type === 'task' && tr.success && tr.id) {
             const currentTasks = get().tasks;
             if (!currentTasks.find(t => t.id === tr.id)) {
+              let finalStatus = tr.status || 'todo';
+              let finalDueDate = tr.dueDate || null;
+              
+              if (finalStatus === 'today') {
+                finalStatus = 'todo';
+                finalDueDate = new Date().toISOString().split('T')[0];
+              } else if (finalStatus === 'overdue') {
+                finalStatus = 'todo';
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                finalDueDate = yesterday.toISOString().split('T')[0];
+              }
+              
+              if (finalStatus === 'in_progress') finalStatus = 'in-progress';
+              if (!['todo', 'in-progress', 'done'].includes(finalStatus)) {
+                finalStatus = 'todo';
+              }
+
               get().addTask({
                 id: tr.id,
                 title: tr.title || 'New Task',
-                status: (tr.status as any) || 'todo',
-                completed: tr.status === 'done',
+                status: finalStatus as any,
+                completed: finalStatus === 'done',
                 spaceId: tr.spaceId || null,
                 entityId: tr.assignedWorkspaceId || null,
-                dueDate: tr.dueDate || null,
+                dueDate: finalDueDate,
                 endDate: tr.endDate || null,
                 includeTime: tr.includeTime ?? false,
                 reminder: tr.reminder || null,
@@ -3309,12 +3385,29 @@ export const useStore = create<AppState>()(
           if (tr.tool === 'update_content' && tr.success && tr.id && tr.id.startsWith('task-')) {
             const updates: any = {};
             if (tr.title) updates.title = tr.title;
-            if (tr.status) {
-              updates.status = tr.status;
-              updates.completed = tr.status === 'done';
+            
+            let finalStatus = tr.status;
+            let finalDueDate = tr.dueDate;
+
+            if (finalStatus === 'today') {
+              finalStatus = 'todo';
+              finalDueDate = new Date().toISOString().split('T')[0];
+            } else if (finalStatus === 'overdue') {
+              finalStatus = 'todo';
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              finalDueDate = yesterday.toISOString().split('T')[0];
             }
-            if (tr.dueDate) updates.dueDate = tr.dueDate;
-            if (tr.endDate) updates.endDate = tr.endDate;
+
+            if (finalStatus) {
+              if (finalStatus === 'in_progress') finalStatus = 'in-progress';
+              if (['todo', 'in-progress', 'done'].includes(finalStatus)) {
+                updates.status = finalStatus;
+                updates.completed = finalStatus === 'done';
+              }
+            }
+            if (finalDueDate !== undefined) updates.dueDate = finalDueDate;
+            if (tr.endDate !== undefined) updates.endDate = tr.endDate;
             if (tr.includeTime !== undefined) updates.includeTime = tr.includeTime;
             if (tr.description) updates.note = tr.description;
             if (tr.priority) updates.priority = tr.priority;

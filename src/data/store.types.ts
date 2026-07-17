@@ -554,6 +554,7 @@ export interface AppState {
   togglePin: () => void;
   swapColumns: () => void;
   exitSplitView: () => void;
+  openBrainNode: (entityId: string) => void;
   setSplitViewPosition: (pos: number) => void;
   setColumnDragOver: (col: 'left' | 'right' | null) => void;
   toggleFullWidth: () => void;
