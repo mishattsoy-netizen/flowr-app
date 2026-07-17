@@ -47,7 +47,7 @@ export interface BrainCanvasState {
   brains: BrainMeta[];
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (isSupabaseEnabled) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -57,24 +57,39 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export function useBrainData() {
-  // Cached in the Zustand store (persisted to localStorage), so this
-  // initializes non-null on first render whenever a previous session already
-  // fetched brain data — same "sync persist = hydrated on frame 1" pattern
-  // documented in docs/superpowers/LOADING-ARCHITECTURE.md. That alone is
-  // what makes both the canvas's full-page loader (gated on `!state`) and the
-  // sidebar's blank brains list (`state?.brains ?? []`) skip on refresh: the
-  // cached value paints immediately, then load() below quietly replaces it
-  // with the fresh fetch once it resolves.
-  const cachedBrainState = useStore(s => s.brainCanvasState) as BrainCanvasState | null;
-  const setCachedBrainState = useStore(s => s.setBrainCanvasState);
-  const [state, setStateLocal] = useState<BrainCanvasState | null>(cachedBrainState);
-  const setState = useCallback((next: BrainCanvasState | null) => {
-    setStateLocal(next);
-    setCachedBrainState(next);
-  }, [setCachedBrainState]);
+  // Cached in the Zustand store (persisted to localStorage), keyed by brain
+  // id, so switching to a brain already visited this session (or a previous
+  // one) is instant instead of showing the old brain's stale canvas for a
+  // beat while the new one fetches. A brain that has never been cached still
+  // correctly falls through to `state === null`, which is what makes the
+  // canvas's existing full-page loader (gated on `!state`) fire — so a
+  // genuinely first-time visit to a brain still shows a brief loader, it's
+  // only repeat visits that become instant. Same "sync persist = hydrated on
+  // frame 1" pattern documented in docs/superpowers/LOADING-ARCHITECTURE.md.
+  //
+  // Deliberately NOT caching every brain eagerly: a user can have any number
+  // of brains, so eagerly fetching/caching all of them is unbounded. Only
+  // brains actually opened get cached, which bounds this by usage, not by
+  // total brain count.
+  const brainCacheByBrain = useStore(s => s.brainCanvasStateByBrain) as Record<string, BrainCanvasState>;
+  const setBrainCacheForBrain = useStore(s => s.setBrainCanvasStateForBrain);
+  const [selectedBrainId, setSelectedBrainId] = useState<string | null>(null);
+
+  const state: BrainCanvasState | null = selectedBrainId
+    ? (brainCacheByBrain[selectedBrainId] ?? null)
+    // No brain selected yet (very first mount, before the initial load's
+    // response tells us the default brain's id) — fall back to whichever
+    // cached brain was active last session, so a returning user still gets
+    // an instant first paint instead of a loader while we find out which
+    // brain is the default.
+    : (Object.values(brainCacheByBrain)[0] ?? null);
+
+  const setState = useCallback((brainId: string, next: BrainCanvasState) => {
+    setBrainCacheForBrain(brainId, next);
+  }, [setBrainCacheForBrain]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBrainId, setSelectedBrainId] = useState<string | null>(null);
 
   // Requests can resolve out of order (e.g. switching brains fires a new
   // fetch before the previous one settles) — without this guard, an older
@@ -94,7 +109,11 @@ export function useBrainData() {
       if (res.ok) {
         const data = await res.json();
         if (reqId !== requestIdRef.current) return;
-        setState(data);
+        // data.brainId is the server's authoritative id for the brain this
+        // response describes — correct even on the very first load (called
+        // with no brainId arg), unlike the `brainId` param above which may
+        // be undefined in that case.
+        if (data.brainId) setState(data.brainId, data);
         setError(null);
         // Only adopt the server's brainId when we didn't already know which
         // brain we wanted (initial load) — otherwise this would keep
@@ -117,8 +136,18 @@ export function useBrainData() {
 
   useEffect(() => { load(selectedBrainId); }, [load, selectedBrainId]);
 
-  const mutate = useCallback(async (body: Record<string, unknown>) => {
-    setLoading(true);
+  // Append an edge to local state immediately (real id from the server, not
+  // a temp/optimistic one — call this only after the connect POST resolves)
+  // so it renders without waiting for mutate's full reload, which recompiles
+  // the whole brain and is the source of the visible delay after connecting
+  // two nodes.
+  const addLocalEdge = useCallback((edge: BrainCanvasEdge) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, { ...state, edges: [...state.edges, edge] });
+  }, [setState, state, selectedBrainId]);
+
+  const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
+    setLoading(!opts?.backgroundReload);
     try {
       const res = await fetch('/api/ai/user-brain', {
         method: 'POST',
@@ -127,7 +156,15 @@ export function useBrainData() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result?.error || `Mutation failed (${res.status})`);
-      await load(selectedBrainId);
+      // Reload refreshes the compiled budget/token count and reconciles any
+      // server-side drift, but doesn't need to block the caller — the caller
+      // may have already applied the real result locally (e.g. addLocalEdge)
+      // for instant feedback.
+      if (opts?.backgroundReload) {
+        load(selectedBrainId);
+      } else {
+        await load(selectedBrainId);
+      }
       return result;
     } catch (e: any) {
       logger.error('useBrainData mutate failed:', e);
@@ -137,5 +174,5 @@ export function useBrainData() {
     }
   }, [selectedBrainId, load]);
 
-  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate };
+  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge };
 }

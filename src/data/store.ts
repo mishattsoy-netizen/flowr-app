@@ -328,8 +328,9 @@ export const useStore = create<AppState>()(
       tempChatMessages: [],
       chatHistoryOpen: true,
       chatConversations: [],
-      brainCanvasState: null,
-      setBrainCanvasState: (state) => set({ brainCanvasState: state }),
+      brainCanvasStateByBrain: {},
+      setBrainCanvasStateForBrain: (brainId, state) =>
+        set(s => ({ brainCanvasStateByBrain: { ...s.brainCanvasStateByBrain, [brainId]: state } })),
       tempChatGreeting: "Write like nobody's listening.",
       isAIAssistantExtended: true,
       isAILoading: false,
@@ -3767,8 +3768,9 @@ export const useStore = create<AppState>()(
           // refresh instead of always skeleton-ing while it re-fetches.
           chatConversations: state.chatConversations,
           // So the brain canvas and sidebar brain list render instantly from
-          // cache instead of a full-page loader / blank list on every mount.
-          brainCanvasState: state.brainCanvasState,
+          // cache instead of a full-page loader / blank list on every mount,
+          // and switching between already-visited brains is instant too.
+          brainCanvasStateByBrain: state.brainCanvasStateByBrain,
         }),
         activeSpaceId: state.activeSpaceId,
         syncCursors: state.syncCursors,

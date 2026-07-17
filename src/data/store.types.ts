@@ -525,14 +525,18 @@ export interface AppState {
   isChatHistoryLoading: boolean;
   isChatMessagesLoading: boolean;
   tempChatGreeting: string | null;
-  // Cached response from /api/ai/user-brain (see useBrainData.ts, which owns
-  // the real BrainCanvasState shape). Loosely typed here to avoid the
-  // foundation layer depending on a component-layer type — same pattern as
-  // sessionContextsMap above. Persisted so the brain canvas and sidebar brain
-  // list render instantly from cache instead of showing a full-page loader /
-  // blank list on every mount.
-  brainCanvasState: Record<string, any> | null;
-  setBrainCanvasState: (state: Record<string, any> | null) => void;
+  // Cached /api/ai/user-brain responses, keyed by brain id (see
+  // useBrainData.ts, which owns the real BrainCanvasState shape). Loosely
+  // typed here to avoid the foundation layer depending on a component-layer
+  // type — same pattern as sessionContextsMap above. Persisted so the brain
+  // canvas and sidebar brain list render instantly from cache instead of
+  // showing a full-page loader / blank list on every mount, AND so switching
+  // between brains already visited this session is instant (only a brain
+  // that has never been fetched shows a loader). Deliberately keyed per-brain
+  // rather than caching every brain eagerly — a user can have any number of
+  // brains, so only caching ones actually visited keeps this bounded.
+  brainCanvasStateByBrain: Record<string, Record<string, any>>;
+  setBrainCanvasStateForBrain: (brainId: string, state: Record<string, any>) => void;
   setShowTempNotice: (show: boolean) => void;
 
   // Actions
