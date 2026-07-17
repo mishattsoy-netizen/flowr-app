@@ -16,7 +16,8 @@ import { runWebSearchChain } from './providers/tavily'
 import { runDuckDuckGoSearchChain } from './providers/duckduckgo'
 import { runExaSearchChain } from './providers/exa'
 import { runDeepResearchChain } from './providers/deepResearch'
-import { extractContent, formatExtractedPages } from './providers/content-extract'
+import { extractContent, formatExtractedPages, ExtractedPage } from './providers/content-extract'
+import { extractYoutubeTranscript, isYouTubeUrl } from './providers/youtube-extract'
 import { runCloudflare } from './providers/cloudflare'
 import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
@@ -648,7 +649,23 @@ IMAGE GENERATION:
     if (urls.length > 0) {
       onStatus({ chain: 'WEB_SEARCH', goal: 'Reading linked page(s)', status: 'running', label: getStatusLabel('WEB_SEARCH', 'Reading page') })
       try {
-        const pages = await extractContent(urls, context)
+        const ytUrls = urls.filter(u => isYouTubeUrl(u));
+        const webUrls = urls.filter(u => !isYouTubeUrl(u));
+
+        let pages: ExtractedPage[] = [];
+
+        // YouTube URLs: extract transcripts individually
+        for (const url of ytUrls) {
+          const ytPage = await extractYoutubeTranscript(url);
+          if (ytPage) pages.push(ytPage);
+        }
+
+        // Non-YouTube URLs: batch-process through Exa → Tavily → fetch
+        if (webUrls.length > 0) {
+          const webPages = await extractContent(webUrls, context);
+          if (webPages && webPages.length > 0) pages.push(...webPages);
+        }
+
         const formatted = formatExtractedPages(pages)
         if (formatted) {
           system_prompt = `${system_prompt}\n\n[SEARCH DATA]\n${formatted}\n\n`
