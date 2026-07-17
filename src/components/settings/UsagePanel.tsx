@@ -24,16 +24,16 @@ function formatResetCountdown(resetsAt: string): string {
   return `${minutes}m`
 }
 
-function UsageBar({ label, usage }: { label: string; usage: UsageWindow }) {
+function UsageBar({ label, usage, large }: { label: string; usage: UsageWindow; large?: boolean }) {
   const pct = usage.cap > 0 ? Math.min(100, (usage.spent / usage.cap) * 100) : 0
   return (
     <div className="space-y-1.5">
-      <div className="flex justify-between text-[13px]">
-        <span className="text-[var(--bone-100)]">{label}</span>
-        <span className="text-[var(--bone-40)] text-[12px]">Resets in {formatResetCountdown(usage.resets_at)}</span>
+      <div className="flex justify-between items-baseline">
+        <span className={`${large ? 'text-[15px]' : 'text-[13px]'} font-semibold text-[var(--bone-100)]`}>{label}</span>
+        <span className="text-[var(--bone-60)] text-[12px]">Resets in {formatResetCountdown(usage.resets_at)}</span>
       </div>
-      <div className="w-full h-1.5 rounded-full bg-[var(--bone-10)] overflow-hidden">
-        <div className="h-full bg-[var(--brand-blue)]" style={{ width: `${pct}%` }} />
+      <div className="w-full h-2.5 rounded-full bg-[var(--bone-10)] overflow-hidden">
+        <div className="h-full rounded-full bg-[var(--brand-blue)]" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -137,8 +137,8 @@ export default function UsagePanel() {
         )}
       </div>
 
-      <div className="space-y-5 shrink-0">
-        <UsageBar label="5-hour limit" usage={data.window} />
+      <div className="p-4 rounded-2xl bg-[var(--app-dark)] space-y-5 shrink-0">
+        <UsageBar label="5-hour limit" usage={data.window} large />
         <UsageBar label="Weekly limit" usage={data.weekly} />
         <UsageBar label="Monthly credit" usage={data.monthly} />
       </div>
