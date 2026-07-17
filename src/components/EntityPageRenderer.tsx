@@ -9,6 +9,7 @@ import { SpacePage } from './workspace/SpacePage';
 import { TrackerPage } from './tracker/TrackerPage';
 import ChatPage from './chat/ChatPage';
 import { SettingsPage } from './settings/SettingsPage';
+import { BrainCanvasPage } from '@/components/brain/canvas/BrainCanvasPage';
 
 import { ChatMainSkeleton } from './chat/ChatSkeleton';
 import { TrackerSkeleton } from './tracker/TrackerSkeleton';
@@ -40,6 +41,10 @@ export function EntityPageRenderer({ entityId }: { entityId: string }) {
 
   if (entityId === 'chat') {
     return <ChatPage isLoading={isLoading} />;
+  }
+
+  if (entityId === 'brain') {
+    return <BrainCanvasPage />;
   }
 
   if (entityId === 'settings') {
