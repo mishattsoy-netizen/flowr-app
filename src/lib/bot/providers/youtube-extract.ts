@@ -23,7 +23,13 @@ export async function extractYoutubeTranscript(
   options?: TranscriptOptions
 ): Promise<ExtractedPage | null> {
   try {
-    logger.info(`Extracting YouTube transcript for: ${url}`);
+    // Defensive: only process YouTube URLs (belt-and-suspenders beyond call-site guards)
+    if (!isYouTubeUrl(url)) {
+      logger.warn(`Skipping non-YouTube URL in extractYoutubeTranscript`);
+      return null;
+    }
+
+    logger.info(`Extracting YouTube transcript`);
     const allSegments = await fetchTranscript(url, { lang: options?.lang });
 
     if (!allSegments || allSegments.length === 0) return null;
