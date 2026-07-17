@@ -63,6 +63,10 @@ export function compileBrainDocument(
   const rendered = new Map<string, string>()
   for (const n of renderable) rendered.set(n.id, renderNode(n, config.per_node_cap))
   const cost = (id: string) => estimateTokens(rendered.get(id) ?? '')
+  // All renderable nodes (including later budget-dropped ones) so cards can
+  // still show "how big is this node" cost.
+  const perNodeTokens: Record<string, number> = {}
+  for (const n of renderable) perNodeTokens[n.id] = cost(n.id)
 
   // Budget: pinned always kept; drop the cheapest-to-lose until under limit.
   const pinnedTotal = renderable.filter(n => n.pinned).reduce((s, n) => s + cost(n.id), 0)
@@ -77,7 +81,7 @@ export function compileBrainDocument(
     total -= cost(n.id)
   }
   const kept = renderable.filter(n => !droppedNodeIds.includes(n.id))
-  if (kept.length === 0) return { compiled: '', tokenCount: 0, droppedNodeIds, brokenNodeIds }
+  if (kept.length === 0) return { compiled: '', tokenCount: 0, droppedNodeIds, brokenNodeIds, perNodeTokens }
 
   // Grouping (deterministic): sections by created_at; nodes by priority DESC, created_at ASC.
   const keptIds = new Set(kept.map(n => n.id))
@@ -104,10 +108,12 @@ export function compileBrainDocument(
   const titleOf = (id: string) => { const n = kept.find(k => k.id === id); return n ? nodeTitle(n) : null }
   const edgeLines = [...edges]
     .filter(e => keptIds.has(e.from_node) && keptIds.has(e.to_node))
-    .map(e => `- Connection between "${titleOf(e.from_node)}" and "${titleOf(e.to_node)}": ${e.label}`)
+    .map(e => e.label?.trim()
+      ? `- Connection between "${titleOf(e.from_node)}" and "${titleOf(e.to_node)}": ${e.label}`
+      : `- "${titleOf(e.from_node)}" and "${titleOf(e.to_node)}" are related.`)
   if (edgeLines.length > 0) { parts.push('## Connections'); parts.push(...edgeLines); parts.push('') }
 
   parts.push('[/BRAIN]')
   const compiled = parts.join('\n')
-  return { compiled, tokenCount: estimateTokens(compiled), droppedNodeIds, brokenNodeIds }
+  return { compiled, tokenCount: estimateTokens(compiled), droppedNodeIds, brokenNodeIds, perNodeTokens }
 }

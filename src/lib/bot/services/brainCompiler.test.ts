@@ -86,6 +86,24 @@ describe('compileBrainDocument', () => {
     expect(compileBrainDocument(nodes, [], cfg).compiled)
       .toBe(compileBrainDocument(nodes, [], cfg).compiled)
   })
+
+  it('returns per-node token counts for rendered nodes', () => {
+    const a = memory({ id: 'm1', content: 'likes espresso' })
+    const b = memory({ id: 'm2', content: 'a much longer memory string that costs more tokens than the first one does' })
+    const out = compileBrainDocument([a, b], [], cfg)
+    expect(out.perNodeTokens.m1).toBeGreaterThan(0)
+    expect(out.perNodeTokens.m2).toBeGreaterThan(out.perNodeTokens.m1)
+  })
+
+  it('omits sections and broken ref nodes from perNodeTokens', () => {
+    const section = memory({ id: 's1', type: 'section', label: 'Profile', content: null })
+    const broken = memory({ id: 'e1', type: 'entity', content: null, resolved: null })
+    const ok = memory({ id: 'm1', content: 'kept' })
+    const out = compileBrainDocument([section, broken, ok], [], cfg)
+    expect(out.perNodeTokens.m1).toBeGreaterThan(0)
+    expect(out.perNodeTokens.s1).toBeUndefined()
+    expect(out.perNodeTokens.e1).toBeUndefined()
+  })
 })
 
 describe('brainVersionKey', () => {

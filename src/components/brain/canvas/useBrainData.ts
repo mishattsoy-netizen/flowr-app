@@ -45,6 +45,7 @@ export interface BrainCanvasState {
   availableWorkspaces: { id: string; title: string }[];
   budget: { used: number; limit: number; dropped: string[]; broken: string[] };
   brains: BrainMeta[];
+  perNodeTokens: Record<string, number>;
 }
 
 export async function authHeaders(): Promise<Record<string, string>> {
@@ -136,14 +137,23 @@ export function useBrainData() {
 
   useEffect(() => { load(selectedBrainId); }, [load, selectedBrainId]);
 
-  // Append an edge to local state immediately (real id from the server, not
-  // a temp/optimistic one — call this only after the connect POST resolves)
-  // so it renders without waiting for mutate's full reload, which recompiles
-  // the whole brain and is the source of the visible delay after connecting
-  // two nodes.
+  // Append an edge to local state immediately — call BEFORE the connect POST
+  // even starts, with a temp id, so the line paints on click instead of
+  // waiting on the request round-trip. A background reload (mutate's
+  // backgroundReload option) replaces `edges` wholesale with server truth
+  // once it resolves, so the temp id is only ever visible for that one
+  // round trip and never persisted or duplicated.
   const addLocalEdge = useCallback((edge: BrainCanvasEdge) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, edges: [...state.edges, edge] });
+  }, [setState, state, selectedBrainId]);
+
+  // Remove a locally-added edge (e.g. the temp one from addLocalEdge) if its
+  // POST ends up failing — otherwise a failed connect would leave a phantom
+  // line on screen until the next reload happens to overwrite it.
+  const removeLocalEdge = useCallback((edgeId: string) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, { ...state, edges: state.edges.filter(e => e.id !== edgeId) });
   }, [setState, state, selectedBrainId]);
 
   const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
@@ -174,5 +184,5 @@ export function useBrainData() {
     }
   }, [selectedBrainId, load]);
 
-  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge };
+  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge };
 }

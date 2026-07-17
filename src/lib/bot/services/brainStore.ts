@@ -4,6 +4,7 @@ import { blocksToMarkdown } from '../../editor/markdownBlocks'
 import { estimateTokens, updateSessionState } from '../context'
 import { compileBrainDocument, brainVersionKey } from './brainCompiler'
 import type { BrainRow, BrainConfigRow, BrainNodeRow, BrainEdgeRow, CompileNode, CompiledBrain } from './brainTypes'
+import { hasEdgeBetween, partitionDuplicateEdges } from './brainEdgeUtils'
 
 // Fallback only for the case Supabase itself is unreachable (matches the
 // 'free' row's values) — never used as a real tier name, since
@@ -130,13 +131,28 @@ async function logRevision(userId: string, actor: 'user' | 'bot', op: string, pa
   if (error) logger.error('brain revision log failed:', error)
 }
 
-async function fetchBrainRows(userId: string, brainId: string): Promise<{ nodes: BrainNodeRow[]; edges: BrainEdgeRow[] }> {
+export async function fetchBrainRows(userId: string, brainId: string): Promise<{ nodes: BrainNodeRow[]; edges: BrainEdgeRow[] }> {
   if (!supabaseAdmin) return { nodes: [], edges: [] }
   const [n, e] = await Promise.all([
     supabaseAdmin.from('brain_nodes').select('*').eq('user_id', userId).eq('brain_id', brainId).is('deleted_at', null),
     supabaseAdmin.from('brain_edges').select('*').eq('user_id', userId).eq('brain_id', brainId).is('deleted_at', null),
   ])
-  return { nodes: (n.data ?? []) as BrainNodeRow[], edges: (e.data ?? []) as BrainEdgeRow[] }
+  const nodes = (n.data ?? []) as BrainNodeRow[]
+  const rawEdges = (e.data ?? []) as BrainEdgeRow[]
+  // Soft-delete stacked duplicates left over from before undirected uniqueness
+  // (A–B == B–A). Keep the oldest edge per pair; return the cleaned set so the
+  // canvas never paints stacked lines even before the update lands.
+  const { keep, removeIds } = partitionDuplicateEdges(rawEdges)
+  if (removeIds.length > 0) {
+    const { error } = await supabaseAdmin.from('brain_edges')
+      .update({ deleted_at: new Date().toISOString() })
+      .in('id', removeIds)
+      .eq('user_id', userId)
+      .eq('brain_id', brainId)
+      .is('deleted_at', null)
+    if (error) logger.error('brain edge dedupe failed:', error)
+  }
+  return { nodes, edges: keep }
 }
 
 /** Resolve refs → CompileNode[]. Unowned/missing refs stay resolved:null (broken). Entities are NOT brain-scoped, only user-scoped — unchanged from P1. */
@@ -201,14 +217,18 @@ export async function computeBrainVersion(userId: string, brainId: string): Prom
 
 export async function compileBrain(userId: string, brainId: string): Promise<CompiledBrain & { version: string }> {
   const version = await computeBrainVersion(userId, brainId)
-  if (!supabaseAdmin) return { compiled: '', tokenCount: 0, droppedNodeIds: [], brokenNodeIds: [], version }
+  if (!supabaseAdmin) {
+    return { compiled: '', tokenCount: 0, droppedNodeIds: [], brokenNodeIds: [], perNodeTokens: {}, version }
+  }
   const { data: cached } = await supabaseAdmin
-    .from('brain_compiles').select('compiled, token_count, dropped_node_ids, broken_node_ids')
+    .from('brain_compiles')
+    .select('compiled, token_count, dropped_node_ids, broken_node_ids, per_node_tokens')
     .eq('user_id', userId).eq('version', version).maybeSingle()
   if (cached) {
     return {
       compiled: cached.compiled, tokenCount: cached.token_count, version,
       droppedNodeIds: cached.dropped_node_ids ?? [], brokenNodeIds: cached.broken_node_ids ?? [],
+      perNodeTokens: (cached.per_node_tokens as Record<string, number> | null) ?? {},
     }
   }
   const { nodes, edges } = await fetchBrainRows(userId, brainId)
@@ -222,6 +242,7 @@ export async function compileBrain(userId: string, brainId: string): Promise<Com
   await supabaseAdmin.from('brain_compiles').upsert({
     user_id: userId, version, compiled: result.compiled, token_count: result.tokenCount,
     dropped_node_ids: result.droppedNodeIds, broken_node_ids: result.brokenNodeIds,
+    per_node_tokens: result.perNodeTokens,
   })
   return { ...result, version }
 }
@@ -286,11 +307,11 @@ export async function switchActiveBrain(
 
 export async function addBrainNode(
   userId: string, actor: 'user' | 'bot', brainId: string,
-  input: { type: BrainNodeRow['type']; ref_id?: string; content?: string; label?: string; section_id?: string; priority?: number; pinned?: boolean }
+  input: { type: BrainNodeRow['type']; ref_id?: string; content?: string; label?: string; section_id?: string; priority?: number; pinned?: boolean; position?: { x: number; y: number } }
 ): Promise<{ id: string } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
   if (!(await assertOwnedBrain(userId, brainId))) return { error: `Brain '${brainId}' not found.` }
-  const { type, ref_id, content, label, section_id, priority, pinned } = input
+  const { type, ref_id, content, label, section_id, priority, pinned, position } = input
   if (type === 'workspace' || type === 'entity') {
     if (!ref_id) return { error: `'ref_id' is required for type '${type}'` }
     if (!(await assertOwnedEntity(userId, ref_id))) return { error: `Entity '${ref_id}' not found.` }
@@ -326,6 +347,7 @@ export async function addBrainNode(
   const { data, error } = await supabaseAdmin.from('brain_nodes').insert({
     user_id: userId, brain_id: brainId, type, ref_id: ref_id ?? null, content: content ?? null, label: label ?? null,
     section_id: section_id ?? null, priority: priority ?? 0, pinned: pinned ?? false, created_by: actor,
+    position: position ?? null,
   }).select('id').single()
   if (error) return { error: error.message }
   await logRevision(userId, actor, 'add_node', { id: data.id, brain_id: brainId, ...input })
@@ -398,12 +420,21 @@ export async function addBrainEdge(
   userId: string, actor: 'user' | 'bot', brainId: string, from: string, to: string, label: string
 ): Promise<{ id: string } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
-  if (!label?.trim()) return { error: "'label' is required — an unlabeled connection means nothing to you later." }
   const { data: endpoints } = await supabaseAdmin.from('brain_nodes')
     .select('id').in('id', [from, to]).eq('user_id', userId).eq('brain_id', brainId).is('deleted_at', null)
   if ((endpoints ?? []).length !== 2) return { error: 'Both endpoints must be existing brain nodes in the same brain.' }
+  // Undirected uniqueness: A→B and B→A are the same connection.
+  // Brain graphs are small — load active edges and check in JS.
+  const { data: activeEdges } = await supabaseAdmin.from('brain_edges')
+    .select('from_node, to_node')
+    .eq('user_id', userId)
+    .eq('brain_id', brainId)
+    .is('deleted_at', null)
+  if (hasEdgeBetween(activeEdges ?? [], from, to)) {
+    return { error: 'These nodes are already connected.' }
+  }
   const { data, error } = await supabaseAdmin.from('brain_edges')
-    .insert({ user_id: userId, brain_id: brainId, from_node: from, to_node: to, label, created_by: actor })
+    .insert({ user_id: userId, brain_id: brainId, from_node: from, to_node: to, label: label?.trim() ?? '', created_by: actor })
     .select('id').single()
   if (error) return { error: error.message }
   await logRevision(userId, actor, 'connect', { id: data.id, brain_id: brainId, from, to, label })
@@ -446,5 +477,6 @@ export async function listBrain(userId: string, brainId: string) {
       used: compiled.tokenCount, limit: cfg.token_limit,
       dropped: compiled.droppedNodeIds, broken: compiled.brokenNodeIds,
     },
+    perNodeTokens: compiled.perNodeTokens,
   }
 }

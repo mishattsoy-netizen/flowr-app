@@ -78,4 +78,5 @@ export interface CompiledBrain {
   tokenCount: number
   droppedNodeIds: string[]  // enabled nodes excluded by the budget
   brokenNodeIds: string[]   // ref nodes whose entity is gone/unowned
+  perNodeTokens: Record<string, number>  // rendered token cost per renderable node id (excludes sections + broken refs)
 }
