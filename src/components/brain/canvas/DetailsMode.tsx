@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { NotionDateTimePicker } from '@/components/ui/notion-datetime-picker';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
 
 export interface DetailsNodeDisplay {
@@ -204,7 +205,12 @@ export function DetailsMode({
           just taller. */}
       {display.preview && (
         <div className="relative px-3.5 pb-3">
-          <p className="text-[11px] text-[var(--bone-70)] leading-relaxed break-words line-clamp-[9]">
+          {/* Exact 9-line box (9 × 18px): a fractional height would slice the
+              last row in half instead of clamping cleanly. */}
+          <p
+            className="text-[11px] text-[var(--bone-70)] break-words line-clamp-[9] overflow-hidden"
+            style={{ lineHeight: '18px', maxHeight: '162px' }}
+          >
             {display.preview}
           </p>
           <div className="absolute inset-x-0 bottom-3 h-6 pointer-events-none bg-gradient-to-b from-transparent to-[var(--app-panel)]" />
@@ -378,54 +384,26 @@ export function DetailsMode({
           <div className="flex items-center gap-2.5 h-9">
             <Calendar className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
             <span className="flex-1 text-[13px] text-[var(--bone-70)]">Lifecycle</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none max-w-[140px] truncate"
-                >
-                  {node.active_until
-                    ? `Until ${new Date(node.active_until).toLocaleDateString()}`
-                    : 'Permanent'}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56 p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] rounded-[12px] z-[320]" align="end">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Active window</p>
-                <label className="block text-[11px] text-[var(--bone-50)] px-1 mb-0.5">From (optional)</label>
-                <input
-                  type="date"
-                  defaultValue={node.active_from ? node.active_from.slice(0, 10) : ''}
-                  onChange={e => {
-                    const v = e.target.value ? new Date(e.target.value + 'T00:00:00Z').toISOString() : null;
-                    onUpdateLifecycle?.(focusedNodeId, {
-                      active_from: v,
-                      active_until: node.active_until ?? null,
-                    });
-                  }}
-                  className="w-full mb-2 bg-[var(--bone-6)] rounded-md px-2 py-1.5 text-[12px] text-[var(--bone-100)] border-none outline-none"
-                />
-                <label className="block text-[11px] text-[var(--bone-50)] px-1 mb-0.5">Until (required for temporary)</label>
-                <input
-                  type="date"
-                  defaultValue={node.active_until ? node.active_until.slice(0, 10) : ''}
-                  onChange={e => {
-                    const v = e.target.value ? new Date(e.target.value + 'T23:59:59Z').toISOString() : null;
-                    onUpdateLifecycle?.(focusedNodeId, {
-                      active_from: node.active_from ?? null,
-                      active_until: v,
-                    });
-                  }}
-                  className="w-full mb-2 bg-[var(--bone-6)] rounded-md px-2 py-1.5 text-[12px] text-[var(--bone-100)] border-none outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => onUpdateLifecycle?.(focusedNodeId, { active_from: null, active_until: null })}
-                  className="w-full text-left px-2 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-60)] hover:bg-[var(--app-dark)] border-none outline-none"
-                >
-                  Make permanent
-                </button>
-              </PopoverContent>
-            </Popover>
+            {/* Exactly the picker the tasks panel uses (TaskInspectorPanel):
+                start → active_from, end → active_until. */}
+            <div className="w-[150px]">
+              <NotionDateTimePicker
+                startDate={node.active_from ?? undefined}
+                setStartDate={(d) => onUpdateLifecycle?.(focusedNodeId, {
+                  active_from: d ?? null,
+                  active_until: node.active_until ?? null,
+                })}
+                endDate={node.active_until ?? undefined}
+                setEndDate={(d) => onUpdateLifecycle?.(focusedNodeId, {
+                  active_from: node.active_from ?? null,
+                  active_until: d ?? null,
+                })}
+                includeTime={false}
+                setIncludeTime={() => {}}
+                reminder={undefined}
+                setReminder={() => {}}
+              />
+            </div>
           </div>
         )}
 

@@ -135,7 +135,7 @@ export function BrainCanvasPage() {
   const headerContentLeft = isDesktop() ? 30 : 20;
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
-  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge } = useBrainData();
+  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, patchLocalNode, patchLocalEdge } = useBrainData();
   const activeBrainId = useStore(s => s.activeBrainId);
   const setActiveBrainId = useStore(s => s.setActiveBrainId);
 
@@ -355,9 +355,17 @@ export function BrainCanvasPage() {
       if (!node.enabled) continue;
       const info = computeDisplayInfo(node, entities, state.perNodeTokens ?? {});
       info.tagColor = node.tag_color ?? null;
+      info.tagName = node.tag_name ?? null;
       info.activeFrom = node.active_from ?? null;
       info.activeUntil = node.active_until ?? null;
       info.lifecycleInactive = expiredSet.has(node.id);
+      // Memory = a brain-only note; distinct card treatment from a plain Note.
+      info.isMemory = node.type === 'memory'
+        || (!!node.ref_id && !!entities.find(e => e.id === node.ref_id)?.brainOnly);
+      // Per-node usage bar (share of the per-node cap), footer bottom edge.
+      const cap = state.perNodeCap ?? 2000;
+      const tok = (state.perNodeTokens ?? {})[node.id];
+      info.usageFraction = tok != null && cap > 0 ? tok / cap : undefined;
       map.set(node.id, info);
     }
     return map;
@@ -434,28 +442,30 @@ export function BrainCanvasPage() {
   const handleUpdateTitle = useCallback(async (nodeId: string, title: string) => {
     const node = state?.nodes.find(n => n.id === nodeId);
     try {
-      await mutate({ action: 'update_node', node_id: nodeId, updates: { label: title } });
+      patchLocalNode(nodeId, { label: title });
+      await mutate({ action: 'update_node', node_id: nodeId, updates: { label: title } }, { backgroundReload: true });
       if (node?.type === 'entity' && node.ref_id) {
         renameEntity(node.ref_id, title);
       }
     } catch (e) {
       logger.error('Failed to update node title:', e);
     }
-  }, [state?.nodes, mutate, renameEntity]);
+  }, [state?.nodes, mutate, renameEntity, patchLocalNode]);
 
   const handleUpdatePriority = useCallback(async (nodeId: string, priority: number) => {
     try {
-      await mutate({ action: 'update_node', node_id: nodeId, updates: { priority } });
+      patchLocalNode(nodeId, { priority });
+      await mutate({ action: 'update_node', node_id: nodeId, updates: { priority } }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to update priority:', e);
     }
-  }, [mutate]);
+  }, [mutate, patchLocalNode]);
 
   const handleSetBrainOnly = useCallback(async (nodeId: string, brainOnly: boolean) => {
     const node = state?.nodes.find(n => n.id === nodeId);
     if (!node?.ref_id) return;
     try {
-      await mutate({ action: 'set_brain_only', entity_id: node.ref_id, brain_only: brainOnly });
+      await mutate({ action: 'set_brain_only', entity_id: node.ref_id, brain_only: brainOnly }, { backgroundReload: true });
       // Optimistic local store so Type pill updates without full entity refetch.
       useStore.setState(s => ({
         entities: s.entities.map(e => e.id === node.ref_id ? { ...e, brainOnly } : e),
@@ -470,30 +480,32 @@ export function BrainCanvasPage() {
     tag: { tag_color: string | null; tag_name: string | null },
   ) => {
     try {
+      patchLocalNode(nodeId, { tag_color: tag.tag_color, tag_name: tag.tag_name });
       await mutate({
         action: 'update_node',
         node_id: nodeId,
         updates: { tag_color: tag.tag_color, tag_name: tag.tag_name },
-      });
+      }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to update tag:', e);
     }
-  }, [mutate]);
+  }, [mutate, patchLocalNode]);
 
   const handleUpdateLifecycle = useCallback(async (
     nodeId: string,
     life: { active_from: string | null; active_until: string | null },
   ) => {
     try {
+      patchLocalNode(nodeId, { active_from: life.active_from, active_until: life.active_until });
       await mutate({
         action: 'update_node',
         node_id: nodeId,
         updates: { active_from: life.active_from, active_until: life.active_until },
-      });
+      }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to update lifecycle:', e);
     }
-  }, [mutate]);
+  }, [mutate, patchLocalNode]);
 
   const [wsDescEdit, setWsDescEdit] = useState<{
     nodeId: string; entityId: string; title: string; description: string;
@@ -561,19 +573,21 @@ export function BrainCanvasPage() {
 
   const handleUpdateEdgeLabel = useCallback(async (edgeId: string, label: string) => {
     try {
-      await mutate({ action: 'update_edge', edge_id: edgeId, label });
+      patchLocalEdge(edgeId, { label });
+      await mutate({ action: 'update_edge', edge_id: edgeId, label }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to update edge label:', e);
     }
-  }, [mutate]);
+  }, [mutate, patchLocalEdge]);
 
   const handleBreakEdge = useCallback(async (edgeId: string) => {
     try {
-      await mutate({ action: 'disconnect', edge_id: edgeId });
+      removeLocalEdge(edgeId);
+      await mutate({ action: 'disconnect', edge_id: edgeId }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to disconnect edge:', e);
     }
-  }, [mutate]);
+  }, [mutate, removeLocalEdge]);
 
   const handleEdgeClick = useCallback((edgeId: string) => {
     const edge = state?.edges.find(e => e.id === edgeId);
@@ -1057,16 +1071,6 @@ export function BrainCanvasPage() {
         onMouseMove={connectMode ? handleConnectMouseMove : undefined}
         onMouseLeave={connectMode ? () => setConnectCursor(null) : undefined}
       >
-        {/* Background grid dots */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ minWidth: 4000, minHeight: 4000, left: -2000, top: -2000 }}>
-          <defs>
-            <pattern id="brain-grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="0.5" fill="var(--bone-6)" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#brain-grid)" />
-        </svg>
-
         {/* Connections */}
         <BrainCanvasConnections
           nodes={activeNodes}

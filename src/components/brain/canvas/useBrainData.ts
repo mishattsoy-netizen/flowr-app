@@ -165,6 +165,27 @@ export function useBrainData() {
     setState(selectedBrainId, { ...state, edges: state.edges.filter(e => e.id !== edgeId) });
   }, [setState, state, selectedBrainId]);
 
+  /** Patch one node in local state immediately, before the server round trip.
+   *  Panel edits (title/priority/tag/lifecycle/workspace) are authoritative on
+   *  the client, so waiting for a refetch + recompile just to see your own
+   *  edit is pure latency. The background reload still reconciles tokens. */
+  const patchLocalNode = useCallback((nodeId: string, patch: Partial<BrainCanvasNode>) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, {
+      ...state,
+      nodes: state.nodes.map(n => (n.id === nodeId ? { ...n, ...patch } : n)),
+    });
+  }, [setState, state, selectedBrainId]);
+
+  /** Same, for an edge's label. */
+  const patchLocalEdge = useCallback((edgeId: string, patch: Partial<BrainCanvasEdge>) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, {
+      ...state,
+      edges: state.edges.map(e => (e.id === edgeId ? { ...e, ...patch } : e)),
+    });
+  }, [setState, state, selectedBrainId]);
+
   const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
     setLoading(!opts?.backgroundReload);
     // body.brain_id wins so callers can mutate a non-selected brain (sidebar rows).
@@ -195,5 +216,5 @@ export function useBrainData() {
     }
   }, [selectedBrainId, load]);
 
-  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge };
+  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, patchLocalNode, patchLocalEdge };
 }
