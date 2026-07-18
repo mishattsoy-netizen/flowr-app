@@ -4,13 +4,12 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useStore } from '@/data/store';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from '@/hooks/useCanvasViewport';
 import { cn } from '@/lib/utils';
-import { useBrainData, type BrainCanvasNode, type BrainCanvasEdge } from './useBrainData';
+import { useBrainData, authHeaders, type BrainCanvasNode, type BrainCanvasEdge } from './useBrainData';
 import { useBrainDrag } from './useBrainDrag';
 import { BrainNodeCard, CARD_W, CARD_H, type NodeDisplayInfo } from './BrainNodeCard';
 import { BrainCanvasConnections } from './BrainCanvasConnections';
 import { BrainToolbar } from './BrainToolbar';
-import { BrainPresetPicker } from './BrainPresetPicker';
-import { BrainStatsPanel } from './BrainStatsPanel';
+import { BrainLeftPanel } from './BrainLeftPanel';
 import { BrainZoomControls } from './BrainZoomControls';
 import { AddExistingEntityPopover } from './AddExistingEntityPopover';
 import { logger } from '@/lib/logger';
@@ -109,6 +108,63 @@ export function BrainCanvasPage() {
     if (!selectedBrainId) load();
   }, [load, selectedBrainId]);
 
+  // Compact usage stats for BrainLeftPanel (full calendar loads on expand inside the panel)
+  const [usageStats, setUsageStats] = useState({ requests: 0, activeDays: 0 });
+  useEffect(() => {
+    if (!selectedBrainId) return;
+    let cancelled = false;
+    setUsageStats({ requests: 0, activeDays: 0 });
+    (async () => {
+      try {
+        const res = await fetch('/api/ai/user-brain', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({ action: 'brain_usage_stats', brain_id: selectedBrainId }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setUsageStats({ requests: data.requests ?? 0, activeDays: data.activeDays ?? 0 });
+        }
+      } catch (e) {
+        if (!cancelled) logger.error('Failed to load brain usage stats:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBrainId]);
+
+  const handleRenameBrain = useCallback(async (brainId: string, title: string) => {
+    try {
+      await mutate({ action: 'update_brain', brain_id: brainId, title });
+    } catch (e) {
+      logger.error('Failed to rename brain:', e);
+    }
+  }, [mutate]);
+
+  const handleSetDefaultBrain = useCallback(async (brainId: string) => {
+    try {
+      await mutate({ action: 'set_default_brain', brain_id: brainId });
+    } catch (e) {
+      logger.error('Failed to set default brain:', e);
+    }
+  }, [mutate]);
+
+  const handleResetUsage = useCallback(async () => {
+    if (!selectedBrainId) return;
+    try {
+      const res = await fetch('/api/ai/user-brain', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ action: 'brain_usage_stats', brain_id: selectedBrainId }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setUsageStats({ requests: data.requests ?? 0, activeDays: data.activeDays ?? 0 });
+    } catch (e) {
+      logger.error('Failed to refresh brain usage stats:', e);
+    }
+  }, [selectedBrainId]);
+
   const entities = useStore(s => s.entities);
   const openBrainNode = useStore(s => s.openBrainNode);
   const addEntity = useStore(s => s.addEntity);
@@ -193,6 +249,15 @@ export function BrainCanvasPage() {
     if (!state) return [];
     return state.nodes.filter(n => n.enabled);
   }, [state]);
+
+  // Compact node list for BrainLeftPanel (title + priority for budget breakdown)
+  const leftPanelNodes = useMemo(() => {
+    return activeNodes.map(n => ({
+      id: n.id,
+      title: nodeInfos.get(n.id)?.title ?? n.label ?? 'Untitled',
+      priority: n.priority,
+    }));
+  }, [activeNodes, nodeInfos]);
 
   const nodePositions = useMemo(() => {
     const map: Record<string, { x: number; y: number }> = {};
@@ -598,20 +663,21 @@ export function BrainCanvasPage() {
         }
       }}
     >
-      {/* ── Top bar: presets + stats ── */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
-        <BrainPresetPicker
+      {/* ── Top-left: brain switcher + compact/expanded stats ── */}
+      <div className="absolute top-4 left-4 z-20">
+        <BrainLeftPanel
           brains={state.brains}
           selectedBrainId={selectedBrainId}
           onSelect={(id) => { setSelectedBrainId(id); setActiveBrainId(id); }}
-        />
-      </div>
-      <div className="absolute top-4 right-4 z-20">
-        <BrainStatsPanel
-          used={state.budget.used}
-          limit={state.budget.limit}
-          nodeCount={state.nodes.filter(n => n.enabled).length}
+          budget={{ used: state.budget.used, limit: state.budget.limit }}
+          nodeCount={leftPanelNodes.length}
           edgeCount={state.edges.length}
+          stats={usageStats}
+          nodes={leftPanelNodes}
+          perNodeTokens={state.perNodeTokens ?? {}}
+          onRenameBrain={handleRenameBrain}
+          onSetDefaultBrain={handleSetDefaultBrain}
+          onResetUsage={handleResetUsage}
         />
       </div>
 
