@@ -10,6 +10,8 @@ import { ConnectionsMode } from './ConnectionsMode';
 export interface BrainDetailsPanelProps {
   mode: 'details' | 'connections';
   focusedNodeId: string;
+  /** When set, connections mode renders just this edge's two endpoints. */
+  pairEdge?: BrainCanvasEdge | null;
   selectedNodeIds: string[];
   nodes: BrainCanvasNode[];
   edges: BrainCanvasEdge[];
@@ -76,12 +78,13 @@ function SelectedNodeCard({
         className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
         aria-label={isLinked ? 'Break connection' : 'Connect'}
       />
-      {/* Action button underneath: rectangular (parent clips the corners),
-          invisible until revealed. */}
+      {/* Action button underneath: right-anchored and rectangular — it must
+          never extend under the cover's LEFT rounded corners, or the color
+          peeks through the corner notches when revealed. */}
       <div
         aria-hidden
         className={cn(
-          "absolute inset-0 flex items-center justify-end pr-3.5",
+          "absolute top-0 bottom-0 right-0 w-14 flex items-center justify-end pr-3.5",
           "opacity-0 peer-hover/zone:opacity-100 transition-opacity duration-100",
           isLinked ? "bg-[#E85A5A]" : "bg-[var(--brand-blue)]"
         )}
@@ -90,10 +93,12 @@ function SelectedNodeCard({
           ? <Unlink className="w-4 h-4 text-white" strokeWidth={2} />
           : <Link2 className="w-4 h-4 text-white" strokeWidth={2} />}
       </div>
-      {/* Cover row: full width; shrinks from the right on zone hover. */}
+      {/* Cover row: full width; shrinks from the right on zone hover. Radius
+          13px = parent's 14px minus its 1px border, so the corners match the
+          parent clip exactly. */}
       <div
         className={cn(
-          "relative z-10 flex items-center h-full px-3.5 rounded-[14px]",
+          "relative z-10 flex items-center h-full px-3.5 rounded-[13px]",
           "bg-[var(--app-panel)] group-hover:bg-[var(--card-bg)]",
           "transition-[width,background-color] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
         )}
@@ -110,9 +115,17 @@ function SelectedNodeCard({
             {display.title}
           </span>
         </button>
-        <span className="text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
-          <ChevronRight className="w-4 h-4" strokeWidth={2} />
-        </span>
+        {/* Linked cards always show the attached icon exactly where the detach
+            button appears on reveal; unlinked cards show a chevron on hover. */}
+        {isLinked ? (
+          <span className="text-[var(--bone-60)]">
+            <Link2 className="w-4 h-4" strokeWidth={2} />
+          </span>
+        ) : (
+          <span className="text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
+            <ChevronRight className="w-4 h-4" strokeWidth={2} />
+          </span>
+        )}
       </div>
     </div>
   );
@@ -121,6 +134,7 @@ function SelectedNodeCard({
 export function BrainDetailsPanel({
   mode,
   focusedNodeId,
+  pairEdge = null,
   selectedNodeIds,
   nodes,
   edges,
@@ -155,13 +169,14 @@ export function BrainDetailsPanel({
   // Connections mode: only the not-yet-connected ones (connected nodes are
   // already in the chain inside the panel).
   const otherCards = useMemo(() => {
+    if (pairEdge) return []; // pair view: just the edge's two endpoints, nothing below
     const others = selectedNodeIds.filter(id => id !== focusedNodeId);
     if (mode === 'connections') return others.filter(id => !edgeByOtherId.has(id));
     return [
       ...others.filter(id => edgeByOtherId.has(id)),
       ...others.filter(id => !edgeByOtherId.has(id)),
     ];
-  }, [selectedNodeIds, focusedNodeId, edgeByOtherId, mode]);
+  }, [selectedNodeIds, focusedNodeId, edgeByOtherId, mode, pairEdge]);
 
   return (
     /* Transparent layout column — no overflow clipping here, so card shadows
@@ -196,6 +211,7 @@ export function BrainDetailsPanel({
         ) : (
           <ConnectionsMode
             focusedNodeId={focusedNodeId}
+            pairEdge={pairEdge}
             edges={edges}
             getDisplay={getDisplay}
             onClose={onClose}

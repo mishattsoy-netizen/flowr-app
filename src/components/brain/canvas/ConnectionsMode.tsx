@@ -15,6 +15,9 @@ import type { DetailsNodeDisplay } from './DetailsMode';
 
 export interface ConnectionsModeProps {
   focusedNodeId: string;
+  /** When set (panel opened from an edge line click), render just this edge's
+   *  two endpoints as an equal pair — both blue, one label between them. */
+  pairEdge?: BrainCanvasEdge | null;
   edges: BrainCanvasEdge[];
   getDisplay: (nodeId: string) => DetailsNodeDisplay | null;
   onClose: () => void;
@@ -30,8 +33,67 @@ interface ConnectedRow {
   otherId: string;
 }
 
+/** One endpoint row of the edge-pair view: blue like the focused row (solid,
+ *  opaque blends of brand-blue over app-panel so the red detach underneath
+ *  can never tint through), arrow on hover, red detach revealed by the right
+ *  hot zone, click → that node's details. */
+function PairNodeRow({
+  display,
+  onOpen,
+  onDetach,
+}: {
+  display: DetailsNodeDisplay;
+  onOpen: () => void;
+  onDetach: () => void;
+}) {
+  return (
+    <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--brand-blue)]">
+      <button
+        type="button"
+        title="Break connection"
+        onClick={onDetach}
+        className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+        aria-label="Break connection"
+      />
+      <div
+        aria-hidden
+        className={cn(
+          "absolute top-0 bottom-0 right-0 w-14 flex items-center justify-end pr-3 bg-[#E85A5A]",
+          "opacity-0 peer-hover/zone:opacity-100 transition-opacity duration-100"
+        )}
+      >
+        <Unlink className="w-4 h-4 text-white" strokeWidth={2} />
+      </div>
+      <div
+        className={cn(
+          "relative z-10 flex items-center h-full rounded-[13px]",
+          "bg-[#2A333D] group-hover:bg-[#2A3B4E]",
+          "transition-[width,background-color] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
+        )}
+      >
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
+        >
+          <span className="w-4 h-4 shrink-0 text-[var(--bone-70)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
+            {display.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
+          </span>
+          <span className="font-serif text-[15px] text-[var(--bone-100)] truncate">
+            {display.title}
+          </span>
+        </button>
+        <span className="pr-3 text-[var(--bone-60)] opacity-0 group-hover:opacity-100 transition-opacity">
+          <ChevronRight className="w-4 h-4" strokeWidth={2} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function ConnectionsMode({
   focusedNodeId,
+  pairEdge = null,
   edges,
   getDisplay,
   onClose,
@@ -116,9 +178,63 @@ export function ConnectionsMode({
         </button>
       </div>
 
+      {/* Pair view (opened from an edge line): the edge's two endpoints as
+          equals — both blue, one label between them, a line joining both. */}
+      {pairEdge && (
+        <div className="px-3.5 pb-3">
+          <div className="relative pl-[18px]">
+            <div className="absolute left-1 top-[22px] bottom-[22px] w-px border-l border-[var(--bone-30)] pointer-events-none" />
+            <div className="absolute left-[1px] top-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
+            <div className="absolute left-[1px] bottom-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
+            <PairNodeRow
+              display={getDisplay(pairEdge.from_node) ?? { title: 'Untitled', priority: 3, workspaceLabel: '' }}
+              onOpen={() => { onFocusNode(pairEdge.from_node); onSetMode('details'); }}
+              onDetach={() => onBreakEdge(pairEdge.id)}
+            />
+            <div className="my-2">
+              {editingEdgeId === pairEdge.id ? (
+                <input
+                  ref={labelInputRef}
+                  value={labelDraft}
+                  onChange={e => setLabelDraft(e.target.value)}
+                  onBlur={commitLabel}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
+                    if (e.key === 'Escape') setEditingEdgeId(null);
+                  }}
+                  className="w-full h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none"
+                  placeholder="Label"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEditLabel(pairEdge)}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
+                    "bg-[var(--app-dark)] border-none outline-none transition-colors",
+                    pairEdge.label
+                      ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
+                      : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
+                  )}
+                  title="Edit connection label"
+                >
+                  {pairEdge.label || 'Add label'}
+                </button>
+              )}
+            </div>
+            <PairNodeRow
+              display={getDisplay(pairEdge.to_node) ?? { title: 'Untitled', priority: 3, workspaceLabel: '' }}
+              onOpen={() => { onFocusNode(pairEdge.to_node); onSetMode('details'); }}
+              onDetach={() => onBreakEdge(pairEdge.id)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Chain. Rows are indented; the spine hugs the left: it leaves the
           focused row's left edge, turns down through a rounded corner, and
           runs to the last card's center. A dot marks each connected row. */}
+      {!pairEdge && (
       <div className="px-3.5 pb-3 flex flex-col">
         <div className="relative pl-[18px]">
           {connected.length > 0 && (
@@ -206,7 +322,7 @@ export function ConnectionsMode({
                   <div
                     aria-hidden
                     className={cn(
-                      "absolute inset-0 flex items-center justify-end pr-3 bg-[#E85A5A]",
+                      "absolute top-0 bottom-0 right-0 w-14 flex items-center justify-end pr-3 bg-[#E85A5A]",
                       "opacity-0 peer-hover/zone:opacity-100 transition-opacity duration-100"
                     )}
                   >
@@ -255,6 +371,7 @@ export function ConnectionsMode({
           <Plus className="w-5 h-5" strokeWidth={2} />
         </button>
       </div>
+      )}
     </div>
   );
 }

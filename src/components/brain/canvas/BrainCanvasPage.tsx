@@ -242,6 +242,9 @@ export function BrainCanvasPage() {
   const [detailsPanel, setDetailsPanel] = useState<{
     focusedNodeId: string;
     mode: 'details' | 'connections';
+    /** Set when the panel was opened by clicking an edge line: connections
+     *  mode shows just that edge's two endpoints as a pair. */
+    edgeId?: string;
   } | null>(null);
   /** After "Open editor", remember which node to restore the panel for. */
   const [panelResumeNodeId, setPanelResumeNodeId] = useState<string | null>(null);
@@ -442,8 +445,14 @@ export function BrainCanvasPage() {
   const handleEdgeClick = useCallback((edgeId: string) => {
     const edge = state?.edges.find(e => e.id === edgeId);
     if (!edge) return;
-    openDetailsForNode(edge.from_node, 'connections');
-  }, [state?.edges, openDetailsForNode]);
+    // Edge click → pair view: just the two endpoints, no node selection.
+    setPanelResumeNodeId(null);
+    if (useStore.getState().splitViewRightId) {
+      setColumnEntity('right', null);
+    }
+    setSelectedNodeIds(new Set());
+    setDetailsPanel({ focusedNodeId: edge.from_node, mode: 'connections', edgeId });
+  }, [state?.edges, setColumnEntity]);
 
   const nodePositions = useMemo(() => {
     const map: Record<string, { x: number; y: number }> = {};
@@ -1035,6 +1044,7 @@ export function BrainCanvasPage() {
           <BrainDetailsPanel
             mode={detailsPanel.mode}
             focusedNodeId={detailsPanel.focusedNodeId}
+            pairEdge={detailsPanel.edgeId ? (state.edges.find(e => e.id === detailsPanel.edgeId) ?? null) : null}
             selectedNodeIds={Array.from(selectedNodeIds)}
             nodes={state.nodes}
             edges={state.edges}
@@ -1043,9 +1053,9 @@ export function BrainCanvasPage() {
             getDisplay={getDetailsDisplay}
             workspaceOptions={workspaceOptions}
             onClose={() => setDetailsPanel(null)}
-            onFocusNode={(id) => setDetailsPanel(prev => prev ? { ...prev, focusedNodeId: id } : prev)}
+            onFocusNode={(id) => setDetailsPanel(prev => prev ? { ...prev, focusedNodeId: id, edgeId: undefined } : prev)}
             onOpenEditor={handlePanelOpenEditor}
-            onSetMode={(m) => setDetailsPanel(prev => prev ? { ...prev, mode: m } : prev)}
+            onSetMode={(m) => setDetailsPanel(prev => prev ? { ...prev, mode: m, edgeId: undefined } : prev)}
             onStartConnectFrom={handleStartConnectFrom}
             onConnect={handlePanelConnect}
             onUpdateEdgeLabel={handleUpdateEdgeLabel}
