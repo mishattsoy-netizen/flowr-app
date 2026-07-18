@@ -3,6 +3,7 @@ import { logger } from '../../logger'
 import { blocksToMarkdown } from '../../editor/markdownBlocks'
 import { estimateTokens, updateSessionState } from '../context'
 import { compileBrainDocument, brainVersionKey } from './brainCompiler'
+import { computeUsageStats } from './brainUsageStats'
 import type { BrainRow, BrainConfigRow, BrainNodeRow, BrainEdgeRow, CompileNode, CompiledBrain } from './brainTypes'
 import { hasEdgeBetween, partitionDuplicateEdges } from './brainEdgeUtils'
 
@@ -80,6 +81,22 @@ export async function getOrCreateDefaultBrain(userId: string): Promise<BrainRow>
     throw new Error(`getOrCreateDefaultBrain failed: ${error.message}`)
   }
   return data as BrainRow
+}
+
+export async function setDefaultBrain(userId: string, brainId: string): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  if (!(await assertOwnedBrain(userId, brainId))) return { error: `Brain '${brainId}' not found.` }
+  // Two writes, not one atomic statement — brains.is_default has a unique
+  // partial index (one default per user), so the old default must be cleared
+  // before the new one is set or the unique index rejects the update.
+  const { error: clearErr } = await supabaseAdmin.from('brains')
+    .update({ is_default: false }).eq('user_id', userId).eq('is_default', true)
+  if (clearErr) return { error: clearErr.message }
+  const { error: setErr } = await supabaseAdmin.from('brains')
+    .update({ is_default: true, updated_at: new Date().toISOString() })
+    .eq('id', brainId).eq('user_id', userId)
+  if (setErr) return { error: setErr.message }
+  return { success: true }
 }
 
 export async function listUserBrains(userId: string): Promise<BrainRow[]> {
@@ -216,6 +233,33 @@ export async function computeBrainVersion(userId: string, brainId: string): Prom
   return brainVersionKey([brainId, nodes.length, edges.length, nodeStamp, edgeStamp, refStamp, cfg.token_limit, cfg.per_node_cap])
 }
 
+export async function logBrainUsageEvent(userId: string, brainId: string): Promise<void> {
+  if (!supabaseAdmin) return
+  // Fire-and-forget; a failed log must never break the chat request.
+  const { error } = await supabaseAdmin.from('brain_usage_events').insert({ user_id: userId, brain_id: brainId })
+  if (error) logger.error('brain usage log failed:', error)
+}
+
+export async function getBrainUsageStats(userId: string, brainId: string) {
+  if (!supabaseAdmin) return { requests: 0, activeDays: 0, streak: 0, calendar: [] }
+  if (!(await assertOwnedBrain(userId, brainId))) return { requests: 0, activeDays: 0, streak: 0, calendar: [] }
+  // ~6 months back, matching the calendar window in the panel.
+  const since = new Date(Date.now() - 190 * 24 * 60 * 60 * 1000).toISOString()
+  const { data } = await supabaseAdmin.from('brain_usage_events')
+    .select('created_at').eq('user_id', userId).eq('brain_id', brainId)
+    .gte('created_at', since).order('created_at', { ascending: true })
+  return computeUsageStats((data ?? []) as { created_at: string }[], new Date())
+}
+
+export async function resetBrainUsage(userId: string, brainId: string): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  if (!(await assertOwnedBrain(userId, brainId))) return { error: `Brain '${brainId}' not found.` }
+  const { error } = await supabaseAdmin.from('brain_usage_events')
+    .delete().eq('user_id', userId).eq('brain_id', brainId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function compileBrain(userId: string, brainId: string): Promise<CompiledBrain & { version: string }> {
   const version = await computeBrainVersion(userId, brainId)
   if (!supabaseAdmin) {
@@ -270,7 +314,13 @@ export async function getBrainBlockForSession(
       const { data } = await supabaseAdmin
         .from('brain_compiles').select('compiled')
         .eq('user_id', userId).eq('version', pinned).maybeSingle()
-      if (data) return data.compiled
+      if (data) {
+        if (data.compiled) {
+          // Track that this brain was injected (spec §3.5) — fire-and-forget.
+          void logBrainUsageEvent(userId, brainId)
+        }
+        return data.compiled
+      }
     }
     const result = await compileBrain(userId, brainId)
     await updateSessionState(sessionId, { pinned_brain_version: result.version, active_brain_id: brainId } as any)
@@ -281,6 +331,10 @@ export async function getBrainBlockForSession(
     // after this point, so it would be a no-op mutation. The NEXT request
     // re-fetches sessionState from the DB fresh via getSessionState and
     // picks up the persisted value correctly either way.
+    if (result.compiled) {
+      // Track that this brain was injected (spec §3.5) — fire-and-forget.
+      void logBrainUsageEvent(userId, brainId)
+    }
     return result.compiled
   } catch (e: any) {
     logger.error(`getBrainBlockForSession failed for ${sessionId}: ${e.message}`)
