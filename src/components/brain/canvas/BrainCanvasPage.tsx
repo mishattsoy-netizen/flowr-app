@@ -10,6 +10,8 @@ import { BrainNodeCard, CARD_W, CARD_H, type NodeDisplayInfo } from './BrainNode
 import { BrainCanvasConnections } from './BrainCanvasConnections';
 import { BrainToolbar } from './BrainToolbar';
 import { BrainLeftPanel } from './BrainLeftPanel';
+import { BrainDetailsPanel } from './BrainDetailsPanel';
+import type { DetailsNodeDisplay } from './DetailsMode';
 import { BrainZoomControls } from './BrainZoomControls';
 import { AddExistingEntityPopover } from './AddExistingEntityPopover';
 import { logger } from '@/lib/logger';
@@ -20,7 +22,7 @@ import { blocksToMarkdown } from '@/lib/editor/markdownBlocks';
 import type { EditorBlock } from '@/data/store.types';
 import { isDesktop } from '@/lib/env';
 import { getEntityIcon } from '@/data/icons';
-import { FileText, Folder, Brain, Trash2 } from 'lucide-react';
+import { FileText, Folder, Brain, Trash2, PanelRightOpen } from 'lucide-react';
 
 /** Count direct children of a workspace for footer pills. */
 function workspaceChildPills(
@@ -232,6 +234,17 @@ export function BrainCanvasPage() {
   const openBrainNode = useStore(s => s.openBrainNode);
   const addEntity = useStore(s => s.addEntity);
   const setColumnEntity = useStore(s => s.setColumnEntity);
+  const moveEntity = useStore(s => s.moveEntity);
+  const renameEntity = useStore(s => s.renameEntity);
+  const splitViewRightId = useStore(s => s.splitViewRightId);
+
+  // Details panel: single-click opens panel; editor is mutually exclusive.
+  const [detailsPanel, setDetailsPanel] = useState<{
+    focusedNodeId: string;
+    mode: 'details' | 'connections';
+  } | null>(null);
+  /** After "Open editor", remember which node to restore the panel for. */
+  const [panelResumeNodeId, setPanelResumeNodeId] = useState<string | null>(null);
 
   // When loading a new brain, reset positions
   useEffect(() => {
@@ -270,18 +283,33 @@ export function BrainCanvasPage() {
     return false;
   }, []);
 
-  // Right-click delete menu — a small local menu rather than the app's
-  // global sidebar ContextMenu (that one is entity/sidebar-specific; brain
-  // nodes are a different data model with their own delete path).
+  // Right-click menu — Open in editor + Delete
   const [nodeContextMenu, setNodeContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const handleDeleteNode = useCallback(async (nodeId: string) => {
     setNodeContextMenu(null);
     try {
       await mutate({ action: 'remove_node', node_id: nodeId });
+      setDetailsPanel(prev => (prev?.focusedNodeId === nodeId ? null : prev));
     } catch (e) {
       logger.error('Failed to delete brain node:', e);
     }
   }, [mutate]);
+
+  const openDetailsForNode = useCallback((
+    nodeId: string,
+    mode: 'details' | 'connections' = 'details',
+    opts?: { replaceSelection?: boolean },
+  ) => {
+    setPanelResumeNodeId(null);
+    // Close editor column if open (panel + editor are mutually exclusive)
+    if (useStore.getState().splitViewRightId) {
+      setColumnEntity('right', null);
+    }
+    if (opts?.replaceSelection !== false) {
+      setSelectedNodeIds(new Set([nodeId]));
+    }
+    setDetailsPanel({ focusedNodeId: nodeId, mode });
+  }, [setColumnEntity]);
 
   // Reset positions when data loads (fresh from API)
   useEffect(() => {
@@ -321,6 +349,101 @@ export function BrainCanvasPage() {
       priority: n.priority,
     }));
   }, [activeNodes, nodeInfos]);
+
+  const getDetailsDisplay = useCallback((nodeId: string): DetailsNodeDisplay | null => {
+    const info = nodeInfos.get(nodeId);
+    if (!info) return null;
+    return {
+      title: info.title,
+      preview: info.preview,
+      priority: info.priority,
+      workspaceLabel: info.parentLabel,
+      typeIcon: info.typeIcon,
+    };
+  }, [nodeInfos]);
+
+  const workspaceOptions = useMemo(
+    () => entities.filter(e => e.type === 'workspace').map(e => ({ id: e.id, title: e.title })),
+    [entities],
+  );
+
+  const handlePanelOpenEditor = useCallback((refId: string) => {
+    if (detailsPanel) setPanelResumeNodeId(detailsPanel.focusedNodeId);
+    setDetailsPanel(null);
+    openBrainNode(refId);
+  }, [detailsPanel, openBrainNode]);
+
+  const handleResumePanel = useCallback(() => {
+    if (!panelResumeNodeId) return;
+    setColumnEntity('right', null);
+    setDetailsPanel({ focusedNodeId: panelResumeNodeId, mode: 'details' });
+    setPanelResumeNodeId(null);
+  }, [panelResumeNodeId, setColumnEntity]);
+
+  const handleUpdateTitle = useCallback(async (nodeId: string, title: string) => {
+    const node = state?.nodes.find(n => n.id === nodeId);
+    try {
+      await mutate({ action: 'update_node', node_id: nodeId, updates: { label: title } });
+      if (node?.type === 'entity' && node.ref_id) {
+        renameEntity(node.ref_id, title);
+      }
+    } catch (e) {
+      logger.error('Failed to update node title:', e);
+    }
+  }, [state?.nodes, mutate, renameEntity]);
+
+  const handleUpdatePriority = useCallback(async (nodeId: string, priority: number) => {
+    try {
+      await mutate({ action: 'update_node', node_id: nodeId, updates: { priority } });
+    } catch (e) {
+      logger.error('Failed to update priority:', e);
+    }
+  }, [mutate]);
+
+  const handleMoveToWorkspace = useCallback(async (nodeId: string, workspaceId: string | null) => {
+    const node = state?.nodes.find(n => n.id === nodeId);
+    if (!node?.ref_id || node.type !== 'entity') return;
+    try {
+      moveEntity(node.ref_id, workspaceId);
+    } catch (e) {
+      logger.error('Failed to move entity to workspace:', e);
+    }
+  }, [state?.nodes, moveEntity]);
+
+  const handlePanelConnect = useCallback(async (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    if (hasEdgeBetween(state?.edges ?? [], fromId, toId)) return;
+    const tempId = `temp-${fromId}-${toId}-${Date.now()}`;
+    addLocalEdge({ id: tempId, from_node: fromId, to_node: toId, label: '' });
+    try {
+      await mutate({ action: 'connect', from: fromId, to: toId, label: '' }, { backgroundReload: true });
+    } catch (e) {
+      logger.error('Failed to create edge:', e);
+      removeLocalEdge(tempId);
+    }
+  }, [state?.edges, mutate, addLocalEdge, removeLocalEdge]);
+
+  const handleUpdateEdgeLabel = useCallback(async (edgeId: string, label: string) => {
+    try {
+      await mutate({ action: 'update_edge', edge_id: edgeId, label });
+    } catch (e) {
+      logger.error('Failed to update edge label:', e);
+    }
+  }, [mutate]);
+
+  const handleBreakEdge = useCallback(async (edgeId: string) => {
+    try {
+      await mutate({ action: 'disconnect', edge_id: edgeId });
+    } catch (e) {
+      logger.error('Failed to disconnect edge:', e);
+    }
+  }, [mutate]);
+
+  const handleEdgeClick = useCallback((edgeId: string) => {
+    const edge = state?.edges.find(e => e.id === edgeId);
+    if (!edge) return;
+    openDetailsForNode(edge.from_node, 'connections');
+  }, [state?.edges, openDetailsForNode]);
 
   const nodePositions = useMemo(() => {
     const map: Record<string, { x: number; y: number }> = {};
@@ -423,12 +546,19 @@ export function BrainCanvasPage() {
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
   const [newNodeMode, setNewNodeMode] = useState(false);
-
   // Cursor position in canvas space, tracked only while the connect tool is
   // active. Passed to every card so a card can light up its nearest connector
   // dot as the cursor *approaches* it — including from outside the card, which
   // a card-local onMouseMove can't detect (it only fires over the card).
   const [connectCursor, setConnectCursor] = useState<{ x: number; y: number } | null>(null);
+
+  const handleStartConnectFrom = useCallback((nodeId: string) => {
+    setConnectMode(true);
+    setNewNodeMode(false);
+    setAddExistingOpen(false);
+    setConnectSource(nodeId);
+    setConnectCursor(null);
+  }, []);
   const handleConnectMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -488,8 +618,9 @@ export function BrainCanvasPage() {
       return;
     }
     if (!newNodeMode) {
-      // Plain click on empty canvas clears the multi-selection.
+      // Plain click on empty canvas clears multi-selection and closes details.
       if (selectedNodeIds.size > 0) setSelectedNodeIds(new Set());
+      if (detailsPanel) setDetailsPanel(null);
       return;
     }
     const rect = containerRef.current?.getBoundingClientRect();
@@ -787,6 +918,7 @@ export function BrainCanvasPage() {
           positions={nodePositions}
           heights={heights}
           draggingNodeId={draggingNodeId}
+          onEdgeClick={handleEdgeClick}
           pendingConnect={connectSource ? { sourceNodeId: connectSource, cursor: connectCursor } : null}
         />
 
@@ -830,10 +962,13 @@ export function BrainCanvasPage() {
                   handleNodeConnectClick(node.id);
                   return;
                 }
-                if (handleNodeClick(node.id, e)) return; // shift/ctrl-click toggled selection
-                // Only notes open in the right column — workspaces/folders
-                // have no useful single-note editor view here.
-                if (node.type === 'entity' && node.ref_id) openBrainNode(node.ref_id);
+                if (handleNodeClick(node.id, e)) {
+                  // Multi-select: keep accumulated set, focus last-clicked
+                  openDetailsForNode(node.id, 'details', { replaceSelection: false });
+                  return;
+                }
+                // Single-click → details panel (no longer opens editor)
+                openDetailsForNode(node.id, 'details', { replaceSelection: true });
               }}
               onContextMenu={connectMode ? undefined : (e) => {
                 setNodeContextMenu({ nodeId: node.id, x: e.clientX, y: e.clientY });
@@ -843,23 +978,93 @@ export function BrainCanvasPage() {
         })}
       </div>
 
-      {/* Right-click node menu — delete only, for now. */}
+      {/* Right-click node menu */}
       {nodeContextMenu && (
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setNodeContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setNodeContextMenu(null); }} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]"
             style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
           >
-            <button
-              onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
-              className="popup-item popup-item-danger w-full flex items-center gap-2 px-3 py-[4px] text-sm"
-            >
-              <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left font-medium tracking-wide">Delete</span>
-            </button>
+            {(() => {
+              const n = state.nodes.find(x => x.id === nodeContextMenu.nodeId);
+              const canOpen = n?.type === 'entity' && !!n.ref_id;
+              return (
+                <>
+                  {canOpen && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const refId = n!.ref_id!;
+                        setNodeContextMenu(null);
+                        setPanelResumeNodeId(nodeContextMenu.nodeId);
+                        setDetailsPanel(null);
+                        openBrainNode(refId);
+                      }}
+                      className="popup-item w-full flex items-center gap-2 px-3 py-[4px] text-sm"
+                    >
+                      <FileText strokeWidth={2} className="w-4 h-4 shrink-0" />
+                      <span className="flex-1 text-left font-medium tracking-wide">Open in editor</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
+                    className="popup-item popup-item-danger w-full flex items-center gap-2 px-3 py-[4px] text-sm"
+                  >
+                    <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
+                    <span className="flex-1 text-left font-medium tracking-wide">Delete</span>
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </>
+      )}
+
+      {/* ── Right: details panel (mutually exclusive with editor column) ── */}
+      {detailsPanel && !splitViewRightId && (
+        <div className="absolute top-4 right-4 z-20">
+          <BrainDetailsPanel
+            mode={detailsPanel.mode}
+            focusedNodeId={detailsPanel.focusedNodeId}
+            selectedNodeIds={Array.from(selectedNodeIds)}
+            nodes={state.nodes}
+            edges={state.edges}
+            perNodeTokens={state.perNodeTokens ?? {}}
+            perNodeCap={state.perNodeCap ?? 2000}
+            getDisplay={getDetailsDisplay}
+            workspaceOptions={workspaceOptions}
+            onClose={() => setDetailsPanel(null)}
+            onFocusNode={(id) => setDetailsPanel(prev => prev ? { ...prev, focusedNodeId: id } : prev)}
+            onOpenEditor={handlePanelOpenEditor}
+            onSetMode={(m) => setDetailsPanel(prev => prev ? { ...prev, mode: m } : prev)}
+            onStartConnectFrom={handleStartConnectFrom}
+            onConnect={handlePanelConnect}
+            onUpdateEdgeLabel={handleUpdateEdgeLabel}
+            onBreakEdge={handleBreakEdge}
+            onUpdateTitle={handleUpdateTitle}
+            onUpdatePriority={handleUpdatePriority}
+            onMoveToWorkspace={handleMoveToWorkspace}
+          />
+        </div>
+      )}
+
+      {/* Resume details after editor open */}
+      {panelResumeNodeId && splitViewRightId && !detailsPanel && (
+        <button
+          type="button"
+          onClick={handleResumePanel}
+          title="Back to details"
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 right-0 z-20",
+            "h-12 w-8 rounded-l-[10px] bg-[var(--app-panel)] border border-r-0 border-[var(--bone-12)]",
+            "flex items-center justify-center text-[var(--bone-50)] hover:text-[var(--bone-100)]",
+            "shadow-[-4px_0_16px_rgba(0,0,0,0.2)]"
+          )}
+        >
+          <PanelRightOpen className="w-4 h-4" strokeWidth={2} />
+        </button>
       )}
 
       {/* ── Toolbar ── */}

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isSupabaseEnabled, supabaseUrl, supabaseAnonKey } from '@/lib/supabase'
 import {
   listBrain, addBrainNode, updateBrainNode, removeBrainNodes,
-  restoreBrainNode, addBrainEdge, removeBrainEdge, compileBrain,
+  restoreBrainNode, addBrainEdge, removeBrainEdge, updateBrainEdge, compileBrain,
   listUserBrains, createBrain, updateBrainMeta, deleteBrain,
   getOrCreateDefaultBrain, switchActiveBrain, fetchBrainRows,
   setDefaultBrain, getBrainUsageStats, resetBrainUsage,
@@ -79,6 +79,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(await addBrainEdge(userId, 'user', body.brain_id, body.from, body.to, body.label))
       case 'disconnect':
         return NextResponse.json(await removeBrainEdge(userId, 'user', body.brain_id, body.edge_id))
+      case 'update_edge':
+        return NextResponse.json(await updateBrainEdge(userId, 'user', body.brain_id, body.edge_id, body.label ?? ''))
       case 'recompile': {
         const compiled = await compileBrain(userId, body.brain_id)
         return NextResponse.json({ success: true, tokenCount: compiled.tokenCount, version: compiled.version })

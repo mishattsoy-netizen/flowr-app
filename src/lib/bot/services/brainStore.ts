@@ -523,6 +523,20 @@ export async function removeBrainEdge(userId: string, actor: 'user' | 'bot', bra
   return { success: true }
 }
 
+export async function updateBrainEdge(
+  userId: string, actor: 'user' | 'bot', brainId: string, edgeId: string, label: string
+): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  const { data, error } = await supabaseAdmin.from('brain_edges')
+    .update({ label: label?.trim() ?? '' })
+    .eq('id', edgeId).eq('user_id', userId).eq('brain_id', brainId).is('deleted_at', null)
+    .select('id')
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: `Brain edge '${edgeId}' not found.` }
+  await logRevision(userId, actor, 'update_edge', { id: edgeId, brain_id: brainId, label })
+  return { success: true }
+}
+
 export async function listBrain(userId: string, brainId: string) {
   const { nodes, edges } = await fetchBrainRows(userId, brainId)
   const compiled = await compileBrain(userId, brainId)

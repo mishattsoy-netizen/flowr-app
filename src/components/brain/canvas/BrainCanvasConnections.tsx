@@ -17,6 +17,8 @@ interface BrainCanvasConnectionsProps {
    *  transition so the line tracks the cursor with no lag. */
   draggingNodeId?: string | null;
   onLabelClick?: (edgeId: string) => void;
+  /** Click anywhere on the edge path (wide invisible hit stroke). */
+  onEdgeClick?: (edgeId: string) => void;
   /** While the connect tool has a picked source node, draw a live line from
    *  that node to the cursor (canvas space) until a second node is clicked. */
   pendingConnect?: { sourceNodeId: string; cursor: { x: number; y: number } | null } | null;
@@ -28,6 +30,7 @@ export function BrainCanvasConnections({
   positions,
   heights,
   draggingNodeId,
+  onEdgeClick,
   pendingConnect,
 }: BrainCanvasConnectionsProps) {
   const paths = useMemo(() => {
@@ -159,6 +162,19 @@ export function BrainCanvasConnections({
                 />
               </linearGradient>
             </defs>
+            {/* Wide invisible hit target — svg is pointer-events-none; child overrides */}
+            <path
+              d={p.d}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={16}
+              strokeLinejoin="round"
+              style={{ pointerEvents: 'stroke', cursor: onEdgeClick ? 'pointer' : undefined }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdgeClick?.(p.id);
+              }}
+            />
             <path
               d={p.d}
               fill="none"
@@ -166,6 +182,7 @@ export function BrainCanvasConnections({
               strokeWidth={2}
               strokeLinejoin="round"
               className={pathMoveClass(p)}
+              style={{ pointerEvents: 'none' }}
             />
             <path
               d={p.d}
@@ -175,6 +192,7 @@ export function BrainCanvasConnections({
               strokeLinejoin="round"
               strokeLinecap="round"
               className={pathMoveClass(p)}
+              style={{ pointerEvents: 'none' }}
             />
             <path
               d={p.d}
@@ -184,12 +202,17 @@ export function BrainCanvasConnections({
               strokeLinejoin="round"
               strokeLinecap="round"
               className={pathMoveClass(p)}
+              style={{ pointerEvents: 'none' }}
             />
             {p.label && (
               <text
                 x={p.mid.x} y={p.mid.y}
                 textAnchor="middle" dominantBaseline="middle"
-                className="pointer-events-auto fill-[var(--bone-70)] text-[10px]"
+                className="pointer-events-auto fill-[var(--bone-70)] text-[10px] cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdgeClick?.(p.id);
+                }}
               >
                 {p.label}
               </text>
