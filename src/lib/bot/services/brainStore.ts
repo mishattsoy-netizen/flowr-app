@@ -236,8 +236,12 @@ export async function computeBrainVersion(userId: string, brainId: string): Prom
 export async function logBrainUsageEvent(userId: string, brainId: string): Promise<void> {
   if (!supabaseAdmin) return
   // Fire-and-forget; a failed log must never break the chat request.
-  const { error } = await supabaseAdmin.from('brain_usage_events').insert({ user_id: userId, brain_id: brainId })
-  if (error) logger.error('brain usage log failed:', error)
+  try {
+    const { error } = await supabaseAdmin.from('brain_usage_events').insert({ user_id: userId, brain_id: brainId })
+    if (error) logger.error('brain usage log failed:', error)
+  } catch (e) {
+    logger.error('brain usage log failed:', e)
+  }
 }
 
 export async function getBrainUsageStats(userId: string, brainId: string) {
