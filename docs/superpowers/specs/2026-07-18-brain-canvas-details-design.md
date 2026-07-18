@@ -271,7 +271,15 @@ Goal: user says "I'm in Japan next week until the 20th" → bot produces a **Mem
 - This is a deliberate, scoped exception to §4.7's "no `manage_brain` bot-behavior change" for the lifecycle params on `add_node` — it's the whole point of the feature and is additive (optional params, existing calls unaffected).
 - User can still edit every one of these fields afterward in the details panel (Type + lifecycle), same as a manually-created node.
 
-### 4C.5 Part C non-goals
+### 4C.5 Local-only notes are excluded from the brain
+
+**Verified architecture** (grounded, not assumed): the entire bot/brain pipeline is **server-only**. `/api/ai/chat` and `/api/ai/user-brain` are Next.js server routes; every tool handler and the brain compile read/write through `supabaseAdmin` (the server Supabase client). Local-only entities are, by design, **never uploaded to the server** (`sync.ts:240` — "Web must never see local-only rows — they're a desktop-exclusive concept"). Therefore:
+
+- **A local-only note is invisible to the AI on every platform** — not a desktop-vs-web split. Even from the desktop app, an AI request hits the server, which cannot see local-only data. The brain compile (`resolveNodes`, `brainStore.ts`) reads entities from `supabaseAdmin.from('entities')`; a local-only `ref_id` isn't there. And `addBrainNode` (`brainStore.ts:318`) calls `assertOwnedEntity`, a server lookup — so a local-only note **cannot be added as a brain node today** (it fails with "Entity not found"). Local-only = private-from-the-cloud-AI is an inherent property, noted here, not a new feature to build.
+- **Chosen behavior: exclude local-only notes from the add-node picker entirely.** Rather than surface an error or a "broken" node after the fact, the user should never see a local-only note as an addable candidate — no false affordance, no thought that it *could* be a node. Implementation: `AddExistingEntityPopover.tsx`'s `candidates` filter chain (lines 27-31, sourced from the client `useStore(s => s.entities)`) gains one link: `.filter(e => e.syncMode !== 'local-only')`. This is the correct layer because the fix must live client-side — the client store holds `syncMode`; the server can't (it never receives local-only rows).
+- **Pre-existing "broken" state is unchanged.** If a note that's already a brain node later becomes local-only, its `ref_id` stops resolving and it renders as **broken** exactly as any unresolvable ref does today (`useBrainData.ts:47` `broken` set). Part C does not add a distinct "local-only" render state for this rare after-the-fact case — the web client genuinely cannot distinguish local-only from deleted/foreign (both are just unresolvable refs server-side), so a special label would be desktop-only and inconsistent. Left as broken, consistent with today.
+
+### 4C.6 Part C non-goals
 
 - No recurring / repeating temporary windows — one `[active_from, active_until]` interval per node.
 - No auto-deletion of dead nodes ever — they persist on the canvas until the user explicitly deletes them.
@@ -289,6 +297,7 @@ Goal: user says "I'm in Japan next week until the 20th" → bot produces a **Mem
 | Memory (brain-only) node type | new column `entities.brain_only` (default false). **Cross-cutting**: threaded through the local sync layer + every client view filter (see §4C.2 blast-radius checklist). Type field toggles it; Memory delete adds a new entity-delete path (not wired today), permanent + confirmed | migration, `loadFromSQLite.ts`/`sync.ts`/`canvasSync.ts`, `Dashboard.tsx`/`FolderView.tsx`/sidebar, `list_content`, details panel, new delete path |
 | Temporary lifecycle | new columns `brain_nodes.active_from`, `brain_nodes.active_until`; read-time expiry drop in compile; dimmed dead-node render. Full new-column chain incl. `CompileNode` + builder | migration, `brainTypes.ts`, node SELECT, `UPDATABLE_NODE_FIELDS`, `CompileNode` builder, `brainCompiler.ts`, canvas render |
 | Bot creates Memory + temporary notes | two-tool flow (§4C.4): optional `brain_only` on `create_content` (entity) + optional `active_from`/`active_until` on `add_node` (brain_node) | `tools/definitions.ts`, `tools/handlers.ts` |
+| Exclude local-only notes from add-node picker | one client-side filter link (`syncMode !== 'local-only'`); no schema change | `AddExistingEntityPopover.tsx` |
 | `per_node_cap` exposed to client | new field on `listBrain`/`BrainCanvasState` | `brainStore.ts`, `useBrainData.ts` |
 | Edge relabel in place | new backend fn `updateBrainEdge` + API action `update_edge` | `brainStore.ts`, `route.ts` |
 | Clickable connection lines | new hit-stroke `<path>`, no schema change | `BrainCanvasConnections.tsx` |
