@@ -2,7 +2,7 @@
 
 import { useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { CalendarClock, Timer, TimerOff } from 'lucide-react';
+import { Brain as BrainIcon, CalendarClock } from 'lucide-react';
 import { CONNECTOR_DOT_R, connectorPoint, type ConnectorSide } from './connectorGeometry';
 
 export const CARD_W = 280;
@@ -132,19 +132,6 @@ export function BrainNodeCard({
   const isMemory = !!display.isMemory;
   const isDead = !!(display.lifecycleInactive && display.activeUntil
     && Date.parse(display.activeUntil) < Date.now());
-  const isScheduled = !!(display.lifecycleInactive && display.activeFrom
-    && Date.parse(display.activeFrom) > Date.now());
-  const isTemporaryActive = !!(display.activeUntil && !display.lifecycleInactive);
-  // Countdown on the Temp chip: how long this node stays in the brain.
-  const remainingLabel = useMemo(() => {
-    if (!isTemporaryActive || !display.activeUntil) return null;
-    const ms = Date.parse(display.activeUntil) - Date.now();
-    if (ms <= 0) return null;
-    const days = Math.floor(ms / 86400000);
-    if (days >= 1) return `${days}d left`;
-    const hours = Math.max(1, Math.floor(ms / 3600000));
-    return `${hours}h left`;
-  }, [isTemporaryActive, display.activeUntil]);
 
   useLayoutEffect(() => {
     const el = cardRef.current;
@@ -192,9 +179,7 @@ export function BrainNodeCard({
             ? "border border-[var(--brand-blue)] hover:bg-[var(--app-dark)]"
             : tagColor
               ? "border hover:bg-[var(--app-dark)]"
-              : isMemory
-                ? "border border-dashed border-[#A78BFA]/45 hover:bg-[var(--app-dark)]"
-                : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
+              : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
         display.lifecycleInactive && "opacity-50 grayscale",
       )}
       style={{
@@ -240,45 +225,29 @@ export function BrainNodeCard({
               <span>{display.ageLabel}</span>
             </div>
 
-            <div className="flex items-center gap-2 min-w-0">
-              <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 min-w-0 flex-1">
-                {display.title || 'Untitled'}
-              </h3>
-              {/* Lifecycle chip: a real pill (icon + countdown), not bare text. */}
-              {isTemporaryActive && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[9px] font-semibold uppercase tracking-wide shrink-0 bg-amber-400/15 text-amber-300 border border-amber-400/30">
-                  <Timer className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  {remainingLabel ?? 'Temp'}
-                </span>
-              )}
-              {isScheduled && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[9px] font-semibold uppercase tracking-wide shrink-0 bg-[var(--bone-6)] text-[var(--bone-60)] border border-[var(--bone-12)]">
-                  <CalendarClock className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  Soon
-                </span>
-              )}
-              {isDead && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[9px] font-semibold uppercase tracking-wide shrink-0 bg-[var(--bone-6)] text-[var(--bone-35)] border border-[var(--bone-10)]">
-                  <TimerOff className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  Expired
-                </span>
-              )}
-            </div>
+            {/* Lifecycle state reads from the footer date pill — no chips
+                crowding the title. */}
+            <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 min-w-0">
+              {display.title || 'Untitled'}
+            </h3>
           </div>
 
-          {/* Text area: flex-fill between title and footer. Collapses to zero
-              when there's no preview text, so the card shrinks to just
-              header+title+footer instead of leaving dead space. */}
+          {/* The wrapper height must be an exact multiple of the line height,
+              not flex-driven — a flex-1 box clips the text at an arbitrary
+              height, slicing the last row through the middle of the glyphs. */}
           {display.preview && (
-            <div className="relative flex-1 min-h-0 px-4">
+            <div
+              className="relative shrink-0 px-4 mt-1.5 overflow-hidden"
+              style={{ height: '72px' }}
+            >
               <p
-                className="text-[11px] text-[var(--bone-70)] break-words line-clamp-4 mt-1.5 overflow-hidden"
-                style={{ lineHeight: '18px', maxHeight: '72px' }}
+                className="text-[11px] text-[var(--bone-70)] break-words"
+                style={{ lineHeight: '18px' }}
               >
                 {display.preview}
               </p>
               <div className={cn(
-                "absolute inset-x-0 bottom-0 h-6 pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
+                "absolute inset-x-0 bottom-0 h-[18px] pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
                 darkSelectFill ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
               )} />
             </div>
@@ -286,61 +255,88 @@ export function BrainNodeCard({
         </>
       )}
 
-      {/* Footer: priority + tag + workspace child counts + tokens, with the
-          per-node usage bar pinned along the very bottom edge. */}
+      {/* Footer: pill row (same vocabulary as the kanban TaskCard —
+          bone-10 chips, rounded-[6px], 10px medium), then the usage bar on
+          its own line beneath, inside the card's padding. */}
       <div className={cn(
-        "relative shrink-0 flex flex-wrap items-center gap-1.5 w-full px-4 pt-2.5 pb-3.5 rounded-b-xl transition-colors duration-200",
+        "relative shrink-0 w-full px-4 pt-2.5 pb-3 rounded-b-xl transition-colors duration-200",
         darkSelectFill ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
       )}>
-        {/* Usage bar: this node's share of the per-node cap, flush with the
-            card's bottom edge. Typical nodes sit near 1-2% of the cap, so the
-            track needs real contrast and the fill a minimum width — otherwise
-            it renders as a few invisible pixels. */}
+        <div className="flex flex-wrap items-center gap-1.5 w-full">
+          <span className={cn(
+            "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
+            priorityLabel === 'high' ? "bg-red-500/15 text-red-400" :
+              priorityLabel === 'medium' ? "bg-amber-500/15 text-amber-400" :
+                "bg-blue-500/15 text-blue-400"
+          )}>
+            {priorityLabel}
+          </span>
+          {/* Type pill — Memory reads as a labelled chip, not a border style. */}
+          {isMemory && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[#A78BFA]/15 text-[#C4B5FD]">
+              <BrainIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
+              Memory
+            </span>
+          )}
+          {/* Custom tag pill, in the tag's own colour. */}
+          {display.tagName && tagColor && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[110px]"
+              style={{ backgroundColor: `${tagColor}26`, color: tagColor }}
+              title={display.tagName}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
+              <span className="truncate">{display.tagName}</span>
+            </span>
+          )}
+          {/* Workspace pill, matching TaskCard's workspace chip. */}
+          {display.parentLabel && !isWorkspace && (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[90px] bg-[var(--bone-10)] text-[var(--bone-70)]"
+              title={display.parentLabel}
+            >
+              <span className="truncate">{display.parentLabel}</span>
+            </span>
+          )}
+          {/* Lifecycle end date, TaskCard's due-date treatment. */}
+          {display.activeUntil && (
+            <span className={cn(
+              "inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0",
+              isDead ? "bg-[var(--bone-10)] text-[var(--bone-35)]" : "bg-amber-400/15 text-amber-300"
+            )}>
+              <CalendarClock className="w-2.5 h-2.5" strokeWidth={2.5} />
+              {new Date(display.activeUntil).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </span>
+          )}
+          {display.childPills?.map(pill => (
+            <span
+              key={pill.label}
+              className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[var(--bone-10)] text-[var(--bone-70)]"
+            >
+              {pill.count} {pill.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Usage bar — same visual as the details-panel header (percentage +
+            track), on its own row inside the card's padding. */}
         {display.usageFraction != null && (
-          <div className="absolute left-0 right-0 bottom-0 h-[4px] bg-[var(--bone-10)] rounded-b-xl overflow-hidden">
-            <div
-              className={cn(
-                "h-full transition-[width] duration-300",
-                display.usageFraction >= 1 ? "bg-red-400/80" : "bg-[var(--bone-35)]"
-              )}
-              style={{ width: `${Math.min(100, Math.max(2, display.usageFraction * 100))}%` }}
-            />
+          <div className="flex items-center gap-2 w-full mt-2.5">
+            <span className="text-[10px] font-semibold tabular-nums text-[var(--bone-60)] shrink-0">
+              {display.usageFraction >= 0.01
+                ? Math.round(display.usageFraction * 100)
+                : Math.max(0.1, Math.round(display.usageFraction * 1000) / 10)}%
+            </span>
+            <div className="flex-1 h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width] duration-300",
+                  display.usageFraction >= 1 ? "bg-red-400" : "bg-[#2A78D6]"
+                )}
+                style={{ width: `${Math.min(100, Math.max(1.5, display.usageFraction * 100))}%` }}
+              />
+            </div>
           </div>
-        )}
-        <span className={cn(
-          "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
-          priorityLabel === 'high' ? "bg-red-500/15 text-red-400" :
-            priorityLabel === 'medium' ? "bg-amber-500/15 text-amber-400" :
-              "bg-blue-500/15 text-blue-400"
-        )}>
-          {priorityLabel}
-        </span>
-        {/* Custom tag pill, in the tag's own colour. */}
-        {display.tagName && tagColor && (
-          <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[110px] truncate"
-            style={{ backgroundColor: `${tagColor}26`, color: tagColor }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
-            {display.tagName}
-          </span>
-        )}
-        {display.childPills?.map(pill => (
-          <span
-            key={pill.label}
-            className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]"
-          >
-            {pill.count} {pill.label}
-          </span>
-        ))}
-        {/* Usage as a percentage of this node's cap — the raw "tok" count was
-            the technical stand-in this bar replaces. */}
-        {display.usageFraction != null && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium tabular-nums shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]">
-            {display.usageFraction >= 0.01
-              ? Math.round(display.usageFraction * 100)
-              : Math.max(1, Math.round(display.usageFraction * 1000) / 10)}%
-          </span>
         )}
       </div>
     </div>

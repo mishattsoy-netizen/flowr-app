@@ -107,9 +107,13 @@ export function useBrainData() {
   // allowed to write state.
   const requestIdRef = useRef(0);
 
-  const load = useCallback(async (brainId?: string | null) => {
+  const load = useCallback(async (brainId?: string | null, opts?: { silent?: boolean }) => {
     const reqId = ++requestIdRef.current;
-    setLoading(true);
+    // A silent reload must NOT flip the global loading flag: the page swaps the
+    // whole canvas for a progress bar while it's true, which would blow away
+    // the optimistic update we just applied and make every edit feel like a
+    // multi-second round trip.
+    if (!opts?.silent) setLoading(true);
     try {
       const qs = brainId ? `?brain_id=${brainId}` : '';
       const res = await fetch(`/api/ai/user-brain${qs}`, { headers: await authHeaders() });
@@ -140,7 +144,7 @@ export function useBrainData() {
       setError(e?.message || 'Failed to load brain data');
       logger.error('useBrainData load failed:', e);
     } finally {
-      if (reqId === requestIdRef.current) setLoading(false);
+      if (reqId === requestIdRef.current && !opts?.silent) setLoading(false);
     }
   }, []);
 
@@ -203,7 +207,9 @@ export function useBrainData() {
       // may have already applied the real result locally (e.g. addLocalEdge)
       // for instant feedback.
       if (opts?.backgroundReload) {
-        load(brainId);
+        // Silent: reconcile server truth without swapping the canvas for the
+        // full-screen loader (which would discard the optimistic update).
+        load(brainId, { silent: true });
       } else {
         await load(brainId);
       }
@@ -212,7 +218,7 @@ export function useBrainData() {
       logger.error('useBrainData mutate failed:', e);
       throw e;
     } finally {
-      setLoading(false);
+      if (!opts?.backgroundReload) setLoading(false);
     }
   }, [selectedBrainId, load]);
 
