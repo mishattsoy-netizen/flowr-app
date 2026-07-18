@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { buildEdgePath, connectorPoint, closestSides, type NodeBox } from './connectorGeometry';
 import { CARD_W, CARD_H } from './BrainNodeCard';
 import type { BrainCanvasNode, BrainCanvasEdge } from './useBrainData';
@@ -19,9 +20,34 @@ interface BrainCanvasConnectionsProps {
   onLabelClick?: (edgeId: string) => void;
   /** Click anywhere on the edge path (wide invisible hit stroke). */
   onEdgeClick?: (edgeId: string) => void;
+  /** Selected canvas node ids — edges touching these use brand-blue stroke/shimmer. */
+  selectedNodeIds?: ReadonlySet<string> | string[];
+  /** When set (edge click), only this edge is blue; endpoints still use selectedNodeIds for borders. */
+  selectedEdgeId?: string | null;
   /** While the connect tool has a picked source node, draw a live line from
    *  that node to the cursor (canvas space) until a second node is clicked. */
   pendingConnect?: { sourceNodeId: string; cursor: { x: number; y: number } | null } | null;
+}
+
+const SHIMMER_PERIOD = 64;
+const SHIMMER_DUR = '3.2s';
+
+/** Bone (idle) and brand-blue (selected) shimmer — same stops/opacities, different hue. */
+function shimmerStops(selected: boolean) {
+  const c = selected ? 'var(--brand-blue)' : 'var(--bone-30)';
+  const mid = selected ? 'var(--brand-blue)' : 'var(--bone-70)';
+  const peak = selected ? 'var(--brand-blue)' : 'var(--bone-90)';
+  return (
+    <>
+      <stop offset="0" stopColor={c} stopOpacity="0.12" />
+      <stop offset="0.22" stopColor={c} stopOpacity="0.15" />
+      <stop offset="0.38" stopColor={mid} stopOpacity="0.75" />
+      <stop offset="0.5" stopColor={peak} stopOpacity="1" />
+      <stop offset="0.62" stopColor={mid} stopOpacity="0.75" />
+      <stop offset="0.78" stopColor={c} stopOpacity="0.15" />
+      <stop offset="1" stopColor={c} stopOpacity="0.12" />
+    </>
+  );
 }
 
 export function BrainCanvasConnections({
@@ -31,8 +57,15 @@ export function BrainCanvasConnections({
   heights,
   draggingNodeId,
   onEdgeClick,
+  selectedNodeIds,
+  selectedEdgeId,
   pendingConnect,
 }: BrainCanvasConnectionsProps) {
+  const selectedSet = useMemo(() => {
+    if (!selectedNodeIds) return null;
+    return selectedNodeIds instanceof Set ? selectedNodeIds : new Set(selectedNodeIds);
+  }, [selectedNodeIds]);
+
   const paths = useMemo(() => {
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
     return edges.map(edge => {
@@ -57,9 +90,13 @@ export function BrainCanvasConnections({
       // CARD_H fallback. Skip the CSS transition for that one correction so
       // it snaps instead of visibly sliding every time the canvas opens.
       const heightsKnown = edge.from_node in heights && edge.to_node in heights;
-      return { id: edge.id, d, label: edge.label, mid, a, b, isDragging, heightsKnown };
+      // Edge click: only that edge is blue. Node select: all edges on selected nodes.
+      const highlighted = selectedEdgeId
+        ? edge.id === selectedEdgeId
+        : !!(selectedSet && (selectedSet.has(edge.from_node) || selectedSet.has(edge.to_node)));
+      return { id: edge.id, d, label: edge.label, mid, a, b, isDragging, heightsKnown, highlighted };
     }).filter(Boolean);
-  }, [nodes, edges, positions, heights, draggingNodeId]);
+  }, [nodes, edges, positions, heights, draggingNodeId, selectedSet, selectedEdgeId]);
 
   // Live line from the connect tool's picked source node to the cursor,
   // while a second node hasn't been clicked yet. Uses the same elbow-routing
@@ -98,20 +135,8 @@ export function BrainCanvasConnections({
 
   // Paths under cards. H + V shimmers share period/stops/duration, but each
   // edge animates along a→b so bands travel with the connection (not always
-  // +X/+Y, which made some edges look reversed).
-  const SHIMMER_PERIOD = 64;
-  const SHIMMER_DUR = '3.2s';
-  const shimmerStops = (
-    <>
-      <stop offset="0" stopColor="var(--bone-30)" stopOpacity="0.12" />
-      <stop offset="0.22" stopColor="var(--bone-30)" stopOpacity="0.15" />
-      <stop offset="0.38" stopColor="var(--bone-70)" stopOpacity="0.75" />
-      <stop offset="0.5" stopColor="var(--bone-90)" stopOpacity="1" />
-      <stop offset="0.62" stopColor="var(--bone-70)" stopOpacity="0.75" />
-      <stop offset="0.78" stopColor="var(--bone-30)" stopOpacity="0.15" />
-      <stop offset="1" stopColor="var(--bone-30)" stopOpacity="0.12" />
-    </>
-  );
+  // +X/+Y, which made some edges look reversed). Selected endpoints → brand-blue
+  // base + shimmer (same opacities as bone idle).
 
   return (
     <svg
@@ -126,6 +151,10 @@ export function BrainCanvasConnections({
         const vy = (dy === 0 ? 1 : Math.sign(dy)) * SHIMMER_PERIOD;
         const gradH = `brain-edge-shimmer-h-${p.id}`;
         const gradV = `brain-edge-shimmer-v-${p.id}`;
+        const baseStroke = p.highlighted ? 'var(--brand-blue)' : 'var(--bone-30)';
+        // Match idle bone-30 base opacity on blue so the line doesn't jump brightness.
+        const baseOpacity = p.highlighted ? 0.45 : 1;
+        const stops = shimmerStops(p.highlighted);
         return (
           <g key={p.id}>
             <defs>
@@ -135,7 +164,7 @@ export function BrainCanvasConnections({
                 x1="0" y1="0" x2="0" y2={SHIMMER_PERIOD}
                 spreadMethod="repeat"
               >
-                {shimmerStops}
+                {stops}
                 <animateTransform
                   attributeName="gradientTransform"
                   type="translate"
@@ -151,7 +180,7 @@ export function BrainCanvasConnections({
                 x1="0" y1="0" x2={SHIMMER_PERIOD} y2="0"
                 spreadMethod="repeat"
               >
-                {shimmerStops}
+                {stops}
                 <animateTransform
                   attributeName="gradientTransform"
                   type="translate"
@@ -178,7 +207,8 @@ export function BrainCanvasConnections({
             <path
               d={p.d}
               fill="none"
-              stroke="var(--bone-30)"
+              stroke={baseStroke}
+              strokeOpacity={baseOpacity}
               strokeWidth={2}
               strokeLinejoin="round"
               className={pathMoveClass(p)}
@@ -208,7 +238,10 @@ export function BrainCanvasConnections({
               <text
                 x={p.mid.x} y={p.mid.y}
                 textAnchor="middle" dominantBaseline="middle"
-                className="pointer-events-auto fill-[var(--bone-70)] text-[10px] cursor-pointer"
+                className={cn(
+                  "pointer-events-auto text-[10px] cursor-pointer",
+                  p.highlighted ? "fill-[var(--brand-blue)]" : "fill-[var(--bone-70)]"
+                )}
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdgeClick?.(p.id);

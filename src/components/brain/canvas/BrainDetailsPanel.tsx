@@ -115,18 +115,23 @@ function SelectedNodeCard({
             {display.title}
           </span>
         </button>
-        {/* Linked cards always show the attached icon exactly where the detach
-            button appears on reveal; unlinked cards show a chevron on hover. */}
-        {isLinked ? (
-          <span className="text-[var(--bone-60)]">
-            <Link2 className="w-4 h-4" strokeWidth={2} />
-          </span>
-        ) : (
-          <span className="text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
-            <ChevronRight className="w-4 h-4" strokeWidth={2} />
-          </span>
-        )}
       </div>
+      {/* Right icon slot: FIXED in place (does not shrink with the cover).
+          Linked: the attached icon sits exactly where the red detach icon
+          appears — zone hover hides it as the reveal swaps them in place.
+          Unlinked: chevron on hover, also hidden during reveal. */}
+      <span
+        className={cn(
+          "absolute right-[14px] top-1/2 -translate-y-1/2 z-[15] pointer-events-none transition-opacity duration-100",
+          isLinked
+            ? "text-[var(--bone-60)] peer-hover/zone:opacity-0"
+            : "text-[var(--bone-30)] opacity-0 group-hover:opacity-100 peer-hover/zone:opacity-0"
+        )}
+      >
+        {isLinked
+          ? <Link2 className="w-4 h-4" strokeWidth={2} />
+          : <ChevronRight className="w-4 h-4" strokeWidth={2} />}
+      </span>
     </div>
   );
 }

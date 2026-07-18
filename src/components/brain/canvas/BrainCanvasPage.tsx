@@ -272,10 +272,13 @@ export function BrainCanvasPage() {
   // box — the dragged card's own delta is applied to every other selected
   // card's own starting position, captured at drag start).
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  /** When set, only this edge is force-blue (edge click); endpoints also selected for borders. */
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const groupDragOriginRef = useRef<Record<string, { x: number; y: number }> | null>(null);
 
   const handleNodeClick = useCallback((nodeId: string, e: React.MouseEvent) => {
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      setSelectedEdgeId(null);
       setSelectedNodeIds(prev => {
         const next = new Set(prev);
         if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
@@ -304,6 +307,7 @@ export function BrainCanvasPage() {
     opts?: { replaceSelection?: boolean },
   ) => {
     setPanelResumeNodeId(null);
+    setSelectedEdgeId(null);
     // Close editor column if open (panel + editor are mutually exclusive)
     if (useStore.getState().splitViewRightId) {
       setColumnEntity('right', null);
@@ -445,12 +449,13 @@ export function BrainCanvasPage() {
   const handleEdgeClick = useCallback((edgeId: string) => {
     const edge = state?.edges.find(e => e.id === edgeId);
     if (!edge) return;
-    // Edge click → pair view: just the two endpoints, no node selection.
+    // Edge click → that edge blue + both endpoints blue-border (no dark fill).
     setPanelResumeNodeId(null);
     if (useStore.getState().splitViewRightId) {
       setColumnEntity('right', null);
     }
-    setSelectedNodeIds(new Set());
+    setSelectedNodeIds(new Set([edge.from_node, edge.to_node]));
+    setSelectedEdgeId(edgeId);
     setDetailsPanel({ focusedNodeId: edge.from_node, mode: 'connections', edgeId });
   }, [state?.edges, setColumnEntity]);
 
@@ -464,13 +469,16 @@ export function BrainCanvasPage() {
 
   // Which sides already have an edge — same box + closestSides as line geometry
   // so card dots mark the ports the paths actually use.
-  const connectedSidesByNode = useMemo(() => {
+  // Also: sides on the far end of edges that touch a selected node (blue dots
+  // on the unselected neighbor).
+  const { connectedSidesByNode, highlightedSidesByNode } = useMemo(() => {
     const map: Record<string, ConnectorSide[]> = {};
-    const add = (nodeId: string, side: ConnectorSide) => {
-      const list = map[nodeId] ?? (map[nodeId] = []);
+    const hi: Record<string, ConnectorSide[]> = {};
+    const add = (target: Record<string, ConnectorSide[]>, nodeId: string, side: ConnectorSide) => {
+      const list = target[nodeId] ?? (target[nodeId] = []);
       if (!list.includes(side)) list.push(side);
     };
-    if (!state) return map;
+    if (!state) return { connectedSidesByNode: map, highlightedSidesByNode: hi };
     for (const edge of state.edges) {
       const fromPos = nodePositions[edge.from_node];
       const toPos = nodePositions[edge.to_node];
@@ -484,11 +492,20 @@ export function BrainCanvasPage() {
         height: heights[edge.to_node] ?? CARD_H,
       };
       const [fromSide, toSide] = closestSides(fromBox, toBox);
-      add(edge.from_node, fromSide);
-      add(edge.to_node, toSide);
+      add(map, edge.from_node, fromSide);
+      add(map, edge.to_node, toSide);
+      const edgeSelected = selectedEdgeId
+        ? edge.id === selectedEdgeId
+        : (selectedNodeIds.has(edge.from_node) || selectedNodeIds.has(edge.to_node));
+      if (edgeSelected) {
+        // Far-end (and near-end) ports on a blue edge light up, even if the
+        // neighbor itself is not in the selection.
+        add(hi, edge.from_node, fromSide);
+        add(hi, edge.to_node, toSide);
+      }
     }
-    return map;
-  }, [state, nodePositions, heights]);
+    return { connectedSidesByNode: map, highlightedSidesByNode: hi };
+  }, [state, nodePositions, heights, selectedNodeIds, selectedEdgeId]);
 
   // Update position for a single node during drag — if it's part of a
   // multi-selection, fan the same delta out to every other selected node.
@@ -629,6 +646,7 @@ export function BrainCanvasPage() {
     if (!newNodeMode) {
       // Plain click on empty canvas clears multi-selection and closes details.
       if (selectedNodeIds.size > 0) setSelectedNodeIds(new Set());
+      if (selectedEdgeId) setSelectedEdgeId(null);
       if (detailsPanel) setDetailsPanel(null);
       return;
     }
@@ -663,7 +681,7 @@ export function BrainCanvasPage() {
     } catch (e) {
       logger.error('Failed to add brain node:', e);
     }
-  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds]);
+  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel]);
 
   // Ref ids already on this brain — block duplicate cards of the same entity.
   const brainRefIds = useMemo(
@@ -928,6 +946,8 @@ export function BrainCanvasPage() {
           heights={heights}
           draggingNodeId={draggingNodeId}
           onEdgeClick={handleEdgeClick}
+          selectedNodeIds={selectedNodeIds}
+          selectedEdgeId={selectedEdgeId}
           pendingConnect={connectSource ? { sourceNodeId: connectSource, cursor: connectCursor } : null}
         />
 
@@ -946,10 +966,12 @@ export function BrainCanvasPage() {
               onHeightChange={handleHeightChange}
               connectCursor={connectMode ? connectCursor : null}
               connectedSides={connectedSidesByNode[node.id]}
+              highlightedConnectedSides={highlightedSidesByNode[node.id]}
               dragging={draggingNodeId === node.id}
               connectMode={connectMode}
               connectSelected={connectSource === node.id}
-              multiSelected={selectedNodeIds.has(node.id)}
+              multiSelected={selectedNodeIds.has(node.id) && !selectedEdgeId}
+              edgeHighlight={!!selectedEdgeId && selectedNodeIds.has(node.id)}
               cursorClassName={
                 spaceHeld || isPanning
                   ? undefined // parent forces grab via [&_*]
@@ -981,6 +1003,7 @@ export function BrainCanvasPage() {
                 if (detailsPanel?.focusedNodeId === node.id) {
                   setDetailsPanel(null);
                   setSelectedNodeIds(new Set());
+                  setSelectedEdgeId(null);
                   return;
                 }
                 // Single-click → details panel (no longer opens editor)

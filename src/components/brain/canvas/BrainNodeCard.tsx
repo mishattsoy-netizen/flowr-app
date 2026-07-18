@@ -37,6 +37,11 @@ interface BrainNodeCardProps {
   connectSelected?: boolean;
   /** True while this card is part of a multi-select group. */
   multiSelected?: boolean;
+  /**
+   * Edge-click highlight: blue border + blue connection dots, but keep normal
+   * card/footer bg (no app-dark fill). Regular multiSelected still uses dark fill.
+   */
+  edgeHighlight?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
   onClick?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -51,11 +56,15 @@ interface BrainNodeCardProps {
   connectCursor?: { x: number; y: number } | null;
   /** Sides that already have an edge (same side pick as line geometry). */
   connectedSides?: ConnectorSide[];
+  /** Sides whose edge is highlighted (e.g. far end of a selected node's blue edge). */
+  highlightedConnectedSides?: ConnectorSide[];
   /** Override card cursor (e.g. connect tool / space-pan from parent). */
   cursorClassName?: string;
 }
 
+/** Endpoint discs that already have an edge (idle). Selected → brand blue. */
 const CONNECTED_DOT_FILL = '#B5B5B0';
+const CONNECTED_DOT_SELECTED = 'var(--brand-blue)';
 
 const SIDES: ConnectorSide[] = ['top', 'right', 'bottom', 'left'];
 
@@ -71,16 +80,22 @@ export function BrainNodeCard({
   connectMode,
   connectSelected,
   multiSelected,
+  edgeHighlight,
   onPointerDown,
   onClick,
   onContextMenu,
   onHeightChange,
   connectCursor,
   connectedSides = [],
+  highlightedConnectedSides = [],
   cursorClassName,
 }: BrainNodeCardProps) {
   const priorityLabel = display.priority <= 1 ? 'high' : display.priority <= 2 ? 'medium' : 'low';
   const connectedSet = useMemo(() => new Set(connectedSides), [connectedSides]);
+  const highlightedSideSet = useMemo(
+    () => new Set(highlightedConnectedSides),
+    [highlightedConnectedSides],
+  );
   // Connect tool: all 4 dots fade in together on card hover.
   const [connectHover, setConnectHover] = useState(false);
   useLayoutEffect(() => {
@@ -95,9 +110,10 @@ export function BrainNodeCard({
   // (1px ↔ 2px) so side midpoints stay on the true edge center.
   const [cardHeight, setCardHeight] = useState(CARD_H);
   const cardRef = useRef<HTMLDivElement>(null);
-  // 2px ring only for multi/select highlight — connect-source stays 1px like idle.
-  const thickBorder = !!(multiSelected || selected);
-  const highlighted = !!(connectSelected || thickBorder);
+  // Full select (dark fill + blue border) vs edge-only (blue border, keep card bg).
+  const selectedBorder = !!(multiSelected || selected || edgeHighlight);
+  const darkSelectFill = !!(connectSelected || ((multiSelected || selected) && !edgeHighlight));
+  const highlighted = !!(connectSelected || selectedBorder);
 
   const isWorkspace = display.variant === 'workspace';
 
@@ -138,11 +154,12 @@ export function BrainNodeCard({
           : connectMode
             ? "cursor-pointer"
             : "cursor-grab active:cursor-grabbing",
-        // Connect-source: 1px blue (same weight as idle). Multi/select: 2px blue.
-        connectSelected
+        // Regular select / connect-source: dark fill + blue border.
+        // Edge highlight: blue border only at rest; full-card hover dark (same as idle).
+        darkSelectFill
           ? "bg-[var(--app-dark)] border border-[var(--brand-blue)]"
-          : thickBorder
-            ? "bg-[var(--app-dark)] border-2 border-[var(--brand-blue)]"
+          : selectedBorder
+            ? "border border-[var(--brand-blue)] hover:bg-[var(--app-dark)]"
             : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]"
       )}
       style={{
@@ -200,7 +217,7 @@ export function BrainNodeCard({
               </p>
               <div className={cn(
                 "absolute inset-x-0 bottom-0 h-6 pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
-                (connectSelected || multiSelected || selected) ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
+                darkSelectFill ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
               )} />
             </div>
           )}
@@ -210,7 +227,7 @@ export function BrainNodeCard({
       {/* Footer: priority + workspace child counts + tokens */}
       <div className={cn(
         "relative shrink-0 flex flex-wrap items-center gap-1.5 w-full px-4 py-2.5 rounded-b-xl transition-colors duration-200",
-        (connectSelected || multiSelected || selected) ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
+        darkSelectFill ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
       )}>
         <span className={cn(
           "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
@@ -239,7 +256,7 @@ export function BrainNodeCard({
       {/* Endpoint discs: all 4 blue dots fade in together on card hover
           while the connect tool is active (not staggered per-dot proximity). */}
       {SIDES.map(side => {
-        const borderW = thickBorder ? 2 : 1;
+        const borderW = 1;
         const local = connectorPoint(
           { x: 0, y: 0, width: CARD_W, height: cardHeight },
           side,
@@ -279,7 +296,19 @@ export function BrainNodeCard({
             {connected && (
               <div
                 className="absolute rounded-full pointer-events-none"
-                style={{ ...disc, backgroundColor: CONNECTED_DOT_FILL }}
+                style={{
+                  ...disc,
+                  // Edge select: only the port(s) on that edge turn blue.
+                  // Node select: all connected ports on the selected node, plus
+                  // the far-end port on neighbors (highlightedConnectedSides).
+                  backgroundColor: (
+                    edgeHighlight
+                      ? highlightedSideSet.has(side)
+                      : (selectedBorder || highlightedSideSet.has(side))
+                  )
+                    ? CONNECTED_DOT_SELECTED
+                    : CONNECTED_DOT_FILL,
+                }}
               />
             )}
             <div
