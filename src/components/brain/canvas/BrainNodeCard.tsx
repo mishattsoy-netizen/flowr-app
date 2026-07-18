@@ -180,7 +180,10 @@ export function BrainNodeCard({
             : tagColor
               ? "border hover:bg-[var(--app-dark)]"
               : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
-        display.lifecycleInactive && "opacity-50 grayscale",
+        // Dim only once the node is ACTUALLY dead (past active_until) — a
+        // scheduled node awaiting its start date, or an active temporary node
+        // whose end date hasn't arrived, render normally (incl. its usage bar).
+        isDead && "opacity-50 grayscale",
       )}
       style={{
         transform: 'translateZ(0)',  // GPU layer
@@ -214,14 +217,21 @@ export function BrainNodeCard({
           {/* Header + title: fixed at top, padded */}
           <div className="shrink-0 pt-3.5 px-4">
             <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 [&>svg]:w-3.5 [&>svg]:h-3.5 flex items-center justify-center">
-                  {display.typeIcon}
+              {isMemory ? (
+                // Memory notes aren't filed anywhere — the Memory pill IS the
+                // identity line, replacing the type/workspace label entirely.
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[9px] font-semibold uppercase tracking-wide bg-[#A78BFA]/15 text-[#C4B5FD]">
+                  <BrainIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
+                  Memory
                 </span>
-                <span>{display.typeLabel || 'Note'}</span>
-                <span>·</span>
-                <span className="truncate max-w-[85px]">{display.parentLabel || 'Unsorted'}</span>
-              </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 [&>svg]:w-3.5 [&>svg]:h-3.5 flex items-center justify-center">
+                    {display.typeIcon}
+                  </span>
+                  <span>{display.typeLabel || 'Note'}</span>
+                </div>
+              )}
               <span>{display.ageLabel}</span>
             </div>
 

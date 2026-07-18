@@ -47,7 +47,7 @@ function workspaceChildPills(
 /** Derive display info for a brain node from brain state + entity store. */
 function computeDisplayInfo(
   node: BrainCanvasNode,
-  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number; content?: EditorBlock[]; icon?: string }>,
+  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number; content?: EditorBlock[]; icon?: string; brainOnly?: boolean }>,
   perNodeTokens: Record<string, number>,
 ): NodeDisplayInfo {
   if (node.type === 'section') {
@@ -85,6 +85,10 @@ function computeDisplayInfo(
     };
   }
 
+  // A "memory" is either the retired brain_node type, or a regular note whose
+  // entity has been flagged brain_only (§4C.2) — both read as Memory, not Note.
+  const isMemory = node.type === 'memory' || (!!entity && entity.type === 'note' && entity.brainOnly === true);
+
   const typeIcons: Record<string, React.ReactNode> = {
     note: <FileText strokeWidth={2} />,
     workspace: <Folder strokeWidth={2} />,
@@ -98,8 +102,8 @@ function computeDisplayInfo(
   };
 
   return {
-    typeIcon: entity ? (typeIcons[entity.type] ?? <FileText strokeWidth={2} />) : <Brain strokeWidth={2} />,
-    typeLabel: entity ? typeLabels[entity.type] : 'Memory',
+    typeIcon: isMemory ? <Brain strokeWidth={2} /> : (entity ? (typeIcons[entity.type] ?? <FileText strokeWidth={2} />) : <Brain strokeWidth={2} />),
+    typeLabel: isMemory ? 'Memory' : (entity ? typeLabels[entity.type] : 'Memory'),
     parentLabel: parentEntity?.title || (entity?.type === 'workspace' ? 'Workspace' : 'Unsorted'),
     ageLabel: entity?.lastModified ? formatAge(new Date(entity.lastModified).toISOString()) : formatAge(node.created_at),
     title: node.label || entity?.title || node.content?.slice(0, 60) || 'Untitled',
