@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  ChevronRight,
   Droplet,
   FileText,
   Flag,
@@ -25,7 +24,6 @@ export interface DetailsNodeDisplay {
 
 export interface DetailsModeProps {
   focusedNodeId: string;
-  selectedNodeIds: string[];
   nodes: BrainCanvasNode[];
   edges: BrainCanvasEdge[];
   perNodeTokens: Record<string, number>;
@@ -33,10 +31,8 @@ export interface DetailsModeProps {
   getDisplay: (nodeId: string) => DetailsNodeDisplay | null;
   workspaceOptions: { id: string; title: string }[];
   onClose: () => void;
-  onFocusNode: (id: string) => void;
   onOpenEditor: (refId: string) => void;
   onSetMode: (m: 'details' | 'connections') => void;
-  onConnect: (fromId: string, toId: string) => void;
   onUpdateTitle: (nodeId: string, title: string) => void;
   onUpdatePriority: (nodeId: string, priority: number) => void;
   onMoveToWorkspace: (nodeId: string, workspaceId: string | null) => void;
@@ -50,7 +46,6 @@ function priorityMeta(p: number): { label: string; className: string } {
 
 export function DetailsMode({
   focusedNodeId,
-  selectedNodeIds,
   nodes,
   edges,
   perNodeTokens,
@@ -58,10 +53,8 @@ export function DetailsMode({
   getDisplay,
   workspaceOptions,
   onClose,
-  onFocusNode,
   onOpenEditor,
   onSetMode,
-  onConnect,
   onUpdateTitle,
   onUpdatePriority,
   onMoveToWorkspace,
@@ -76,22 +69,6 @@ export function DetailsMode({
     () => edges.filter(e => e.from_node === focusedNodeId || e.to_node === focusedNodeId).length,
     [edges, focusedNodeId],
   );
-
-  const connectedIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const e of edges) {
-      if (e.from_node === focusedNodeId) set.add(e.to_node);
-      if (e.to_node === focusedNodeId) set.add(e.from_node);
-    }
-    return set;
-  }, [edges, focusedNodeId]);
-
-  const otherSelected = useMemo(() => {
-    const others = selectedNodeIds.filter(id => id !== focusedNodeId);
-    const connected = others.filter(id => connectedIds.has(id));
-    const unconnected = others.filter(id => !connectedIds.has(id));
-    return [...connected, ...unconnected];
-  }, [selectedNodeIds, focusedNodeId, connectedIds]);
 
   const [titleDraft, setTitleDraft] = useState(display?.title ?? '');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -119,7 +96,7 @@ export function DetailsMode({
 
   if (!node || !display) {
     return (
-      <div className="p-4 text-[13px] text-[var(--bone-40)]">
+      <div className="p-4 text-[13px] text-[var(--bone-35)]">
         Node not found
         <button type="button" onClick={onClose} className="ml-2 text-[var(--bone-70)] underline">
           Close
@@ -151,7 +128,7 @@ export function DetailsMode({
         </div>
         <button
           type="button"
-          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
+          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-35)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
           title="More"
           aria-label="More"
         >
@@ -160,7 +137,7 @@ export function DetailsMode({
         <button
           type="button"
           onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
+          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-35)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
           title="Close"
           aria-label="Close"
         >
@@ -198,18 +175,18 @@ export function DetailsMode({
 
       {/* Preview */}
       {display.preview && (
-        <p className="px-3.5 pb-3 text-[13px] leading-[1.45] text-[var(--bone-40)] line-clamp-5 whitespace-pre-wrap">
+        <p className="px-3.5 pb-3 text-[13px] leading-[1.45] text-[var(--bone-35)] line-clamp-5 whitespace-pre-wrap">
           {display.preview}
         </p>
       )}
 
-      <div className="mx-3.5 h-px bg-[var(--bone-8)]" />
+      <div className="mx-3.5 h-px bg-[var(--bone-10)]" />
 
       {/* Field rows */}
       <div className="flex flex-col gap-0 px-3.5 py-2">
         {/* Priority */}
         <div className="flex items-center gap-2.5 h-9">
-          <Flag className="w-3.5 h-3.5 text-[var(--bone-40)] shrink-0" strokeWidth={2} />
+          <Flag className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
           <span className="flex-1 text-[13px] text-[var(--bone-70)]">Priority</span>
           <Popover>
             <PopoverTrigger asChild>
@@ -255,14 +232,14 @@ export function DetailsMode({
 
         {/* Color — visual stub until Part C tag color */}
         <div className="flex items-center gap-2.5 h-9">
-          <Droplet className="w-3.5 h-3.5 text-[var(--bone-40)] shrink-0" strokeWidth={2} />
+          <Droplet className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
           <span className="flex-1 text-[13px] text-[var(--bone-70)]">Color</span>
           <span className="w-4 h-4 rounded-full bg-[var(--bone-15)] border border-[var(--bone-12)]" />
         </div>
 
         {/* Workspace */}
         <div className="flex items-center gap-2.5 h-9">
-          <Folder className="w-3.5 h-3.5 text-[var(--bone-40)] shrink-0" strokeWidth={2} />
+          <Folder className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
           <span className="flex-1 text-[13px] text-[var(--bone-70)]">Workspace</span>
           <Popover>
             <PopoverTrigger asChild>
@@ -323,62 +300,10 @@ export function DetailsMode({
           )}
         >
           Open editor
-          <FileText className="w-3.5 h-3.5 text-[var(--bone-50)]" strokeWidth={2} />
+          <FileText className="w-3.5 h-3.5 text-[var(--bone-60)]" strokeWidth={2} />
         </button>
       </div>
 
-      {/* Other selected rows */}
-      {otherSelected.length > 0 && (
-        <div className="flex flex-col gap-1.5 px-3.5 pb-3.5 border-t border-[var(--bone-8)] pt-3">
-          {otherSelected.map(id => {
-            const d = getDisplay(id);
-            if (!d) return null;
-            const isLinked = connectedIds.has(id);
-            return (
-              <div
-                key={id}
-                className="group relative flex items-center h-10 rounded-[12px] bg-[var(--bone-6)] overflow-hidden"
-              >
-                <button
-                  type="button"
-                  onClick={() => onFocusNode(id)}
-                  className="flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
-                >
-                  <span className="w-4 h-4 shrink-0 text-[var(--bone-50)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
-                    {d.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
-                  </span>
-                  <span className="font-serif text-[15px] text-[var(--bone-90)] truncate">
-                    {d.title}
-                  </span>
-                </button>
-                {isLinked ? (
-                  <span className="pr-3 text-[var(--bone-30)]">
-                    <Link2 className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                ) : (
-                  <>
-                    <span className="pr-3 text-[var(--bone-30)] group-hover:opacity-0 transition-opacity">
-                      <ChevronRight className="w-4 h-4" strokeWidth={2} />
-                    </span>
-                    <button
-                      type="button"
-                      title="Connect"
-                      onClick={() => onConnect(focusedNodeId, id)}
-                      className={cn(
-                        "absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center",
-                        "bg-[var(--brand-blue)] text-white border-none outline-none",
-                        "opacity-0 group-hover:opacity-100 transition-opacity rounded-r-[12px]"
-                      )}
-                    >
-                      <Link2 className="w-4 h-4" strokeWidth={2} />
-                    </button>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
