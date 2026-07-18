@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NotionDateTimePicker } from '@/components/ui/notion-datetime-picker';
+import { usageBarFillClass } from '@/lib/usageBarColor';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
 
 export interface DetailsNodeDisplay {
@@ -56,13 +57,214 @@ export interface DetailsModeProps {
   onEditWorkspaceDescription?: (nodeId: string) => void;
 }
 
-// Identical palette to the tasks color picker (TaskContextMenu's COLORS).
+// Same palette as TaskInspectorPanel / TaskContextMenu COLORS.
 const TAG_SWATCHES = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#06B6D4'];
 
 function priorityMeta(p: number): { label: string; className: string } {
   if (p <= 1) return { label: 'High', className: 'bg-red-500/15 text-red-400' };
   if (p <= 2) return { label: 'Medium', className: 'bg-amber-500/15 text-amber-400' };
   return { label: 'Low', className: 'bg-[var(--bone-10)] text-[var(--bone-60)]' };
+}
+
+/**
+ * Exact copy of the tasks color picker popup body
+ * (TaskInspectorPanel title-dot picker / TaskContextMenu colorTag submenu).
+ */
+function TagColorGrid({ color, onPick }: { color: string | null; onPick: (c: string | null) => void }) {
+  return (
+    <div className="popup-glass-small p-2 flex flex-col gap-2 min-w-[160px] shadow-2xl">
+      <button
+        type="button"
+        onClick={() => onPick(null)}
+        className={cn(
+          "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-[13px] font-medium cursor-pointer transition-none",
+          !color
+            ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
+            : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+        )}
+      >
+        <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
+        <span>None</span>
+        {!color && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
+      </button>
+      <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
+        {TAG_SWATCHES.slice(0, 4).map(c => (
+          <button
+            key={c}
+            type="button"
+            title={c}
+            onClick={() => onPick(color === c ? null : c)}
+            className={cn(
+              "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+              color === c
+                ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
+                : "opacity-50 hover:opacity-100"
+            )}
+            style={{ backgroundColor: c }}
+          >
+            {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-4 gap-2 px-1 pb-0 place-items-center">
+        {TAG_SWATCHES.slice(4, 8).map(c => (
+          <button
+            key={c}
+            type="button"
+            title={c}
+            onClick={() => onPick(color === c ? null : c)}
+            className={cn(
+              "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+              color === c
+                ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
+                : "opacity-50 hover:opacity-100"
+            )}
+            style={{ backgroundColor: c }}
+          >
+            {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Custom tag field: a name input (also filters the known-tags list below it)
+ *  + a color dot that opens the task-style swatch grid in its own nested
+ *  popover. Every change — typing, or picking a color/existing tag — saves
+ *  immediately, debounced for the text field so it doesn't fire per keystroke. */
+function TagField({
+  node,
+  knownTags,
+  onUpdateTag,
+  focusedNodeId,
+}: {
+  node: BrainCanvasNode;
+  knownTags: BrainTagOption[];
+  onUpdateTag?: (nodeId: string, tag: { tag_color: string | null; tag_name: string | null }) => void;
+  focusedNodeId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(node.tag_name ?? '');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reopening on a different node, or an external update (e.g. picking a
+  // known tag from the list), resets the draft to the real value.
+  useEffect(() => {
+    setNameDraft(node.tag_name ?? '');
+  }, [focusedNodeId, node.tag_name]);
+
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+
+  const scheduleSave = useCallback((name: string, color: string | null) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      onUpdateTag?.(focusedNodeId, { tag_color: color, tag_name: name.trim() || null });
+    }, 400);
+  }, [focusedNodeId, onUpdateTag]);
+
+  const pickColor = (c: string | null) => {
+    setColorOpen(false);
+    // A color pick fires immediately — only the text field is debounced.
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    onUpdateTag?.(focusedNodeId, { tag_color: c, tag_name: nameDraft.trim() || null });
+  };
+
+  const pickKnownTag = (t: BrainTagOption) => {
+    setOpen(false);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setNameDraft(t.tag_name ?? '');
+    onUpdateTag?.(focusedNodeId, { tag_color: t.tag_color, tag_name: t.tag_name });
+  };
+
+  const query = nameDraft.trim().toLowerCase();
+  const filteredTags = query
+    ? knownTags.filter(t => (t.tag_name ?? '').toLowerCase().includes(query))
+    : knownTags;
+
+  return (
+    <div className="flex items-center gap-2.5 h-9">
+      <Tag className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+      <span className="flex-1 text-[13px] text-[var(--bone-70)]">Custom tag</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none max-w-[140px]"
+          >
+            {node.tag_color ? (
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.tag_color }} />
+            ) : (
+              <Droplet className="w-3 h-3 text-[var(--bone-40)]" strokeWidth={2} />
+            )}
+            <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="popup-glass-small !w-auto min-w-[200px] p-2 z-[320]" align="end">
+          <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
+
+          {/* Name field (search-as-you-type over the list below) + color dot,
+              which opens the task-style swatch grid in a nested popover. */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <input
+              type="text"
+              autoFocus
+              placeholder="Name or search…"
+              value={nameDraft}
+              onChange={e => {
+                const v = e.target.value;
+                setNameDraft(v);
+                scheduleSave(v, node.tag_color ?? null);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+              className="flex-1 min-w-0 bg-[var(--bone-6)] rounded-md px-2 py-1.5 text-[12px] text-[var(--bone-100)] border-none outline-none"
+            />
+            <Popover open={colorOpen} onOpenChange={setColorOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  title="Color"
+                  className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-[var(--bone-12)]"
+                  style={node.tag_color ? { backgroundColor: node.tag_color } : undefined}
+                >
+                  {!node.tag_color && <CircleDashed className="w-3.5 h-3.5 text-[var(--bone-40)]" />}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[170px] p-0 bg-transparent border-none shadow-none z-[330]"
+                align="end"
+                sideOffset={6}
+              >
+                <TagColorGrid color={node.tag_color ?? null} onPick={pickColor} />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Existing tags in this brain, filtered by the name field above —
+              max 4 rows visible, the rest scroll. */}
+          {filteredTags.length > 0 && (
+            // Exactly 4 rows: 4 * h-8 (32px) + 3 gaps (0.5 = 2px) = 134px.
+            <div className="flex flex-col gap-0.5 max-h-[134px] overflow-y-auto">
+              {filteredTags.map(t => (
+                <button
+                  key={`${t.tag_color}|${t.tag_name ?? ''}`}
+                  type="button"
+                  onClick={() => pickKnownTag(t)}
+                  className="w-full shrink-0 h-8 flex items-center gap-2 px-2 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] border-none outline-none"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.tag_color }} />
+                  <span className="truncate">{t.tag_name || 'Unnamed'}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 export function DetailsMode({
@@ -152,7 +354,10 @@ export function DetailsMode({
           </span>
           <div className="flex-1 h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
             <div
-              className="h-full rounded-full bg-[#2A78D6] transition-all duration-300"
+              className={cn(
+                "h-full rounded-full transition-all duration-300",
+                usageBarFillClass(pct),
+              )}
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -305,112 +510,12 @@ export function DetailsMode({
 
         {/* Custom tag */}
         {(isEntity || isWorkspace) && (
-          <div className="flex items-center gap-2.5 h-9">
-            <Tag className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
-            <span className="flex-1 text-[13px] text-[var(--bone-70)]">Custom tag</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none max-w-[140px]"
-                >
-                  {node.tag_color ? (
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.tag_color }} />
-                  ) : (
-                    <Droplet className="w-3 h-3 text-[var(--bone-40)]" strokeWidth={2} />
-                  )}
-                  <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
-                </button>
-              </PopoverTrigger>
-              {/* PopoverContent's base class hardcodes w-72 — override it
-                  explicitly, min-w alone doesn't win against that. */}
-              <PopoverContent className="popup-glass-small !w-auto min-w-[160px] p-2 z-[320]" align="end">
-                <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
-                {/* Same "Clear/None" row + swatch grid as the tasks color picker
-                    (TaskContextMenu): CircleDashed icon, ring-scale on the
-                    selected swatch, checkmark inside it. */}
-                <button
-                  type="button"
-                  onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: null, tag_name: null })}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-[13px] font-medium cursor-pointer mb-1",
-                    !node.tag_color
-                      ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
-                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
-                  )}
-                >
-                  <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
-                  <span>None</span>
-                  {!node.tag_color && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
-                </button>
-                <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
-                  {TAG_SWATCHES.slice(0, 4).map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      title={c}
-                      onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: node.tag_color === c ? null : c, tag_name: node.tag_color === c ? null : (node.tag_name ?? null) })}
-                      className={cn(
-                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
-                        node.tag_color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
-                      )}
-                      style={{ backgroundColor: c }}
-                    >
-                      {node.tag_color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-4 gap-2 px-1 pb-2 place-items-center">
-                  {TAG_SWATCHES.slice(4, 8).map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      title={c}
-                      onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: node.tag_color === c ? null : c, tag_name: node.tag_color === c ? null : (node.tag_name ?? null) })}
-                      className={cn(
-                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
-                        node.tag_color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
-                      )}
-                      style={{ backgroundColor: c }}
-                    >
-                      {node.tag_color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
-                    </button>
-                  ))}
-                </div>
-                {knownTags.length > 0 && (
-                  <div className="flex flex-col gap-0.5 max-h-32 overflow-y-auto">
-                    {knownTags.map(t => (
-                      <button
-                        key={`${t.tag_color}|${t.tag_name ?? ''}`}
-                        type="button"
-                        onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: t.tag_color, tag_name: t.tag_name })}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] border-none outline-none"
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.tag_color }} />
-                        <span className="truncate">{t.tag_name || 'Unnamed'}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <input
-                  type="text"
-                  placeholder="Tag name…"
-                  defaultValue={node.tag_name ?? ''}
-                  onBlur={e => {
-                    const name = e.target.value.trim() || null;
-                    onUpdateTag?.(focusedNodeId, {
-                      tag_color: node.tag_color ?? TAG_SWATCHES[0],
-                      tag_name: name,
-                    });
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                  }}
-                  className="mt-2 w-full bg-[var(--bone-6)] rounded-md px-2 py-1.5 text-[12px] text-[var(--bone-100)] border-none outline-none"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+          <TagField
+            node={node}
+            knownTags={knownTags}
+            onUpdateTag={onUpdateTag}
+            focusedNodeId={focusedNodeId}
+          />
         )}
 
         {/* Lifecycle */}
@@ -423,15 +528,31 @@ export function DetailsMode({
             <div className="w-[150px]">
               <NotionDateTimePicker
                 startDate={node.active_from ?? undefined}
-                setStartDate={(d) => onUpdateLifecycle?.(focusedNodeId, {
-                  active_from: d ?? null,
-                  active_until: node.active_until ?? null,
-                })}
+                setStartDate={(d) => {
+                  // Picker clear (X) calls setStartDate(undefined) then
+                  // setEndDate(undefined). Using stale node.active_* on the
+                  // second call re-applied the date — clear both when either
+                  // side is cleared so the X is instant.
+                  if (d === undefined) {
+                    onUpdateLifecycle?.(focusedNodeId, { active_from: null, active_until: null });
+                    return;
+                  }
+                  onUpdateLifecycle?.(focusedNodeId, {
+                    active_from: d,
+                    active_until: node.active_until ?? null,
+                  });
+                }}
                 endDate={node.active_until ?? undefined}
-                setEndDate={(d) => onUpdateLifecycle?.(focusedNodeId, {
-                  active_from: node.active_from ?? null,
-                  active_until: d ?? null,
-                })}
+                setEndDate={(d) => {
+                  if (d === undefined) {
+                    onUpdateLifecycle?.(focusedNodeId, { active_from: null, active_until: null });
+                    return;
+                  }
+                  onUpdateLifecycle?.(focusedNodeId, {
+                    active_from: node.active_from ?? null,
+                    active_until: d,
+                  });
+                }}
                 includeTime={false}
                 setIncludeTime={() => {}}
                 reminder={undefined}
