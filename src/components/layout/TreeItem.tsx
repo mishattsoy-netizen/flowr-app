@@ -939,7 +939,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
 
       const state = useStore.getState();
 
-      if (state.splitViewActive && !state.splitViewRightId) {
+      if (state.splitViewActive && !state.splitViewRightId && entity.type !== 'workspace' && entity.type !== 'folder') {
         state.setColumnEntity('right', entity.id);
       } else {
         if (!state.openTabIds.includes(entity.id)) {
@@ -1091,73 +1091,73 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
                 ? "opacity-70"
                 : "opacity-70 group-hover:opacity-100"
           )}>
-          {(!disableNesting && isCollapsible) ? getIcon(entity.type) : getIcon(entity.type)}
-        </div>
+            {(!disableNesting && isCollapsible) ? getIcon(entity.type) : getIcon(entity.type)}
+          </div>
 
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            value={tempTitle}
-            onChange={(e) => setTempTitle(e.target.value)}
-            onBlur={handleRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleRename();
-              }
-              if (e.key === 'Escape') setEditingEntityId(null);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="ml-[6px] flex-1 min-w-0 bg-transparent outline-none text-[var(--bone-100)] border-none p-0 text-[14px] leading-snug truncate w-full"
-          />
-        ) : (
-          <span className={cn(
-            "ml-[6px] flex-1 text-left truncate leading-snug",
-            isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]"
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleRename();
+                }
+                if (e.key === 'Escape') setEditingEntityId(null);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-[6px] flex-1 min-w-0 bg-transparent outline-none text-[var(--bone-100)] border-none p-0 text-[14px] leading-snug truncate w-full translate-y-[0.7px]"
+            />
+          ) : (
+            <span className={cn(
+              "ml-[6px] flex-1 text-left truncate leading-snug translate-y-[0.7px]",
+              isActive ? "text-[var(--bone-100)]" : "text-[var(--bone-70)] group-hover:text-[var(--bone-100)]"
+            )}>
+              {stripHtml(entity.title)}
+            </span>
+          )}
+
+          <div className={cn(
+            "sidebar-actions flex items-center gap-[1px] shrink-0",
+            contextMenu?.entityId === entity.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}>
-            {stripHtml(entity.title)}
-          </span>
-        )}
-
-        <div className={cn(
-          "sidebar-actions flex items-center gap-[1px] shrink-0",
-          contextMenu?.entityId === entity.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        )}>
-          {(entity.type === 'workspace' || entity.type === 'folder') && (
+            {(entity.type === 'workspace' || entity.type === 'folder') && (
+              <button
+                onClick={handlePlusClick}
+                className={cn(
+                  "btn-sidebar-utility",
+                  plusPopupPos && isActive && "!bg-[var(--app-dark)] !text-[var(--bone-100)] !opacity-100"
+                )}
+              >
+                <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
-              onClick={handlePlusClick}
+              onClick={handleOptionsClick}
               className={cn(
                 "btn-sidebar-utility",
-                plusPopupPos && isActive && "!bg-[var(--app-dark)] !text-[var(--bone-100)] !opacity-100"
+                contextMenu?.entityId === entity.id && "!bg-[var(--app-dark)] !text-[var(--bone-100)] !opacity-100"
               )}
             >
-              <Plus strokeWidth={2} className="w-3.5 h-3.5" />
+              <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
             </button>
-          )}
-          <button
-            onClick={handleOptionsClick}
-            className={cn(
-              "btn-sidebar-utility",
-              contextMenu?.entityId === entity.id && "!bg-[var(--app-dark)] !text-[var(--bone-100)] !opacity-100"
-            )}
-          >
-            <MoreHorizontal strokeWidth={2} className="w-3.5 h-3.5" />
-          </button>
-        </div>
+          </div>
 
-        {isOver && closestEdge && !isAfterFolderDrop && (
-          <div
-            className={cn(
-              "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
-              closestEdge === 'top' ? '-top-[2px]' : '-bottom-[2px]'
-            )}
-            style={{
-              left: `${8 + dropDepth * 18}px`,
-              right: '3px'
-            }}
-          />
-        )}
-      </div>
+          {isOver && closestEdge && !isAfterFolderDrop && (
+            <div
+              className={cn(
+                "absolute h-px bg-[var(--bone-30)] pointer-events-none z-10",
+                closestEdge === 'top' ? '-top-[2px]' : '-bottom-[2px]'
+              )}
+              style={{
+                left: `${8 + dropDepth * 18}px`,
+                right: '3px'
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Overlay-clone only: dragging a pinned item outside the pinned section
@@ -1208,7 +1208,7 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
       {isFolder && children.length > 0 && !!isExpanded && !isLastChildExpandedFolderWithChildren && (
         <AfterFolderSpacer folderId={entity.id} depth={depth} spaceId={entity.spaceId} />
       )}
-      {plusPopupPos && (
+      {plusPopupPos && createPortal(
         <>
           <div className="fixed inset-0 z-[299]" onClick={(e) => { e.stopPropagation(); setPlusPopupPos(null); }} />
           <div
@@ -1242,7 +1242,8 @@ export const TreeItem = React.memo(function TreeItem({ entity, depth, idOverride
               </button>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
       {preview &&
         createPortal(

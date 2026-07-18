@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       origin === 'https://www.flowr.website' || 
       origin === 'https://flowr.website' || 
       origin.startsWith('http://localhost:') || 
+      origin.startsWith('http://127.0.0.1:') || 
       origin.startsWith('app://');
     
     if (!isAllowed) {
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
     supabaseClient = supabase;
   }
 
-  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeBrainId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext, clientTime } = await req.json()
+  const { prompt, buffer, images, aiApiKey, activeEntityId, activeChatId, activeBrainId, activeSpaceId, classificationModelId, mode, intentTag, replyContext, thinkingEnabled, advisorEnabled, pendingAdvisorState, isTempChat, clientHistory, pageContext, clientTime, responseStyle, replyLanguage } = await req.json()
   const activeMode = (mode === 'pro') ? mode : 'default'
 
   if (!prompt && !buffer) {
@@ -207,6 +208,8 @@ export async function POST(req: NextRequest) {
             clientHistory: clientHistory ?? [],
             pageContext: pageContext ?? null,
             clientTime,
+            responseStyle,
+            replyLanguage,
             onStatus: (step: any) => {
               if (step.status === 'running') {
                 send({ status: step.label || step.goal })

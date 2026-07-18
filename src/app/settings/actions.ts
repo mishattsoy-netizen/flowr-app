@@ -51,6 +51,33 @@ export async function saveTimezone(accessToken: string, timezone: string | null)
   return { success: !error }
 }
 
+export async function saveAiPrefs(
+  accessToken: string,
+  prefs: { responseStyle?: string; replyLanguage?: string }
+): Promise<{ success: boolean }> {
+  const supabase = createClient(
+    supabaseUrl!,
+    supabaseAnonKey!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  )
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData.user
+  if (!user) return { success: false }
+
+  const row: Record<string, unknown> = {
+    user_id: user.id,
+    updated_at: new Date().toISOString(),
+  }
+  if (prefs.responseStyle !== undefined) row.response_style = prefs.responseStyle
+  if (prefs.replyLanguage !== undefined) row.reply_language = prefs.replyLanguage
+
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert(row, { onConflict: 'user_id' })
+
+  return { success: !error }
+}
+
 export async function downgradeToFree(accessToken: string): Promise<{ success: boolean }> {
   const supabase = createClient(
     supabaseUrl!,

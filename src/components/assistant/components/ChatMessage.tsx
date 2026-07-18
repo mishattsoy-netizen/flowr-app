@@ -49,6 +49,35 @@ const ARROW_MAP: Record<string, string> = {
 
 const STYLE_REGEX = /(-->|->|==>|<--|<-|<==|<->|\/arrowdown|\/arrowup|\/arrowright|\/arrowleft|\[m\]|\[\/m\]|\[30\]|\[\/30\]|\[60\]|\[\/60\]|\[100\]|\[\/100\]|\[a\]|\[\/a\]|\[a30\]|\[\/a30\]|\[a60\]|\[\/a60\])/g;
 
+// Matches one [pill:Title](url) token. The URL group balances one level of
+// parens (e.g. wikipedia.org/wiki/Foo_(bar)) so those citations aren't truncated.
+const SINGLE_PILL_REGEX = /\[pill:([^\]]*)\]\(((?:[^()]|\([^()]*\))*)\)/g;
+
+const getPillHostname = (urlStr: string): string => {
+  if (!urlStr) return '';
+  try {
+    const cleanUrl = urlStr.startsWith('http://') || urlStr.startsWith('https://') ? urlStr : `https://${urlStr}`;
+    return new URL(cleanUrl).hostname.replace('www.', '');
+  } catch {
+    return urlStr.trim().toLowerCase();
+  }
+};
+
+// Drops repeat citations of a source already shown earlier in the same message —
+// models tend to re-tag every sentence with the same pill instead of citing once.
+// Dedup key is hostname (falls back to trimmed label) so different URLs on the
+// same domain still collapse, matching how a reader perceives "the same source".
+const dedupeCitationPills = (content: string): string => {
+  if (!content || !content.includes('[pill:')) return content;
+  const seen = new Set<string>();
+  return content.replace(SINGLE_PILL_REGEX, (full, title, url) => {
+    const key = getPillHostname(url) || title.trim().toLowerCase();
+    if (!key || seen.has(key)) return '';
+    seen.add(key);
+    return full;
+  });
+};
+
 const renderContentWithStyles = (content: any): any => {
   if (typeof content === 'string') {
     const parts = content.split(STYLE_REGEX);
@@ -803,6 +832,23 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
   const isUrlOnly = typeof children === 'string' && (children.startsWith('http://') || children.startsWith('https://'));
   const label = isUrlOnly ? new URL(href).hostname.replace('www.', '') : children;
 
+  // Inline pill always shows the site name (e.g. "Instagram", "Fortune"), never the
+  // model-supplied article/blog title — that stays in `label` for the popup only.
+  const getSiteName = (urlStr: string): string => {
+    try {
+      const cleanUrl = urlStr.startsWith('http://') || urlStr.startsWith('https://') ? urlStr : `https://${urlStr}`;
+      let host = new URL(cleanUrl).hostname.replace(/^www\./, '');
+      const parts = host.split('.');
+      // Drop a leading language/subdomain segment (e.g. "en.wikipedia.org" -> "wikipedia")
+      // and the TLD, keeping the registrable domain name (e.g. "developers.cloudflare.com" -> "cloudflare").
+      const core = parts.length > 2 ? parts[parts.length - 2] : parts[0];
+      return core.charAt(0).toUpperCase() + core.slice(1);
+    } catch {
+      return typeof children === 'string' ? children : '';
+    }
+  };
+  const pillLabel = getSiteName(href);
+
   let faviconUrl = '';
   try {
     if (href && href.startsWith('http')) {
@@ -820,14 +866,9 @@ const LinkWithPopup = ({ href, children }: { href: string, children: any }) => {
           rel="noopener noreferrer"
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
-          className="inline-link-btn px-2 py-0.5 mx-1 inline-flex items-center gap-1.5 bg-panel hover:bg-[var(--bone-5)] rounded-full text-[11px] font-bold font-sans text-[var(--bone-70)] hover:text-[var(--bone-100)] no-underline select-none border border-[var(--bone-10)] align-baseline"
+          className="inline-link-btn chat-citation-pill px-1.5 py-[1px] mx-1 inline-flex items-center rounded-full text-[10px] font-bold font-sans no-underline select-none align-baseline leading-tight"
         >
-          {faviconUrl && (
-            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 overflow-hidden rounded-[4px] pointer-events-none">
-              <img src={faviconUrl} alt="" className="w-3 h-3 object-contain select-none opacity-80" />
-            </span>
-          )}
-          <span className="max-w-[120px] truncate font-medium pointer-events-none">{label}</span>
+          <span className="max-w-[100px] truncate font-medium pointer-events-none">{pillLabel}</span>
         </a>
       </PopoverTrigger>
       <PopoverContent
@@ -1106,6 +1147,14 @@ export const ChatMessage = memo(({
 
     return targetContent;
   }, [targetContent, isAILoading, isLast, isPureImage, revealedText, isRevealing]);
+
+  // Rendering-only cleanup: collapse repeat citation pills for the same source.
+  // Safe to run mid-stream too — the regex only matches complete [pill:...](...)
+  // tokens, so an in-flight partial pill at the tail is simply left untouched.
+  const renderedDisplayContent = useMemo(() => {
+    if (isPureImage) return displayContent;
+    return dedupeCitationPills(displayContent);
+  }, [displayContent, isPureImage]);
   const [feedbackState, setFeedbackState] = useState<'like' | 'dislike' | null>(null);
 
 
@@ -1818,7 +1867,7 @@ export const ChatMessage = memo(({
                             remarkPlugins={[remarkGfm]}
                             components={markdownComponents as any}
                           >
-                            {displayContent}
+                            {renderedDisplayContent}
                           </ReactMarkdown>
                         </div>
                       )}
@@ -1911,7 +1960,7 @@ export const ChatMessage = memo(({
                           isLast ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
                         )}
                       >
-                        {msg.citations && msg.citations.length > 0 && (
+                        {msg.citations && msg.citations.length > 0 && !displayContent.includes('[pill:') && (
                           <div className="mt-2 flex flex-wrap gap-2 pt-3 border-t border-white/5 w-full">
 
                             {msg.citations.slice(0, 8).map((url, i) => {

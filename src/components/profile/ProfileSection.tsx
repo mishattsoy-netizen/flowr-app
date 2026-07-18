@@ -118,8 +118,8 @@ export default function ProfileSection() {
         </div>
       </div>
 
-      {/* Connected Accounts — outside hero */}
-      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+      {/* Connected Accounts — outside hero; px-4 matches card content inset */}
+      <div className="flex items-center justify-between py-3 px-4 border-b border-[var(--bone-6)]">
         <div>
           <h4 className="text-[14px] font-medium text-bone-100">Connected Accounts</h4>
         </div>
@@ -149,7 +149,7 @@ export default function ProfileSection() {
 
       {/* Messages */}
       {message && (
-        <div className={`px-3 py-2 rounded-md text-[13px] ${
+        <div className={`mx-4 px-3 py-2 rounded-md text-[13px] ${
           message.type === 'success'
             ? 'bg-emerald-500/10 text-emerald-400'
             : 'bg-red-500/10 text-red-400'
@@ -159,7 +159,7 @@ export default function ProfileSection() {
       )}
 
       {/* Actions — neutral Save, no danger actions */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 px-4">
         <button
           onClick={handleSignOut}
           className="px-3 py-1.5 rounded-md text-[13px] font-medium text-[var(--bone-60)] hover:bg-[#2b2a29] hover:text-bone-100 transition-colors"

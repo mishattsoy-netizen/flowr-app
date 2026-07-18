@@ -15,7 +15,7 @@ export interface CompactionConfig {
 }
 
 const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
-  context_limit: 10000,   // tokens per session before compaction triggers
+  context_limit: 32000,   // tokens per session before compaction triggers
   compaction_threshold: 0.80, // 80% of context_limit
 }
 

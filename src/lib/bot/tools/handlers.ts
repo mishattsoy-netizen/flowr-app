@@ -847,6 +847,11 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
 
     try {
       if (isYouTubeUrl(url)) {
+        if (context && context._youtubeFetchCount) {
+          return { error: 'YouTube fetch limit reached: only 1 YouTube video can be fetched per request. Ask the user to send additional videos in a separate message.' };
+        }
+        if (context) context._youtubeFetchCount = 1;
+
         const ytPage = await extractYoutubeTranscript(url, {
           startTime: startTime !== undefined ? Number(startTime) : undefined,
           endTime: endTime !== undefined ? Number(endTime) : undefined,

@@ -20,6 +20,10 @@ export interface NodeDisplayInfo {
   typeLabel?: string;
   /** Budget token cost for this node; undefined for sections/broken refs. */
   tokenCount?: number;
+  /** Workspace cards use a compact layout: icon + large title, no meta header. */
+  variant?: 'default' | 'workspace';
+  /** Child counts for workspace cards, e.g. { count: 3, label: 'Canvas' }. */
+  childPills?: { count: number; label: string }[];
 }
 
 interface BrainNodeCardProps {
@@ -53,14 +57,10 @@ interface BrainNodeCardProps {
 
 const CONNECTED_DOT_FILL = '#B5B5B0';
 
-
 const SIDES: ConnectorSide[] = ['top', 'right', 'bottom', 'left'];
 
-// How far past the card edge the proximity zone extends, and how close the
-// cursor needs to be to a dot's center before it's considered "near" (fully
-// visible + enlarged) vs. fading in over the space between.
-const PROXIMITY_ZONE = 56;
-const PROXIMITY_NEAR = 18;
+// Hit target size around each connector (click/tap), not used for fade-in.
+const DOT_HIT = 36;
 
 export function BrainNodeCard({
   id,
@@ -81,6 +81,11 @@ export function BrainNodeCard({
 }: BrainNodeCardProps) {
   const priorityLabel = display.priority <= 1 ? 'high' : display.priority <= 2 ? 'medium' : 'low';
   const connectedSet = useMemo(() => new Set(connectedSides), [connectedSides]);
+  // Connect tool: all 4 dots fade in together on card hover.
+  const [connectHover, setConnectHover] = useState(false);
+  useLayoutEffect(() => {
+    if (!connectMode) setConnectHover(false);
+  }, [connectMode]);
 
   // The card's height is now content-driven (grows/shrinks with preview
   // text) instead of a fixed constant, so it's measured after each render
@@ -90,7 +95,11 @@ export function BrainNodeCard({
   // (1px ↔ 2px) so side midpoints stay on the true edge center.
   const [cardHeight, setCardHeight] = useState(CARD_H);
   const cardRef = useRef<HTMLDivElement>(null);
-  const highlighted = !!(connectSelected || multiSelected || selected);
+  // 2px ring only for multi/select highlight — connect-source stays 1px like idle.
+  const thickBorder = !!(multiSelected || selected);
+  const highlighted = !!(connectSelected || thickBorder);
+
+  const isWorkspace = display.variant === 'workspace';
 
   useLayoutEffect(() => {
     const el = cardRef.current;
@@ -104,7 +113,7 @@ export function BrainNodeCard({
     const observer = new ResizeObserver(report);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [id, onHeightChange, display.preview, display.title, highlighted]);
+  }, [id, onHeightChange, display.preview, display.title, display.childPills, highlighted, isWorkspace]);
 
   return (
     <div
@@ -115,6 +124,8 @@ export function BrainNodeCard({
         top: position.y,
         width: CARD_W,
       }}
+      onMouseEnter={() => { if (connectMode) setConnectHover(true); }}
+      onMouseLeave={() => setConnectHover(false)}
     >
     <div
       ref={cardRef}
@@ -127,11 +138,12 @@ export function BrainNodeCard({
           : connectMode
             ? "cursor-pointer"
             : "cursor-grab active:cursor-grabbing",
-        // Highlight uses the real border (same edge geometry as dots/lines),
-        // not outline/box-shadow which sat outside the discs.
-        (connectSelected || multiSelected || selected)
-          ? "bg-[var(--app-dark)] border-2 border-[var(--brand-blue)]"
-          : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]"
+        // Connect-source: 1px blue (same weight as idle). Multi/select: 2px blue.
+        connectSelected
+          ? "bg-[var(--app-dark)] border border-[var(--brand-blue)]"
+          : thickBorder
+            ? "bg-[var(--app-dark)] border-2 border-[var(--brand-blue)]"
+            : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]"
       )}
       style={{
         transform: 'translateZ(0)',  // GPU layer
@@ -145,44 +157,57 @@ export function BrainNodeCard({
         onContextMenu(e);
       }}
     >
-      {/* Header + title: fixed at top, padded */}
-      <div className="shrink-0 pt-3.5 px-4">
-        <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium mb-1.5">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 [&>svg]:w-3.5 [&>svg]:h-3.5 flex items-center justify-center">
+      {isWorkspace ? (
+        /* Workspace: no meta header — large icon + title, then child pills */
+        <div className="shrink-0 pt-4 px-4 pb-1">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-9 h-9 shrink-0 text-[var(--bone-100)] opacity-90 [&>svg]:w-9 [&>svg]:h-9 flex items-center justify-center">
               {display.typeIcon}
             </span>
-            <span>{display.typeLabel || 'Note'}</span>
-            <span>·</span>
-            <span className="truncate max-w-[85px]">{display.parentLabel || 'Unsorted'}</span>
+            <h3 className="font-display font-medium text-[22px] text-[var(--bone-100)] line-clamp-2 leading-tight min-w-0 tracking-[-0.01em]">
+              {display.title || 'Untitled'}
+            </h3>
           </div>
-          <span>{display.ageLabel}</span>
         </div>
+      ) : (
+        <>
+          {/* Header + title: fixed at top, padded */}
+          <div className="shrink-0 pt-3.5 px-4">
+            <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30 [&>svg]:w-3.5 [&>svg]:h-3.5 flex items-center justify-center">
+                  {display.typeIcon}
+                </span>
+                <span>{display.typeLabel || 'Note'}</span>
+                <span>·</span>
+                <span className="truncate max-w-[85px]">{display.parentLabel || 'Unsorted'}</span>
+              </div>
+              <span>{display.ageLabel}</span>
+            </div>
 
-        <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1">
-          {display.title || 'Untitled'}
-        </h3>
-      </div>
+            <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1">
+              {display.title || 'Untitled'}
+            </h3>
+          </div>
 
-      {/* Text area: flex-fill between title and footer. Collapses to zero
-          when there's no preview text, so the card shrinks to just
-          header+title+footer instead of leaving dead space. */}
-      {display.preview && (
-        <div className="relative flex-1 min-h-0 px-4">
-          <p className="text-[11px] text-[var(--bone-70)] leading-relaxed break-words line-clamp-4 mt-1.5">
-            {display.preview}
-          </p>
-          {/* Fade overlay sits just above the footer bar, not glued to the
-              text itself, so it softens the transition into the opaque
-              footer regardless of how many lines of text are showing. */}
-          <div className={cn(
-            "absolute inset-x-0 bottom-0 h-6 pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
-            (connectSelected || multiSelected || selected) ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
-          )} />
-        </div>
+          {/* Text area: flex-fill between title and footer. Collapses to zero
+              when there's no preview text, so the card shrinks to just
+              header+title+footer instead of leaving dead space. */}
+          {display.preview && (
+            <div className="relative flex-1 min-h-0 px-4">
+              <p className="text-[11px] text-[var(--bone-70)] leading-relaxed break-words line-clamp-4 mt-1.5">
+                {display.preview}
+              </p>
+              <div className={cn(
+                "absolute inset-x-0 bottom-0 h-6 pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
+                (connectSelected || multiSelected || selected) ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
+              )} />
+            </div>
+          )}
+        </>
       )}
 
-      {/* Footer: opaque bar, fixed height, pills */}
+      {/* Footer: priority + workspace child counts + tokens */}
       <div className={cn(
         "relative shrink-0 flex flex-wrap items-center gap-1.5 w-full px-4 py-2.5 rounded-b-xl transition-colors duration-200",
         (connectSelected || multiSelected || selected) ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
@@ -195,6 +220,14 @@ export function BrainNodeCard({
         )}>
           {priorityLabel}
         </span>
+        {display.childPills?.map(pill => (
+          <span
+            key={pill.label}
+            className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]"
+          >
+            {pill.count} {pill.label}
+          </span>
+        ))}
         {display.tokenCount != null && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]">
             {display.tokenCount} tok
@@ -203,38 +236,24 @@ export function BrainNodeCard({
       </div>
     </div>
 
-      {/* Endpoint discs sit above the card body (z-20) so paths under the
-          card never paint over them. Grey base + brand-blue overlay at the
-          same anchor; blue fades in with proximity (no hard swap). */}
+      {/* Endpoint discs: all 4 blue dots fade in together on card hover
+          while the connect tool is active (not staggered per-dot proximity). */}
       {SIDES.map(side => {
-        // Border width matches the card class: 2px when highlighted, else 1px.
-        // Anchors use the same midline as that stroke so idle + selected both
-        // bisect the disc; mid-side uses measured height for true edge center.
-        const borderW = highlighted ? 2 : 1;
+        const borderW = thickBorder ? 2 : 1;
         const local = connectorPoint(
           { x: 0, y: 0, width: CARD_W, height: cardHeight },
           side,
           borderW,
         );
-        const hit = PROXIMITY_NEAR * 2;
+        const hit = DOT_HIT;
         const r = CONNECTOR_DOT_R;
         const connected = connectedSet.has(side);
-
-        let proximity = 0;
-        if (connectMode && connectCursor) {
-          const dist = Math.hypot(
-            connectCursor.x - (position.x + local.x),
-            connectCursor.y - (position.y + local.y),
-          );
-          proximity = dist <= PROXIMITY_NEAR
-            ? 1
-            : Math.max(0, 1 - (dist - PROXIMITY_NEAR) / (PROXIMITY_ZONE - PROXIMITY_NEAR));
-        }
 
         const show = connected || connectMode || connectSelected;
         if (!show) return null;
 
-        const blueOpacity = connectSelected ? 1 : (connectMode ? proximity : 0);
+        // All four sides share the same opacity so they appear as one unit.
+        const blueOpacity = connectSelected || (connectMode && connectHover) ? 1 : 0;
         const disc = {
           left: hit / 2 - r,
           top: hit / 2 - r,

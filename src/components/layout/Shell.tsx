@@ -259,7 +259,7 @@ export function Shell({ children, initialEntityId }: { children: React.ReactNode
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
         if (isResizingLeftRef.current) {
-          setSidebarWidth(Math.min(Math.max(e.clientX, 250), 400));
+          setSidebarWidth(Math.min(Math.max(e.clientX, 250), 320));
         }
         if (isResizingRightRef.current) {
           // Both panels share the same width, so always write to aiSidebarWidth

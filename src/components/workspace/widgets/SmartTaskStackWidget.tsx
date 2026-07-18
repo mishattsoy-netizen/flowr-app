@@ -158,7 +158,17 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
     : (visibleTabs[0]?.id ?? 'today');
 
   const activeTabDef = ALL_TABS.find(t => t.id === activeId)!;
-  const displayTasks = tasksByTab[activeId]?.slice(0, 10) ?? [];
+
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [maxVisibleItems, setMaxVisibleItems] = useState(10);
+
+  const fullTasksForTab = tasksByTab[activeId] ?? [];
+  const totalTasks = fullTasksForTab.length;
+  let renderCount = maxVisibleItems;
+  if (totalTasks > maxVisibleItems) {
+    renderCount = Math.max(0, maxVisibleItems - 1);
+  }
+  const displayTasks = fullTasksForTab.slice(0, renderCount);
 
   function handleTabSwitch(tabId: TabId) {
     setInternalTab(tabId);
@@ -242,6 +252,20 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
       observer.disconnect();
     };
   }, [activeId, visibleTabs, showAddMenu]);
+
+  useEffect(() => {
+    if (!listContainerRef.current) return;
+    const measureList = () => {
+      const height = listContainerRef.current?.clientHeight || 0;
+      // Each item is ~36px (32px + 4px gap)
+      const count = Math.max(1, Math.floor(height / 36));
+      setMaxVisibleItems(count);
+    };
+    measureList();
+    const observer = new ResizeObserver(measureList);
+    observer.observe(listContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <section className="bg-panel group/widget px-5 pb-5 pt-4 widget-shadow h-full flex flex-col">
@@ -343,7 +367,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div ref={listContainerRef} className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="space-y-1 flex-1 pointer-events-none">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -434,7 +458,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
                 </div>
               );
             })}
-            {tasksByTab[activeId]?.length > 10 && (
+            {totalTasks > renderCount && (
               <button
                 onClick={() => addTab('tracker')}
                 className="w-full text-left group flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius-medium)] text-[var(--bone-50)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-[background-color,color] duration-200 ease-in-out cursor-pointer"

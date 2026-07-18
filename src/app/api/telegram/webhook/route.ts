@@ -560,18 +560,21 @@ Here's what I can do for you:
         await telegram.sendMessage(chatId, result.systemMessage)
       }
 
-      // The user's saved timezone (set on the web Settings page, persisted in
-      // user_settings) — without this, date/time math falls back to the
-      // server's own clock (UTC on Vercel), so "tomorrow 6pm" and
-      // today/overdue task filters land in the wrong timezone on Telegram.
+      // The user's saved timezone + AI prefs (web Settings → user_settings).
+      // Without timezone, date/time math falls back to the server's clock (UTC
+      // on Vercel). Style/language are soft defaults for the system prompt.
       let telegramClientTime: string | undefined
+      let telegramResponseStyle: string | undefined
+      let telegramReplyLanguage: string | undefined
       if (linkedAuthUserId && supabaseAdmin) {
         const { data: settings } = await supabaseAdmin
           .from('user_settings')
-          .select('timezone')
+          .select('timezone, response_style, reply_language')
           .eq('user_id', linkedAuthUserId)
           .maybeSingle()
         if (settings?.timezone) telegramClientTime = getClientTime(settings.timezone)
+        if (settings?.response_style) telegramResponseStyle = settings.response_style
+        if (settings?.reply_language) telegramReplyLanguage = settings.reply_language
       }
 
       // ── Execute and Reply Helper ──
@@ -609,6 +612,8 @@ Here's what I can do for you:
           mode: botMode as 'default' | 'pro',
           _triggerType: 'telegram',
           clientTime: telegramClientTime,
+          responseStyle: telegramResponseStyle,
+          replyLanguage: telegramReplyLanguage,
         })
 
         if (chainResult.type === 'photo') {

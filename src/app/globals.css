@@ -1691,6 +1691,23 @@ table:not(.rdp-table) tr:last-child td {
   white-space: nowrap;
 }
 
+/* Chat citation pills: darker, quieter idle state; border-only hover (no bg change) */
+.inline-link-btn.chat-citation-pill {
+  background-color: var(--app-dark);
+  border: 1px solid var(--bone-6);
+  color: var(--bone-30) !important;
+}
+
+.inline-link-btn.chat-citation-pill:hover {
+  background-color: rgba(var(--brand-blue-rgb), 0.3);
+  border-color: var(--brand-blue);
+  color: var(--bone-100) !important;
+}
+
+.inline-link-btn.chat-citation-pill>span:last-child {
+  max-width: 100px;
+}
+
 /* Suppress focus rings on click/programmatic focus, but preserve them for keyboard navigation */
 :focus:not(:focus-visible),
 button:focus:not(:focus-visible),

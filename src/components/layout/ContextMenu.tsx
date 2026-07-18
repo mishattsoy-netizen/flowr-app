@@ -430,7 +430,7 @@ export function ContextMenu() {
       }
     );
 
-    if (activeEntityId && activeEntityId !== entity!.id) {
+    if (activeEntityId && activeEntityId !== entity!.id && entity!.type !== 'workspace' && entity!.type !== 'folder') {
       items.push({
         icon: <Columns2 strokeWidth={2} className="w-4 h-4" />,
         label: 'Split page',

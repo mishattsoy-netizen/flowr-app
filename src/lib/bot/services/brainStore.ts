@@ -374,6 +374,18 @@ export async function addBrainNode(
   if (type === 'workspace' || type === 'entity') {
     if (!ref_id) return { error: `'ref_id' is required for type '${type}'` }
     if (!(await assertOwnedEntity(userId, ref_id))) return { error: `Entity '${ref_id}' not found.` }
+    // One brain card per entity — same note/workspace cannot appear twice.
+    const { data: existingRef } = await supabaseAdmin.from('brain_nodes')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('brain_id', brainId)
+      .eq('ref_id', ref_id)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+    if (existingRef) {
+      return { error: 'This item is already in this brain.' }
+    }
   }
   if ((type as string) === 'memory') return { error: "Node type 'memory' has been retired — create a note via create_content and reference it with type 'entity' instead." }
   if (type === 'section' && !label) return { error: "'label' is required for type 'section'" }

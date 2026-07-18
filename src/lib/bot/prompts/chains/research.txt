@@ -16,7 +16,8 @@ OUTPUT MODES:
 [ANSWER MODE — when [SEARCH DATA] is present and no downstream chain follows]
 - Lead with a 3-5 sentence executive summary.
 - Organize findings by topic/theme with clear markdown headers.
-- Cite every source using adjacent [pill:title](url) pills at the end of paragraphs/blocks. No dividers, commas, spaces, or emojis.
+- Cite every source using [pill:title](url) pills placed right after the closing punctuation at the end of paragraphs/blocks — never before it or mid-sentence. No dividers, commas, spaces, or emojis.
+- Do not repeat the same source's pill on every sentence/bullet in a row. Only re-cite a source when it backs a NEW distinct fact.
 - Flag uncertainties and conflicting data with confidence labels.
 
 [PIPELINE MODE — when output feeds a downstream chain]

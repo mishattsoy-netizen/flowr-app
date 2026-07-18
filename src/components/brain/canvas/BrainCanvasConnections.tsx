@@ -93,44 +93,72 @@ export function BrainCanvasConnections({
     return 'transition-[d] duration-100';
   };
 
-  // Paths under cards only. One shared vertical shimmer for every edge so
-  // horizontal runs match the vertical band pattern (a→b orientation made H
-  // and V look different).
-  const SHIMMER_PERIOD = 28;
+  // Paths under cards. H + V shimmers share period/stops/duration, but each
+  // edge animates along a→b so bands travel with the connection (not always
+  // +X/+Y, which made some edges look reversed).
+  const SHIMMER_PERIOD = 64;
+  const SHIMMER_DUR = '3.2s';
+  const shimmerStops = (
+    <>
+      <stop offset="0" stopColor="var(--bone-30)" stopOpacity="0.12" />
+      <stop offset="0.22" stopColor="var(--bone-30)" stopOpacity="0.15" />
+      <stop offset="0.38" stopColor="var(--bone-70)" stopOpacity="0.75" />
+      <stop offset="0.5" stopColor="var(--bone-90)" stopOpacity="1" />
+      <stop offset="0.62" stopColor="var(--bone-70)" stopOpacity="0.75" />
+      <stop offset="0.78" stopColor="var(--bone-30)" stopOpacity="0.15" />
+      <stop offset="1" stopColor="var(--bone-30)" stopOpacity="0.12" />
+    </>
+  );
 
   return (
     <svg
       className="absolute inset-0 pointer-events-none z-0 overflow-visible"
     >
-      <defs>
-        <linearGradient
-          id="brain-edge-shimmer"
-          gradientUnits="userSpaceOnUse"
-          x1="0"
-          y1="0"
-          x2="0"
-          y2={SHIMMER_PERIOD}
-          spreadMethod="repeat"
-        >
-          <stop offset="0" stopColor="var(--bone-30)" stopOpacity="0.2" />
-          <stop offset="0.35" stopColor="var(--bone-70)" stopOpacity="0.85" />
-          <stop offset="0.5" stopColor="var(--bone-90)" stopOpacity="1" />
-          <stop offset="0.65" stopColor="var(--bone-70)" stopOpacity="0.85" />
-          <stop offset="1" stopColor="var(--bone-30)" stopOpacity="0.2" />
-          <animateTransform
-            attributeName="gradientTransform"
-            type="translate"
-            from="0 0"
-            to={`0 ${SHIMMER_PERIOD}`}
-            dur="2.5s"
-            repeatCount="indefinite"
-          />
-        </linearGradient>
-      </defs>
       {paths.map(p => {
         if (!p) return null;
+        // Travel with the edge: right/down when b is right/below a, else left/up.
+        const dx = p.b.x - p.a.x;
+        const dy = p.b.y - p.a.y;
+        const hx = (dx === 0 ? 1 : Math.sign(dx)) * SHIMMER_PERIOD;
+        const vy = (dy === 0 ? 1 : Math.sign(dy)) * SHIMMER_PERIOD;
+        const gradH = `brain-edge-shimmer-h-${p.id}`;
+        const gradV = `brain-edge-shimmer-v-${p.id}`;
         return (
           <g key={p.id}>
+            <defs>
+              <linearGradient
+                id={gradV}
+                gradientUnits="userSpaceOnUse"
+                x1="0" y1="0" x2="0" y2={SHIMMER_PERIOD}
+                spreadMethod="repeat"
+              >
+                {shimmerStops}
+                <animateTransform
+                  attributeName="gradientTransform"
+                  type="translate"
+                  from="0 0"
+                  to={`0 ${vy}`}
+                  dur={SHIMMER_DUR}
+                  repeatCount="indefinite"
+                />
+              </linearGradient>
+              <linearGradient
+                id={gradH}
+                gradientUnits="userSpaceOnUse"
+                x1="0" y1="0" x2={SHIMMER_PERIOD} y2="0"
+                spreadMethod="repeat"
+              >
+                {shimmerStops}
+                <animateTransform
+                  attributeName="gradientTransform"
+                  type="translate"
+                  from="0 0"
+                  to={`${hx} 0`}
+                  dur={SHIMMER_DUR}
+                  repeatCount="indefinite"
+                />
+              </linearGradient>
+            </defs>
             <path
               d={p.d}
               fill="none"
@@ -142,7 +170,16 @@ export function BrainCanvasConnections({
             <path
               d={p.d}
               fill="none"
-              stroke="url(#brain-edge-shimmer)"
+              stroke={`url(#${gradV})`}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              className={pathMoveClass(p)}
+            />
+            <path
+              d={p.d}
+              fill="none"
+              stroke={`url(#${gradH})`}
               strokeWidth={2}
               strokeLinejoin="round"
               strokeLinecap="round"

@@ -18,12 +18,33 @@ import { hasEdgeBetween } from '@/lib/bot/services/brainEdgeUtils';
 import { closestSides, type ConnectorSide } from './connectorGeometry';
 import { blocksToMarkdown } from '@/lib/editor/markdownBlocks';
 import type { EditorBlock } from '@/data/store.types';
+import { isDesktop } from '@/lib/env';
+import { getEntityIcon } from '@/data/icons';
 import { FileText, Folder, Brain, Trash2 } from 'lucide-react';
+
+/** Count direct children of a workspace for footer pills. */
+function workspaceChildPills(
+  workspaceId: string,
+  entities: Array<{ id: string; type: string; parentId?: string | null }>,
+): { count: number; label: string }[] {
+  const children = entities.filter(e => e.parentId === workspaceId);
+  const notes = children.filter(e => e.type === 'note').length;
+  const canvases = children.filter(e => e.type === 'canvas').length;
+  const folders = children.filter(e => e.type === 'folder').length;
+  const spaces = children.filter(e => e.type === 'workspace').length;
+  const pills: { count: number; label: string }[] = [];
+  // Labels match the user's examples ("3 Canvas", "30 Notes").
+  if (canvases > 0) pills.push({ count: canvases, label: 'Canvas' });
+  if (notes > 0) pills.push({ count: notes, label: notes === 1 ? 'Note' : 'Notes' });
+  if (folders > 0) pills.push({ count: folders, label: folders === 1 ? 'Folder' : 'Folders' });
+  if (spaces > 0) pills.push({ count: spaces, label: spaces === 1 ? 'Space' : 'Spaces' });
+  return pills;
+}
 
 /** Derive display info for a brain node from brain state + entity store. */
 function computeDisplayInfo(
   node: BrainCanvasNode,
-  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number; content?: EditorBlock[] }>,
+  entities: Array<{ id: string; type: string; title?: string; parentId?: string | null; lastModified?: number; content?: EditorBlock[]; icon?: string }>,
   perNodeTokens: Record<string, number>,
 ): NodeDisplayInfo {
   if (node.type === 'section') {
@@ -41,6 +62,25 @@ function computeDisplayInfo(
 
   const entity = node.ref_id ? entities.find(e => e.id === node.ref_id) : null;
   const parentEntity = entity?.parentId ? entities.find(e => e.id === entity.parentId) : null;
+  const isWorkspace = node.type === 'workspace' || entity?.type === 'workspace';
+
+  if (isWorkspace) {
+    const Icon = getEntityIcon(entity?.icon);
+    return {
+      typeIcon: <Icon strokeWidth={2} />,
+      typeLabel: 'Workspace',
+      parentLabel: 'Workspace',
+      ageLabel: entity?.lastModified
+        ? formatAge(new Date(entity.lastModified).toISOString())
+        : formatAge(node.created_at),
+      title: node.label || entity?.title || 'Untitled',
+      preview: undefined,
+      priority: node.priority,
+      tokenCount: perNodeTokens[node.id],
+      variant: 'workspace',
+      childPills: entity ? workspaceChildPills(entity.id, entities) : [],
+    };
+  }
 
   const typeIcons: Record<string, React.ReactNode> = {
     note: <FileText strokeWidth={2} />,
@@ -88,6 +128,8 @@ function ensurePosition(
 export function BrainCanvasPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { viewport, setViewport, viewportRef } = useCanvasViewport(containerRef);
+  // Match ColumnHeader / HeaderBar left inset for dashboard/tracker/chat/brain.
+  const headerContentLeft = isDesktop() ? 30 : 20;
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
   const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge } = useBrainData();
@@ -156,6 +198,17 @@ export function BrainCanvasPage() {
       }
     } catch (e) {
       logger.error('Failed to set default brain:', e);
+    }
+  }, [mutate, load, selectedBrainId]);
+
+  const handleSetBrainIcon = useCallback(async (brainId: string, icon: string) => {
+    try {
+      await mutate({ action: 'update_brain', brain_id: brainId, icon });
+      if (selectedBrainId && brainId !== selectedBrainId) {
+        await load(selectedBrainId);
+      }
+    } catch (e) {
+      logger.error('Failed to set brain icon:', e);
     }
   }, [mutate, load, selectedBrainId]);
 
@@ -472,8 +525,18 @@ export function BrainCanvasPage() {
     }
   }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds]);
 
+  // Ref ids already on this brain — block duplicate cards of the same entity.
+  const brainRefIds = useMemo(
+    () => activeNodes.map(n => n.ref_id).filter((id): id is string => !!id),
+    [activeNodes],
+  );
+
   // Add existing entity as brain node
   const handleAddExisting = useCallback(async (refId: string, type: 'entity' | 'workspace') => {
+    if (brainRefIds.includes(refId)) {
+      logger.error('Failed to add existing entity:', 'This item is already in this brain.');
+      return;
+    }
     const x = 40 + (activeNodes.length % 5) * (CARD_W + 40);
     const y = 40 + Math.floor(activeNodes.length / 5) * (CARD_H + 40);
     try {
@@ -481,7 +544,7 @@ export function BrainCanvasPage() {
     } catch (e) {
       logger.error('Failed to add existing entity:', e);
     }
-  }, [activeNodes.length, mutate]);
+  }, [activeNodes.length, brainRefIds, mutate]);
 
   // Space / middle-click pan — always navigation, even over nodes and with
   // connect/new-node tools active. State (not only refs) so cursors re-render.
@@ -673,8 +736,11 @@ export function BrainCanvasPage() {
         }
       }}
     >
-      {/* ── Top-left: brain switcher + compact/expanded stats ── */}
-      <div className="absolute top-4 left-4 z-20">
+      {/* ── Top-left: brain switcher + compact/expanded stats (left inset matches tab header) ── */}
+      <div
+        className="absolute top-4 z-20"
+        style={{ left: headerContentLeft }}
+      >
         <BrainLeftPanel
           brains={state.brains}
           selectedBrainId={selectedBrainId}
@@ -687,6 +753,7 @@ export function BrainCanvasPage() {
           perNodeTokens={state.perNodeTokens ?? {}}
           onRenameBrain={handleRenameBrain}
           onSetDefaultBrain={handleSetDefaultBrain}
+          onSetBrainIcon={handleSetBrainIcon}
           onResetUsage={handleResetUsage}
         />
       </div>
@@ -811,6 +878,7 @@ export function BrainCanvasPage() {
           <AddExistingEntityPopover
             onAddEntity={handleAddExisting}
             onClose={() => setAddExistingOpen(false)}
+            excludeRefIds={brainRefIds}
           />
         )}
         </div>

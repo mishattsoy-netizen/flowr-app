@@ -336,9 +336,15 @@ export function BrainSidebarContent() {
     return Brain;
   };
 
+  // Shift/cmd/ctrl+click must not create a browser text/range selection or
+  // native focus ring on these rows (matches TreeItem sidebar behavior).
+  const suppressBrowserSelect = (e: React.MouseEvent) => {
+    if (e.shiftKey || e.metaKey || e.ctrlKey) e.preventDefault();
+  };
+
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-[10px] pb-4 flex flex-col gap-[1px]">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden select-none">
+      <div className="flex-1 overflow-y-auto px-[10px] pb-4 flex flex-col gap-[1px] select-none">
         {state === null ? (
           <div className="flex flex-col gap-[1px]">
             {[1, 2].map(i => (
@@ -361,6 +367,7 @@ export function BrainSidebarContent() {
               <div
                 role="button"
                 tabIndex={0}
+                onMouseDown={suppressBrowserSelect}
                 onClick={() => {
                   if (renamingThisBrain) return;
                   setSelectedBrainId(brain.id);
@@ -379,12 +386,12 @@ export function BrainSidebarContent() {
                 }}
                 className={cn(
                   "sidebar-item-row group relative flex w-full select-none items-center h-7 rounded-[var(--radius-small)]",
-                  "border border-transparent text-[14px] cursor-pointer",
+                  "border border-transparent text-[14px] cursor-pointer outline-none focus:outline-none focus-visible:outline-none",
                   isBrainActive
                     ? "!bg-dark text-[var(--bone-100)] font-normal"
                     : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]"
                 )}
-                style={{ paddingLeft: '8px', paddingRight: '3px' }}
+                style={{ paddingLeft: '8px', paddingRight: '3px', userSelect: 'none' }}
               >
                 <div
                   className={cn(
@@ -500,7 +507,13 @@ export function BrainSidebarContent() {
                           key={node.id}
                           role="button"
                           tabIndex={0}
-                          onClick={() => {
+                          onMouseDown={suppressBrowserSelect}
+                          onClick={(e) => {
+                            if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              return;
+                            }
                             if (renamingThis) return;
                             setSelectedBrainId(brain.id);
                             if (node.type === 'entity' && node.ref_id) openBrainNode(node.ref_id);
@@ -515,10 +528,10 @@ export function BrainSidebarContent() {
                           }}
                           className={cn(
                             "sidebar-item-row group relative flex w-full select-none items-center h-7 rounded-[var(--radius-small)]",
-                            "border border-transparent text-[14px] cursor-pointer",
+                            "border border-transparent text-[14px] cursor-pointer outline-none focus:outline-none focus-visible:outline-none",
                             "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]"
                           )}
-                          style={{ paddingLeft: '26px', paddingRight: '3px' }}
+                          style={{ paddingLeft: '26px', paddingRight: '3px', userSelect: 'none' }}
                         >
                           <div className="w-[14px] shrink-0 flex items-center justify-center text-[var(--bone-100)] opacity-70 group-hover:opacity-100">
                             <Icon strokeWidth={2} className="w-3.5 h-3.5 shrink-0" />

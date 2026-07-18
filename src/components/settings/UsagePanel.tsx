@@ -143,7 +143,7 @@ export default function UsagePanel() {
         <UsageBar label="Monthly credit" usage={data.monthly} />
       </div>
 
-      <div className="p-4 rounded-xl border-2 border-[var(--bone-6)] bg-[var(--bone-4)] flex flex-col gap-3 shrink-0">
+      <div className="p-4 rounded-2xl bg-[var(--bone-6)] flex flex-col gap-3 shrink-0">
         <div>
           <h5 className="text-[13px] font-medium text-[var(--bone-100)]">Redeem Promo Code</h5>
           <p className="text-[12px] text-[var(--bone-40)] mt-0.5">Enter your code to apply credits or discounts.</p>

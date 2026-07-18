@@ -62,11 +62,21 @@ export async function runOpenRouter(
           ...(supportsPromptCaching ? { cache_control: { type: 'ephemeral' } } : {})
         })
       }
-      // Prefix caching: breakpoint on the last history message caches
+      // Prefix caching: breakpoints on the last few history messages cache
       // all prior turns (history is append-only, so the prefix stays stable).
-      // Max 4 breakpoints per request; we use 2 (system + history tail).
+      // Anthropic allows max 4 breakpoints per request; we use 1 for system,
+      // leaving 3 for the history tail.
       if (supportsPromptCaching && historyMessages.length > 0) {
-        ;(historyMessages[historyMessages.length - 1] as any).cache_control = { type: 'ephemeral' }
+        const len = historyMessages.length
+        if (len > 0 && historyMessages[len - 1]) {
+          (historyMessages[len - 1] as any).cache_control = { type: 'ephemeral' }
+        }
+        if (len > 1 && historyMessages[len - 2]) {
+          (historyMessages[len - 2] as any).cache_control = { type: 'ephemeral' }
+        }
+        if (len > 2 && historyMessages[len - 3]) {
+          (historyMessages[len - 3] as any).cache_control = { type: 'ephemeral' }
+        }
       }
       messages.push(...historyMessages)
       let hasPdf = false

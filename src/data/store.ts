@@ -369,6 +369,8 @@ export const useStore = create<AppState>()(
       pendingAdvisorState: null,
       showPaidModels: false,
       manualTimezone: null,
+      responseStyle: 'balanced' as const,
+      replyLanguage: 'auto',
       pendingCompaction: false,
       isCompacting: false,
       chatInputs: {},
@@ -587,9 +589,12 @@ export const useStore = create<AppState>()(
       setSplitViewPosition: (pos) => set({ splitViewPosition: Math.max(15, Math.min(85, pos)) }),
       setColumnDragOver: (col) => set({ columnDragOver: col }),
       toggleFullWidth: () => set((state) => ({ isFullWidth: !state.isFullWidth })),
-      toggleTabsHeader: () => set((state) => ({ isTabsHeaderVisible: !state.isTabsHeaderVisible })),
+      // Tabs header is always on — setting removed; keep API as no-op for safety.
+      toggleTabsHeader: () => set({ isTabsHeaderVisible: true }),
       setAppStyle: (appStyle) => set({ appStyle }),
       setManualTimezone: (manualTimezone) => set({ manualTimezone }),
+      setResponseStyle: (responseStyle) => set({ responseStyle }),
+      setReplyLanguage: (replyLanguage) => set({ replyLanguage }),
 
       setSpaces: (spaces) => {
         const prevSpaces = get().spaces;
@@ -1536,6 +1541,8 @@ export const useStore = create<AppState>()(
               clientHistory: historyMessages,
               pageContext: pageContext ?? null,
               clientTime: getClientTime(get().manualTimezone),
+              responseStyle: get().responseStyle,
+              replyLanguage: get().replyLanguage,
             }),
           });
 
@@ -2098,6 +2105,8 @@ export const useStore = create<AppState>()(
               isTempChat: get().isTempChat,
               clientHistory: historyMessages,
               clientTime: getClientTime(get().manualTimezone),
+              responseStyle: get().responseStyle,
+              replyLanguage: get().replyLanguage,
             }),
           });
 
@@ -2878,7 +2887,7 @@ export const useStore = create<AppState>()(
       duplicateEntity: (id: string) => {
         const state = get();
         const rootEntity = state.entities.find(e => e.id === id);
-        if (!rootEntity) return;
+        if (!rootEntity) return undefined;
         const newEntities: Entity[] = [];
         const duplicateRecursive = (entity: Entity, newParentId: string | null) => {
           const newId = generateId();
@@ -2890,6 +2899,8 @@ export const useStore = create<AppState>()(
         duplicateRecursive(rootEntity, rootEntity.parentId);
         set((state) => ({ entities: [...state.entities, ...newEntities] }));
         newEntities.filter(e => e.syncMode !== 'local-only').forEach(e => debouncedPushEntity(e));
+        // Root is pushed first — return its id for callers (e.g. brain sidebar).
+        return newEntities[0]?.id;
       },
 
       setEntityIcon: (id, icon) => {
@@ -3607,7 +3618,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'flowr-storage',
-      version: 22,
+      version: 24,
       migrate: (persistedState: any, version: number) => {
         let state = persistedState as any;
         if (typeof state !== 'object' || !state) state = {};
@@ -3730,6 +3741,14 @@ export const useStore = create<AppState>()(
             }));
           }
         }
+        // Version 23: Tabs Navigation setting removed — header always on
+        if (version < 23) {
+          state.isTabsHeaderVisible = true;
+        }
+        if (version < 24) {
+          if (state.responseStyle == null) state.responseStyle = 'balanced';
+          if (state.replyLanguage == null) state.replyLanguage = 'auto';
+        }
         return state;
       },
       storage: (() => {
@@ -3808,7 +3827,8 @@ export const useStore = create<AppState>()(
         splitViewRightId: state.splitViewRightId === 'brain' ? null : state.splitViewRightId,
         splitViewPosition: state.splitViewPosition,
         isFullWidth: state.isFullWidth,
-        isTabsHeaderVisible: state.isTabsHeaderVisible,
+        // Always on — Tabs Navigation setting removed.
+        isTabsHeaderVisible: true,
         appStyle: state.appStyle,
         dashboardLayout: state.dashboardLayout,
         defaultDashboardLayout: state.defaultDashboardLayout,
@@ -3823,6 +3843,8 @@ export const useStore = create<AppState>()(
         hiddenEntityIds: state.hiddenEntityIds,
         recentEntityIds: state.recentEntityIds,
         activeMode: state.activeMode,
+        responseStyle: state.responseStyle,
+        replyLanguage: state.replyLanguage,
         activeChatId: state.activeChatId,
         isTempChat: state.isTempChat,
         pendingNewChat: state.pendingNewChat,

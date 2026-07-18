@@ -783,9 +783,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth, resolv
         {splitViewActive && (
           <div className="flex flex-1 h-full relative" style={{ gap: '8px' }}>
             {/* Mirrors SplitViewLayout: content area = 100vw - px-2(16) - sidebar - gap(8) - [right panel + gap(8)]; left column = pos% - 4px */}
-            <div className="flex items-end h-full min-w-0" style={{ width: `calc( (100vw - ${(leftWidth || 0) + 24 + (rightWidth ? rightWidth + 8 : 0)}px) * ${splitViewPosition / 100} - 4px )`, paddingLeft: (splitViewLeftId && ['dashboard', 'tracker', 'chat'].includes(splitViewLeftId)) ? (isDesktopEnv ? 30 : 20) : 10, overflow: 'clip', overflowClipMargin: '2px' }}>
+            <div className="flex items-end h-full min-w-0" style={{ width: `calc( (100vw - ${(leftWidth || 0) + 24 + (rightWidth ? rightWidth + 8 : 0)}px) * ${splitViewPosition / 100} - 4px )`, paddingLeft: (splitViewLeftId && ['dashboard', 'tracker', 'chat', 'brain'].includes(splitViewLeftId)) ? (isDesktopEnv ? 30 : 20) : 10, overflow: 'clip', overflowClipMargin: '2px' }}>
               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                {splitViewLeftId && !['dashboard', 'chat', 'tracker'].includes(splitViewLeftId) && (
+                {splitViewLeftId && !['dashboard', 'chat', 'tracker', 'brain'].includes(splitViewLeftId) && (
                   <div className="h-full flex items-center mr-[3px]">
                     <EntityHeaderControls entityId={splitViewLeftId} />
                   </div>
@@ -811,9 +811,9 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth, resolv
                 </div>
               </div>
             </div>
-            <div className="flex items-end h-full justify-between min-w-0 flex-1 group/split-header" style={{ paddingLeft: (splitViewRightId && ['dashboard', 'tracker', 'chat'].includes(splitViewRightId)) ? (isDesktopEnv ? 30 : 20) : 10, paddingRight: safeRightPadding ?? 8, overflow: 'clip', overflowClipMargin: '2px' }}>
+            <div className="flex items-end h-full justify-between min-w-0 flex-1 group/split-header" style={{ paddingLeft: (splitViewRightId && ['dashboard', 'tracker', 'chat', 'brain'].includes(splitViewRightId)) ? (isDesktopEnv ? 30 : 20) : 10, paddingRight: safeRightPadding ?? 8, overflow: 'clip', overflowClipMargin: '2px' }}>
               <div className="flex items-end h-full min-w-0 gap-[6px]">
-                {splitViewRightId && !['dashboard', 'chat', 'tracker'].includes(splitViewRightId) && (
+                {splitViewRightId && !['dashboard', 'chat', 'tracker', 'brain'].includes(splitViewRightId) && (
                   <div className="h-full flex items-center mr-[3px]">
                     <EntityHeaderControls entityId={splitViewRightId} />
                   </div>

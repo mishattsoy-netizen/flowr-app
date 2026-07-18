@@ -1129,14 +1129,16 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             <div className="relative flex items-center p-[2px] rounded-[8px] no-drag w-full" style={{ background: 'var(--slider-track)' }}>
               {/* Sliding Pill */}
               {(() => {
-                const getTabForId = (id: string | null) => id === 'tracker' ? 1 : id === 'chat' ? 2 : 0;
+                const getTabForId = (id: string | null) => id === 'tracker' ? 1 : (id === 'chat' || id === 'brain') ? 2 : 0;
 
                 const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
                 const activeTabs = new Set<number>();
 
                 if (splitViewActive) {
-                  activeTabs.add(getTabForId(splitViewLeftId));
-                  activeTabs.add(getTabForId(splitViewRightId));
+                  // An empty column (null) has nothing open in it — don't let it
+                  // count as "Home" and light up a pill that isn't really active.
+                  if (splitViewLeftId) activeTabs.add(getTabForId(splitViewLeftId));
+                  if (splitViewRightId) activeTabs.add(getTabForId(splitViewRightId));
                 } else {
                   activeTabs.add(getTabForId(effectiveEntityId));
                 }
@@ -1204,11 +1206,12 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                   const effectiveEntityId = storeHydrated ? activeEntityId : inferredEntityId;
 
                   if (splitViewActive) {
-                    return (splitViewLeftId === 'tracker' ? 1 : splitViewLeftId === 'chat' ? 2 : 0) === tabIndex ||
-                      (splitViewRightId === 'tracker' ? 1 : splitViewRightId === 'chat' ? 2 : 0) === tabIndex;
+                    const leftTab = splitViewLeftId === null ? null : splitViewLeftId === 'tracker' ? 1 : (splitViewLeftId === 'chat' || splitViewLeftId === 'brain') ? 2 : 0;
+                    const rightTab = splitViewRightId === null ? null : splitViewRightId === 'tracker' ? 1 : (splitViewRightId === 'chat' || splitViewRightId === 'brain') ? 2 : 0;
+                    return leftTab === tabIndex || rightTab === tabIndex;
                   }
 
-                  const activeIndex = effectiveEntityId === 'tracker' ? 1 : effectiveEntityId === 'chat' ? 2 : 0;
+                  const activeIndex = effectiveEntityId === 'tracker' ? 1 : (effectiveEntityId === 'chat' || effectiveEntityId === 'brain') ? 2 : 0;
                   return activeIndex === tabIndex;
                 })();
                 return (
@@ -1251,9 +1254,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              {activeEntityId === 'brain' ? (
-                <BrainSidebarContent />
-              ) : activeEntityId === 'chat' ? (
+              {(activeEntityId === 'chat' || activeEntityId === 'brain') ? (
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
                     <button
@@ -1286,33 +1287,49 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <MessageCircleDashed strokeWidth={2} className="w-3.5 h-3.5" />
                       <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Temp Chat</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        clearSelectedSidebarIds();
-                        useStore.getState().setActiveEntityId('brain');
-                      }}
-                      className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
-                    >
-                      <Brain strokeWidth={2} className="w-3.5 h-3.5" />
-                      <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Brain</span>
-                    </button>
-                    <div className="h-px bg-transparent -mx-[10px] mt-[10px] mb-0" />
+                    {activeEntityId === 'chat' ? (
+                      <button
+                        onClick={() => {
+                          clearSelectedSidebarIds();
+                          useStore.getState().setActiveEntityId('brain');
+                        }}
+                        className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                      >
+                        <Brain strokeWidth={2} className="w-3.5 h-3.5" />
+                        <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Brain</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          clearSelectedSidebarIds();
+                          useStore.getState().setActiveEntityId('chat');
+                        }}
+                        className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                      >
+                        <MessageCircle strokeWidth={2} className="w-3.5 h-3.5" />
+                        <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Sessions</span>
+                      </button>
+                    )}
+                    <div className="h-px bg-[var(--bone-8)] -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
                   {chatConfirmDeleteId && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-overlay" onClick={() => setChatConfirmDeleteId(null)}>
-                      <div className="bg-panel border border-border/50 rounded-[1.25rem] p-5 w-[360px]" onClick={e => e.stopPropagation()}>
+                      <div className="bg-panel border border-[var(--bone-10)] rounded-[1.25rem] p-5 w-[360px]" onClick={e => e.stopPropagation()}>
                         <h2 className="text-lg font-semibold text-foreground mb-3">Delete conversation?</h2>
                         <p className="text-sm text-muted-foreground mb-6">This will permanently delete this conversation and all its messages.</p>
                         <div className="flex items-center justify-end gap-3">
-                          <button onClick={() => setChatConfirmDeleteId(null)} className="px-4 py-2 border border-border/50 text-sm rounded-full text-muted-foreground hover:text-foreground hover:bg-hover">Cancel</button>
+                          <button onClick={() => setChatConfirmDeleteId(null)} className="px-4 py-2 border border-[var(--bone-10)] text-sm rounded-full text-muted-foreground hover:text-foreground hover:bg-hover">Cancel</button>
                           <button onClick={() => { deleteChatConversation(chatConfirmDeleteId); setChatConfirmDeleteId(null); }} className="px-4 py-2 text-sm rounded-full bg-danger hover:bg-danger/80 text-white font-medium">Delete</button>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <ScrollArea innerRef={chatScrollRef} onScroll={onScroll} className="px-[10px] pt-2 pb-4 flex flex-col gap-[1px]">
+                  {activeEntityId === 'brain' ? (
+                    <BrainSidebarContent />
+                  ) : (
+                    <ScrollArea innerRef={chatScrollRef} onScroll={onScroll} className="px-[10px] pt-2 pb-4 flex flex-col gap-[1px]">
                     <div
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest('.sidebar-item-row') === null && selectedSidebarIds.length > 0) {
@@ -1430,6 +1447,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       )}
                     </div>
                   </ScrollArea>
+                )}
                 </div>
               ) : activeEntityId === 'tracker' ? (
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

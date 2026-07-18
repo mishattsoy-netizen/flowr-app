@@ -2,8 +2,7 @@ import { fetchTranscript } from 'youtube-transcript';
 import { logger } from '../../logger';
 import type { ExtractedPage } from './content-extract';
 
-const AUTO_CAP_CHARS = 10_000;   // auto-injection (WEB_SEARCH)
-const TOOL_CAP_CHARS = 60_000;   // explicit read_url tool call
+const CAP_CHARS = 60_000;   // applies to all YouTube transcript fetches (auto-injection and read_url tool)
 
 export interface TranscriptOptions {
   /** Start time in seconds (e.g. 300 for 5:00) */
@@ -45,13 +44,7 @@ export async function extractYoutubeTranscript(
 
     const fullText = filtered.map(s => s.text).join(' ');
 
-    // When a specific time range was requested, use the larger cap
-    // (the user intentionally chose that window — don't truncate it)
-    const cap = (options?.startTime !== undefined || options?.endTime !== undefined)
-      ? TOOL_CAP_CHARS
-      : AUTO_CAP_CHARS;
-
-    const content = fullText.slice(0, cap).trim();
+    const content = fullText.slice(0, CAP_CHARS).trim();
     if (!content) return null;
 
     return { url, title: 'YouTube Video Transcript', content };

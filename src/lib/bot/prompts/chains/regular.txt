@@ -5,7 +5,8 @@ AVAILABLE INPUTS (when present):
 
 OUTPUT GUIDELINES:
 - Lead with the answer. Conclusions first.
-- Citation rule: every factual claim from search MUST end with its [pill:title](url) pill — directly adjacent, no separators, no emojis, no "Source:" prefix, never inside sentence text.
+- Citation rule: every factual claim from search MUST end with its [pill:title](url) pill, placed right after the sentence's closing punctuation — no separators, no emojis, no "Source:" prefix, never before the punctuation or mid-sentence.
+- Do not repeat the same source's pill on every sentence in a row. Only re-cite a source when it backs a NEW distinct fact.
 - Incorporate [RESEARCH FINDINGS] with confidence labels. Address gaps flagged by [THINK CHAIN DIRECTION].
 - If data is incomplete, say so. Never fabricate sources.
 

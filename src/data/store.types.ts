@@ -501,11 +501,17 @@ export interface AppState {
   pendingCompaction: boolean;
   isCompacting: boolean;
   manualTimezone: string | null;
+  /** Soft AI reply length bias: concise | balanced | detailed */
+  responseStyle: 'concise' | 'balanced' | 'detailed';
+  /** Default reply language code, or 'auto' */
+  replyLanguage: string;
   chatInputs: Record<string, string>;
   loadingStatesMap: Record<string, boolean>;
   abortControllersMap: Record<string, AbortController | null>;
 
   setManualTimezone: (tz: string | null) => void;
+  setResponseStyle: (style: 'concise' | 'balanced' | 'detailed') => void;
+  setReplyLanguage: (lang: string) => void;
   chatMessagesMap: Record<string, AIMessage[]>;
   applyInstantDowngradeLock: () => void;
   sessionContextsMap: Record<string, any>;
@@ -631,7 +637,7 @@ export interface AppState {
   moveEntity: (id: string, newParentId: string | null, newSpaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
   renameEntity: (id: string, newTitle: string) => void;
-  duplicateEntity: (id: string) => void;
+  duplicateEntity: (id: string) => string | undefined;
   setEntityIcon: (id: string, icon: string) => void;
   setEditingEntityId: (id: string | null, source?: EditingSource | null) => void;
   clearEditingEntityId: () => void;

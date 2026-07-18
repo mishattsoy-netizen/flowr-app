@@ -19,7 +19,7 @@ async function extractViaExa(urls: string[]): Promise<ExtractedPage[] | null> {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ urls, text: { maxCharacters: 4000 } }),
+      body: JSON.stringify({ urls, text: { maxCharacters: 20000 } }),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -46,7 +46,7 @@ async function extractViaTavily(urls: string[]): Promise<ExtractedPage[] | null>
     return results.results.map((r: any) => ({
       url: r.url,
       title: r.title || '',
-      content: (r.content || r.rawContent || '').slice(0, 4000),
+      content: (r.content || r.rawContent || '').slice(0, 20000),
     }))
   } catch {
     return null

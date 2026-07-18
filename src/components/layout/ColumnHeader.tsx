@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useStore, generateId } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
-import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus, Search, PanelLeft, RotateCcw } from 'lucide-react';
+import { X, Columns2, Pin, ArrowLeftRight, FileText, Frame, Folder, Home, MessageCircle, ListTodo, BookOpen, Pencil, MoreVertical, Plus, Search, PanelLeft, RotateCcw, Brain } from 'lucide-react';
 import { cn, stripHtml } from '@/lib/utils';
 import { isDesktop } from '@/lib/env';
 import { Tooltip } from '@/components/layout/Tooltip';
@@ -74,6 +74,7 @@ function getTitleAndIcon(
     return { title: isTempChat ? 'Temporary Chat' : (ac?.title || 'Chat'), Icon: MessageCircle };
   }
   if (entityId === 'tracker') return { title: 'Tasks', Icon: ListTodo };
+  if (entityId === 'brain') return { title: 'Brain', Icon: Brain };
   const entity = entities.find(e => e.id === entityId);
   if (entity) {
     const Icon = entity.icon ? getEntityIcon(entity.icon) : entity.type === 'canvas' ? Frame : entity.type === 'folder' ? Folder : FileText;
@@ -134,7 +135,9 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
         height: BAR_H,
         paddingLeft: (!isDesktopEnv && isSidebarCollapsed && column === 'left')
           ? 12
-          : (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? (isDesktopEnv ? 30 : 20) : 10,
+          : (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat' || entityId === 'brain')
+            ? (isDesktopEnv ? 30 : 20)
+            : 10,
         paddingRight: 12
       }}
     >
@@ -153,7 +156,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
           <div
             className={cn(
               "flex items-center gap-1 shrink-0 z-10",
-              (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') ? "mr-[1px]" : "mr-[2px]"
+              (entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat' || entityId === 'brain') ? "mr-[1px]" : "mr-[2px]"
             )}
           >
             <button
@@ -168,7 +171,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
             >
               <Search className="w-4 h-4" />
             </button>
-            {!(entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat') && (
+            {!(entityId === 'dashboard' || entityId === 'tracker' || entityId === 'chat' || entityId === 'brain') && (
               <div className="w-[1px] h-4 bg-[var(--bone-10)] ml-1 mr-0 shrink-0" />
             )}
           </div>
@@ -179,7 +182,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               (on top of the row's 6px gap) lands only between this group and
               the tab, matching the button's own centered top/bottom margin
               ((BAR_H - buttonSize) / 2 = 7px on web) for aligned corners. */}
-          {(entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker') && (
+          {(entityId !== 'dashboard' && entityId !== 'chat' && entityId !== 'tracker' && entityId !== 'brain') && (
             <div className="flex items-center gap-1 h-full shrink-0 mr-[1px]">
               <Tooltip content="More Options">
                 <button
@@ -286,25 +289,27 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
           </Tooltip>
 
           {/* New Entity Button (next to active tab) */}
-          <Tooltip content="New Entity">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (newItemPopup) {
-                  setNewItemPopup(null);
-                  return;
-                }
-                const rect = e.currentTarget.getBoundingClientRect();
-                setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
-              }}
-              className={cn(
-                "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
-                newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
-              )}
-            >
-              <Plus strokeWidth={2} className="w-4 h-4" />
-            </button>
-          </Tooltip>
+          {entityId !== 'brain' && (
+            <Tooltip content="New Entity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (newItemPopup) {
+                    setNewItemPopup(null);
+                    return;
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setNewItemPopup({ x: rect.left, y: rect.bottom + 6 });
+                }}
+                className={cn(
+                  "flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] transition-colors shrink-0 ml-[1px]",
+                  newItemPopup ? "opacity-100 bg-[var(--bone-10)]" : "opacity-70 hover:opacity-100 hover:bg-[var(--bone-6)]"
+                )}
+              >
+                <Plus strokeWidth={2} className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          )}
 
           {/* Spacer */}
           <div className="flex-1 min-w-0" />
@@ -323,7 +328,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 </Tooltip>
               </div>
             )}
-            {column === 'right' && !['dashboard', 'chat', 'tracker'].includes(splitViewLeftId || '') && !['dashboard', 'chat', 'tracker'].includes(splitViewRightId || '') && (
+            {column === 'right' && !['dashboard', 'chat', 'tracker', 'brain'].includes(splitViewLeftId || '') && !['dashboard', 'chat', 'tracker', 'brain'].includes(splitViewRightId || '') && (
               <Tooltip content={splitViewPinned ? "Unpin pair" : "Pin pair"}>
                 <button
                   onClick={e => { e.stopPropagation(); togglePin(); }}
@@ -342,7 +347,7 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
                 </button>
               </Tooltip>
             )}
-            {column === 'right' && (
+            {column === 'right' && splitViewLeftId !== 'brain' && (
               <Tooltip content="Swap columns">
                 <button
                   onClick={e => { e.stopPropagation(); swapColumns(); }}
@@ -353,12 +358,16 @@ export function ColumnHeader({ column, entityId }: ColumnHeaderProps) {
               </Tooltip>
             )}
             {column === 'right' && (
-              <Tooltip content="Exit split view">
+              <Tooltip content={splitViewLeftId === 'brain' ? "Close split view" : "Exit split view"}>
                 <button
                   onClick={e => { e.stopPropagation(); toggleSplitView(); }}
                   className="flex items-center justify-center w-7 h-7 rounded-[var(--radius-medium)] text-[var(--bone-100)] shrink-0 bg-[var(--bone-6)] hover:bg-[var(--bone-12)] z-10 transition-colors"
                 >
-                  <Columns2 strokeWidth={2} className="w-4 h-4" />
+                  {splitViewLeftId === 'brain' ? (
+                    <X strokeWidth={2.5} className="w-4 h-4" />
+                  ) : (
+                    <Columns2 strokeWidth={2} className="w-4 h-4" />
+                  )}
                 </button>
               </Tooltip>
             )}

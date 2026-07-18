@@ -45,3 +45,28 @@ describe('buildSystemPrompt — brain block placement', () => {
     expect(dynamicContext).toBe('')
   })
 })
+
+describe('buildSystemPrompt — AI prefs overlays', () => {
+  it('injects concise style and a soft language default', async () => {
+    const { staticPrompt } = await buildSystemPrompt('REGULAR', {
+      ...baseContext,
+      responseStyle: 'concise',
+      replyLanguage: 'fr',
+    })
+    expect(staticPrompt).toContain('[RESPONSE STYLE]')
+    expect(staticPrompt).toContain('Prefer concise replies')
+    expect(staticPrompt).toContain('[REPLY LANGUAGE]')
+    expect(staticPrompt).toContain('Default reply language: French')
+    expect(staticPrompt).toContain('honor an explicit language switch')
+  })
+
+  it('omits overlays for balanced + auto', async () => {
+    const { staticPrompt } = await buildSystemPrompt('REGULAR', {
+      ...baseContext,
+      responseStyle: 'balanced',
+      replyLanguage: 'auto',
+    })
+    expect(staticPrompt).not.toContain('[RESPONSE STYLE]')
+    expect(staticPrompt).not.toContain('[REPLY LANGUAGE]')
+  })
+})

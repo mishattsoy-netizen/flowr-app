@@ -4,15 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Brain,
-  ChevronDown,
+  ChevronRight,
   ChevronUp,
   Check,
-  Flame,
-  Gauge,
   Pencil,
+  RotateCcw,
   Star,
 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { getEntityIcon, ICON_MAP, type IconName } from '@/data/icons';
 import { authHeaders } from './useBrainData';
 
 export interface BrainLeftPanelBrain {
@@ -20,6 +20,16 @@ export interface BrainLeftPanelBrain {
   title: string;
   description: string | null;
   is_default: boolean;
+  icon?: string | null;
+}
+
+const BRAIN_ICON_PICKS: IconName[] = [
+  'Brain', 'Folder', 'Sparkles', 'Zap', 'Target', 'BookOpen', 'Lightbulb', 'Star', 'Rocket', 'Compass',
+];
+
+function resolveBrainIcon(icon?: string | null) {
+  if (icon) return getEntityIcon(icon);
+  return Brain;
 }
 
 export interface BrainLeftPanelNode {
@@ -57,6 +67,8 @@ export interface BrainLeftPanelProps {
   onRenameBrain: (brainId: string, title: string) => Promise<void> | void;
   /** Set default via `set_default_brain`, then refresh brain list. */
   onSetDefaultBrain: (brainId: string) => Promise<void> | void;
+  /** Persist brain icon via `update_brain`. */
+  onSetBrainIcon: (brainId: string, icon: string) => Promise<void> | void;
   /** Optional; panel self-resets via API when omitted. Called after a successful reset. */
   onResetUsage?: () => Promise<void> | void;
   expanded?: boolean;
@@ -65,6 +77,15 @@ export interface BrainLeftPanelProps {
 
 const CALENDAR_WEEKS = 26;
 
+/** Top-5 bar colors — solid fills, no gradients (Figma). */
+const TOP5_BAR_COLORS = [
+  '#E8A23A', // orange
+  '#2A78D6', // brand blue
+  '#4ECB8D', // mint
+  '#A78BFA', // purple
+  '#F0A0C0', // pink
+] as const;
+
 const LEVEL_CLASS: Record<number, string> = {
   0: 'bg-[var(--bone-8)]',
   1: 'bg-emerald-900/55',
@@ -72,6 +93,11 @@ const LEVEL_CLASS: Record<number, string> = {
   3: 'bg-emerald-500/80',
   4: 'bg-emerald-400',
 };
+
+const SECTION_LABEL =
+  'text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--bone-40)]';
+const NESTED_CARD =
+  'rounded-[14px] bg-[var(--app-dark)] px-3 py-2.5';
 
 function buildCalendarWeeks(calendar: UsageCalendarCell[]): { date: string; level: number }[][] {
   const byDate = new Map(calendar.map(c => [c.date, c.level as number]));
@@ -108,11 +134,13 @@ export function BrainLeftPanel({
   perNodeTokens,
   onRenameBrain,
   onSetDefaultBrain,
+  onSetBrainIcon,
   onResetUsage,
   expanded: expandedProp,
   onExpandChange,
 }: BrainLeftPanelProps) {
   const current = brains.find(b => b.id === selectedBrainId);
+  const CurrentIcon = resolveBrainIcon(current?.icon);
 
   const [internalExpanded, setInternalExpanded] = useState(false);
   const expanded = expandedProp ?? internalExpanded;
@@ -122,6 +150,7 @@ export function BrainLeftPanel({
   };
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -273,7 +302,7 @@ export function BrainLeftPanel({
   const gridStats = [
     { label: 'Nodes', value: nodeCount },
     { label: 'Edges', value: edgeCount },
-    { label: 'Active days', value: displayActiveDays },
+    { label: 'Active Days', value: displayActiveDays },
     { label: 'Requests', value: displayRequests },
   ] as const;
 
@@ -288,6 +317,9 @@ export function BrainLeftPanel({
       .slice(0, 5);
   }, [nodes, perNodeTokens, safeLimit]);
 
+  // Scale top-5 bars relative to the largest so the leader fills most of the track.
+  const top5MaxPct = Math.max(...top5.map(n => n.usagePct), 0.1);
+
   const priorityDist = useMemo(() => {
     const total = nodes.length || 1;
     let high = 0;
@@ -300,9 +332,9 @@ export function BrainLeftPanel({
       else low++;
     }
     return [
-      { label: 'High', count: high, pct: Math.round((high / total) * 100), color: 'bg-red-400' },
-      { label: 'Medium', count: medium, pct: Math.round((medium / total) * 100), color: 'bg-amber-400' },
-      { label: 'Low', count: low, pct: Math.round((low / total) * 100), color: 'bg-[var(--brand-blue)]' },
+      { label: 'High', count: high, pct: Math.round((high / total) * 100), dot: '#F07178', bar: 'bg-[#F07178]' },
+      { label: 'Medium', count: medium, pct: Math.round((medium / total) * 100), dot: '#E8A23A', bar: 'bg-[#E8A23A]' },
+      { label: 'Low', count: low, pct: Math.round((low / total) * 100), dot: '#2A78D6', bar: 'bg-[var(--brand-blue)]' },
     ];
   }, [nodes]);
 
@@ -331,19 +363,87 @@ export function BrainLeftPanel({
     () => buildCalendarWeeks(statsForView?.calendar ?? []),
     [statsForView?.calendar],
   );
+
+  /** Flat last-N day strip for ACTIVITY (Figma: single row, not a full github grid). */
+  const activityStrip = useMemo(() => {
+    const cells: { date: string; level: number }[] = [];
+    for (const week of calendarWeeks) {
+      for (const cell of week) {
+        if (cell.level >= 0) cells.push(cell);
+      }
+    }
+    return cells.slice(-18);
+  }, [calendarWeeks]);
+
   const showStatsLoading = statsLoading && !statsForView;
 
   return (
     <div
       className={cn(
-        "w-[280px] flex flex-col gap-2.5 px-3 py-2.5 select-none canvas-floating-panel",
-        "bg-panel/98 backdrop-blur-xl border border-[var(--bone-12)] shadow-[0_4px_16px_rgba(0,0,0,0.14)] rounded-[14px]"
+        "w-[288px] flex flex-col gap-[12px] px-[13px] py-[14px] select-none canvas-floating-panel",
+        "bg-[var(--app-panel)] backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.28)] rounded-[15px]",
+        "outline outline-1 outline-[rgba(255,255,255,0.12)] -outline-offset-1"
       )}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* Row 1: brain switcher + expand toggle */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      {/* Header — icon (pick) · title (switch brain) · › expand — separate controls */}
+      <div className="flex items-center gap-[7px] min-w-0 h-[26px]">
+        {/* Icon — own control, opens icon picker for the selected brain */}
+        <Popover open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              title="Change icon"
+              aria-label="Change brain icon"
+              disabled={!selectedBrainId}
+              className={cn(
+                "w-6 h-6 shrink-0 flex items-center justify-center rounded-[6px] border-none outline-none",
+                "text-white hover:bg-[var(--bone-6)] transition-colors",
+                "disabled:opacity-40 disabled:pointer-events-none"
+              )}
+            >
+              <CurrentIcon className="w-5 h-5" strokeWidth={1.6} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-auto p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-[0_8px_30px_rgba(0,0,0,0.24)] rounded-[14px] z-[300]"
+            align="start"
+            sideOffset={6}
+          >
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">
+              Icon
+            </p>
+            <div className="grid grid-cols-5 gap-1">
+              {BRAIN_ICON_PICKS.map(name => {
+                const Ic = ICON_MAP[name] ?? Brain;
+                const isActive = (current?.icon ?? 'Brain') === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    title={name}
+                    onClick={() => {
+                      if (!selectedBrainId) return;
+                      setIconPickerOpen(false);
+                      void onSetBrainIcon(selectedBrainId, name);
+                    }}
+                    className={cn(
+                      "w-8 h-8 flex items-center justify-center rounded-[6px] border-none outline-none transition-colors",
+                      isActive
+                        ? "bg-[var(--app-dark)] text-[var(--bone-100)]"
+                        : "text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+                    )}
+                  >
+                    <Ic strokeWidth={2} className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Title — brain switcher only */}
         <Popover
           open={pickerOpen}
           onOpenChange={(open) => {
@@ -355,19 +455,17 @@ export function BrainLeftPanel({
             <button
               type="button"
               className={cn(
-                "flex-1 min-w-0 flex items-center gap-2 h-8 px-2 rounded-[10px] text-[13px] font-medium",
-                "text-[var(--bone-100)] transition-colors hover:bg-[var(--app-dark)] border-none outline-none"
+                "flex-1 min-w-0 flex items-center h-[26px] pr-1 rounded-[8px]",
+                "text-[var(--bone-100)] transition-colors hover:bg-[var(--bone-6)] border-none outline-none"
               )}
             >
-              <Brain className="w-4 h-4 text-[var(--accent)] shrink-0" strokeWidth={2} />
-              <span className="font-display truncate flex-1 text-left">
+              <span className="font-serif font-normal text-[18px] leading-[18px] truncate flex-1 text-left text-white">
                 {current?.title ?? 'Select brain'}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-[var(--bone-30)] shrink-0" strokeWidth={2} />
             </button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-64 p-1.5 bg-panel border border-[var(--bone-12)] shadow-[0_8px_30px_rgba(0,0,0,0.24)] rounded-[14px] z-[300] overflow-hidden"
+            className="w-64 p-1.5 bg-[var(--app-panel)] border border-[var(--bone-12)] shadow-[0_8px_30px_rgba(0,0,0,0.24)] rounded-[14px] z-[300] overflow-hidden"
             align="start"
             sideOffset={6}
           >
@@ -376,6 +474,7 @@ export function BrainLeftPanel({
                 const isSelected = b.id === selectedBrainId;
                 const isRenaming = renamingId === b.id;
                 const isBusy = busyId === b.id;
+                const RowIcon = resolveBrainIcon(b.icon);
 
                 if (isRenaming) {
                   return (
@@ -383,7 +482,7 @@ export function BrainLeftPanel({
                       key={b.id}
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-[10px] bg-[var(--app-dark)]"
                     >
-                      <Brain className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
+                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
                       <input
                         ref={renameInputRef}
                         value={renameValue}
@@ -426,7 +525,7 @@ export function BrainLeftPanel({
                       }}
                       className="flex-1 min-w-0 flex items-center gap-2 px-1 py-1 text-left border-none outline-none bg-transparent text-inherit"
                     >
-                      <Brain className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
+                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
                       <span className="truncate flex-1">{b.title}</span>
                       {b.is_default && (
                         <span className="text-[10px] text-[var(--bone-30)] uppercase tracking-wide shrink-0">
@@ -434,7 +533,7 @@ export function BrainLeftPanel({
                         </span>
                       )}
                       {isSelected && (
-                        <Check className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" strokeWidth={2.5} />
+                        <Check className="w-3.5 h-3.5 text-[var(--brand-blue)] shrink-0" strokeWidth={2.5} />
                       )}
                     </button>
                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
@@ -479,90 +578,112 @@ export function BrainLeftPanel({
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
           className={cn(
-            "w-8 h-8 shrink-0 flex items-center justify-center rounded-[10px] border-none outline-none",
-            "text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)] transition-colors"
+            "w-6 h-6 shrink-0 flex items-center justify-center rounded-[6px] border-none outline-none",
+            "text-white/30 hover:text-white/70 transition-colors"
           )}
         >
           {expanded
-            ? <ChevronUp className="w-4 h-4" strokeWidth={2} />
-            : <ChevronDown className="w-4 h-4" strokeWidth={2} />}
+            ? <ChevronUp className="w-[14px] h-[14px]" strokeWidth={1.75} />
+            : <ChevronRight className="w-[14px] h-[14px]" strokeWidth={1.75} />}
         </button>
       </div>
 
-      {/* Row 2: budget bar (gauge markup from BrainStatsPanel) */}
+      {/* Budget pill — Figma: #141414, 9px radius, 10px labels, 4px bar */}
       <div
-        className="flex items-center gap-2.5 px-1"
+        className="rounded-[9px] bg-[#141414] px-[13px] py-[11px]"
         title={`${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
       >
-        <Gauge
-          className={cn(
-            "w-3.5 h-3.5 shrink-0",
-            isOverBudget ? "text-danger" : isNearBudget ? "text-amber-400" : "text-[var(--bone-40)]"
-          )}
-          strokeWidth={2}
-        />
-        <div className="flex-1 h-2.5 rounded-full bg-[var(--bone-6)] overflow-hidden">
+        <div className="flex items-baseline justify-between mb-[8px]">
+          <span
+            className={cn(
+              "text-[10px] font-semibold tabular-nums leading-none font-sans",
+              isOverBudget ? "text-danger" : "text-white"
+            )}
+          >
+            {pct}%
+          </span>
+          <span className="text-[10px] font-medium tabular-nums leading-none font-sans text-white/30">
+            100%
+          </span>
+        </div>
+        <div className="w-full h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-500 ease-out",
-              isOverBudget ? "bg-danger" : isNearBudget ? "bg-amber-400" : "bg-[var(--brand-blue)]"
+              isOverBudget ? "bg-danger" : isNearBudget ? "bg-amber-400" : "bg-[#2A78D6]"
             )}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span
-          className={cn(
-            "font-display font-medium text-[12px] tabular-nums leading-none shrink-0",
-            isOverBudget ? "text-danger" : "text-[var(--bone-100)]"
-          )}
-        >
-          {Math.round(used / 100) / 10}k/{Math.round(limit / 100) / 10}k · {pct}%
-        </span>
       </div>
 
-      {/* Row 3: 4-stat grid */}
-      <div className="grid grid-cols-4 gap-1">
+      {/* 4-stat tiles — Figma: 40px tall, 7px radius, white/6%, 19px nums / 7px labels */}
+      <div className="flex items-center gap-[5px]">
         {gridStats.map(s => (
           <div
             key={s.label}
-            className="flex flex-col items-center gap-0.5 py-1.5 rounded-[10px] bg-[var(--bone-6)]/60"
+            className="flex-1 min-w-0 h-[40px] flex flex-col items-start justify-center gap-0 pl-2 pr-1 rounded-[7px] bg-white/[0.06]"
           >
-            <span className="font-display font-medium text-[15px] text-[var(--bone-100)] tabular-nums leading-none">
+            <span className="font-sans font-medium text-[19px] text-white/70 tabular-nums leading-none tracking-tight">
               {s.value}
             </span>
-            <span className="text-[9px] text-[var(--bone-40)] uppercase tracking-wide leading-none">
+            <span className="font-sans font-medium text-[7px] text-white/[0.39] leading-none mt-[3px] truncate max-w-full">
               {s.label}
             </span>
           </div>
         ))}
       </div>
 
-      {/* Expanded analytics (spec §3.4) */}
+      {/* Expanded analytics */}
       {expanded && (
-        <div className="flex flex-col gap-3 pt-1 border-t border-[var(--bone-8)]">
-          {/* 1. Top 5 by usage */}
-          <section className="flex flex-col gap-1.5">
-            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
-              Top 5 by usage
-            </h3>
+        <div className="flex flex-col gap-3.5">
+          {/* Top 5 by usage */}
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 px-0.5">
+              <h3 className={SECTION_LABEL}>Top 5 by usage</h3>
+              <button
+                type="button"
+                disabled={resetting || !selectedBrainId}
+                onClick={() => { void handleResetUsage(); }}
+                className={cn(
+                  "inline-flex items-center gap-1 text-[11px] text-[var(--bone-40)] hover:text-[var(--bone-70)]",
+                  "border-none outline-none bg-transparent transition-colors",
+                  "disabled:opacity-50 disabled:pointer-events-none"
+                )}
+              >
+                Reset stats
+                <RotateCcw className="w-3 h-3" strokeWidth={2} />
+              </button>
+            </div>
             {top5.length === 0 ? (
-              <p className="text-[11px] text-[var(--bone-30)] px-0.5">No nodes yet</p>
+              <p className="text-[12px] text-[var(--bone-30)] px-0.5">No nodes yet</p>
             ) : (
-              <div className="flex flex-col gap-1">
-                {top5.map(n => {
-                  const barPct = Math.min(100, n.usagePct);
+              <div className="flex flex-col gap-2">
+                {top5.map((n, i) => {
+                  const barWidth = Math.max(
+                    n.usagePct > 0 ? 10 : 0,
+                    Math.round((n.usagePct / top5MaxPct) * 100),
+                  );
+                  const color = TOP5_BAR_COLORS[i % TOP5_BAR_COLORS.length];
                   return (
-                    <div key={n.id} className="flex flex-col gap-0.5">
-                      <span className="text-[11px] text-[var(--bone-70)] truncate px-0.5" title={n.title}>
+                    <div key={n.id} className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-[108px] shrink-0 text-[12px] text-[var(--bone-70)] truncate"
+                        title={n.title}
+                      >
                         {n.title || 'Untitled'}
                       </span>
-                      <div className="h-5 rounded-[6px] bg-[var(--bone-6)] overflow-hidden relative">
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
                         <div
-                          className="h-full rounded-[6px] bg-gradient-to-r from-[var(--brand-blue)] to-[var(--accent)] transition-all duration-500 ease-out"
-                          style={{ width: `${Math.max(barPct, barPct > 0 ? 8 : 0)}%` }}
+                          className="h-[8px] rounded-full transition-all duration-500 ease-out shrink-0"
+                          style={{
+                            width: `${barWidth}%`,
+                            maxWidth: '100%',
+                            backgroundColor: color,
+                          }}
                         />
-                        <span className="absolute inset-y-0 left-2 flex items-center text-[10px] font-medium tabular-nums text-[var(--bone-100)] drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
-                          {n.usagePct}%
+                        <span className="text-[11px] tabular-nums text-[var(--bone-60)] shrink-0 leading-none">
+                          {n.usagePct % 1 === 0 ? n.usagePct : n.usagePct.toFixed(1)}%
                         </span>
                       </div>
                     </div>
@@ -572,22 +693,24 @@ export function BrainLeftPanel({
             )}
           </section>
 
-          {/* 2. Priority distribution */}
-          <section className="flex flex-col gap-1.5">
-            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
-              Priority
-            </h3>
-            <div className="flex flex-col gap-1">
+          {/* Priority distribution */}
+          <section className={cn(NESTED_CARD, "flex flex-col gap-2")}>
+            <h3 className={SECTION_LABEL}>Priority distribution</h3>
+            <div className="flex flex-col gap-2">
               {priorityDist.map(row => (
                 <div key={row.label} className="flex items-center gap-2">
-                  <span className="w-12 shrink-0 text-[10px] text-[var(--bone-50)]">{row.label}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-[var(--bone-6)] overflow-hidden">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: row.dot }}
+                  />
+                  <span className="w-14 shrink-0 text-[12px] text-[var(--bone-70)]">{row.label}</span>
+                  <div className="flex-1 h-[5px] rounded-full bg-[var(--bone-6)] overflow-hidden">
                     <div
-                      className={cn('h-full rounded-full transition-all duration-500', row.color)}
-                      style={{ width: `${row.pct}%` }}
+                      className={cn('h-full rounded-full transition-all duration-500', row.bar)}
+                      style={{ width: nodes.length === 0 ? 0 : `${row.pct}%` }}
                     />
                   </div>
-                  <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-[var(--bone-50)]">
+                  <span className="w-8 shrink-0 text-right text-[11px] tabular-nums text-[var(--bone-50)]">
                     {nodes.length === 0 ? '—' : `${row.pct}%`}
                   </span>
                 </div>
@@ -595,97 +718,81 @@ export function BrainLeftPanel({
             </div>
           </section>
 
-          {/* 3. Nodes by custom tag */}
-          <section className="flex flex-col gap-1.5">
-            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
-              Tags
-            </h3>
-            <div className="flex flex-wrap gap-1">
+          {/* Nodes by color tag */}
+          <section className={cn(NESTED_CARD, "flex flex-col gap-2")}>
+            <h3 className={SECTION_LABEL}>Nodes by color tag</h3>
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5">
               {tagChips.map((chip, i) => {
                 const isUntagged = chip.name === 'Untagged' && !chip.color;
                 const label = chip.name
                   ? chip.name
                   : chip.color
-                    ? '● (unnamed)'
+                    ? 'Unnamed'
                     : 'Untagged';
                 return (
                   <span
                     key={`${chip.color ?? 'none'}-${chip.name ?? 'none'}-${i}`}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px]",
-                      "bg-[var(--bone-6)] text-[var(--bone-70)] border border-[var(--bone-8)]"
-                    )}
+                    className="inline-flex items-center gap-1.5 text-[12px] text-[var(--bone-70)]"
                   >
-                    {!isUntagged && (
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: chip.color || 'var(--bone-30)' }}
-                      />
-                    )}
-                    <span className="truncate max-w-[120px]">{label}</span>
-                    <span className="tabular-nums text-[var(--bone-40)]">{chip.count}</span>
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: isUntagged
+                          ? 'var(--bone-30)'
+                          : (chip.color || 'var(--bone-30)'),
+                      }}
+                    />
+                    <span className="truncate max-w-[100px]">{label}</span>
+                    <span className="tabular-nums text-[var(--bone-40)]">· {chip.count}</span>
                   </span>
                 );
               })}
             </div>
           </section>
 
-          {/* 4. Activity calendar + streak */}
-          <section className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between px-0.5">
-              <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)]">
-                Activity
-              </h3>
-              <span className="inline-flex items-center gap-1 text-[11px] tabular-nums text-[var(--bone-70)]">
-                <Flame
-                  className={cn(
-                    "w-3 h-3",
-                    !showStatsLoading && (statsForView?.streak ?? 0) > 0
-                      ? "text-orange-400"
-                      : "text-[var(--bone-30)]"
-                  )}
-                  strokeWidth={2}
-                />
-                {showStatsLoading ? '…' : `${statsForView?.streak ?? 0} day streak`}
-              </span>
-            </div>
+          {/* Activity strip */}
+          <section className={cn(NESTED_CARD, "flex flex-col gap-2")}>
+            <h3 className={SECTION_LABEL}>Activity (last ~6mo)</h3>
             {showStatsLoading ? (
-              <div className="h-[55px] mx-0.5 rounded-[8px] bg-[var(--bone-6)]/60 animate-pulse" />
+              <div className="h-6 rounded-[6px] bg-[var(--bone-6)] animate-pulse" />
             ) : (
-              <div className="flex gap-px overflow-hidden justify-between px-0.5">
-                {calendarWeeks.map((week, wi) => (
-                  <div key={wi} className="flex flex-col gap-px">
-                    {week.map(cell => (
-                      <div
-                        key={cell.date}
-                        title={cell.level >= 0 ? cell.date : undefined}
-                        className={cn(
-                          'w-[7px] h-[7px] rounded-[2px]',
-                          cell.level < 0 ? 'bg-transparent' : LEVEL_CLASS[cell.level] ?? LEVEL_CLASS[0]
-                        )}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="flex items-center gap-[3px] w-full">
+                  {activityStrip.map(cell => (
+                    <div
+                      key={cell.date}
+                      title={cell.date}
+                      className={cn(
+                        'flex-1 min-w-0 h-[10px] rounded-[2px]',
+                        LEVEL_CLASS[cell.level] ?? LEVEL_CLASS[0]
+                      )}
+                    />
+                  ))}
+                  {activityStrip.length === 0 && (
+                    <div className="flex-1 h-[10px] rounded-[2px] bg-[var(--bone-8)]" />
+                  )}
+                </div>
+                <div className="flex justify-between text-[10px] text-[var(--bone-40)]">
+                  <span>6 months ago</span>
+                  <span>Today</span>
+                </div>
+              </>
             )}
           </section>
 
-          {/* 5. Reset statistics — pinned bottom */}
-          <div className="pt-1 border-t border-[var(--bone-8)]">
-            <button
-              type="button"
-              disabled={resetting || !selectedBrainId}
-              onClick={() => { void handleResetUsage(); }}
-              className={cn(
-                "w-full h-8 rounded-[10px] text-[12px] font-medium border-none outline-none transition-colors",
-                "text-[var(--bone-50)] hover:text-danger hover:bg-danger/10",
-                "disabled:opacity-50 disabled:pointer-events-none"
-              )}
-            >
-              {resetting ? 'Resetting…' : 'Reset statistics'}
-            </button>
-          </div>
+          {/* Reset — full-width soft pill */}
+          <button
+            type="button"
+            disabled={resetting || !selectedBrainId}
+            onClick={() => { void handleResetUsage(); }}
+            className={cn(
+              "w-full h-10 rounded-[12px] text-[13px] font-medium border-none outline-none transition-colors",
+              "bg-[var(--bone-6)] text-[var(--bone-60)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-10)]",
+              "disabled:opacity-50 disabled:pointer-events-none"
+            )}
+          >
+            {resetting ? 'Resetting…' : 'Reset'}
+          </button>
         </div>
       )}
     </div>

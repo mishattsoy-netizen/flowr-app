@@ -17,7 +17,7 @@ import UpdatesSection from '@/components/settings/UpdatesSection';
 export type SettingsTab = 'general' | 'account' | 'usage' | 'ai' | 'connectors' | 'updates';
 
 export function SettingsModal() {
-  const { modal, closeModal, openModal, interfaceSize, setInterfaceSize, isTabsHeaderVisible, toggleTabsHeader, isChatNewNoteButtonVisible, setChatNewNoteButtonVisible } = useStore();
+  const { modal, closeModal, openModal, interfaceSize, setInterfaceSize, isChatNewNoteButtonVisible, setChatNewNoteButtonVisible } = useStore();
   const { theme, setTheme, resolvedTheme } = useTheme();
   
   const toggleTheme = useCallback(() => {
@@ -240,18 +240,7 @@ export function SettingsModal() {
                       </div>
                     </div>
 
-                    <div className="mt-6">
-                      {/* Tabs Navigation */}
-                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
-                        <div>
-                          <h4 className="text-[14px] font-medium text-bone-100">Tabs Navigation</h4>
-                        </div>
-                        <Toggle
-                          checked={isTabsHeaderVisible}
-                          onChange={() => toggleTabsHeader()}
-                        />
-                      </div>
-
+                    <div className="mt-6 px-4">
                       {/* Chat Action Button */}
                       <div className="flex items-center justify-between py-3">
                         <div>
@@ -281,16 +270,16 @@ export function SettingsModal() {
                   <section>
                     <h3 className="text-[15px] font-semibold text-[var(--bone-100)]">Data</h3>
                     <p className="text-[13px] text-[var(--bone-60)] mt-1">Local cache and irreversible workspace actions.</p>
-                    <div className="mt-4">
+                    <div className="mt-4 rounded-2xl bg-[var(--bone-6)] p-4 space-y-0">
                       {/* Clear Local Cache */}
-                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-6)]">
+                      <div className="flex items-center justify-between py-3 border-b border-[var(--bone-10)]">
                         <div>
                           <h4 className="text-[14px] font-medium text-bone-100">Local Cache</h4>
                         </div>
                         <ClearCacheButton />
                       </div>
 
-                      {/* Delete All Data — danger row outside any app-dark hero */}
+                      {/* Delete All Data — danger row in secondary bone-6 card */}
                       <div className="flex items-center justify-between py-3">
                         <div>
                           <h4 className="text-[14px] font-medium text-bone-100">Delete All Data</h4>

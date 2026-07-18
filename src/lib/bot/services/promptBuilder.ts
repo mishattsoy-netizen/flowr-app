@@ -1,5 +1,12 @@
 import { getGlobalPrompt, getToolInstructions, getChainPrompt } from '../prompts'
 import type { IntentCategory } from '../../router-config'
+import {
+  normalizeResponseStyle,
+  normalizeReplyLanguage,
+  buildResponseStyleBlock,
+  buildReplyLanguageBlock,
+  type ResponseStyle,
+} from '@/lib/ai-prefs'
 
 export interface PromptBuilderContext {
   userId?: string
@@ -12,6 +19,10 @@ export interface PromptBuilderContext {
   currentSummary: string | null
   pendingAction?: { tool: string; args: Record<string, any>; dry_run_result: any } | null
   brainBlock?: string
+  /** Soft length/depth bias from user settings */
+  responseStyle?: ResponseStyle | string
+  /** Soft default reply language code or 'auto' */
+  replyLanguage?: string
 }
 
 function getChainInstructions(category: IntentCategory): string {
@@ -83,6 +94,15 @@ ISO Time (UTC): ${isoMinute}
   const globalPrompt = getGlobalPrompt()
   if (globalPrompt && context.isGlobalPromptEnabled) {
     finalSysPrompt += globalPrompt
+  }
+
+  // User prefs: soft overlays (stable per session; mid-chat language switches
+  // live in history and take precedence over the default language block).
+  if (context.isGlobalPromptEnabled) {
+    const style = normalizeResponseStyle(context.responseStyle)
+    const lang = normalizeReplyLanguage(context.replyLanguage)
+    finalSysPrompt += buildResponseStyleBlock(style)
+    finalSysPrompt += buildReplyLanguageBlock(lang)
   }
 
   if (context.isGlobalPromptEnabled) {

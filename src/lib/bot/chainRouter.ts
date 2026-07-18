@@ -52,7 +52,7 @@ function augmentSearchQuery(originalQuery: string, history: any[]): string {
 
   // If the current query is very short or ambiguous, append context
   const queryWords = originalQuery.split(/\s+/).length
-  if (queryWords <= 5) {
+  if (queryWords <= 10) {
     // Find the most distinct entity from recent history not in the current query
     const queryLower = originalQuery.toLowerCase()
     for (const msg of lastUserMsgs.reverse()) {
@@ -185,6 +185,8 @@ export async function runChain(
     clientHistory?: any[];
     pageContext?: { url: string, content: string, title?: string } | null;
     clientTime?: string;
+    responseStyle?: string;
+    replyLanguage?: string;
     onEvent?: (event: any) => void;
   }
 ): Promise<ChainResponse> {
@@ -537,6 +539,8 @@ export async function runChain(
     currentSummary,
     pendingAction: sessionState?.pending_action,
     brainBlock,
+    responseStyle: context?.responseStyle,
+    replyLanguage: context?.replyLanguage,
   })
 
   // ── Telegram awareness — inject formatting & brevity rules ──
@@ -654,10 +658,19 @@ IMAGE GENERATION:
 
         let pages: ExtractedPage[] = [];
 
-        // YouTube URLs: extract transcripts individually
-        for (const url of ytUrls) {
-          const ytPage = await extractYoutubeTranscript(url);
+        // Limit to 1 YouTube transcript fetch per request; flag extras so the
+        // model can tell the user to send additional videos separately.
+        const [firstYtUrl, ...skippedYtUrls] = ytUrls;
+        if (firstYtUrl) {
+          const ytPage = await extractYoutubeTranscript(firstYtUrl);
           if (ytPage) pages.push(ytPage);
+        }
+        if (skippedYtUrls.length > 0) {
+          pages.push({
+            url: skippedYtUrls.join(', '),
+            title: 'YouTube fetch limit',
+            content: `[NOTE TO MODEL: Only 1 YouTube video can be fetched per request. The following video(s) were NOT fetched: ${skippedYtUrls.join(', ')}. Tell the user to send them one at a time.]`,
+          });
         }
 
         // Non-YouTube URLs: batch-process through Exa → Tavily → fetch
