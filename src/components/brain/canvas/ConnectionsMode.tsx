@@ -116,21 +116,29 @@ export function ConnectionsMode({
         </button>
       </div>
 
-      {/* Chain: one continuous spine down the left, from the focused card's
-          center to the last connected card's center. Cards and label chips are
-          in normal flow; the spine paints behind them and shows through the
-          gaps, per the approved mockup. */}
+      {/* Chain. Rows are indented; the spine hugs the left: it leaves the
+          focused row's left edge, turns down through a rounded corner, and
+          runs to the last card's center. A dot marks each connected row. */}
       <div className="px-3.5 pb-3 flex flex-col">
-        <div className="relative pl-4">
+        <div className="relative pl-[18px]">
           {connected.length > 0 && (
-            <div className="absolute left-[7px] top-[22px] bottom-[22px] w-px bg-[var(--bone-15)]" />
+            <div
+              className={cn(
+                "absolute left-1 top-[22px] bottom-[22px] w-[14px] pointer-events-none",
+                "border-l border-t border-[var(--bone-30)] rounded-tl-[10px]"
+              )}
+            />
           )}
 
-          {/* Focused node */}
-          <div
+          {/* Focused row: dim blue, hover highlights + shows arrow, click →
+              back to this node's details. */}
+          <button
+            type="button"
+            onClick={() => onSetMode('details')}
             className={cn(
-              "relative flex items-center gap-2 h-11 px-3 rounded-[14px]",
-              "bg-[var(--app-dark)] border border-[var(--brand-blue)] shadow-[0_0_0_1px_rgba(42,120,214,0.25)]"
+              "group/focused w-full flex items-center gap-2 h-11 px-3 rounded-[14px] text-left",
+              "bg-[rgba(42,120,214,0.12)] hover:bg-[rgba(42,120,214,0.22)]",
+              "border border-[var(--brand-blue)] outline-none transition-colors"
             )}
           >
             <span className="w-4 h-4 shrink-0 text-[var(--bone-70)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
@@ -139,14 +147,20 @@ export function ConnectionsMode({
             <span className="font-serif text-[15px] text-[var(--bone-100)] truncate flex-1">
               {focusedDisplay.title}
             </span>
-          </div>
+            <span className="text-[var(--bone-60)] opacity-0 group-hover/focused:opacity-100 transition-opacity">
+              <ChevronRight className="w-4 h-4" strokeWidth={2} />
+            </span>
+          </button>
 
           {connected.map(row => {
             const d = getDisplay(row.otherId);
             return (
-              <div key={row.edge.id}>
-                {/* Label chip: in flow, sitting on the spine between the cards */}
-                <div className="my-1.5 flex">
+              <div key={row.edge.id} className="relative">
+                {/* Spine junction dot, level with this card's center — outside
+                    the card's overflow-hidden box or it would be clipped. */}
+                <div className="absolute -left-[17px] bottom-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
+                {/* Label row: full width, dark, dim while idle; click to edit. */}
+                <div className="my-2">
                   {editingEdgeId === row.edge.id ? (
                     <input
                       ref={labelInputRef}
@@ -157,7 +171,7 @@ export function ConnectionsMode({
                         if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
                         if (e.key === 'Escape') setEditingEdgeId(null);
                       }}
-                      className="h-6 px-2.5 rounded-full text-[11px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none max-w-full"
+                      className="w-full h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none"
                       placeholder="Label"
                     />
                   ) : (
@@ -165,10 +179,11 @@ export function ConnectionsMode({
                       type="button"
                       onClick={() => startEditLabel(row.edge)}
                       className={cn(
-                        "h-6 px-2.5 rounded-full text-[11px] border-none outline-none max-w-full truncate",
+                        "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
+                        "bg-[var(--app-dark)] border-none outline-none transition-colors",
                         row.edge.label
-                          ? "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
-                          : "bg-[var(--app-dark)] text-[var(--bone-30)] hover:text-[var(--bone-60)]"
+                          ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
+                          : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
                       )}
                       title="Edit connection label"
                     >
@@ -177,35 +192,37 @@ export function ConnectionsMode({
                   )}
                 </div>
 
-                {/* Connected node card. The break button lies UNDERNEATH at the
-                    same height and corner radius, always present but covered by
-                    the card; hovering shrinks the card from its right edge,
-                    revealing the button. Card fill must be OPAQUE (--card-bg),
-                    or the red bleeds through. */}
-                <div className="group relative h-11 rounded-[14px]">
-                  {/* Spine junction dot, level with this card's center */}
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-[7px] h-[7px] rounded-full bg-[var(--bone-30)]" />
+                {/* Connected card: idle-node styling (card-bg + bone-10 border),
+                    bone-6 overlay + arrow on hover, red detach revealed by
+                    hovering the right zone. Dot marks it on the spine. */}
+                <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--bone-10)]">
                   <button
                     type="button"
                     title="Break connection"
                     onClick={() => onBreakEdge(row.edge.id)}
+                    className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+                    aria-label="Break connection"
+                  />
+                  <div
+                    aria-hidden
                     className={cn(
-                      "absolute inset-0 flex items-center justify-end pr-3 rounded-[14px]",
-                      "bg-[#E85A5A] text-white border-none outline-none"
+                      "absolute inset-0 flex items-center justify-end pr-3 bg-[#E85A5A]",
+                      "opacity-0 peer-hover/zone:opacity-100 transition-opacity duration-100"
                     )}
                   >
-                    <Unlink className="w-4 h-4" strokeWidth={2} />
-                  </button>
+                    <Unlink className="w-4 h-4 text-white" strokeWidth={2} />
+                  </div>
                   <div
                     className={cn(
-                      "relative flex items-center h-11 rounded-[14px] bg-[var(--card-bg)] overflow-hidden",
-                      "transition-[width] duration-150 ease-out w-full group-hover:w-[calc(100%-40px)]"
+                      "relative z-10 flex items-center h-full rounded-[13px] bg-[var(--card-bg)]",
+                      "transition-[width] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
                     )}
                   >
+                    <div className="absolute inset-0 bg-[var(--bone-6)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                     <button
                       type="button"
                       onClick={() => onFocusNode(row.otherId)}
-                      className="flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
+                      className="relative flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
                     >
                       <span className="w-4 h-4 shrink-0 text-[var(--bone-60)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
                         {d?.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
@@ -214,7 +231,7 @@ export function ConnectionsMode({
                         {d?.title ?? 'Untitled'}
                       </span>
                     </button>
-                    <span className="pr-3 text-[var(--bone-30)]">
+                    <span className="relative pr-3 text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
                       <ChevronRight className="w-4 h-4" strokeWidth={2} />
                     </span>
                   </div>

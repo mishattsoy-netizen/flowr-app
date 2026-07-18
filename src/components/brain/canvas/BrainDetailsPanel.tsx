@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronRight, FileText, Link2 } from 'lucide-react';
+import { ChevronRight, FileText, Link2, Unlink } from 'lucide-react';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
 import { DetailsMode, type DetailsNodeDisplay } from './DetailsMode';
 import { ConnectionsMode } from './ConnectionsMode';
@@ -32,29 +32,34 @@ export interface BrainDetailsPanelProps {
 }
 
 /** Shared card chrome: the main panel and each selected-node card are separate
- *  floating panels stacked in a transparent column, per the approved mockup. */
+ *  floating panels stacked in a transparent column, per the approved mockup.
+ *  Border (not outline): an inset outline gets painted over by opaque child
+ *  backgrounds; a real border keeps children inside it. */
 const cardChrome = cn(
   "canvas-floating-panel bg-[var(--app-panel)] backdrop-blur-xl",
-  "outline outline-1 outline-[rgba(255,255,255,0.12)] -outline-offset-1",
+  "border border-[var(--bone-12)]",
   "shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
 );
 
-/** One other-selected node as its own floating card. When unconnected, the
- *  blue connect button lies UNDERNEATH the row at full height/corners, always
- *  present but covered; hovering shrinks the row from its right edge to
- *  reveal it. */
+/** One other-selected node as its own floating card.
+ *  - Whole-card hover highlights the row (bg → --card-bg) and shows the chevron.
+ *  - The action button (blue connect / red detach) lies underneath at full
+ *    height; hovering the card's RIGHT zone shrinks the row to reveal it.
+ *  - The underneath button is rectangular and opacity-0 until the zone hover,
+ *    so no colored sliver peeks at the rounded corners while covered. */
 function SelectedNodeCard({
   id,
   display,
   isLinked,
   onFocus,
-  onConnect,
+  onAction,
 }: {
   id: string;
   display: DetailsNodeDisplay;
   isLinked: boolean;
   onFocus: (id: string) => void;
-  onConnect: (id: string) => void;
+  /** Connect (unlinked) or break (linked), resolved by the parent. */
+  onAction: () => void;
 }) {
   return (
     <div
@@ -63,23 +68,34 @@ function SelectedNodeCard({
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
-      {!isLinked && (
-        <button
-          type="button"
-          title="Connect"
-          onClick={() => onConnect(id)}
-          className={cn(
-            "absolute inset-0 flex items-center justify-end pr-3.5 rounded-[14px]",
-            "bg-[var(--brand-blue)] text-white border-none outline-none"
-          )}
-        >
-          <Link2 className="w-4 h-4" strokeWidth={2} />
-        </button>
-      )}
+      {/* Right hot zone: hovering it reveals the action button; clicking fires it. */}
+      <button
+        type="button"
+        title={isLinked ? 'Break connection' : 'Connect'}
+        onClick={onAction}
+        className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+        aria-label={isLinked ? 'Break connection' : 'Connect'}
+      />
+      {/* Action button underneath: rectangular (parent clips the corners),
+          invisible until revealed. */}
+      <div
+        aria-hidden
+        className={cn(
+          "absolute inset-0 flex items-center justify-end pr-3.5",
+          "opacity-0 peer-hover/zone:opacity-100 transition-opacity duration-100",
+          isLinked ? "bg-[#E85A5A]" : "bg-[var(--brand-blue)]"
+        )}
+      >
+        {isLinked
+          ? <Unlink className="w-4 h-4 text-white" strokeWidth={2} />
+          : <Link2 className="w-4 h-4 text-white" strokeWidth={2} />}
+      </div>
+      {/* Cover row: full width; shrinks from the right on zone hover. */}
       <div
         className={cn(
-          "relative flex items-center h-12 px-3.5 rounded-[14px] bg-[var(--app-panel)]",
-          !isLinked && "transition-[width] duration-150 ease-out w-full group-hover:w-[calc(100%-44px)]"
+          "relative z-10 flex items-center h-full px-3.5 rounded-[14px]",
+          "bg-[var(--app-panel)] group-hover:bg-[var(--card-bg)]",
+          "transition-[width,background-color] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
         )}
       >
         <button
@@ -94,10 +110,8 @@ function SelectedNodeCard({
             {display.title}
           </span>
         </button>
-        <span className="text-[var(--bone-30)]">
-          {isLinked
-            ? <Link2 className="w-4 h-4" strokeWidth={2} />
-            : <ChevronRight className="w-4 h-4" strokeWidth={2} />}
+        <span className="text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
+          <ChevronRight className="w-4 h-4" strokeWidth={2} />
         </span>
       </div>
     </div>
@@ -127,13 +141,14 @@ export function BrainDetailsPanel({
   onMoveToWorkspace,
   className,
 }: BrainDetailsPanelProps) {
-  const connectedIds = useMemo(() => {
-    const set = new Set<string>();
+  // Edge (if any) between the focused node and each other node, for detach.
+  const edgeByOtherId = useMemo(() => {
+    const map = new Map<string, BrainCanvasEdge>();
     for (const e of edges) {
-      if (e.from_node === focusedNodeId) set.add(e.to_node);
-      if (e.to_node === focusedNodeId) set.add(e.from_node);
+      if (e.from_node === focusedNodeId) map.set(e.to_node, e);
+      else if (e.to_node === focusedNodeId) map.set(e.from_node, e);
     }
-    return set;
+    return map;
   }, [edges, focusedNodeId]);
 
   // Details mode: every other selected node, connected-to-focused first.
@@ -141,24 +156,23 @@ export function BrainDetailsPanel({
   // already in the chain inside the panel).
   const otherCards = useMemo(() => {
     const others = selectedNodeIds.filter(id => id !== focusedNodeId);
-    if (mode === 'connections') return others.filter(id => !connectedIds.has(id));
+    if (mode === 'connections') return others.filter(id => !edgeByOtherId.has(id));
     return [
-      ...others.filter(id => connectedIds.has(id)),
-      ...others.filter(id => !connectedIds.has(id)),
+      ...others.filter(id => edgeByOtherId.has(id)),
+      ...others.filter(id => !edgeByOtherId.has(id)),
     ];
-  }, [selectedNodeIds, focusedNodeId, connectedIds, mode]);
+  }, [selectedNodeIds, focusedNodeId, edgeByOtherId, mode]);
 
   return (
-    <div
-      className={cn(
-        "w-[320px] max-h-[min(720px,calc(100vh-96px))] overflow-y-auto select-none",
-        "flex flex-col gap-3",
-        className
-      )}
-    >
+    /* Transparent layout column — no overflow clipping here, so card shadows
+       render fully. The main card scrolls its own content instead. */
+    <div className={cn("w-[320px] select-none flex flex-col gap-3", className)}>
       {/* Main panel — its own card */}
       <div
-        className={cn(cardChrome, "shrink-0 rounded-[16px]")}
+        className={cn(
+          cardChrome,
+          "shrink-0 rounded-[16px] max-h-[min(600px,calc(100vh-160px))] overflow-y-auto"
+        )}
         onPointerDown={e => e.stopPropagation()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -198,14 +212,18 @@ export function BrainDetailsPanel({
       {otherCards.map(id => {
         const d = getDisplay(id);
         if (!d) return null;
+        const edge = edgeByOtherId.get(id);
         return (
           <SelectedNodeCard
             key={id}
             id={id}
             display={d}
-            isLinked={connectedIds.has(id)}
+            isLinked={!!edge}
             onFocus={onFocusNode}
-            onConnect={toId => onConnect(focusedNodeId, toId)}
+            onAction={() => {
+              if (edge) onBreakEdge(edge.id);
+              else onConnect(focusedNodeId, id);
+            }}
           />
         );
       })}

@@ -173,11 +173,15 @@ export function DetailsMode({
         )}
       </div>
 
-      {/* Preview */}
+      {/* Preview — same treatment as node cards (color, size, bottom fade),
+          just taller. */}
       {display.preview && (
-        <p className="px-3.5 pb-3 text-[13px] leading-[1.45] text-[var(--bone-35)] line-clamp-5 whitespace-pre-wrap">
-          {display.preview}
-        </p>
+        <div className="relative px-3.5 pb-3">
+          <p className="text-[11px] text-[var(--bone-70)] leading-relaxed break-words line-clamp-[9]">
+            {display.preview}
+          </p>
+          <div className="absolute inset-x-0 bottom-3 h-6 pointer-events-none bg-gradient-to-b from-transparent to-[var(--app-panel)]" />
+        </div>
       )}
 
       <div className="mx-3.5 h-px bg-[var(--bone-10)]" />
@@ -294,9 +298,9 @@ export function DetailsMode({
           }}
           disabled={!(node.type === 'entity' && node.ref_id)}
           className={cn(
-            "flex-1 h-9 rounded-[12px] bg-[var(--bone-10)] text-[13px] font-medium text-[var(--bone-90)]",
+            "flex-1 h-9 rounded-[12px] bg-[var(--app-dark)] text-[13px] font-medium text-[var(--bone-90)]",
             "inline-flex items-center justify-center gap-2 border-none outline-none",
-            "hover:bg-[var(--bone-12)] disabled:opacity-40 disabled:pointer-events-none"
+            "hover:bg-[var(--card-bg)] disabled:opacity-40 disabled:pointer-events-none"
           )}
         >
           Open editor

@@ -967,6 +967,13 @@ export function BrainCanvasPage() {
                   openDetailsForNode(node.id, 'details', { replaceSelection: false });
                   return;
                 }
+                // Clicking the already-focused node again resets the selection
+                // and closes the panel (toggle behavior).
+                if (detailsPanel?.focusedNodeId === node.id) {
+                  setDetailsPanel(null);
+                  setSelectedNodeIds(new Set());
+                  return;
+                }
                 // Single-click → details panel (no longer opens editor)
                 openDetailsForNode(node.id, 'details', { replaceSelection: true });
               }}
