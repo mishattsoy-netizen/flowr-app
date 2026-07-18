@@ -6,6 +6,7 @@ import {
   restoreBrainNode, addBrainEdge, removeBrainEdge, compileBrain,
   listUserBrains, createBrain, updateBrainMeta, deleteBrain,
   getOrCreateDefaultBrain, switchActiveBrain, fetchBrainRows,
+  setDefaultBrain, getBrainUsageStats, resetBrainUsage,
 } from '@/lib/bot/services/brainStore'
 import { logger } from '@/lib/logger'
 
@@ -100,6 +101,12 @@ export async function POST(req: NextRequest) {
         // uses to identify the active chat.
         if (!body.session_id) return NextResponse.json({ error: "'session_id' is required" }, { status: 400 })
         return NextResponse.json(await switchActiveBrain(body.session_id, userId, body.brain_id))
+      case 'set_default_brain':
+        return NextResponse.json(await setDefaultBrain(userId, body.brain_id))
+      case 'brain_usage_stats':
+        return NextResponse.json(await getBrainUsageStats(userId, body.brain_id))
+      case 'reset_brain_usage':
+        return NextResponse.json(await resetBrainUsage(userId, body.brain_id))
       default:
         return NextResponse.json({ error: `Unknown action '${body.action}'` }, { status: 400 })
     }
