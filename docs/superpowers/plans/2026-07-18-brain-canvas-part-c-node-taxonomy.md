@@ -59,8 +59,8 @@ CREATE INDEX IF NOT EXISTS idx_entities_not_brain_only
 
 - [ ] **Step 2: Apply + verify**
 
-Run: the project's migration-up command.
-Then verify columns exist: `SELECT column_name FROM information_schema.columns WHERE table_name='brain_nodes' AND column_name IN ('tag_color','tag_name','active_from','active_until');` → 4 rows; and the same for `entities.brain_only`.
+**No CLI** — apply by hand via Supabase Dashboard → SQL Editor (paste the file, execute), same as every migration in this repo (see `supabase/run_in_supabase_sql_editor.sql`). Ask the user to run it if you lack dashboard access.
+Then verify columns exist (in the SQL Editor): `SELECT column_name FROM information_schema.columns WHERE table_name='brain_nodes' AND column_name IN ('tag_color','tag_name','active_from','active_until');` → 4 rows; and the same for `entities.brain_only`.
 
 - [ ] **Step 3: Commit**
 

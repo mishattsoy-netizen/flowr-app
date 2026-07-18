@@ -59,14 +59,14 @@ UPDATE brain_config SET token_limit = 8000  WHERE tier = 'pro';
 UPDATE brain_config SET token_limit = 14000 WHERE tier = 'max';
 ```
 
-- [ ] **Step 2: Apply the migration locally**
+- [ ] **Step 2: Apply the migration**
 
-Run: `npx supabase migration up` (or the project's migration command — check `package.json` scripts; if a `db push` script exists prefer it)
-Expected: table `brain_usage_events` created; `brain_config` shows pro=8000, max=14000.
+**This repo has no Supabase CLI / migration script** — migrations are applied by hand. The migration file is committed for history, but to run it: open the Supabase Dashboard → SQL Editor, paste the file's contents, and execute. (This is the repo's established convention — see `supabase/run_in_supabase_sql_editor.sql`, whose header says "Run this entire file in Supabase Dashboard > SQL Editor".) Ask the user to run it if you can't access the dashboard.
+Expected: table `brain_usage_events` created; `brain_config` updated.
 
 - [ ] **Step 3: Verify the config values**
 
-Run: `npx supabase db reset` is NOT needed — instead query: connect and `SELECT tier, token_limit, per_node_cap FROM brain_config ORDER BY tier;`
+In the same SQL Editor, run: `SELECT tier, token_limit, per_node_cap FROM brain_config ORDER BY tier;`
 Expected: `free 2000 1000`, `max 14000 3000`, `pro 8000 2000`.
 
 - [ ] **Step 4: Commit**
