@@ -1,23 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Brain,
   ChevronDown,
   ChevronUp,
   Check,
+  Flame,
   Gauge,
   Pencil,
   Star,
 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { authHeaders } from './useBrainData';
 
 export interface BrainLeftPanelBrain {
   id: string;
   title: string;
   description: string | null;
   is_default: boolean;
+}
+
+export interface BrainLeftPanelNode {
+  id: string;
+  title: string;
+  priority?: number;
+  tag_color?: string | null;
+  tag_name?: string | null;
+}
+
+export interface UsageCalendarCell {
+  date: string;
+  count: number;
+  level: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface FullUsageStats {
+  requests: number;
+  activeDays: number;
+  streak: number;
+  calendar: UsageCalendarCell[];
 }
 
 export interface BrainLeftPanelProps {
@@ -28,12 +51,49 @@ export interface BrainLeftPanelProps {
   nodeCount: number;
   edgeCount: number;
   stats: { requests: number; activeDays: number };
+  nodes: BrainLeftPanelNode[];
+  perNodeTokens: Record<string, number>;
   /** Commit rename via `update_brain` (parent wires mutate + list refresh). */
   onRenameBrain: (brainId: string, title: string) => Promise<void> | void;
   /** Set default via `set_default_brain`, then refresh brain list. */
   onSetDefaultBrain: (brainId: string) => Promise<void> | void;
+  /** Optional; panel self-resets via API when omitted. Called after a successful reset. */
+  onResetUsage?: () => Promise<void> | void;
   expanded?: boolean;
   onExpandChange?: (expanded: boolean) => void;
+}
+
+const CALENDAR_WEEKS = 26;
+
+const LEVEL_CLASS: Record<number, string> = {
+  0: 'bg-[var(--bone-8)]',
+  1: 'bg-emerald-900/55',
+  2: 'bg-emerald-700/70',
+  3: 'bg-emerald-500/80',
+  4: 'bg-emerald-400',
+};
+
+function buildCalendarWeeks(calendar: UsageCalendarCell[]): { date: string; level: number }[][] {
+  const byDate = new Map(calendar.map(c => [c.date, c.level as number]));
+  const now = new Date();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // Align start to Sunday of the week that is CALENDAR_WEEKS-1 weeks before end's week.
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - end.getUTCDay() - (CALENDAR_WEEKS - 1) * 7);
+
+  const weeks: { date: string; level: number }[][] = [];
+  const cursor = new Date(start);
+  for (let w = 0; w < CALENDAR_WEEKS; w++) {
+    const week: { date: string; level: number }[] = [];
+    for (let d = 0; d < 7; d++) {
+      const key = cursor.toISOString().slice(0, 10);
+      const future = cursor.getTime() > end.getTime();
+      week.push({ date: key, level: future ? -1 : (byDate.get(key) ?? 0) });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    weeks.push(week);
+  }
+  return weeks;
 }
 
 export function BrainLeftPanel({
@@ -44,8 +104,11 @@ export function BrainLeftPanel({
   nodeCount,
   edgeCount,
   stats,
+  nodes,
+  perNodeTokens,
   onRenameBrain,
   onSetDefaultBrain,
+  onResetUsage,
   expanded: expandedProp,
   onExpandChange,
 }: BrainLeftPanelProps) {
@@ -65,6 +128,47 @@ export function BrainLeftPanel({
   const renameLockRef = useRef(false);
   const renameCancelRef = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [fullStats, setFullStats] = useState<FullUsageStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const fullStatsBrainIdRef = useRef<string | null>(null);
+
+  // Drop cached full stats when the selected brain changes.
+  useEffect(() => {
+    if (fullStatsBrainIdRef.current !== selectedBrainId) {
+      fullStatsBrainIdRef.current = selectedBrainId;
+      setFullStats(null);
+    }
+  }, [selectedBrainId]);
+
+  // Lazy-load streak + calendar on first expand (or after brain switch).
+  useEffect(() => {
+    if (!expanded || !selectedBrainId || fullStats !== null) return;
+    let cancelled = false;
+    (async () => {
+      setStatsLoading(true);
+      try {
+        const res = await fetch('/api/ai/user-brain', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({ action: 'brain_usage_stats', brain_id: selectedBrainId }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as FullUsageStats;
+        if (cancelled) return;
+        setFullStats({
+          requests: data.requests ?? 0,
+          activeDays: data.activeDays ?? 0,
+          streak: data.streak ?? 0,
+          calendar: Array.isArray(data.calendar) ? data.calendar : [],
+        });
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, selectedBrainId, fullStats]);
 
   useEffect(() => {
     if (renamingId) {
@@ -114,18 +218,115 @@ export function BrainLeftPanel({
     }
   };
 
+  const refetchFullStats = async (brainId: string) => {
+    const res = await fetch('/api/ai/user-brain', {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ action: 'brain_usage_stats', brain_id: brainId }),
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as FullUsageStats;
+    setFullStats({
+      requests: data.requests ?? 0,
+      activeDays: data.activeDays ?? 0,
+      streak: data.streak ?? 0,
+      calendar: Array.isArray(data.calendar) ? data.calendar : [],
+    });
+  };
+
+  const handleResetUsage = async () => {
+    if (!selectedBrainId || resetting) return;
+    if (!confirm('Reset usage statistics for this brain? This clears requests, active days, streak, and the activity calendar.')) {
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await fetch('/api/ai/user-brain', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ action: 'reset_brain_usage', brain_id: selectedBrainId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.error) {
+        return;
+      }
+      await refetchFullStats(selectedBrainId);
+      await onResetUsage?.();
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const { used, limit } = budget;
   const safeLimit = limit > 0 ? limit : 1;
   const pct = Math.min(100, Math.round((used / safeLimit) * 100));
   const isOverBudget = used >= limit;
   const isNearBudget = !isOverBudget && pct >= 80;
 
+  const displayRequests = fullStats?.requests ?? stats.requests;
+  const displayActiveDays = fullStats?.activeDays ?? stats.activeDays;
+
   const gridStats = [
     { label: 'Nodes', value: nodeCount },
     { label: 'Edges', value: edgeCount },
-    { label: 'Active days', value: stats.activeDays },
-    { label: 'Requests', value: stats.requests },
+    { label: 'Active days', value: displayActiveDays },
+    { label: 'Requests', value: displayRequests },
   ] as const;
+
+  const top5 = useMemo(() => {
+    return [...nodes]
+      .map(n => {
+        const tokens = perNodeTokens[n.id] ?? 0;
+        const usagePct = Math.round((tokens / safeLimit) * 1000) / 10; // one decimal
+        return { id: n.id, title: n.title, usagePct };
+      })
+      .sort((a, b) => b.usagePct - a.usagePct)
+      .slice(0, 5);
+  }, [nodes, perNodeTokens, safeLimit]);
+
+  const priorityDist = useMemo(() => {
+    const total = nodes.length || 1;
+    let high = 0;
+    let medium = 0;
+    let low = 0;
+    for (const n of nodes) {
+      const p = n.priority ?? 3;
+      if (p <= 1) high++;
+      else if (p <= 2) medium++;
+      else low++;
+    }
+    return [
+      { label: 'High', count: high, pct: Math.round((high / total) * 100), color: 'bg-red-400' },
+      { label: 'Medium', count: medium, pct: Math.round((medium / total) * 100), color: 'bg-amber-400' },
+      { label: 'Low', count: low, pct: Math.round((low / total) * 100), color: 'bg-[var(--brand-blue)]' },
+    ];
+  }, [nodes]);
+
+  const tagChips = useMemo(() => {
+    const groups = new Map<string, { color: string | null; name: string | null; count: number }>();
+    let untagged = 0;
+    for (const n of nodes) {
+      // Guard: Part C may not have shipped tag columns yet.
+      const color = 'tag_color' in n ? (n.tag_color ?? null) : null;
+      const name = 'tag_name' in n ? (n.tag_name ?? null) : null;
+      if (!color && !name) {
+        untagged++;
+        continue;
+      }
+      const key = `${color ?? ''}\0${name ?? ''}`;
+      const prev = groups.get(key);
+      if (prev) prev.count++;
+      else groups.set(key, { color, name, count: 1 });
+    }
+    const chips = [...groups.values()].sort((a, b) => b.count - a.count);
+    chips.push({ color: null, name: 'Untagged', count: untagged });
+    return chips;
+  }, [nodes]);
+
+  const calendarWeeks = useMemo(
+    () => buildCalendarWeeks(fullStats?.calendar ?? []),
+    [fullStats?.calendar],
+  );
 
   return (
     <div
@@ -331,8 +532,151 @@ export function BrainLeftPanel({
         ))}
       </div>
 
-      {/* Task 7: expanded analytics when `expanded` is true */}
+      {/* Expanded analytics (spec §3.4) */}
+      {expanded && (
+        <div className="flex flex-col gap-3 pt-1 border-t border-[var(--bone-8)]">
+          {/* 1. Top 5 by usage */}
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
+              Top 5 by usage
+            </h3>
+            {top5.length === 0 ? (
+              <p className="text-[11px] text-[var(--bone-30)] px-0.5">No nodes yet</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {top5.map(n => {
+                  const barPct = Math.min(100, n.usagePct);
+                  return (
+                    <div key={n.id} className="flex flex-col gap-0.5">
+                      <span className="text-[11px] text-[var(--bone-70)] truncate px-0.5" title={n.title}>
+                        {n.title || 'Untitled'}
+                      </span>
+                      <div className="h-5 rounded-[6px] bg-[var(--bone-6)] overflow-hidden relative">
+                        <div
+                          className="h-full rounded-[6px] bg-gradient-to-r from-[var(--brand-blue)] to-[var(--accent)] transition-all duration-500 ease-out"
+                          style={{ width: `${Math.max(barPct, barPct > 0 ? 8 : 0)}%` }}
+                        />
+                        <span className="absolute inset-y-0 left-2 flex items-center text-[10px] font-medium tabular-nums text-[var(--bone-100)] drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
+                          {n.usagePct}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* 2. Priority distribution */}
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
+              Priority
+            </h3>
+            <div className="flex flex-col gap-1">
+              {priorityDist.map(row => (
+                <div key={row.label} className="flex items-center gap-2">
+                  <span className="w-12 shrink-0 text-[10px] text-[var(--bone-50)]">{row.label}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-[var(--bone-6)] overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full transition-all duration-500', row.color)}
+                      style={{ width: `${row.pct}%` }}
+                    />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-[var(--bone-50)]">
+                    {nodes.length === 0 ? '—' : `${row.pct}%`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 3. Nodes by custom tag */}
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)] px-0.5">
+              Tags
+            </h3>
+            <div className="flex flex-wrap gap-1">
+              {tagChips.map((chip, i) => {
+                const isUntagged = chip.name === 'Untagged' && !chip.color;
+                const label = chip.name
+                  ? chip.name
+                  : chip.color
+                    ? '● (unnamed)'
+                    : 'Untagged';
+                return (
+                  <span
+                    key={`${chip.color ?? 'none'}-${chip.name ?? 'none'}-${i}`}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px]",
+                      "bg-[var(--bone-6)] text-[var(--bone-70)] border border-[var(--bone-8)]"
+                    )}
+                  >
+                    {!isUntagged && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: chip.color || 'var(--bone-30)' }}
+                      />
+                    )}
+                    <span className="truncate max-w-[120px]">{label}</span>
+                    <span className="tabular-nums text-[var(--bone-40)]">{chip.count}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 4. Activity calendar + streak */}
+          <section className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between px-0.5">
+              <h3 className="text-[10px] font-medium uppercase tracking-wide text-[var(--bone-40)]">
+                Activity
+              </h3>
+              <span className="inline-flex items-center gap-1 text-[11px] tabular-nums text-[var(--bone-70)]">
+                <Flame
+                  className={cn(
+                    "w-3 h-3",
+                    (fullStats?.streak ?? 0) > 0 ? "text-orange-400" : "text-[var(--bone-30)]"
+                  )}
+                  strokeWidth={2}
+                />
+                {statsLoading && !fullStats ? '…' : `${fullStats?.streak ?? 0} day streak`}
+              </span>
+            </div>
+            <div className="flex gap-px overflow-hidden justify-between px-0.5">
+              {calendarWeeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-px">
+                  {week.map(cell => (
+                    <div
+                      key={cell.date}
+                      title={cell.level >= 0 ? cell.date : undefined}
+                      className={cn(
+                        'w-[7px] h-[7px] rounded-[2px]',
+                        cell.level < 0 ? 'bg-transparent' : LEVEL_CLASS[cell.level] ?? LEVEL_CLASS[0]
+                      )}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 5. Reset statistics — pinned bottom */}
+          <div className="pt-1 border-t border-[var(--bone-8)]">
+            <button
+              type="button"
+              disabled={resetting || !selectedBrainId}
+              onClick={() => { void handleResetUsage(); }}
+              className={cn(
+                "w-full h-8 rounded-[10px] text-[12px] font-medium border-none outline-none transition-colors",
+                "text-[var(--bone-50)] hover:text-danger hover:bg-danger/10",
+                "disabled:opacity-50 disabled:pointer-events-none"
+              )}
+            >
+              {resetting ? 'Resetting…' : 'Reset statistics'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
