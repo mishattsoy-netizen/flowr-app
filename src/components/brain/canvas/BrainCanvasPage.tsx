@@ -135,19 +135,29 @@ export function BrainCanvasPage() {
 
   const handleRenameBrain = useCallback(async (brainId: string, title: string) => {
     try {
+      // mutate reloads body.brain_id's cache; the panel reads state.brains from
+      // the selected brain, so refresh selected when renaming another row.
       await mutate({ action: 'update_brain', brain_id: brainId, title });
+      if (selectedBrainId && brainId !== selectedBrainId) {
+        await load(selectedBrainId);
+      }
     } catch (e) {
       logger.error('Failed to rename brain:', e);
     }
-  }, [mutate]);
+  }, [mutate, load, selectedBrainId]);
 
   const handleSetDefaultBrain = useCallback(async (brainId: string) => {
     try {
+      // mutate reloads body.brain_id's cache; always refresh selected so is_default
+      // badges update across the list shown from the selected brain cache.
       await mutate({ action: 'set_default_brain', brain_id: brainId });
+      if (selectedBrainId && brainId !== selectedBrainId) {
+        await load(selectedBrainId);
+      }
     } catch (e) {
       logger.error('Failed to set default brain:', e);
     }
-  }, [mutate]);
+  }, [mutate, load, selectedBrainId]);
 
   const handleResetUsage = useCallback(async () => {
     if (!selectedBrainId) return;
