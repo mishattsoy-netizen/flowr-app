@@ -292,16 +292,18 @@ export function BrainNodeCard({
         "relative shrink-0 flex flex-wrap items-center gap-1.5 w-full px-4 pt-2.5 pb-3.5 rounded-b-xl transition-colors duration-200",
         darkSelectFill ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
       )}>
-        {/* Usage bar: this node's share of the per-node cap. Dimmed track,
-            sits under the pills flush with the card's bottom edge. */}
+        {/* Usage bar: this node's share of the per-node cap, flush with the
+            card's bottom edge. Typical nodes sit near 1-2% of the cap, so the
+            track needs real contrast and the fill a minimum width — otherwise
+            it renders as a few invisible pixels. */}
         {display.usageFraction != null && (
-          <div className="absolute left-0 right-0 bottom-0 h-[3px] bg-[var(--bone-6)] rounded-b-xl overflow-hidden">
+          <div className="absolute left-0 right-0 bottom-0 h-[4px] bg-[var(--bone-10)] rounded-b-xl overflow-hidden">
             <div
               className={cn(
                 "h-full transition-[width] duration-300",
-                display.usageFraction >= 1 ? "bg-red-400/70" : "bg-[var(--bone-30)]"
+                display.usageFraction >= 1 ? "bg-red-400/80" : "bg-[var(--bone-35)]"
               )}
-              style={{ width: `${Math.min(100, Math.max(0, display.usageFraction * 100))}%` }}
+              style={{ width: `${Math.min(100, Math.max(2, display.usageFraction * 100))}%` }}
             />
           </div>
         )}
@@ -331,9 +333,13 @@ export function BrainNodeCard({
             {pill.count} {pill.label}
           </span>
         ))}
-        {display.tokenCount != null && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]">
-            {display.tokenCount} tok
+        {/* Usage as a percentage of this node's cap — the raw "tok" count was
+            the technical stand-in this bar replaces. */}
+        {display.usageFraction != null && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium tabular-nums shrink-0 bg-[var(--bone-5)] text-[var(--bone-60)]">
+            {display.usageFraction >= 0.01
+              ? Math.round(display.usageFraction * 100)
+              : Math.max(1, Math.round(display.usageFraction * 1000) / 10)}%
           </span>
         )}
       </div>
