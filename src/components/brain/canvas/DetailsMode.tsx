@@ -322,7 +322,9 @@ export function DetailsMode({
                   <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="popup-glass-small p-2 min-w-[160px] z-[320]" align="end">
+              {/* PopoverContent's base class hardcodes w-72 — override it
+                  explicitly, min-w alone doesn't win against that. */}
+              <PopoverContent className="popup-glass-small !w-auto min-w-[160px] p-2 z-[320]" align="end">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
                 {/* Same "Clear/None" row + swatch grid as the tasks color picker
                     (TaskContextMenu): CircleDashed icon, ring-scale on the
