@@ -21,9 +21,8 @@ const DEV_ENTITY: Entity = {
     { id: 'blk-body', type: 'text', style: 'body', content: 'Some paragraph text here' },
     { id: 'blk-sub', type: 'text', style: 'subheading', content: 'Another subheading' },
     {
-      id: 'blk-list', type: 'bulletList', content: '',
+      id: 'blk-list', type: 'bulletList', content: 'First bullet row',
       children: [
-        { id: 'blk-list-row1', type: 'bulletList', content: 'First bullet row' },
         { id: 'blk-list-row2', type: 'bulletList', content: 'Second bullet row' },
       ],
     },

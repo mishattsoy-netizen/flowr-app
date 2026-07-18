@@ -19,7 +19,7 @@ import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset, blockOf } from
 
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
-import { looksLikeMarkdown, parseMarkdownToBlocks, blocksToMarkdown } from '@/lib/editor/markdownBlocks';
+import { looksLikeMarkdown, parseMarkdownToBlocks, blocksToMarkdown, blocksToHtml } from '@/lib/editor/markdownBlocks';
 
 function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
@@ -1729,6 +1729,45 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     persistBlocks(newList);
   }, [blocks, persistBlocks]);
 
+  // Resolves the current DOM selection to the ordered list of top-level
+  // blocks it touches (whole blocks — a selection starting/ending mid-block
+  // still pulls in that block in full, see 2026-07-18 design decision).
+  // Returns null when the selection doesn't cross a block boundary, so the
+  // caller can fall back to native copy for plain in-block text selection.
+  const resolveSelectedBlocks = useCallback((): EditorBlock[] | null => {
+    const host = blocksHostRef.current;
+    if (!host) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (!host.contains(range.commonAncestorContainer)) return null;
+
+    const touched = blocks.filter(b => {
+      const el = host.querySelector<HTMLElement>(`[data-block-id="${b.id}"]`);
+      return el ? range.intersectsNode(el) : false;
+    });
+    if (touched.length < 2) return null;
+    return touched;
+  }, [blocks]);
+
+  const handleCopy = useCallback((e: React.ClipboardEvent) => {
+    const touched = resolveSelectedBlocks();
+    if (!touched) return; // let native copy handle single-block/plain text selection
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', blocksToMarkdown(touched));
+    e.clipboardData.setData('text/html', blocksToHtml(touched));
+  }, [resolveSelectedBlocks]);
+
+  const handleCut = useCallback((e: React.ClipboardEvent) => {
+    const touched = resolveSelectedBlocks();
+    if (!touched) return; // let native cut handle single-block/plain text selection
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', blocksToMarkdown(touched));
+    e.clipboardData.setData('text/html', blocksToHtml(touched));
+    const touchedIds = new Set(touched.map(b => b.id));
+    persistBlocks(blocks.filter(b => !touchedIds.has(b.id)));
+  }, [resolveSelectedBlocks, blocks, persistBlocks]);
+
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
@@ -1974,6 +2013,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       )}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
+      onCopy={handleCopy}
+      onCut={handleCut}
       onPaste={handlePaste}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}

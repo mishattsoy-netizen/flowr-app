@@ -292,28 +292,62 @@ function htmlToText(html: string): string {
     .replace(/&nbsp;/g, ' ');
 }
 
+const LIST_TYPES = new Set<BlockType>(['bulletList', 'dashedList', 'numberedList', 'checklist']);
+
+// Renders a list block the way ListBlock.tsx's flattenRows/RowEl marker()
+// walk it for on-screen display: a block's direct children are SAME-depth
+// siblings, not indented — only a child's own children go one level deeper.
+// Numbered lists restart their counter per depth (RowEl resets `count` on
+// any shallower row) and cycle counter style by depth % 3: arabic/alpha/roman.
+function serializeListRow(row: EditorBlock, depth: number, counters: Map<number, number>): string {
+  const indent = '  '.repeat(depth);
+  if (row.type === 'numberedList') {
+    const n = (counters.get(depth) ?? 0) + 1;
+    counters.set(depth, n);
+    const style = depth % 3 === 0 ? 'arabic' : depth % 3 === 1 ? 'alpha' : 'roman';
+    return `${indent}${formatCounter(n, style)}. ${htmlToText(row.content)}`;
+  }
+  if (row.type === 'checklist') return `${indent}[${row.checked ? 'x' : ' '}] ${htmlToText(row.content)}`;
+  return `${indent}- ${htmlToText(row.content)}`;
+}
+
+function walkListRows(items: EditorBlock[], depth: number, counters: Map<number, number>): string[] {
+  const lines: string[] = [];
+  for (const item of items) {
+    lines.push(serializeListRow(item, depth, counters));
+    if (item.children && item.children.length > 0) {
+      lines.push(...walkListRows(item.children, depth + 1, counters));
+    }
+  }
+  return lines;
+}
+
+// b's OWN direct children are same-depth siblings of b (flattenRows calls
+// walk(block.children, 0) — not depth+1), so seed the walk with b itself
+// at `depth`, then its children also at `depth` (not depth+1).
+function serializeListRows(b: EditorBlock, depth: number, counters: Map<number, number>): string[] {
+  const lines = [serializeListRow(b, depth, counters)];
+  if (b.children && b.children.length > 0) {
+    lines.push(...walkListRows(b.children, depth, counters));
+  }
+  return lines;
+}
+
 function serializeBlocks(blocks: EditorBlock[], depth: number, startIndex: number = 1): string {
   const indent = '  '.repeat(depth);
   const lines: string[] = [];
   let numberedIndex = startIndex;
   for (const b of blocks) {
+    if (LIST_TYPES.has(b.type)) {
+      const counters = new Map<number, number>();
+      if (b.type === 'numberedList') counters.set(depth, numberedIndex - 1);
+      lines.push(...serializeListRows(b, depth, counters));
+      numberedIndex = b.type === 'numberedList' ? (counters.get(depth) ?? 0) + 1 : 1;
+      continue;
+    }
+
     let line: string;
     switch (b.type) {
-      case 'bulletList':
-        line = `${indent}- ${htmlToText(b.content)}`;
-        numberedIndex = 1;
-        break;
-      case 'dashedList':
-        line = `${indent}- ${htmlToText(b.content)}`;
-        numberedIndex = 1;
-        break;
-      case 'numberedList':
-        line = `${indent}${numberedIndex}. ${htmlToText(b.content)}`;
-        numberedIndex++;
-        break;
-      case 'checklist':
-        line = `${indent}[${b.checked ? 'x' : ' '}] ${htmlToText(b.content)}`;
-        break;
       case 'quote':
         line = `${indent}> ${htmlToText(b.content)}`;
         break;
@@ -355,6 +389,88 @@ function serializeBlocks(blocks: EditorBlock[], depth: number, startIndex: numbe
 export function blocksToMarkdown(blocks: EditorBlock[]): string {
   if (!blocks.length) return '';
   return serializeBlocks(blocks, 0);
+}
+
+function listWrapperTag(type: BlockType): 'ul' | 'ol' {
+  return type === 'numberedList' ? 'ol' : 'ul';
+}
+
+function rowLiHtml(row: EditorBlock): string {
+  return row.type === 'checklist'
+    ? `<input type="checkbox"${row.checked ? ' checked' : ''} disabled> ${row.content}`
+    : row.content;
+}
+
+// Mirrors ListBlock.tsx's flattenRows walk (see walkListRows above): a list
+// block's direct children are same-level siblings, not nested — only a
+// child's OWN children (a genuinely deeper row) render as a nested list.
+// `items` here are already-flat siblings; only recurse into a nested <ul>
+// for an item's own children.
+function walkListItemsHtml(items: EditorBlock[], tag: 'ul' | 'ol', style: string): string {
+  return items.map(item => {
+    const nested = item.children && item.children.length > 0
+      ? `<${tag}${style}>${walkListItemsHtml(item.children, tag, style)}</${tag}>`
+      : '';
+    return `<li>${rowLiHtml(item)}${nested}</li>`;
+  }).join('');
+}
+
+function blocksToHtmlInner(blocks: EditorBlock[]): string {
+  const out: string[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const b = blocks[i];
+    if (LIST_TYPES.has(b.type)) {
+      const runType = b.type;
+      const run: EditorBlock[] = [];
+      while (i < blocks.length && blocks[i].type === runType) {
+        run.push(blocks[i]);
+        i++;
+      }
+      const tag = listWrapperTag(runType);
+      const style = runType === 'checklist' ? ' style="list-style:none;padding-left:0;"' : '';
+      // Each top-level list block's own direct children are its siblings
+      // within the SAME <ul>, not nested inside its <li> — flatten them
+      // into the run alongside it before walking.
+      const rows = run.flatMap(b2 => [{ ...b2, children: undefined }, ...(b2.children ?? [])]);
+      out.push(`<${tag}${style}>${walkListItemsHtml(rows, tag, style)}</${tag}>`);
+      continue;
+    }
+
+    switch (b.type) {
+      case 'quote':
+        out.push(`<blockquote>${b.content}</blockquote>`);
+        break;
+      case 'divider':
+        out.push('<hr>');
+        break;
+      case 'table': {
+        const data = b.tableData ?? [];
+        if (data.length === 0) break;
+        const rowHtml = (row: string[], cellTag: 'th' | 'td') =>
+          `<tr>${row.map(c => `<${cellTag}>${c}</${cellTag}>`).join('')}</tr>`;
+        const body = data.slice(1).map(r => rowHtml(r, 'td')).join('');
+        out.push(`<table><thead>${rowHtml(data[0], 'th')}</thead><tbody>${body}</tbody></table>`);
+        break;
+      }
+      case 'text':
+        if (b.style === 'title') out.push(`<h1>${b.content}</h1>`);
+        else if (b.style === 'heading') out.push(`<h2>${b.content}</h2>`);
+        else if (b.style === 'subheading') out.push(`<h3>${b.content}</h3>`);
+        else if (b.style === 'mono') out.push(`<pre><code>${escapeHtml(b.content)}</code></pre>`);
+        else out.push(`<p>${b.content}</p>`);
+        break;
+      default:
+        out.push(`<p>${b.content}</p>`);
+    }
+    i++;
+  }
+  return out.join('');
+}
+
+export function blocksToHtml(blocks: EditorBlock[]): string {
+  if (!blocks.length) return '';
+  return blocksToHtmlInner(blocks);
 }
 
 const VALID_TYPES = new Set<BlockType>([

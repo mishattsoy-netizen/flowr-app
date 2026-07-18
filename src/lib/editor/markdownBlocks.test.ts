@@ -3,6 +3,7 @@ import {
   looksLikeMarkdown,
   parseMarkdownToBlocks,
   blocksToMarkdown,
+  blocksToHtml,
   normalizeBlocks,
   formatCounter,
 } from './markdownBlocks';
@@ -232,9 +233,57 @@ describe('blocksToMarkdown', () => {
     expect(blocksToMarkdown(blocks)).toBe('1. first\n2. second');
   });
 
-  it('serializes nested list with 2-space indentation', () => {
-    const blocks = parseMarkdownToBlocks('- parent\n  - child');
-    expect(blocksToMarkdown(blocks)).toBe('- parent\n  - child');
+  // A list block's `children` are same-level sibling rows at runtime (see
+  // ListBlock.tsx flattenRows/nestRows, which the editor uses to render):
+  // pressing Enter twice produces {content:'parent', children:[{content:'child'}]}
+  // with both at depth 0. Only Tab explicitly raises a row's depth. The
+  // serializer must render list children flat by default to match what's
+  // actually on screen, not indent them just because they're nested in the
+  // data structure.
+  it('serializes list block children as flat siblings by default (matches on-screen rendering)', () => {
+    const block = {
+      id: 'p', type: 'bulletList' as const, content: 'parent',
+      children: [{ id: 'c', type: 'bulletList' as const, content: 'child' }],
+    };
+    expect(blocksToMarkdown([block])).toBe('- parent\n- child');
+  });
+
+  it('serializes a genuinely nested row (grandchild in the tree) with 2-space indentation', () => {
+    const block = {
+      id: 'p', type: 'bulletList' as const, content: 'parent',
+      children: [{ id: 'c', type: 'bulletList' as const, content: 'child', children: [
+        { id: 'g', type: 'bulletList' as const, content: 'grandchild' },
+      ] }],
+    };
+    expect(blocksToMarkdown([block])).toBe('- parent\n- child\n  - grandchild');
+  });
+
+  it('numbers a flat numbered-list run correctly across children (no restart)', () => {
+    const block = {
+      id: 'a', type: 'numberedList' as const, content: 'first',
+      children: [
+        { id: 'b', type: 'numberedList' as const, content: 'second' },
+        { id: 'c', type: 'numberedList' as const, content: 'third' },
+      ],
+    };
+    expect(blocksToMarkdown([block])).toBe('1. first\n2. second\n3. third');
+  });
+
+  // ListBlock.tsx renders nested numbered rows with an alpha counter
+  // (a./b./c.) at depth 1, restarting per depth level — see RowEl's marker()
+  // at ListBlock.tsx:145-153, which resets `count` whenever a shallower row
+  // is seen and picks counterStyle from `row.depth % 3`.
+  it('restarts numbering with alpha style for a genuinely nested sub-run, then resumes parent numbering after', () => {
+    const block = {
+      id: 'a', type: 'numberedList' as const, content: 'first',
+      children: [
+        { id: 'b', type: 'numberedList' as const, content: 'second', children: [
+          { id: 'n', type: 'numberedList' as const, content: 'nested' },
+        ] },
+        { id: 'c', type: 'numberedList' as const, content: 'third' },
+      ],
+    };
+    expect(blocksToMarkdown([block])).toBe('1. first\n2. second\n  a. nested\n3. third');
   });
 
   it('serializes headings', () => {
@@ -245,6 +294,101 @@ describe('blocksToMarkdown', () => {
   it('serializes a hand-constructed bulletList block', () => {
     const block = { id: 'test-1', type: 'bulletList' as const, content: 'hello world' };
     expect(blocksToMarkdown([block])).toBe('- hello world');
+  });
+
+});
+
+// ── blocksToHtml ───────────────────────────────────────
+describe('blocksToHtml', () => {
+  it('empty array returns empty string', () => {
+    expect(blocksToHtml([])).toBe('');
+  });
+
+  it('wraps consecutive bullet list blocks in a single <ul>', () => {
+    const blocks = [
+      { id: '1', type: 'bulletList' as const, content: 'alpha' },
+      { id: '2', type: 'bulletList' as const, content: 'beta' },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<ul><li>alpha</li><li>beta</li></ul>');
+  });
+
+  it('wraps numbered list blocks in a single <ol>', () => {
+    const blocks = [
+      { id: '1', type: 'numberedList' as const, content: 'first' },
+      { id: '2', type: 'numberedList' as const, content: 'second' },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<ol><li>first</li><li>second</li></ol>');
+  });
+
+  it('renders checklist items as disabled checkboxes', () => {
+    const blocks = [
+      { id: '1', type: 'checklist' as const, content: 'todo', checked: false },
+      { id: '2', type: 'checklist' as const, content: 'done', checked: true },
+    ];
+    expect(blocksToHtml(blocks)).toBe(
+      '<ul style="list-style:none;padding-left:0;">' +
+      '<li><input type="checkbox" disabled> todo</li>' +
+      '<li><input type="checkbox" checked disabled> done</li>' +
+      '</ul>'
+    );
+  });
+
+  it('does not merge a bulletList and a numberedList into the same wrapper', () => {
+    const blocks = [
+      { id: '1', type: 'bulletList' as const, content: 'a' },
+      { id: '2', type: 'numberedList' as const, content: 'b' },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<ul><li>a</li></ul><ol><li>b</li></ol>');
+  });
+
+  it('preserves inline HTML content (bold) inside a paragraph', () => {
+    const block = { id: '1', type: 'text' as const, content: 'hello <strong>world</strong>' };
+    expect(blocksToHtml([block])).toBe('<p>hello <strong>world</strong></p>');
+  });
+
+  it('renders heading styles as h1/h2/h3', () => {
+    const blocks = [
+      { id: '1', type: 'text' as const, content: 'Title', style: 'title' as const },
+      { id: '2', type: 'text' as const, content: 'Heading', style: 'heading' as const },
+      { id: '3', type: 'text' as const, content: 'Sub', style: 'subheading' as const },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<h1>Title</h1><h2>Heading</h2><h3>Sub</h3>');
+  });
+
+  it('renders quote blocks as blockquote', () => {
+    const block = { id: '1', type: 'quote' as const, content: 'said something' };
+    expect(blocksToHtml([block])).toBe('<blockquote>said something</blockquote>');
+  });
+
+  it('renders divider as hr', () => {
+    const block = { id: '1', type: 'divider' as const, content: '' };
+    expect(blocksToHtml([block])).toBe('<hr>');
+  });
+
+  // A list block's direct children are same-level siblings at runtime (see
+  // ListBlock.tsx flattenRows/nestRows) — not nested sub-items. Only a
+  // child's OWN children (a genuinely deeper row in the tree) render as a
+  // nested <ul>/<ol> inside that child's <li>.
+  it('renders direct list children as flat sibling <li> items, not nested', () => {
+    const blocks = [
+      {
+        id: '1', type: 'bulletList' as const, content: 'parent',
+        children: [{ id: '2', type: 'bulletList' as const, content: 'child' }],
+      },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<ul><li>parent</li><li>child</li></ul>');
+  });
+
+  it('renders a genuinely nested row (grandchild in the tree) as a nested <ul>', () => {
+    const blocks = [
+      {
+        id: '1', type: 'bulletList' as const, content: 'parent',
+        children: [{ id: '2', type: 'bulletList' as const, content: 'child', children: [
+          { id: '3', type: 'bulletList' as const, content: 'grandchild' },
+        ] }],
+      },
+    ];
+    expect(blocksToHtml(blocks)).toBe('<ul><li>parent</li><li>child<ul><li>grandchild</li></ul></li></ul>');
   });
 });
 
