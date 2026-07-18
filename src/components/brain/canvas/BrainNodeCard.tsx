@@ -281,13 +281,8 @@ export function BrainNodeCard({
           )}>
             {priorityLabel}
           </span>
-          {/* Type pill — Memory reads as a labelled chip, not a border style. */}
-          {isMemory && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 bg-[#A78BFA]/15 text-[#C4B5FD]">
-              <BrainIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
-              Memory
-            </span>
-          )}
+          {/* Memory identity already shown once, in the header pill — no
+              need to repeat it in the footer too. */}
           {/* Custom tag pill, in the tag's own colour. */}
           {display.tagName && tagColor && (
             <span
