@@ -62,6 +62,8 @@ export function BrainLeftPanel({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameLockRef = useRef(false);
+  const renameCancelRef = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,21 +77,31 @@ export function BrainLeftPanel({
   }, [renamingId]);
 
   const startRename = (brain: BrainLeftPanelBrain) => {
+    renameLockRef.current = false;
+    renameCancelRef.current = false;
     setRenamingId(brain.id);
     setRenameValue(brain.title);
   };
 
   const commitRename = async () => {
-    if (!renamingId) return;
+    if (renameCancelRef.current) {
+      renameCancelRef.current = false;
+      return;
+    }
+    if (!renamingId || renameLockRef.current) return;
+    renameLockRef.current = true;
+    const id = renamingId;
     const title = renameValue.trim() || 'Brain';
-    const prev = brains.find(b => b.id === renamingId)?.title;
+    const prev = brains.find(b => b.id === id)?.title;
     setRenamingId(null);
-    if (title === prev) return;
-    setBusyId(renamingId);
     try {
-      await onRenameBrain(renamingId, title);
+      if (title !== prev) {
+        setBusyId(id);
+        await onRenameBrain(id, title);
+      }
     } finally {
       setBusyId(null);
+      renameLockRef.current = false;
     }
   };
 
@@ -178,11 +190,12 @@ export function BrainLeftPanel({
                           }
                           if (e.key === 'Escape') {
                             e.preventDefault();
+                            renameCancelRef.current = true;
                             setRenamingId(null);
                           }
                         }}
                         onClick={e => e.stopPropagation()}
-                        className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[var(--bone-100)] border-none p-0"
+                        className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[var(--bone-100)] border-none p-0 select-text"
                       />
                     </div>
                   );
@@ -222,6 +235,7 @@ export function BrainLeftPanel({
                       <button
                         type="button"
                         title="Rename"
+                        aria-label="Rename"
                         onClick={(e) => {
                           e.stopPropagation();
                           startRename(b);
@@ -234,6 +248,7 @@ export function BrainLeftPanel({
                         <button
                           type="button"
                           title="Set as default"
+                          aria-label="Set as default"
                           onClick={(e) => {
                             e.stopPropagation();
                             void handleSetDefault(b.id);
@@ -254,6 +269,8 @@ export function BrainLeftPanel({
         <button
           type="button"
           title={expanded ? 'Collapse' : 'Expand'}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
           className={cn(
             "w-8 h-8 shrink-0 flex items-center justify-center rounded-[10px] border-none outline-none",
@@ -314,8 +331,7 @@ export function BrainLeftPanel({
         ))}
       </div>
 
-      {/* Expanded analytics — Task 7 fills this when `expanded` is true */}
-      {expanded ? null : null}
+      {/* Task 7: expanded analytics when `expanded` is true */}
     </div>
   );
 }
