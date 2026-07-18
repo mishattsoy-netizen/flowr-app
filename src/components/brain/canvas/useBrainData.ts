@@ -20,6 +20,10 @@ export interface BrainCanvasNode {
   created_by: 'user' | 'bot';
   created_at: string;
   updated_at: string;
+  tag_color?: string | null;
+  tag_name?: string | null;
+  active_from?: string | null;
+  active_until?: string | null;
 }
 
 export interface BrainCanvasEdge {
@@ -48,6 +52,7 @@ export interface BrainCanvasState {
   brains: BrainMeta[];
   perNodeTokens: Record<string, number>;
   perNodeCap: number;
+  expiredNodeIds?: string[];
 }
 
 export async function authHeaders(): Promise<Record<string, string>> {

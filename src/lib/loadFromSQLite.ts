@@ -21,6 +21,8 @@ export function sqliteRowToEntity(row: Record<string, any>): Entity {
     syncMode: row.sync_mode ?? 'local-only',
     pairedEntityId: row.paired_entity_id ?? null,
     widgetLayout: row.widget_layout ? parseJson(row.widget_layout, undefined) : undefined,
+    brainOnly: row.brain_only === true || row.brain_only === 1,
+    description: row.description ?? null,
   } as Entity;
 }
 

@@ -54,6 +54,7 @@ export const FLOWR_TOOLS = [
           description: "For notes: structured block array (alternative to content)."
         },
         parentId: { type: "string", description: "For notes/folders: parent workspace or folder ID. Omit to put in unsorted. CRITICAL: If the user provides a natural language name for the destination (e.g. 'Atlantis workspace', 'Personal folder'), you MUST use list_content first to find its ID, even if it's a note. Do NOT omit parentId if the user explicitly asked to place it somewhere." },
+        brain_only: { type: "boolean", description: "For notes: if true, the note is a brain-only Memory — visible only in the brain canvas, hidden from all workspaces and Unsorted. Use for things the user wants remembered but not filed as a normal note (e.g. temporary context)." },
         // Task fields
         assignedWorkspaceId: { type: "string", description: "For tasks: ID of the workspace to assign this task to." },
         status: { type: "string", description: "For tasks: 'todo' | 'in-progress' | 'done'. Defaults to 'todo'." },
@@ -277,7 +278,11 @@ export const FLOWR_TOOLS = [
         to: { type: "string", description: "For connect: target node id." },
         edge_label: { type: "string", description: "For connect: the relationship, as a plain statement (e.g. 'check risk rules before logging trades'). Strongly recommended — an unlabeled edge only tells you the two nodes are related, not how." },
         edge_id: { type: "string", description: "For disconnect: the edge to remove." },
-        confirmed: { type: "boolean", description: "For remove_node of a section or multiple nodes: omit first to get a dry-run, set true only after the user explicitly confirmed on the previous turn." }
+        confirmed: { type: "boolean", description: "For remove_node of a section or multiple nodes: omit first to get a dry-run, set true only after the user explicitly confirmed on the previous turn." },
+        active_from: { type: "string", description: "For add_node: ISO date/time this node becomes active in the brain. Optional; omit for immediately active." },
+        active_until: { type: "string", description: "For add_node: ISO date/time this node stops being fed into the brain (becomes a dimmed 'dead' node on the canvas). Set this to make the node temporary." },
+        tag_color: { type: "string", description: "For add_node/update_node: hex color for a custom tag (UI)." },
+        tag_name: { type: "string", description: "For add_node/update_node: named tag for grouping in the compiled brain (e.g. 'Trading')." },
       },
       required: ["op"]
     }

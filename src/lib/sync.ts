@@ -139,6 +139,8 @@ function rowToEntity(row: Record<string, any>): Entity {
     sortOrder:    row.sort_order ?? undefined,
     syncMode:     row.sync_mode ?? 'full-sync',
     pairedEntityId: row.paired_entity_id ?? null,
+    brainOnly:    row.brain_only === true,
+    description:  row.description ?? null,
   };
 }
 
@@ -153,9 +155,11 @@ function entityToRow(e: Entity): Record<string, any> {
     tags:          e.tags ?? [],
     content:       e.content ?? [],
     sort_order:    e.sortOrder ?? null,
+    brain_only:    e.brainOnly === true,
   };
   if (e.widgetLayout)  row.widget_layout  = e.widgetLayout;
   if (e.spaceId)   row.space_id   = e.spaceId;
+  if (e.description != null) row.description = e.description;
   row.sync_mode = e.syncMode;
   return row;
 }

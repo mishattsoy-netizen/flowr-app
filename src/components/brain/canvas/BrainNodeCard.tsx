@@ -24,6 +24,11 @@ export interface NodeDisplayInfo {
   variant?: 'default' | 'workspace';
   /** Child counts for workspace cards, e.g. { count: 3, label: 'Canvas' }. */
   childPills?: { count: number; label: string }[];
+  tagColor?: string | null;
+  activeFrom?: string | null;
+  activeUntil?: string | null;
+  /** True when past active_until or before active_from (dimmed dead/scheduled). */
+  lifecycleInactive?: boolean;
 }
 
 interface BrainNodeCardProps {
@@ -116,6 +121,12 @@ export function BrainNodeCard({
   const highlighted = !!(connectSelected || selectedBorder);
 
   const isWorkspace = display.variant === 'workspace';
+  const tagColor = display.tagColor;
+  const isDead = !!(display.lifecycleInactive && display.activeUntil
+    && Date.parse(display.activeUntil) < Date.now());
+  const isScheduled = !!(display.lifecycleInactive && display.activeFrom
+    && Date.parse(display.activeFrom) > Date.now());
+  const isTemporaryActive = !!(display.activeUntil && !display.lifecycleInactive);
 
   useLayoutEffect(() => {
     const el = cardRef.current;
@@ -156,14 +167,21 @@ export function BrainNodeCard({
             : "cursor-grab active:cursor-grabbing",
         // Regular select / connect-source: dark fill + blue border.
         // Edge highlight: blue border only at rest; full-card hover dark (same as idle).
+        // Idle + tag: tag color border. Dead: monochrome dim.
         darkSelectFill
           ? "bg-[var(--app-dark)] border border-[var(--brand-blue)]"
           : selectedBorder
             ? "border border-[var(--brand-blue)] hover:bg-[var(--app-dark)]"
-            : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]"
+            : tagColor
+              ? "border hover:bg-[var(--app-dark)]"
+              : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
+        display.lifecycleInactive && "opacity-50 grayscale",
       )}
       style={{
         transform: 'translateZ(0)',  // GPU layer
+        ...(!darkSelectFill && !selectedBorder && tagColor
+          ? { borderColor: tagColor }
+          : {}),
       }}
       onPointerDown={onPointerDown}
       onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
@@ -202,9 +220,20 @@ export function BrainNodeCard({
               <span>{display.ageLabel}</span>
             </div>
 
-            <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1">
-              {display.title || 'Untitled'}
-            </h3>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 min-w-0 flex-1">
+                {display.title || 'Untitled'}
+              </h3>
+              {isTemporaryActive && (
+                <span className="text-[9px] font-medium uppercase tracking-wide text-amber-400/90 shrink-0">Temp</span>
+              )}
+              {isScheduled && (
+                <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--bone-40)] shrink-0">Soon</span>
+              )}
+              {isDead && (
+                <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--bone-30)] shrink-0">Dead</span>
+              )}
+            </div>
           </div>
 
           {/* Text area: flex-fill between title and footer. Collapses to zero

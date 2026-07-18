@@ -26,6 +26,10 @@ export interface BrainNodeRow {
   enabled: boolean
   created_by: 'user' | 'bot'
   position: { x: number; y: number } | null
+  tag_color: string | null
+  tag_name: string | null
+  active_from: string | null
+  active_until: string | null
   deleted_at: string | null
   created_at: string
   updated_at: string
@@ -61,6 +65,9 @@ export interface CompileNode {
   enabled: boolean
   created_at: string
   updated_at: string
+  tag_name: string | null
+  active_from: string | null
+  active_until: string | null
   resolved: null | {
     title: string
     markdown: string
@@ -83,4 +90,6 @@ export interface CompiledBrain {
   droppedNodeIds: string[]  // enabled nodes excluded by the budget
   brokenNodeIds: string[]   // ref nodes whose entity is gone/unowned
   perNodeTokens: Record<string, number>  // rendered token cost per renderable node id (excludes sections + broken refs)
+  /** Optional: present on fresh compile; cache hits may omit. Client uses listBrain.expiredNodeIds. */
+  expiredNodeIds?: string[]
 }

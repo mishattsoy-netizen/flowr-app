@@ -311,7 +311,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           space_id: spaceId || null,
           owner_id: context.userId,
           parent_id: parentId || null,
-          last_modified: Date.now()
+          last_modified: Date.now(),
+          brain_only: type === 'note' && args.brain_only === true,
         })
         if (error) throw error
         // Echo the persisted blocks back: the client mirrors this result into its
@@ -693,6 +694,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
             : 'id, title, type, parent_id, last_modified')
           .eq('owner_id', context.userId)
           .in('type', entityTypes)
+          .eq('brain_only', false)
 
         // Only filter by spaceId if spaceId is provided AND we are not explicitly ONLY searching for workspaces
         if (spaceId && !entityTypes.every(t => t === 'workspace')) {
@@ -959,6 +961,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           const res = await brain.addBrainNode(userId, 'bot', brainId, {
             type, ref_id, content: content ? sanitizeToolContent(content) : undefined,
             label: label ? sanitizeToolContent(label) : undefined, section_id, priority, pinned,
+            active_from: args.active_from ?? null,
+            active_until: args.active_until ?? null,
+            tag_color: args.tag_color ?? null,
+            tag_name: args.tag_name ?? null,
           })
           if ('error' in res) return res
           return { success: true, id: res.id, op: 'add_node', type, label: label ?? null }
@@ -972,6 +978,10 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           if (priority !== undefined) updates.priority = priority
           if (pinned !== undefined) updates.pinned = pinned
           if (enabled !== undefined) updates.enabled = enabled
+          if (args.active_from !== undefined) updates.active_from = args.active_from
+          if (args.active_until !== undefined) updates.active_until = args.active_until
+          if (args.tag_color !== undefined) updates.tag_color = args.tag_color
+          if (args.tag_name !== undefined) updates.tag_name = args.tag_name
           return await brain.updateBrainNode(userId, 'bot', brainId, node_id, updates)
         }
         case 'remove_node': {

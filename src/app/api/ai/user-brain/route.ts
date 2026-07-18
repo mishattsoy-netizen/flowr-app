@@ -7,6 +7,7 @@ import {
   listUserBrains, createBrain, updateBrainMeta, deleteBrain,
   getOrCreateDefaultBrain, switchActiveBrain, fetchBrainRows,
   setDefaultBrain, getBrainUsageStats, resetBrainUsage,
+  setEntityBrainOnly, getBrainTags, setWorkspaceDescription, deleteMemoryNode,
 } from '@/lib/bot/services/brainStore'
 import { logger } from '@/lib/logger'
 
@@ -81,6 +82,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(await removeBrainEdge(userId, 'user', body.brain_id, body.edge_id))
       case 'update_edge':
         return NextResponse.json(await updateBrainEdge(userId, 'user', body.brain_id, body.edge_id, body.label ?? ''))
+      case 'set_brain_only':
+        return NextResponse.json(await setEntityBrainOnly(userId, body.entity_id, body.brain_only === true))
+      case 'brain_tags':
+        return NextResponse.json({ tags: await getBrainTags(userId) })
+      case 'set_workspace_description':
+        return NextResponse.json(await setWorkspaceDescription(userId, body.entity_id, body.title, body.description ?? ''))
+      case 'delete_memory_node':
+        return NextResponse.json(await deleteMemoryNode(userId, body.brain_id, body.node_id, body.entity_id))
       case 'recompile': {
         const compiled = await compileBrain(userId, body.brain_id)
         return NextResponse.json({ success: true, tokenCount: compiled.tokenCount, version: compiled.version })

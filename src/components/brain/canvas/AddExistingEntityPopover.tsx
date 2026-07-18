@@ -26,6 +26,8 @@ export function AddExistingEntityPopover({ onAddEntity, onClose, excludeRefIds =
     const q = query.toLowerCase().trim();
     return entities
       .filter(e => (e.type === 'note' || e.type === 'workspace'))
+      .filter(e => !e.brainOnly)
+      .filter(e => e.syncMode !== 'local-only')
       .filter(e => !excluded.has(e.id))
       .filter(e => !q || e.title?.toLowerCase().includes(q))
       .slice(0, 50);

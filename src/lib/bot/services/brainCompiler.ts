@@ -42,22 +42,34 @@ function renderNode(n: CompileNode, cap: number): string {
   return `- Note "${r.title}":\n${truncateAtLines(r.markdown, cap)}`
 }
 
+function isInactive(n: CompileNode, nowMs: number): boolean {
+  if (n.active_from && Date.parse(n.active_from) > nowMs) return true // scheduled
+  if (n.active_until && Date.parse(n.active_until) < nowMs) return true // dead
+  return false
+}
+
 /**
  * Pure compile: nodes/edges → one [BRAIN] text block, budget enforced.
  * Deterministic: same input, same bytes (spec §4). The budget drop policy
  * (spec §5): never drop pinned; drop priority ASC, then updated_at ASC.
+ * Temporary lifecycle (§4C.3): drop scheduled/dead nodes at read time.
+ * Named tags (§4C.1): group under [tagName] headings; edges cross groups freely.
  */
 export function compileBrainDocument(
   nodes: CompileNode[],
   edges: CompileEdge[],
-  config: BrainConfigRow
+  config: BrainConfigRow,
+  now: Date = new Date()
 ): CompiledBrain {
   const enabled = nodes.filter(n => n.enabled)
-  const brokenNodeIds = enabled
+  const nowMs = now.getTime()
+  const expiredNodeIds = enabled.filter(n => isInactive(n, nowMs)).map(n => n.id)
+  const active = enabled.filter(n => !isInactive(n, nowMs))
+  const brokenNodeIds = active
     .filter(n => (n.type === 'workspace' || n.type === 'entity') && !n.resolved)
     .map(n => n.id)
-  const sections = enabled.filter(n => n.type === 'section')
-  const renderable = enabled.filter(n =>
+  const sections = active.filter(n => n.type === 'section')
+  const renderable = active.filter(n =>
     n.type !== 'section' && !brokenNodeIds.includes(n.id))
 
   const rendered = new Map<string, string>()
@@ -81,9 +93,12 @@ export function compileBrainDocument(
     total -= cost(n.id)
   }
   const kept = renderable.filter(n => !droppedNodeIds.includes(n.id))
-  if (kept.length === 0) return { compiled: '', tokenCount: 0, droppedNodeIds, brokenNodeIds, perNodeTokens }
+  if (kept.length === 0) {
+    return { compiled: '', tokenCount: 0, droppedNodeIds, brokenNodeIds, perNodeTokens, expiredNodeIds }
+  }
 
   // Grouping (deterministic): sections by created_at; nodes by priority DESC, created_at ASC.
+  // Named tags: within ungrouped nodes, emit [tagName] headings for tag_name != null.
   const keptIds = new Set(kept.map(n => n.id))
   const byGroup = (list: CompileNode[]) =>
     [...list].sort((a, b) => b.priority - a.priority || a.created_at.localeCompare(b.created_at))
@@ -101,7 +116,27 @@ export function compileBrainDocument(
   const unsorted = byGroup(kept.filter(n => !grouped.has(n.id)))
   if (unsorted.length > 0) {
     if (sortedSections.some(s => kept.some(n => n.section_id === s.id))) parts.push('## Unsorted')
-    for (const m of unsorted) parts.push(rendered.get(m.id)!)
+
+    // Tag grouping among unsorted: named tags first (stable order by name), then untagged.
+    const tagMap = new Map<string, CompileNode[]>()
+    const untagged: CompileNode[] = []
+    for (const m of unsorted) {
+      const tag = m.tag_name?.trim() || null
+      if (tag) {
+        const list = tagMap.get(tag) ?? []
+        list.push(m)
+        tagMap.set(tag, list)
+      } else {
+        untagged.push(m)
+      }
+    }
+    const tagNames = [...tagMap.keys()].sort((a, b) => a.localeCompare(b))
+    for (const tag of tagNames) {
+      const members = tagMap.get(tag)!
+      parts.push(`[${tag}]`)
+      for (const m of members) parts.push(rendered.get(m.id)!)
+    }
+    for (const m of untagged) parts.push(rendered.get(m.id)!)
     parts.push('')
   }
 
@@ -115,5 +150,12 @@ export function compileBrainDocument(
 
   parts.push('[/BRAIN]')
   const compiled = parts.join('\n')
-  return { compiled, tokenCount: estimateTokens(compiled), droppedNodeIds, brokenNodeIds, perNodeTokens }
+  return {
+    compiled,
+    tokenCount: estimateTokens(compiled),
+    droppedNodeIds,
+    brokenNodeIds,
+    perNodeTokens,
+    expiredNodeIds,
+  }
 }

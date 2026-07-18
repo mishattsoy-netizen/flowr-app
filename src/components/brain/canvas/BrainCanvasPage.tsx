@@ -12,6 +12,7 @@ import { BrainToolbar } from './BrainToolbar';
 import { BrainLeftPanel } from './BrainLeftPanel';
 import { BrainDetailsPanel } from './BrainDetailsPanel';
 import type { DetailsNodeDisplay } from './DetailsMode';
+import { WorkspaceDescriptionPopup } from './WorkspaceDescriptionPopup';
 import { BrainZoomControls } from './BrainZoomControls';
 import { AddExistingEntityPopover } from './AddExistingEntityPopover';
 import { logger } from '@/lib/logger';
@@ -293,13 +294,24 @@ export function BrainCanvasPage() {
   const [nodeContextMenu, setNodeContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
   const handleDeleteNode = useCallback(async (nodeId: string) => {
     setNodeContextMenu(null);
+    const node = state?.nodes.find(n => n.id === nodeId);
+    const ent = node?.ref_id ? entities.find(e => e.id === node.ref_id) : null;
     try {
-      await mutate({ action: 'remove_node', node_id: nodeId });
+      if (ent?.brainOnly && node?.ref_id) {
+        if (!confirm('This memory is only in your brain — deleting it is permanent.')) return;
+        await mutate({
+          action: 'delete_memory_node',
+          node_id: nodeId,
+          entity_id: node.ref_id,
+        });
+      } else {
+        await mutate({ action: 'remove_node', node_id: nodeId });
+      }
       setDetailsPanel(prev => (prev?.focusedNodeId === nodeId ? null : prev));
     } catch (e) {
       logger.error('Failed to delete brain node:', e);
     }
-  }, [mutate]);
+  }, [mutate, state?.nodes, entities]);
 
   const openDetailsForNode = useCallback((
     nodeId: string,
@@ -332,15 +344,24 @@ export function BrainCanvasPage() {
   }, [state?.nodes]);
 
   // Node display info derived from entities + brain data
+  const expiredSet = useMemo(
+    () => new Set(state?.expiredNodeIds ?? []),
+    [state?.expiredNodeIds],
+  );
   const nodeInfos = useMemo(() => {
     if (!state) return new Map<string, NodeDisplayInfo>();
     const map = new Map<string, NodeDisplayInfo>();
     for (const node of state.nodes) {
       if (!node.enabled) continue;
-      map.set(node.id, computeDisplayInfo(node, entities, state.perNodeTokens ?? {}));
+      const info = computeDisplayInfo(node, entities, state.perNodeTokens ?? {});
+      info.tagColor = node.tag_color ?? null;
+      info.activeFrom = node.active_from ?? null;
+      info.activeUntil = node.active_until ?? null;
+      info.lifecycleInactive = expiredSet.has(node.id);
+      map.set(node.id, info);
     }
     return map;
-  }, [state, entities]);
+  }, [state, entities, expiredSet]);
 
   // Active nodes (enabled only, positioned)
   const activeNodes = useMemo(() => {
@@ -359,20 +380,43 @@ export function BrainCanvasPage() {
 
   const getDetailsDisplay = useCallback((nodeId: string): DetailsNodeDisplay | null => {
     const info = nodeInfos.get(nodeId);
+    const node = state?.nodes.find(n => n.id === nodeId);
     if (!info) return null;
+    const ent = node?.ref_id ? entities.find(e => e.id === node.ref_id) : null;
     return {
       title: info.title,
-      preview: info.preview,
+      preview: info.preview ?? (ent?.description ?? undefined),
       priority: info.priority,
       workspaceLabel: info.parentLabel,
       typeIcon: info.typeIcon,
+      brainOnly: ent?.brainOnly === true,
+      description: ent?.description ?? null,
     };
-  }, [nodeInfos]);
+  }, [nodeInfos, state?.nodes, entities]);
 
   const workspaceOptions = useMemo(
     () => entities.filter(e => e.type === 'workspace').map(e => ({ id: e.id, title: e.title })),
     [entities],
   );
+
+  const [knownTags, setKnownTags] = useState<{ tag_color: string; tag_name: string | null }[]>([]);
+  useEffect(() => {
+    if (!detailsPanel) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/ai/user-brain', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: JSON.stringify({ action: 'brain_tags' }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setKnownTags(Array.isArray(data.tags) ? data.tags : []);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [detailsPanel?.focusedNodeId]);
 
   const handlePanelOpenEditor = useCallback((refId: string) => {
     if (detailsPanel) setPanelResumeNodeId(detailsPanel.focusedNodeId);
@@ -406,6 +450,91 @@ export function BrainCanvasPage() {
       logger.error('Failed to update priority:', e);
     }
   }, [mutate]);
+
+  const handleSetBrainOnly = useCallback(async (nodeId: string, brainOnly: boolean) => {
+    const node = state?.nodes.find(n => n.id === nodeId);
+    if (!node?.ref_id) return;
+    try {
+      await mutate({ action: 'set_brain_only', entity_id: node.ref_id, brain_only: brainOnly });
+      // Optimistic local store so Type pill updates without full entity refetch.
+      useStore.setState(s => ({
+        entities: s.entities.map(e => e.id === node.ref_id ? { ...e, brainOnly } : e),
+      }));
+    } catch (e) {
+      logger.error('Failed to set brain_only:', e);
+    }
+  }, [state?.nodes, mutate]);
+
+  const handleUpdateTag = useCallback(async (
+    nodeId: string,
+    tag: { tag_color: string | null; tag_name: string | null },
+  ) => {
+    try {
+      await mutate({
+        action: 'update_node',
+        node_id: nodeId,
+        updates: { tag_color: tag.tag_color, tag_name: tag.tag_name },
+      });
+    } catch (e) {
+      logger.error('Failed to update tag:', e);
+    }
+  }, [mutate]);
+
+  const handleUpdateLifecycle = useCallback(async (
+    nodeId: string,
+    life: { active_from: string | null; active_until: string | null },
+  ) => {
+    try {
+      await mutate({
+        action: 'update_node',
+        node_id: nodeId,
+        updates: { active_from: life.active_from, active_until: life.active_until },
+      });
+    } catch (e) {
+      logger.error('Failed to update lifecycle:', e);
+    }
+  }, [mutate]);
+
+  const [wsDescEdit, setWsDescEdit] = useState<{
+    nodeId: string; entityId: string; title: string; description: string;
+  } | null>(null);
+
+  const handleEditWorkspaceDescription = useCallback((nodeId: string) => {
+    const node = state?.nodes.find(n => n.id === nodeId);
+    if (!node?.ref_id) return;
+    const ent = entities.find(e => e.id === node.ref_id);
+    setWsDescEdit({
+      nodeId,
+      entityId: node.ref_id,
+      title: ent?.title ?? node.label ?? 'Workspace',
+      description: ent?.description ?? '',
+    });
+  }, [state?.nodes, entities]);
+
+  const handleSaveWorkspaceDescription = useCallback(async (title: string, description: string) => {
+    if (!wsDescEdit) return;
+    try {
+      await mutate({
+        action: 'set_workspace_description',
+        entity_id: wsDescEdit.entityId,
+        title,
+        description,
+      });
+      useStore.setState(s => ({
+        entities: s.entities.map(e =>
+          e.id === wsDescEdit.entityId ? { ...e, title, description } : e
+        ),
+      }));
+      await mutate({
+        action: 'update_node',
+        node_id: wsDescEdit.nodeId,
+        updates: { label: title },
+      });
+      setWsDescEdit(null);
+    } catch (e) {
+      logger.error('Failed to save workspace description:', e);
+    }
+  }, [wsDescEdit, mutate]);
 
   const handleMoveToWorkspace = useCallback(async (nodeId: string, workspaceId: string | null) => {
     const node = state?.nodes.find(n => n.id === nodeId);
@@ -1086,8 +1215,22 @@ export function BrainCanvasPage() {
             onUpdateTitle={handleUpdateTitle}
             onUpdatePriority={handleUpdatePriority}
             onMoveToWorkspace={handleMoveToWorkspace}
+            knownTags={knownTags}
+            onSetBrainOnly={handleSetBrainOnly}
+            onUpdateTag={handleUpdateTag}
+            onUpdateLifecycle={handleUpdateLifecycle}
+            onEditWorkspaceDescription={handleEditWorkspaceDescription}
           />
         </div>
+      )}
+
+      {wsDescEdit && (
+        <WorkspaceDescriptionPopup
+          initialTitle={wsDescEdit.title}
+          initialDescription={wsDescEdit.description}
+          onSave={handleSaveWorkspaceDescription}
+          onCancel={() => setWsDescEdit(null)}
+        />
       )}
 
       {/* Resume details after editor open */}

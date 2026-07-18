@@ -185,6 +185,10 @@ export interface Entity {
   pairedEntityId: string | null;
   sortOrder?: number;
   syncMode: SyncMode;
+  /** Brain-only Memory: hidden from workspace/unsorted views, visible on brain canvas. */
+  brainOnly?: boolean;
+  /** Workspace description (entities.description). */
+  description?: string | null;
 }
 
 export interface SubTask {

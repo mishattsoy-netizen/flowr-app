@@ -8,7 +8,7 @@ const memory = (over: Partial<CompileNode> = {}): CompileNode => ({
   id: over.id ?? 'm1', type: 'memory', label: null, content: 'likes espresso',
   section_id: null, priority: 0, pinned: false, enabled: true,
   created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
-  resolved: null, ...over,
+  resolved: null, tag_name: null, active_from: null, active_until: null, ...over,
 })
 
 describe('compileBrainDocument', () => {
@@ -103,6 +103,66 @@ describe('compileBrainDocument', () => {
     expect(out.perNodeTokens.m1).toBeGreaterThan(0)
     expect(out.perNodeTokens.s1).toBeUndefined()
     expect(out.perNodeTokens.e1).toBeUndefined()
+  })
+})
+
+describe('temporary lifecycle', () => {
+  const NOW = new Date('2026-07-18T12:00:00Z')
+
+  it('drops a node whose active_until is in the past (dead)', () => {
+    const dead = memory({ id: 'd1', content: 'expired fact', active_until: '2026-07-01T00:00:00Z' })
+    const out = compileBrainDocument([dead], [], cfg, NOW)
+    expect(out.compiled).toBe('')
+    expect(out.expiredNodeIds).toEqual(['d1'])
+  })
+
+  it('drops a scheduled node whose active_from is in the future', () => {
+    const future = memory({ id: 'f1', content: 'not yet', active_from: '2026-08-01T00:00:00Z' })
+    const out = compileBrainDocument([future], [], cfg, NOW)
+    expect(out.compiled).toBe('')
+    expect(out.expiredNodeIds).toEqual(['f1'])
+  })
+
+  it('keeps an active temporary node (now within window)', () => {
+    const active = memory({
+      id: 'a1', content: 'trip fact',
+      active_from: '2026-07-10T00:00:00Z', active_until: '2026-07-25T00:00:00Z',
+    })
+    const out = compileBrainDocument([active], [], cfg, NOW)
+    expect(out.compiled).toContain('- trip fact')
+    expect(out.expiredNodeIds).toEqual([])
+  })
+
+  it('keeps a permanent node (no active_until)', () => {
+    const perm = memory({ id: 'p1', content: 'always', active_until: null })
+    const out = compileBrainDocument([perm], [], cfg, NOW)
+    expect(out.compiled).toContain('- always')
+  })
+})
+
+describe('named-tag grouping', () => {
+  it('groups named-tag nodes under a [tag] heading', () => {
+    const a = memory({ id: 'a', content: 'entry rules', tag_name: 'Trading' })
+    const b = memory({ id: 'b', content: 'exit rules', tag_name: 'Trading' })
+    const out = compileBrainDocument([a, b], [], cfg)
+    expect(out.compiled).toContain('[Trading]')
+    expect(out.compiled.indexOf('- entry rules')).toBeGreaterThan(out.compiled.indexOf('[Trading]'))
+  })
+
+  it('leaves untagged and color-only nodes ungrouped (no heading, no extra tokens)', () => {
+    const untagged = memory({ id: 'u', content: 'loose fact', tag_name: null })
+    const out = compileBrainDocument([untagged], [], cfg)
+    expect(out.compiled).not.toMatch(/\[[^\]]+\]\n- loose fact/)
+    expect(out.compiled).toContain('- loose fact')
+    expect(out.compiled).not.toContain('[loose')
+  })
+
+  it('does not let grouping remove a cross-group edge from the block', () => {
+    const a = memory({ id: 'a', content: 'A', tag_name: 'X' })
+    const b = memory({ id: 'b', content: 'B', tag_name: 'Y' })
+    const edges = [{ from_node: 'a', to_node: 'b', label: 'relates to' }]
+    const out = compileBrainDocument([a, b], edges, cfg)
+    expect(out.compiled).toContain('relates to')
   })
 })
 

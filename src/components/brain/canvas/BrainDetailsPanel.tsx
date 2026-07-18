@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronRight, FileText, Link2, Unlink } from 'lucide-react';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
-import { DetailsMode, type DetailsNodeDisplay } from './DetailsMode';
+import { DetailsMode, type DetailsNodeDisplay, type BrainTagOption } from './DetailsMode';
 import { ConnectionsMode } from './ConnectionsMode';
 
 export interface BrainDetailsPanelProps {
@@ -19,6 +19,7 @@ export interface BrainDetailsPanelProps {
   perNodeCap: number;
   getDisplay: (nodeId: string) => DetailsNodeDisplay | null;
   workspaceOptions: { id: string; title: string }[];
+  knownTags?: BrainTagOption[];
   onClose: () => void;
   onFocusNode: (id: string) => void;
   onOpenEditor: (refId: string) => void;
@@ -30,6 +31,10 @@ export interface BrainDetailsPanelProps {
   onUpdateTitle: (nodeId: string, title: string) => void;
   onUpdatePriority: (nodeId: string, priority: number) => void;
   onMoveToWorkspace: (nodeId: string, workspaceId: string | null) => void;
+  onSetBrainOnly?: (nodeId: string, brainOnly: boolean) => void;
+  onUpdateTag?: (nodeId: string, tag: { tag_color: string | null; tag_name: string | null }) => void;
+  onUpdateLifecycle?: (nodeId: string, life: { active_from: string | null; active_until: string | null }) => void;
+  onEditWorkspaceDescription?: (nodeId: string) => void;
   className?: string;
 }
 
@@ -147,6 +152,7 @@ export function BrainDetailsPanel({
   perNodeCap,
   getDisplay,
   workspaceOptions,
+  knownTags,
   onClose,
   onFocusNode,
   onOpenEditor,
@@ -158,6 +164,10 @@ export function BrainDetailsPanel({
   onUpdateTitle,
   onUpdatePriority,
   onMoveToWorkspace,
+  onSetBrainOnly,
+  onUpdateTag,
+  onUpdateLifecycle,
+  onEditWorkspaceDescription,
   className,
 }: BrainDetailsPanelProps) {
   // Edge (if any) between the focused node and each other node, for detach.
@@ -206,12 +216,17 @@ export function BrainDetailsPanel({
             perNodeCap={perNodeCap}
             getDisplay={getDisplay}
             workspaceOptions={workspaceOptions}
+            knownTags={knownTags}
             onClose={onClose}
             onOpenEditor={onOpenEditor}
             onSetMode={onSetMode}
             onUpdateTitle={onUpdateTitle}
             onUpdatePriority={onUpdatePriority}
             onMoveToWorkspace={onMoveToWorkspace}
+            onSetBrainOnly={onSetBrainOnly}
+            onUpdateTag={onUpdateTag}
+            onUpdateLifecycle={onUpdateLifecycle}
+            onEditWorkspaceDescription={onEditWorkspaceDescription}
           />
         ) : (
           <ConnectionsMode

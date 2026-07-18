@@ -563,6 +563,8 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
   );
 
   const isEntityVisible = useMemo(() => (e: Entity) => {
+    // Brain-only Memories never appear in sidebar/workspace trees.
+    if (e.brainOnly) return false;
     const effectiveSpaceId = activeSpaceId || 'ws-personal';
     const entitySpaceId = e.spaceId || 'ws-personal';
     // Legacy entities with 'ws-personal' spaceId are visible in the default space

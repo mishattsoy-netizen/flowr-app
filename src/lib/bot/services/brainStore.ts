@@ -192,7 +192,8 @@ async function resolveNodes(userId: string, nodes: BrainNodeRow[]): Promise<Comp
     } else if (n.type === 'workspace' && ent && supabaseAdmin) {
       // children by parent_id; tasks link via tasks.entity_id (verified in handlers.ts:257/:709)
       const [children, tasks] = await Promise.all([
-        supabaseAdmin.from('entities').select('title').eq('parent_id', ent.id).eq('owner_id', userId).limit(11),
+        supabaseAdmin.from('entities').select('title').eq('parent_id', ent.id).eq('owner_id', userId)
+          .eq('brain_only', false).limit(11),
         supabaseAdmin.from('tasks').select('id', { count: 'exact', head: true }).eq('entity_id', ent.id).eq('owner_id', userId),
       ])
       resolved = {
@@ -205,6 +206,9 @@ async function resolveNodes(userId: string, nodes: BrainNodeRow[]): Promise<Comp
       id: n.id, type: n.type, label: n.label, content: n.content, section_id: n.section_id,
       priority: n.priority, pinned: n.pinned, enabled: n.enabled,
       created_at: n.created_at, updated_at: n.updated_at, resolved,
+      tag_name: n.tag_name ?? null,
+      active_from: n.active_from ?? null,
+      active_until: n.active_until ?? null,
     })
   }
   return out
@@ -230,7 +234,16 @@ export async function computeBrainVersion(userId: string, brainId: string): Prom
   const cfg = await getBrainConfigForUser(userId)
   const nodeStamp = nodes.map(n => n.updated_at).sort().pop() ?? ''
   const edgeStamp = edges.map(e => e.created_at).sort().pop() ?? ''
-  return brainVersionKey([brainId, nodes.length, edges.length, nodeStamp, edgeStamp, refStamp, cfg.token_limit, cfg.per_node_cap])
+  // Next lifecycle boundary so cache invalidates when a temporary node
+  // enters/exits its window without any row edit.
+  const now = Date.now()
+  const boundaries = nodes
+    .flatMap(n => [n.active_from, n.active_until])
+    .filter((t): t is string => !!t)
+    .map(t => Date.parse(t))
+    .filter(ms => Number.isFinite(ms) && ms > now)
+  const nextBoundary = boundaries.length ? Math.min(...boundaries) : 0
+  return brainVersionKey([brainId, nodes.length, edges.length, nodeStamp, edgeStamp, refStamp, cfg.token_limit, cfg.per_node_cap, nextBoundary])
 }
 
 export async function logBrainUsageEvent(userId: string, brainId: string): Promise<void> {
@@ -366,11 +379,16 @@ export async function switchActiveBrain(
 
 export async function addBrainNode(
   userId: string, actor: 'user' | 'bot', brainId: string,
-  input: { type: BrainNodeRow['type']; ref_id?: string; content?: string; label?: string; section_id?: string; priority?: number; pinned?: boolean; position?: { x: number; y: number } }
+  input: {
+    type: BrainNodeRow['type']; ref_id?: string; content?: string; label?: string;
+    section_id?: string; priority?: number; pinned?: boolean; position?: { x: number; y: number };
+    active_from?: string | null; active_until?: string | null;
+    tag_color?: string | null; tag_name?: string | null;
+  }
 ): Promise<{ id: string } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
   if (!(await assertOwnedBrain(userId, brainId))) return { error: `Brain '${brainId}' not found.` }
-  const { type, ref_id, content, label, section_id, priority, pinned, position } = input
+  const { type, ref_id, content, label, section_id, priority, pinned, position, active_from, active_until, tag_color, tag_name } = input
   if (type === 'workspace' || type === 'entity') {
     if (!ref_id) return { error: `'ref_id' is required for type '${type}'` }
     if (!(await assertOwnedEntity(userId, ref_id))) return { error: `Entity '${ref_id}' not found.` }
@@ -419,6 +437,10 @@ export async function addBrainNode(
     user_id: userId, brain_id: brainId, type, ref_id: ref_id ?? null, content: content ?? null, label: label ?? null,
     section_id: section_id ?? null, priority: priority ?? 0, pinned: pinned ?? false, created_by: actor,
     position: position ?? null,
+    active_from: active_from ?? null,
+    active_until: active_until ?? null,
+    tag_color: tag_color ?? null,
+    tag_name: tag_name ?? null,
   }).select('id').single()
   if (error) return { error: error.message }
   await logRevision(userId, actor, 'add_node', { id: data.id, brain_id: brainId, ...input })
@@ -433,7 +455,10 @@ export async function addBrainNode(
 // 'brain_id' is ALSO deliberately excluded — moving a node between brains
 // isn't a feature this plan implements; if it ever is, it needs its own
 // assertOwnedBrain check on the NEW brain_id, mirroring the ref_id note above.
-const UPDATABLE_NODE_FIELDS = ['content', 'label', 'section_id', 'priority', 'pinned', 'enabled', 'position'] as const
+const UPDATABLE_NODE_FIELDS = [
+  'content', 'label', 'section_id', 'priority', 'pinned', 'enabled', 'position',
+  'tag_color', 'tag_name', 'active_from', 'active_until',
+] as const
 
 export async function updateBrainNode(
   userId: string, actor: 'user' | 'bot', brainId: string, nodeId: string,
@@ -555,6 +580,14 @@ export async function listBrain(userId: string, brainId: string) {
     deletedNodes = (del.data ?? []) as BrainNodeRow[]
     availableWorkspaces = (ws.data ?? []) as { id: string; title: string }[]
   }
+  const nowMs = Date.now()
+  const isInactiveRow = (n: BrainNodeRow) => {
+    if (n.active_from && Date.parse(n.active_from) > nowMs) return true
+    if (n.active_until && Date.parse(n.active_until) < nowMs) return true
+    return false
+  }
+  const expiredNodeIds = nodes.filter(n => n.enabled && isInactiveRow(n)).map(n => n.id)
+
   return {
     brainId, nodes, edges, deletedNodes, availableWorkspaces,
     compiledPreview: compiled.compiled,
@@ -564,5 +597,50 @@ export async function listBrain(userId: string, brainId: string) {
     },
     perNodeTokens: compiled.perNodeTokens,
     perNodeCap: cfg.per_node_cap,
+    expiredNodeIds,
   }
+}
+
+/** Toggle an entity's brain_only (Note ↔ Memory). */
+export async function setEntityBrainOnly(userId: string, entityId: string, brainOnly: boolean): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  const { data, error } = await supabaseAdmin.from('entities')
+    .update({ brain_only: brainOnly }).eq('id', entityId).eq('owner_id', userId).select('id')
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: `Entity '${entityId}' not found.` }
+  return { success: true }
+}
+
+/** Distinct (color,name) tag combos across the user's brain nodes, for the picker. */
+export async function getBrainTags(userId: string): Promise<{ tag_color: string; tag_name: string | null }[]> {
+  if (!supabaseAdmin) return []
+  const { data } = await supabaseAdmin.from('brain_nodes')
+    .select('tag_color, tag_name').eq('user_id', userId).is('deleted_at', null).not('tag_color', 'is', null)
+  const seen = new Map<string, { tag_color: string; tag_name: string | null }>()
+  for (const r of (data ?? []) as { tag_color: string; tag_name: string | null }[]) {
+    const key = `${r.tag_color}|${r.tag_name ?? ''}`
+    if (!seen.has(key)) seen.set(key, { tag_color: r.tag_color, tag_name: r.tag_name ?? null })
+  }
+  return [...seen.values()]
+}
+
+/** Workspace title + description. */
+export async function setWorkspaceDescription(userId: string, entityId: string, title: string, description: string): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  const desc = (description ?? '').slice(0, 500)
+  const { data, error } = await supabaseAdmin.from('entities')
+    .update({ title, description: desc }).eq('id', entityId).eq('owner_id', userId).eq('type', 'workspace').select('id')
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: `Workspace '${entityId}' not found.` }
+  return { success: true }
+}
+
+/** Permanent Memory delete: soft-delete brain_node AND delete the brain_only entity. */
+export async function deleteMemoryNode(userId: string, brainId: string, nodeId: string, entityId: string): Promise<{ success: true } | { error: string }> {
+  if (!supabaseAdmin) return { error: 'Supabase not configured' }
+  const rem = await removeBrainNodes(userId, 'user', brainId, [nodeId])
+  if ('error' in rem) return rem
+  const { error } = await supabaseAdmin.from('entities').delete().eq('id', entityId).eq('owner_id', userId).eq('brain_only', true)
+  if (error) return { error: error.message }
+  return { success: true }
 }

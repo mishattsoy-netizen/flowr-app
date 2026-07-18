@@ -310,7 +310,7 @@ export function FolderView({ entity, isLoading }: FolderViewProps) {
   }, []);
 
   const children = useMemo(() => {
-    return entities.filter(e => e.parentId === entity.id);
+    return entities.filter(e => e.parentId === entity.id && !e.brainOnly);
   }, [entities, entity.id]);
 
   const sortedChildren = useMemo(() => {
