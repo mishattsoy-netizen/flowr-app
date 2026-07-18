@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import {
   Brain,
   Calendar,
+  Check,
+  CircleDashed,
   Droplet,
   FileText,
   Flag,
@@ -54,7 +56,8 @@ export interface DetailsModeProps {
   onEditWorkspaceDescription?: (nodeId: string) => void;
 }
 
-const TAG_SWATCHES = ['#E8A23A', '#2A78D6', '#4ECB8D', '#A78BFA', '#F07178', '#F0A0C0', '#94A3B8'];
+// Identical palette to the tasks color picker (TaskContextMenu's COLORS).
+const TAG_SWATCHES = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#06B6D4'];
 
 function priorityMeta(p: number): { label: string; className: string } {
   if (p <= 1) return { label: 'High', className: 'bg-red-500/15 text-red-400' };
@@ -319,28 +322,57 @@ export function DetailsMode({
                   <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-52 p-2 bg-[var(--app-panel)] border border-[var(--bone-12)] rounded-[12px] z-[320]" align="end">
+              <PopoverContent className="popup-glass-small p-2 min-w-[160px] z-[320]" align="end">
                 <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
+                {/* Same "Clear/None" row + swatch grid as the tasks color picker
+                    (TaskContextMenu): CircleDashed icon, ring-scale on the
+                    selected swatch, checkmark inside it. */}
                 <button
                   type="button"
                   onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: null, tag_name: null })}
-                  className="w-full text-left px-2 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-60)] hover:bg-[var(--app-dark)] border-none outline-none mb-1"
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-[13px] font-medium cursor-pointer mb-1",
+                    !node.tag_color
+                      ? "bg-[var(--bone-6)] text-[var(--bone-100)]"
+                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                  )}
                 >
-                  Clear tag
+                  <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
+                  <span>None</span>
+                  {!node.tag_color && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
                 </button>
-                <div className="flex flex-wrap gap-1.5 px-1 mb-2">
-                  {TAG_SWATCHES.map(c => (
+                <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
+                  {TAG_SWATCHES.slice(0, 4).map(c => (
                     <button
                       key={c}
                       type="button"
                       title={c}
-                      onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: c, tag_name: node.tag_name ?? null })}
+                      onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: node.tag_color === c ? null : c, tag_name: node.tag_color === c ? null : (node.tag_name ?? null) })}
                       className={cn(
-                        "w-6 h-6 rounded-full border-2 border-transparent",
-                        node.tag_color === c && "border-white"
+                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                        node.tag_color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
                       )}
                       style={{ backgroundColor: c }}
-                    />
+                    >
+                      {node.tag_color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-2 px-1 pb-2 place-items-center">
+                  {TAG_SWATCHES.slice(4, 8).map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      title={c}
+                      onClick={() => onUpdateTag?.(focusedNodeId, { tag_color: node.tag_color === c ? null : c, tag_name: node.tag_color === c ? null : (node.tag_name ?? null) })}
+                      className={cn(
+                        "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                        node.tag_color === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
+                      )}
+                      style={{ backgroundColor: c }}
+                    >
+                      {node.tag_color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                    </button>
                   ))}
                 </div>
                 {knownTags.length > 0 && (
