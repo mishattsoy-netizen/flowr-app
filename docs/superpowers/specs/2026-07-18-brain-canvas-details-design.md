@@ -143,19 +143,51 @@ Panel container: same visual language as the left panel and the app's existing f
 
 Top to bottom:
 
-1. **Header row**: usage-% bar for THIS node (`perNodeTokens[id] / perNodeCap`, same computation as §3.8's card footer bar) on the left, "•••" (options — exact menu contents decided at plan time, likely mirrors the right-click context menu) and "✕" close on the right.
+**The field set differs by node kind — see §4.2A for the full per-kind matrix.** The layout below describes a Note/Memory node (the common case); §4.2A specifies how Workspace and Section nodes differ.
+
+1. **Header row**: usage-% bar for THIS node on the left, "•••" (options — exact menu contents decided at plan time, likely mirrors the right-click context menu) and "✕" close on the right. Bar denominator depends on kind: Note/Memory → `perNodeTokens[id] / perNodeCap`; Workspace → description fill (`descriptionChars / 500`), see §4.2A.
 2. **Title** — the node's display title, double-click to edit inline (commits via `updateBrainNode({ label })` on blur/Enter).
-3. **Preview** — the node's content preview (same source as the canvas card's preview text), dimmed/truncated, not editable here (editing content is what "Open editor" is for).
-4. **Field rows** (divider-separated, matching the tasks panel's pill-editor pattern referenced in the Figma drafts):
+3. **Preview** — the node's content preview (same source as the canvas card's preview text), dimmed/truncated, not editable here (editing content is what "Open editor" is for). For a Workspace node this is the workspace **description** preview (§4.2B).
+4. **Field rows** (divider-separated, matching the tasks panel's pill-editor pattern referenced in the Figma drafts). For a Note/Memory node:
    - **Priority** — pill showing High/Medium/Low, click opens the same style of popup used elsewhere for priority selection.
    - **Type** — pill showing **Note** / **Memory** (§4C.2), click toggles the value (flips the entity's `brain_only` flag). Memory hides the note from workspaces/Unsorted; deleting a Memory is a confirmed permanent action.
    - **Custom tag** — a tag swatch (color dot + name if set), click opens the reusable tag picker (§4C.1: dropdown of existing color+name combos, or define a new one).
-   - **Lifecycle** — pill showing **Permanent** or the active window (§4C.3), click opens a date editor (optional start, required end to be temporary). Clearing the end date returns it to Permanent.
+   - **Lifecycle** — **always visible**, showing **Permanent** by default; click opens the **same calendar popup used in the tasks panel** (optional start, required end to make it temporary). Clearing the end date returns it to Permanent (§4C.3).
    - **Workspace** — pill showing the node's parent workspace or "Unsorted", click opens the same workspace picker used in the tasks panel. Selecting a different workspace reassigns the underlying entity's parent and moves it to the root of the newly selected workspace (no sub-folder placement). (For a Memory node, this pre-sets where it lands if later switched back to Note.)
-5. **Action row**: `🔗 N` button (N = this node's total real edge count, from `state.edges` filtered by `from_node`/`to_node` — NOT limited to the current multi-selection) → switches to Connections mode. Beside it, **"Open editor"** button → calls the same `openBrainNode(ref_id)` this click used to trigger directly.
+5. **Action row**: `🔗 N` button (N = this node's total real edge count, from `state.edges` filtered by `from_node`/`to_node` — NOT limited to the current multi-selection) → switches to Connections mode. Beside it, **"Open editor"** button → for a Note/Memory node, calls the same `openBrainNode(ref_id)` this click used to trigger directly; for a Workspace node, opens the workspace description popup (§4.2B) instead.
 6. **Other selected nodes** (only rendered when the current multi-selection has more than one node): each as a separate floating card below the main panel (visually matching the main card's style, per the "v2" Figma draft — NOT merged into one continuous panel). Fixed order: nodes already connected to the focused node first, then unconnected ones. No drag/reorder/drop-to-connect anywhere in this list.
    - Clicking a card → it becomes the new focused node; the panel's Details view re-renders around it.
    - Hovering the right edge of an **unconnected** card reveals a one-click connect button (blue, matching the mockup) — clicking it calls `addBrainEdge(focusedNodeId, thatNodeId, '')` immediately, no drag, no label prompt (label can be added after, via Connections mode's label-chip edit).
+
+### 4.2A Field matrix by node kind
+
+A canvas node is one of four kinds (`brain_nodes.type`): **entity** (a Note, or a Memory when its entity's `brain_only` is set), **workspace**, or **section**. The details panel adapts its field set per kind. `BrainNodeCard` already renders workspace vs default differently (`variant: 'workspace'`), so this per-kind treatment follows an existing pattern.
+
+| Field | Note | Memory | Workspace | Section |
+|---|---|---|---|---|
+| Title (inline edit) | ✓ | ✓ | ✓ | ✓ |
+| Header usage bar | ✓ (`/perNodeCap`) | ✓ (`/perNodeCap`) | ✓ (`/500 chars`, §4.2B) | — |
+| Preview | content preview | content preview | description preview (§4.2B) | — |
+| Priority | ✓ | ✓ | ✓ | — |
+| Type (Note/Memory) | ✓ | ✓ | — | — |
+| Custom tag | ✓ | ✓ | ✓ | — |
+| Lifecycle | ✓ | ✓ | ✓ | — |
+| Workspace (reassign) | ✓ | ✓ | — | — |
+| Open editor | opens note | opens note | opens description popup (§4.2B) | — |
+
+Notes:
+- **Workspace nodes CAN be made temporary** (Lifecycle applies) — a workspace can expire out of the brain block after a date, same lifecycle model as notes (§4C.3).
+- **Workspace nodes have NO Type field** (they're not notes, can't be Memory) and **NO Workspace-reassign field** (a workspace isn't inside another workspace).
+- **Section nodes** are pure grouping headers — only an editable label, no other fields.
+- The header **usage bar for a Workspace node** is scaled to the description cap, not `perNodeCap`: 100% = 500 chars (≈125 tokens). It measures how full the description is, not the node's share of `perNodeCap`. The workspace's actual compiled cost still counts toward the total brain budget silently (unchanged from today's compile).
+
+### 4.2B Workspace description — edit surfaces
+
+`entities.description` is already rendered into a workspace node's brain-block summary line (`brainCompiler.ts renderNode`: `desc = r.description || n.label`), but **no UI exists today to edit it** (the P1 migration explicitly deferred "editing UI comes later"; all `description` handling in `handlers.ts` is task-only). Part C adds that surface. Max length **500 characters** (bounded because it costs brain-budget tokens).
+
+- **Primary edit surface — workspace page header.** A description button next to the sync-mode picker and the "+" button on the workspace page header. Opens a **simple popup**: the workspace **title** field + a **description** textarea + a **character counter `x / 500`** + **Save / Cancel** buttons.
+- **Details panel (read + entry).** When a Workspace node is focused, its Preview row (§4.2 item 3) shows the description **faded/truncated**, identical treatment to a note's content preview. The panel's **"Open editor"** button opens the **same popup** described above (one shared component, both entry points), rather than the note editor.
+- **Backend**: workspace description edit needs a write path for `entities.description` (none exists today — `update_content` handles task descriptions only). The plan adds a description-update path (server mutation + the client store/sync wiring), used by the popup from either entry point.
 
 ### 4.3 Connections mode
 
@@ -298,6 +330,8 @@ Goal: user says "I'm in Japan next week until the 20th" → bot produces a **Mem
 | Temporary lifecycle | new columns `brain_nodes.active_from`, `brain_nodes.active_until`; read-time expiry drop in compile; dimmed dead-node render. Full new-column chain incl. `CompileNode` + builder | migration, `brainTypes.ts`, node SELECT, `UPDATABLE_NODE_FIELDS`, `CompileNode` builder, `brainCompiler.ts`, canvas render |
 | Bot creates Memory + temporary notes | two-tool flow (§4C.4): optional `brain_only` on `create_content` (entity) + optional `active_from`/`active_until` on `add_node` (brain_node) | `tools/definitions.ts`, `tools/handlers.ts` |
 | Exclude local-only notes from add-node picker | one client-side filter link (`syncMode !== 'local-only'`); no schema change | `AddExistingEntityPopover.tsx` |
+| Workspace description edit surface | new write path for `entities.description` (none today — task-only); shared popup (title + description + `x/500` counter) from workspace header button and details-panel "Open editor" | workspace header, new popup component, server mutation + client store/sync |
+| Per-kind details-panel field set | no schema change — panel branches on `brain_nodes.type` (matrix §4.2A) | details panel component |
 | `per_node_cap` exposed to client | new field on `listBrain`/`BrainCanvasState` | `brainStore.ts`, `useBrainData.ts` |
 | Edge relabel in place | new backend fn `updateBrainEdge` + API action `update_edge` | `brainStore.ts`, `route.ts` |
 | Clickable connection lines | new hit-stroke `<path>`, no schema change | `BrainCanvasConnections.tsx` |
