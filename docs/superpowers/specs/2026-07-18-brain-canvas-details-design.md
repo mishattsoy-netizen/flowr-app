@@ -111,7 +111,7 @@ No code change needed — both `token_limit` and `per_node_cap` are already read
 
 > **Superseded/extended by §4C.1.** This section originally specced a bare `color` column; Part C extends it to a **Custom tag** (color + optional name). The authoritative representation is in §4C.1 (`tag_color` + `tag_name`). Kept here for the card-border behavior, which is unchanged.
 
-The Custom tag is a color plus an optional reusable name (see §4C.1 for storage and the reusable picker). No fixed enum, no meaning imposed by the system (per owner: "purely user-chosen... like a highlighter/label system"). Settable via `updateBrainNode`'s existing `UPDATABLE_NODE_FIELDS` list (add `'tag_color'` and `'tag_name'` to that array — `brainStore.ts:376`).
+The Custom tag is a color plus an optional reusable name (see §4C.1 for storage and the reusable picker). No fixed enum, no meaning imposed by the system (per owner: "purely user-chosen... like a highlighter/label system"). `tag_color`/`tag_name` are new `brain_nodes` columns and must be threaded through the full new-column chain (§4C intro) — including adding both to `UPDATABLE_NODE_FIELDS` (`brainStore.ts:378`, which today holds no tag/color field) so `updateBrainNode` accepts them.
 
 **Card border color**: `BrainNodeCard`'s border currently switches between `--bone-10` (idle) and `--accent` (selected/highlighted, per this session's earlier "highlight uses the real border" work). When a node has a `tag_color` set and is NOT selected/highlighted, its idle border uses that color instead of `--bone-10`. Selected/highlighted state still overrides to the accent/blue ring regardless of tag color (selection must always be visually unambiguous).
 
@@ -209,6 +209,10 @@ New API action `update_edge` in `/api/ai/user-brain` POST, mirroring the existin
 
 Second design increment (added after the details-panel design was approved). Three related features that change what a node *is*, not just how it's inspected. Designed now, built together with Parts A/B ("design all now, build after"). All three surface primarily through the details panel's field rows (§4.2.4) — same pill-editor pattern as Priority.
 
+> **Two-row model — read first, it governs all of Part C.** A Note/Memory node on the canvas is **two database rows**, not one: a `brain_nodes` row (`type = 'entity'`) whose `ref_id` points at an `entities` row that holds the actual note content. Verified: `removeBrainNodes` (`brainStore.ts:408`) soft-deletes only the `brain_node`; `ref_id` is `ON DELETE SET NULL`, so the entity is never touched by canvas deletion today. Consequently **every Part C operation that creates, deletes, or toggles visibility of a node is a two-row operation** — one touching `brain_nodes`, one touching `entities`. Where a field belongs (brain_node vs entity) is called out per feature below and is load-bearing: `brain_only` is an **entity** property (it's about the note's workspace visibility); tag and lifecycle are **brain_node** properties (they're about the canvas node).
+>
+> **New-column threading chain.** Any new `brain_nodes` column (`tag_color`, `tag_name`, `active_from`, `active_until`) must be threaded through this fixed chain, or it silently no-ops somewhere: **(1)** migration → **(2)** `BrainNodeRow` type (`brainTypes.ts`) → **(3)** the node-reading SELECT in `listBrain`/`getBrainBlockForSession` → **(4)** `UPDATABLE_NODE_FIELDS` (`brainStore.ts:378`) if user-editable → **(5)** `CompileNode` type + its builder (`brainStore.ts:~190`) if the compiler reads it → **(6)** `compileBrainDocument` (`brainCompiler.ts`). Each per-feature section below names which links it needs; the plan must implement the whole chain per column, not just the migration.
+
 ### 4C.1 Custom tags (renames & extends §3.7's "color tag")
 
 The §3.7 color tag becomes a **Custom tag**: a color **plus an optional name**. Same single nullable representation, extended to carry a name.
@@ -227,13 +231,18 @@ The §3.7 color tag becomes a **Custom tag**: a color **plus an optional name**.
 A new **Type** field in the details panel (§4.2.4, a pill like Priority) with two values: **Note** and **Memory**. This is the "brain-only note" concept — modeled as a visibility flag on a real entity note, **not** a revival of the retired `type='memory'` brain-node kind (that kind errors on creation at `brainStore.ts:332` and stays retired).
 
 - **Note** (default): a normal entity note. Visible in its workspace / Unsorted **and** on the canvas. This is every node today.
-- **Memory**: the *same* entity note (openable in the editor identically), but **hidden from all workspace and Unsorted views** — it lives only in the brain tree/canvas. Backed by a new `brain_only boolean` (default false) on the note's **entity** (not the brain_node — the flag is about the note's workspace visibility, which is an entity-level property). Workspace/Unsorted list queries add `AND NOT brain_only`.
-- **Switching Type** in the panel flips `brain_only`:
+- **Memory**: the *same* entity note (openable in the editor identically), but **hidden from every view except the canvas** — no workspace, no Unsorted. Backed by a new `brain_only boolean` (default false) on the **entity** row (per the two-row model above: this is a workspace-visibility property, so it lives on the entity, not the brain_node).
+- **Blast radius of `brain_only` — this is the widest-reaching change in Part C.** Entity visibility is **not** filtered by one server query; it is filtered client-side after a local sync. The plan MUST route `brain_only` through, and add an exclusion filter at, every one of these (verified filter/sync sites — the plan treats this as a checklist and greps for any it missed):
+  - **Sync layer**: `src/lib/loadFromSQLite.ts`, `src/lib/sync.ts`, `src/lib/canvasSync.ts` — `brain_only` must be carried into the local entity store, or client filters have nothing to filter on.
+  - **View filter sites**: `src/components/dashboard/Dashboard.tsx`, `src/components/folder/FolderView.tsx`, sidebar/workspace tree — each must exclude `brain_only` entities.
+  - **Bot-facing listing**: `list_content` / `list_content`-backed tool paths must not surface `brain_only` notes as workspace/unsorted content (else the bot re-clutters what the feature hides).
+  - A missed site = a Memory note leaking into a workspace view, the exact failure this feature exists to prevent. This is the single highest-bug-risk item in the increment.
+- **Switching Type** in the panel flips the entity's `brain_only`:
   - Note → Memory: sets `brain_only = true` (note disappears from workspaces, stays on canvas).
   - Memory → Note: sets `brain_only = false` (note appears in Unsorted, or its assigned workspace if one is set — same as saving any note).
-- **Delete semantics differ by type** (§4.1 / context-menu delete + any panel delete):
-  - Deleting a **Note** node: soft-deletes only the `brain_node` (`removeBrainNodes` already does exactly this — `ref_id` is `ON DELETE SET NULL`, the entity is untouched). The note survives in its workspace. No confirmation beyond today's behavior.
-  - Deleting a **Memory** node: because a Memory's note exists *nowhere but here*, removing it is effectively permanent. **Requires a confirmation dialog** ("This memory exists only in your brain — deleting it is permanent."). On confirm, both the brain_node and its entity are deleted.
+- **Delete semantics differ by type** (§4.1 / context-menu delete + any panel delete) — both are two-row operations per the model above:
+  - Deleting a **Note** node: soft-deletes only the `brain_node` (`removeBrainNodes` already does exactly this — the entity is untouched). The note survives in its workspace. No confirmation beyond today's behavior.
+  - Deleting a **Memory** node: the entity is hidden from every other view, so removing it here is the only removal path and is effectively permanent. **Requires a confirmation dialog** ("This memory is only in your brain — deleting it is permanent."). On confirm, **both rows go**: the brain_node soft-delete (existing) **plus** an entity delete. The entity-delete half is **not wired today** (`removeBrainNodes` never touches entities) — the plan adds a Memory-delete path that deletes the entity as well, gated behind the confirmation.
 
 ### 4C.3 Temporary lifecycle (start/end dates)
 
@@ -252,10 +261,15 @@ Any node (Note or Memory) can be made **temporary** by giving it an **end date**
 
 ### 4C.4 Bot can create Memory + temporary notes directly
 
-The bot's note-creation path gains the two new flags so the Japan-trip auto-flow works end to end: user says "I'm in Japan next week until the 20th" → bot creates a **Memory** note (`brain_only = true`, so it never clutters Unsorted) that is **temporary** (`active_from`/`active_until` parsed from the user's dates), which auto-activates for the window and drops out of the brain block after the end date, remaining as a dead braincell on the canvas until the user revives or deletes it.
+Goal: user says "I'm in Japan next week until the 20th" → bot produces a **Memory** note (`brain_only = true`, never clutters Unsorted) that is **temporary** (dates parsed from the user), auto-active for the window, dropping out of the brain block after the end date and remaining a dead braincell on the canvas until revived or deleted.
 
-- Extends the existing note-creation tool definition (`src/lib/bot/tools/definitions.ts`) + handler (`handlers.ts`) with optional `brain_only`, `active_from`, `active_until` parameters. This is a deliberate, scoped exception to §4.7's "no `manage_brain` bot-behavior change" — it's the note-*creation* tool, not `manage_brain`, and it's the whole point of the feature.
-- User can still edit every one of these fields afterward in the details panel (Type field + lifecycle dates), same as a manually-created node.
+**This is a two-tool / two-row flow, not one flag-extended tool** (per the two-row model): a canvas Memory node requires (a) an **entity** note and (b) a **brain_node** referencing it, and the two new fields live on different rows. Where `brain_only` (entity) and `active_from`/`active_until` (brain_node) attach dictates the wiring:
+
+- **`create_content`** (`definitions.ts:38`, creates the entity note) gains an optional **`brain_only`** parameter → sets the entity's `brain_only` on creation.
+- **`add_node`** / `manage_brain` (creates the `brain_node`, `type='entity'`, `ref_id` → the note) gains optional **`active_from`/`active_until`** parameters → sets the brain_node's lifecycle window.
+- The bot performs both in sequence (create note, then add it to the brain with dates) — the same "create_content first, then add_node" pattern the tool prompt already instructs for adding notes to a brain (`definitions.ts:267`). No new combined tool is required; the plan may optionally add a convenience path but the two-step flow is the baseline.
+- This is a deliberate, scoped exception to §4.7's "no `manage_brain` bot-behavior change" for the lifecycle params on `add_node` — it's the whole point of the feature and is additive (optional params, existing calls unaffected).
+- User can still edit every one of these fields afterward in the details panel (Type + lifecycle), same as a manually-created node.
 
 ### 4C.5 Part C non-goals
 
@@ -271,10 +285,10 @@ The bot's note-creation path gains the two new flags so the Japan-trip auto-flow
 | `brains.is_default` settable post-creation | new backend fn `setDefaultBrain` + API action | `brainStore.ts`, `route.ts` |
 | AI-request-per-brain tracking | new table `brain_usage_events` + `logBrainUsageEvent` call | migration, `brainStore.ts`, `chainRouter.ts` |
 | Pro tier limit 10k → 8k | data-only, one `UPDATE` | `brain_config` table |
-| Custom tag (color + name) | new columns `brain_nodes.tag_color`, `brain_nodes.tag_name` + reusable picker + compiler grouping | migration, `UPDATABLE_NODE_FIELDS`, `brainCompiler.ts` |
-| Memory (brain-only) node type | new column `entities.brain_only` (default false); workspace/Unsorted queries filter it out; Type field toggles it; Memory delete is permanent + confirmed | migration, entity list queries, details panel, delete flow |
-| Temporary lifecycle | new columns `brain_nodes.active_from`, `brain_nodes.active_until`; read-time expiry drop in compile; dimmed dead-node render | migration, `brainCompiler.ts`, `UPDATABLE_NODE_FIELDS`, canvas render |
-| Bot creates Memory + temporary notes | new optional `brain_only`/`active_from`/`active_until` params on note-creation tool | `tools/definitions.ts`, `tools/handlers.ts` |
+| Custom tag (color + name) | new columns `brain_nodes.tag_color`, `brain_nodes.tag_name` + reusable picker + compiler grouping. Full new-column chain (§4C intro) | migration, `brainTypes.ts` (`BrainNodeRow`, `CompileNode`), node SELECT, `UPDATABLE_NODE_FIELDS`, `CompileNode` builder, `brainCompiler.ts`, details panel |
+| Memory (brain-only) node type | new column `entities.brain_only` (default false). **Cross-cutting**: threaded through the local sync layer + every client view filter (see §4C.2 blast-radius checklist). Type field toggles it; Memory delete adds a new entity-delete path (not wired today), permanent + confirmed | migration, `loadFromSQLite.ts`/`sync.ts`/`canvasSync.ts`, `Dashboard.tsx`/`FolderView.tsx`/sidebar, `list_content`, details panel, new delete path |
+| Temporary lifecycle | new columns `brain_nodes.active_from`, `brain_nodes.active_until`; read-time expiry drop in compile; dimmed dead-node render. Full new-column chain incl. `CompileNode` + builder | migration, `brainTypes.ts`, node SELECT, `UPDATABLE_NODE_FIELDS`, `CompileNode` builder, `brainCompiler.ts`, canvas render |
+| Bot creates Memory + temporary notes | two-tool flow (§4C.4): optional `brain_only` on `create_content` (entity) + optional `active_from`/`active_until` on `add_node` (brain_node) | `tools/definitions.ts`, `tools/handlers.ts` |
 | `per_node_cap` exposed to client | new field on `listBrain`/`BrainCanvasState` | `brainStore.ts`, `useBrainData.ts` |
 | Edge relabel in place | new backend fn `updateBrainEdge` + API action `update_edge` | `brainStore.ts`, `route.ts` |
 | Clickable connection lines | new hit-stroke `<path>`, no schema change | `BrainCanvasConnections.tsx` |
