@@ -47,6 +47,7 @@ export interface BrainCanvasState {
   budget: { used: number; limit: number; dropped: string[]; broken: string[] };
   brains: BrainMeta[];
   perNodeTokens: Record<string, number>;
+  perNodeCap: number;
 }
 
 export async function authHeaders(): Promise<Record<string, string>> {
@@ -115,7 +116,9 @@ export function useBrainData() {
         // response describes — correct even on the very first load (called
         // with no brainId arg), unlike the `brainId` param above which may
         // be undefined in that case.
-        if (data.brainId) setState(data.brainId, data);
+        // perNodeCap defaults to pro tier (2000) so a stale cached/server
+        // response missing the field never divides by zero in token UI.
+        if (data.brainId) setState(data.brainId, { ...data, perNodeCap: data.perNodeCap ?? 2000 });
         setError(null);
         // Only adopt the server's brainId when we didn't already know which
         // brain we wanted (initial load) — otherwise this would keep

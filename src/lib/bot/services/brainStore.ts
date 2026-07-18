@@ -537,5 +537,6 @@ export async function listBrain(userId: string, brainId: string) {
       dropped: compiled.droppedNodeIds, broken: compiled.brokenNodeIds,
     },
     perNodeTokens: compiled.perNodeTokens,
+    perNodeCap: cfg.per_node_cap,
   }
 }
