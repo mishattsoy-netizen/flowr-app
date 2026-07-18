@@ -188,7 +188,7 @@ export function ConnectionsMode({
             <div
               className={cn(
                 "absolute left-0 top-[22px] bottom-[22px] w-[18px] pointer-events-none",
-                "border-l-2 border-t-2 border-b-2 border-[var(--bone-30)]",
+                "border-l-2 border-t-2 border-b-2 border-[#B5B5B0]",
                 "rounded-tl-[10px] rounded-bl-[10px]"
               )}
             />
@@ -246,14 +246,16 @@ export function ConnectionsMode({
       {!pairEdge && (
       <div className="px-3.5 pb-3 flex flex-col">
         <div className="relative pl-[18px]">
-          {/* Spine: drops from the focused row's bottom-left, down to the last
-              row's center. Each row draws its own rounded turn INTO its left
-              edge (below), so the line is attached, never floating. */}
+          {/* Spine: drops from the focused row's bottom-left and stops where
+              the LAST row's elbow begins its curve (32px = the row's 22px
+              centre + the elbow's 10px corner radius) — running it to the
+              centre would leave a straight stub past the turn. Each row draws
+              its own rounded elbow INTO its left edge, so the line attaches. */}
           {connected.length > 0 && (
             <div
               className={cn(
-                "absolute left-0 top-[22px] bottom-[22px] w-[18px] pointer-events-none",
-                "border-l-2 border-t-2 border-[var(--bone-30)] rounded-tl-[10px]"
+                "absolute left-0 top-[22px] bottom-[32px] w-[18px] pointer-events-none",
+                "border-l-2 border-t-2 border-[#B5B5B0] rounded-tl-[10px]"
               )}
             />
           )}
@@ -290,7 +292,7 @@ export function ConnectionsMode({
                 <div
                   className={cn(
                     "absolute -left-[18px] bottom-[22px] w-[18px] h-[18px] pointer-events-none",
-                    "border-l-2 border-b-2 border-[var(--bone-30)] rounded-bl-[10px]"
+                    "border-l-2 border-b-2 border-[#B5B5B0] rounded-bl-[10px]"
                   )}
                 />
                 {/* Label row: full width, dark, dim while idle; click to edit. */}
