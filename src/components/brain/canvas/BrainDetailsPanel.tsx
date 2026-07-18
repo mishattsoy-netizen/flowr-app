@@ -44,7 +44,7 @@ export interface BrainDetailsPanelProps {
  *  backgrounds; a real border keeps children inside it. */
 const cardChrome = cn(
   "canvas-floating-panel bg-[var(--app-panel)] backdrop-blur-xl",
-  "border border-[var(--bone-12)]",
+  "border-2 border-[var(--bone-12)]",
   "shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
 );
 
@@ -103,7 +103,7 @@ function SelectedNodeCard({
           parent clip exactly. */}
       <div
         className={cn(
-          "relative z-10 flex items-center h-full px-3.5 rounded-[13px]",
+          "relative z-10 flex items-center h-full px-3.5 rounded-[12px]",
           "bg-[var(--app-panel)] group-hover:bg-[var(--card-bg)]",
           "transition-[width,background-color] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
         )}

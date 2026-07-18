@@ -47,7 +47,7 @@ function PairNodeRow({
   onDetach: () => void;
 }) {
   return (
-    <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--brand-blue)]">
+    <div className="group relative h-11 rounded-[14px] overflow-hidden border-2 border-[var(--brand-blue)]">
       <button
         type="button"
         title="Break connection"
@@ -66,7 +66,7 @@ function PairNodeRow({
       </div>
       <div
         className={cn(
-          "relative z-10 flex items-center h-full rounded-[13px]",
+          "relative z-10 flex items-center h-full rounded-[12px]",
           "bg-[#2A333D] group-hover:bg-[#2A3B4E]",
           "transition-[width,background-color] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
         )}
@@ -179,13 +179,19 @@ export function ConnectionsMode({
       </div>
 
       {/* Pair view (opened from an edge line): the edge's two endpoints as
-          equals — both blue, one label between them, a line joining both. */}
+          equals — both blue, one label between them, a bracket whose rounded
+          corners physically meet each row's left edge. */}
       {pairEdge && (
         <div className="px-3.5 pb-3">
           <div className="relative pl-[18px]">
-            <div className="absolute left-1 top-[22px] bottom-[22px] w-px border-l border-[var(--bone-30)] pointer-events-none" />
-            <div className="absolute left-[1px] top-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
-            <div className="absolute left-[1px] bottom-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
+            {/* Bracket: vertical spine + rounded turns into both rows. */}
+            <div
+              className={cn(
+                "absolute left-0 top-[22px] bottom-[22px] w-[18px] pointer-events-none",
+                "border-l-2 border-t-2 border-b-2 border-[var(--bone-30)]",
+                "rounded-tl-[10px] rounded-bl-[10px]"
+              )}
+            />
             <PairNodeRow
               display={getDisplay(pairEdge.from_node) ?? { title: 'Untitled', priority: 3, workspaceLabel: '' }}
               onOpen={() => { onFocusNode(pairEdge.from_node); onSetMode('details'); }}
@@ -211,7 +217,10 @@ export function ConnectionsMode({
                   onClick={() => startEditLabel(pairEdge)}
                   className={cn(
                     "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                    "bg-[var(--app-dark)] border-none outline-none transition-colors",
+                    "border-none outline-none transition-colors",
+                    // Idle labels are dimmed (bg too, not just text); hover
+                    // brings the row up to full dark + brighter text.
+                    "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
                     pairEdge.label
                       ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
                       : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
@@ -237,11 +246,14 @@ export function ConnectionsMode({
       {!pairEdge && (
       <div className="px-3.5 pb-3 flex flex-col">
         <div className="relative pl-[18px]">
+          {/* Spine: drops from the focused row's bottom-left, down to the last
+              row's center. Each row draws its own rounded turn INTO its left
+              edge (below), so the line is attached, never floating. */}
           {connected.length > 0 && (
             <div
               className={cn(
-                "absolute left-1 top-[22px] bottom-[22px] w-[14px] pointer-events-none",
-                "border-l border-t border-[var(--bone-30)] rounded-tl-[10px]"
+                "absolute left-0 top-[22px] bottom-[22px] w-[18px] pointer-events-none",
+                "border-l-2 border-t-2 border-[var(--bone-30)] rounded-tl-[10px]"
               )}
             />
           )}
@@ -254,7 +266,7 @@ export function ConnectionsMode({
             className={cn(
               "group/focused w-full flex items-center gap-2 h-11 px-3 rounded-[14px] text-left",
               "bg-[rgba(42,120,214,0.12)] hover:bg-[rgba(42,120,214,0.22)]",
-              "border border-[var(--brand-blue)] outline-none transition-colors"
+              "border-2 border-[var(--brand-blue)] outline-none transition-colors"
             )}
           >
             <span className="w-4 h-4 shrink-0 text-[var(--bone-70)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
@@ -272,9 +284,15 @@ export function ConnectionsMode({
             const d = getDisplay(row.otherId);
             return (
               <div key={row.edge.id} className="relative">
-                {/* Spine junction dot, level with this card's center — outside
-                    the card's overflow-hidden box or it would be clipped. */}
-                <div className="absolute -left-[17px] bottom-[19px] w-[7px] h-[7px] rounded-full bg-[var(--bone-90)] z-30 pointer-events-none" />
+                {/* Connector elbow: turns off the spine and runs INTO this
+                    row's left edge, with a rounded corner. Bottom-anchored to
+                    the row (h-11 → center is 22px up). */}
+                <div
+                  className={cn(
+                    "absolute -left-[18px] bottom-[22px] w-[18px] h-[18px] pointer-events-none",
+                    "border-l-2 border-b-2 border-[var(--bone-30)] rounded-bl-[10px]"
+                  )}
+                />
                 {/* Label row: full width, dark, dim while idle; click to edit. */}
                 <div className="my-2">
                   {editingEdgeId === row.edge.id ? (
@@ -296,7 +314,9 @@ export function ConnectionsMode({
                       onClick={() => startEditLabel(row.edge)}
                       className={cn(
                         "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                        "bg-[var(--app-dark)] border-none outline-none transition-colors",
+                        "border-none outline-none transition-colors",
+                        // Idle labels are dimmed (bg too, not just text).
+                        "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
                         row.edge.label
                           ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
                           : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
@@ -311,7 +331,7 @@ export function ConnectionsMode({
                 {/* Connected card: idle-node styling (card-bg + bone-10 border),
                     bone-6 overlay + arrow on hover, red detach revealed by
                     hovering the right zone. Dot marks it on the spine. */}
-                <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--bone-10)]">
+                <div className="group relative h-11 rounded-[14px] overflow-hidden border-2 border-[var(--bone-10)]">
                   <button
                     type="button"
                     title="Break connection"
@@ -330,7 +350,7 @@ export function ConnectionsMode({
                   </div>
                   <div
                     className={cn(
-                      "relative z-10 flex items-center h-full rounded-[13px] bg-[var(--card-bg)]",
+                      "relative z-10 flex items-center h-full rounded-[12px] bg-[var(--card-bg)]",
                       "transition-[width] duration-150 ease-out w-full peer-hover/zone:w-[calc(100%-44px)]"
                     )}
                   >
