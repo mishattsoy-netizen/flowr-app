@@ -130,45 +130,61 @@ export function BrainLeftPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [fullStats, setFullStats] = useState<FullUsageStats | null>(null);
+  const [fullStatsBrainId, setFullStatsBrainId] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const fullStatsBrainIdRef = useRef<string | null>(null);
+  const selectedBrainIdRef = useRef(selectedBrainId);
+  selectedBrainIdRef.current = selectedBrainId;
 
-  // Drop cached full stats when the selected brain changes.
-  useEffect(() => {
-    if (fullStatsBrainIdRef.current !== selectedBrainId) {
-      fullStatsBrainIdRef.current = selectedBrainId;
-      setFullStats(null);
+  // Only display fullStats that belong to the currently selected brain.
+  const statsForView = fullStatsBrainId === selectedBrainId ? fullStats : null;
+
+  // Clear ownership mismatch in the same render (React-recommended pattern).
+  if (fullStats !== null && fullStatsBrainId !== selectedBrainId) {
+    setFullStats(null);
+    setFullStatsBrainId(null);
+  }
+
+  const loadFullStats = async (
+    brainId: string,
+    signal?: { cancelled: boolean },
+  ): Promise<boolean> => {
+    setStatsLoading(true);
+    try {
+      const res = await fetch('/api/ai/user-brain', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ action: 'brain_usage_stats', brain_id: brainId }),
+      });
+      if (!res.ok || signal?.cancelled) return false;
+      if (brainId !== selectedBrainIdRef.current) return false;
+      const data = (await res.json()) as FullUsageStats;
+      if (signal?.cancelled) return false;
+      if (brainId !== selectedBrainIdRef.current) return false;
+      setFullStats({
+        requests: data.requests ?? 0,
+        activeDays: data.activeDays ?? 0,
+        streak: data.streak ?? 0,
+        calendar: Array.isArray(data.calendar) ? data.calendar : [],
+      });
+      setFullStatsBrainId(brainId);
+      return true;
+    } finally {
+      if (!signal?.cancelled && brainId === selectedBrainIdRef.current) {
+        setStatsLoading(false);
+      }
     }
-  }, [selectedBrainId]);
+  };
 
   // Lazy-load streak + calendar on first expand (or after brain switch).
   useEffect(() => {
-    if (!expanded || !selectedBrainId || fullStats !== null) return;
-    let cancelled = false;
-    (async () => {
-      setStatsLoading(true);
-      try {
-        const res = await fetch('/api/ai/user-brain', {
-          method: 'POST',
-          headers: await authHeaders(),
-          body: JSON.stringify({ action: 'brain_usage_stats', brain_id: selectedBrainId }),
-        });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as FullUsageStats;
-        if (cancelled) return;
-        setFullStats({
-          requests: data.requests ?? 0,
-          activeDays: data.activeDays ?? 0,
-          streak: data.streak ?? 0,
-          calendar: Array.isArray(data.calendar) ? data.calendar : [],
-        });
-      } finally {
-        if (!cancelled) setStatsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [expanded, selectedBrainId, fullStats]);
+    if (!expanded || !selectedBrainId || statsForView !== null) return;
+    const signal = { cancelled: false };
+    void loadFullStats(selectedBrainId, signal);
+    return () => { signal.cancelled = true; };
+    // statsForView gates re-entry; loadFullStats is stable enough via refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, selectedBrainId, statsForView]);
 
   useEffect(() => {
     if (renamingId) {
@@ -218,39 +234,27 @@ export function BrainLeftPanel({
     }
   };
 
-  const refetchFullStats = async (brainId: string) => {
-    const res = await fetch('/api/ai/user-brain', {
-      method: 'POST',
-      headers: await authHeaders(),
-      body: JSON.stringify({ action: 'brain_usage_stats', brain_id: brainId }),
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as FullUsageStats;
-    setFullStats({
-      requests: data.requests ?? 0,
-      activeDays: data.activeDays ?? 0,
-      streak: data.streak ?? 0,
-      calendar: Array.isArray(data.calendar) ? data.calendar : [],
-    });
-  };
-
   const handleResetUsage = async () => {
     if (!selectedBrainId || resetting) return;
     if (!confirm('Reset usage statistics for this brain? This clears requests, active days, streak, and the activity calendar.')) {
       return;
     }
+    const brainId = selectedBrainId;
     setResetting(true);
     try {
       const res = await fetch('/api/ai/user-brain', {
         method: 'POST',
         headers: await authHeaders(),
-        body: JSON.stringify({ action: 'reset_brain_usage', brain_id: selectedBrainId }),
+        body: JSON.stringify({ action: 'reset_brain_usage', brain_id: brainId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) {
         return;
       }
-      await refetchFullStats(selectedBrainId);
+      // Only apply refetch if still on the same brain (loadFullStats owns the check).
+      if (brainId === selectedBrainIdRef.current) {
+        await loadFullStats(brainId);
+      }
       await onResetUsage?.();
     } finally {
       setResetting(false);
@@ -263,8 +267,8 @@ export function BrainLeftPanel({
   const isOverBudget = used >= limit;
   const isNearBudget = !isOverBudget && pct >= 80;
 
-  const displayRequests = fullStats?.requests ?? stats.requests;
-  const displayActiveDays = fullStats?.activeDays ?? stats.activeDays;
+  const displayRequests = statsForView?.requests ?? stats.requests;
+  const displayActiveDays = statsForView?.activeDays ?? stats.activeDays;
 
   const gridStats = [
     { label: 'Nodes', value: nodeCount },
@@ -324,9 +328,10 @@ export function BrainLeftPanel({
   }, [nodes]);
 
   const calendarWeeks = useMemo(
-    () => buildCalendarWeeks(fullStats?.calendar ?? []),
-    [fullStats?.calendar],
+    () => buildCalendarWeeks(statsForView?.calendar ?? []),
+    [statsForView?.calendar],
   );
+  const showStatsLoading = statsLoading && !statsForView;
 
   return (
     <div
@@ -635,29 +640,35 @@ export function BrainLeftPanel({
                 <Flame
                   className={cn(
                     "w-3 h-3",
-                    (fullStats?.streak ?? 0) > 0 ? "text-orange-400" : "text-[var(--bone-30)]"
+                    !showStatsLoading && (statsForView?.streak ?? 0) > 0
+                      ? "text-orange-400"
+                      : "text-[var(--bone-30)]"
                   )}
                   strokeWidth={2}
                 />
-                {statsLoading && !fullStats ? '…' : `${fullStats?.streak ?? 0} day streak`}
+                {showStatsLoading ? '…' : `${statsForView?.streak ?? 0} day streak`}
               </span>
             </div>
-            <div className="flex gap-px overflow-hidden justify-between px-0.5">
-              {calendarWeeks.map((week, wi) => (
-                <div key={wi} className="flex flex-col gap-px">
-                  {week.map(cell => (
-                    <div
-                      key={cell.date}
-                      title={cell.level >= 0 ? cell.date : undefined}
-                      className={cn(
-                        'w-[7px] h-[7px] rounded-[2px]',
-                        cell.level < 0 ? 'bg-transparent' : LEVEL_CLASS[cell.level] ?? LEVEL_CLASS[0]
-                      )}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
+            {showStatsLoading ? (
+              <div className="h-[55px] mx-0.5 rounded-[8px] bg-[var(--bone-6)]/60 animate-pulse" />
+            ) : (
+              <div className="flex gap-px overflow-hidden justify-between px-0.5">
+                {calendarWeeks.map((week, wi) => (
+                  <div key={wi} className="flex flex-col gap-px">
+                    {week.map(cell => (
+                      <div
+                        key={cell.date}
+                        title={cell.level >= 0 ? cell.date : undefined}
+                        className={cn(
+                          'w-[7px] h-[7px] rounded-[2px]',
+                          cell.level < 0 ? 'bg-transparent' : LEVEL_CLASS[cell.level] ?? LEVEL_CLASS[0]
+                        )}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* 5. Reset statistics — pinned bottom */}
