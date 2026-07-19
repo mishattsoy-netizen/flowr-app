@@ -673,6 +673,59 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     return () => host.removeEventListener('beforeinput', handleHostBeforeInput);
   }, [handleHostBeforeInput]);
 
+  // Multi-line paste (e.g. a pasted article) while a CROSS-BLOCK selection
+  // is active (most commonly Ctrl+A) must be intercepted here, at a native
+  // CAPTURE-phase `paste` listener — not in React's onPaste prop. Measured:
+  // by the time React's bubble-phase onPaste fires, window.getSelection()
+  // is ALREADY collapsed to a single point at the first selected block —
+  // the browser processes/collapses the selection as part of its native
+  // paste handling before React's synthetic handler ever runs, so the
+  // original multi-block selection is unrecoverable there. A capture-phase
+  // listener runs before that collapse and still sees the real selection.
+  // Without this, multi-line paste over a multi-block selection left every
+  // selected block untouched in the store while inserting new blocks next
+  // to a DOM node the browser's Selection API still held a live reference
+  // to — crashing React's reconciler ("insertBefore ... not a child of
+  // this node") on the next render. Single-block/collapsed-caret paste is
+  // unaffected and still handled by the existing React onPaste (handlePaste).
+  const handleHostCapturePaste = useCallback((native: ClipboardEvent) => {
+    if (isReadMode) return;
+    const host = blocksHostRef.current;
+    if (!host) return;
+    const target = native.target as HTMLElement;
+    if (!target?.isContentEditable) return;
+
+    const selection = getBlockSelection(host);
+    if (!selection) return; // single block / collapsed caret: let handlePaste handle it
+
+    const plainText = native.clipboardData?.getData('text/plain') ?? '';
+    const lines = plainText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return; // single line: let native/handlePaste handle it
+
+    native.preventDefault();
+    native.stopPropagation();
+
+    const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const newTextBlocks = lines.map(line => createBlock('text', { content: escapeHtml(line) }));
+
+    const aIdx = blocks.findIndex(b => b.id === selection.startBlockId);
+    const bIdx = blocks.findIndex(b => b.id === selection.endBlockId);
+    if (aIdx === -1 || bIdx === -1) return;
+
+    const firstIdx = Math.min(aIdx, bIdx);
+    const lastIdx = Math.max(aIdx, bIdx);
+    const newBlocks = [...blocks];
+    newBlocks.splice(firstIdx, lastIdx - firstIdx + 1, ...newTextBlocks);
+    persistBlocks(newBlocks);
+  }, [blocks, isReadMode, persistBlocks]);
+
+  useEffect(() => {
+    const host = blocksHostRef.current;
+    if (!host) return;
+    host.addEventListener('paste', handleHostCapturePaste, true);
+    return () => host.removeEventListener('paste', handleHostCapturePaste, true);
+  }, [handleHostCapturePaste]);
+
   // Put the caret at the seam after React has re-rendered the merged blocks.
   //
   // Deliberately useEffect, NOT useLayoutEffect. Measured: this fired BEFORE
