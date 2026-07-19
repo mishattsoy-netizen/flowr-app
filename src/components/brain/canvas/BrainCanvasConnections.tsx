@@ -231,7 +231,7 @@ export function BrainCanvasConnections({
               className={pathMoveClass(p)}
               style={{ pointerEvents: 'none' }}
             />
-            {p.label && (
+            {/* p.label && (
               <text
                 x={p.mid.x} y={p.mid.y}
                 textAnchor="middle" dominantBaseline="middle"
@@ -246,7 +246,7 @@ export function BrainCanvasConnections({
               >
                 {p.label}
               </text>
-            )}
+            ) */}
           </g>
         );
       })}
