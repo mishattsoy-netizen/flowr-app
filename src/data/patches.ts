@@ -22,6 +22,36 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.5',
+    build: '1450',
+    date: '2026-07-19',
+    title: 'The Brain Canvas & Lightning Fast Boot',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'The Brain Canvas: An infinite spatial board to visually map out, connect, and organize your notes. Includes a powerful new Details Panel and custom color tags.',
+          'Chat Favorites: Quickly star and access your most important AI chats.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Lightning Fast Boot: The app now loads almost instantly without blank screens or layout shifts.',
+          'Editor Keyboard Upgrades: Flawless Undo/Redo tracking and a much snappier, more reliable typing experience.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'No More Paste Corruption: Fixed a major bug where pasting large text blocks would corrupt or truncate notes.',
+          'Merge & Delete Polish: Hitting Backspace or Delete across text blocks now works perfectly.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.4',
     build: '1440',
     date: '2026-07-16',

@@ -159,7 +159,8 @@ function entityToRow(e: Entity): Record<string, any> {
   };
   if (e.widgetLayout)  row.widget_layout  = e.widgetLayout;
   if (e.spaceId)   row.space_id   = e.spaceId;
-  if (e.description != null) row.description = e.description;
+  // Always send description so clears persist (null/undefined → empty string).
+  row.description = e.description ?? null;
   row.sync_mode = e.syncMode;
   return row;
 }

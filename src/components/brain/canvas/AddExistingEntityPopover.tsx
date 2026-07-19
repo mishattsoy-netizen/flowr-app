@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, FileText } from 'lucide-react';
+import { Search, FileText, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/layout/Tooltip';
 import { useStore } from '@/data/store';
 import { getEntityIcon } from '@/data/icons';
 
@@ -34,16 +36,43 @@ export function AddExistingEntityPopover({ onAddEntity, onClose, excludeRefIds =
   }, [entities, query, excluded]);
 
   return (
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-2 rounded-xl bg-panel border border-[var(--bone-10)] shadow-lg">
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--app-dark)] border border-[var(--bone-10)] mb-2">
-        <Search className="w-3.5 h-3.5 text-[var(--bone-30)]" strokeWidth={2} />
+    <div
+      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-2 rounded-xl bg-panel border border-[var(--bone-10)] shadow-lg pointer-events-auto canvas-floating-panel"
+      onPointerDown={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Same search field as Settings modal / brain node search. */}
+      <div className="relative mb-2">
+        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+          <Search className="w-[14px] h-[14px] text-[var(--bone-100)] opacity-70" strokeWidth={2} />
+        </div>
         <input
           ref={inputRef}
+          type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Search notes & spaces…"
-          className="flex-1 bg-transparent border-none outline-none text-[12px] text-foreground placeholder:text-[var(--bone-30)]"
+          className={cn(
+            'w-full bg-[var(--bone-6)] border border-transparent hover:border-[var(--bone-12)]',
+            'focus:border-[var(--brand-blue)] focus:shadow-[0_0_0_0.5px_var(--brand-blue)]',
+            'rounded-md pl-9 py-1.5 text-[13px] text-bone-100 placeholder:text-bone-70/50',
+            'outline-none transition-colors',
+            query ? 'pr-8' : 'pr-3',
+          )}
         />
+        {query && (
+          <Tooltip content="Clear">
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+              className="absolute inset-y-0 right-0 pr-2 flex items-center text-[var(--bone-100)] opacity-40 hover:opacity-100 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </button>
+          </Tooltip>
+        )}
       </div>
       <div className="flex flex-col gap-[1px] max-h-48 overflow-y-auto">
         {candidates.map(e => {
@@ -51,10 +80,11 @@ export function AddExistingEntityPopover({ onAddEntity, onClose, excludeRefIds =
           return (
             <button
               key={e.id}
+              type="button"
               onClick={() => { onAddEntity(e.id, e.type === 'workspace' ? 'workspace' : 'entity'); onClose(); }}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] hover:bg-[var(--app-dark)] text-left transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] hover:bg-[var(--app-dark)] text-left transition-colors cursor-pointer"
             >
-              <Icon className="w-3.5 h-3.5 text-[var(--bone-60)] shrink-0" strokeWidth={2} />
+              <Icon className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60 shrink-0" strokeWidth={2} />
               <span className="truncate text-foreground">{e.title || 'Untitled'}</span>
             </button>
           );

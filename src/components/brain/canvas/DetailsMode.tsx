@@ -18,8 +18,10 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NotionDateTimePicker } from '@/components/ui/notion-datetime-picker';
+import { Tooltip } from '@/components/layout/Tooltip';
 import { usageBarFillClass } from '@/lib/usageBarColor';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
+import { useOverflowFade } from './useOverflowFade';
 
 export interface DetailsNodeDisplay {
   title: string;
@@ -83,46 +85,46 @@ function TagColorGrid({ color, onPick }: { color: string | null; onPick: (c: str
             : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
         )}
       >
-        <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
+        <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-100)] opacity-40" />
         <span>None</span>
-        {!color && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
+        {!color && <Check className="w-3 h-3 text-[var(--bone-100)] opacity-60 shrink-0 ml-auto" />}
       </button>
       <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
         {TAG_SWATCHES.slice(0, 4).map(c => (
-          <button
-            key={c}
-            type="button"
-            title={c}
-            onClick={() => onPick(color === c ? null : c)}
-            className={cn(
-              "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
-              color === c
-                ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
-                : "opacity-50 hover:opacity-100"
-            )}
-            style={{ backgroundColor: c }}
-          >
-            {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
-          </button>
+          <Tooltip key={c} content={c}>
+            <button
+              type="button"
+              onClick={() => onPick(color === c ? null : c)}
+              className={cn(
+                "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                color === c
+                  ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
+                  : "opacity-50 hover:opacity-100"
+              )}
+              style={{ backgroundColor: c }}
+            >
+              {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+            </button>
+          </Tooltip>
         ))}
       </div>
       <div className="grid grid-cols-4 gap-2 px-1 pb-0 place-items-center">
         {TAG_SWATCHES.slice(4, 8).map(c => (
-          <button
-            key={c}
-            type="button"
-            title={c}
-            onClick={() => onPick(color === c ? null : c)}
-            className={cn(
-              "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
-              color === c
-                ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
-                : "opacity-50 hover:opacity-100"
-            )}
-            style={{ backgroundColor: c }}
-          >
-            {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
-          </button>
+          <Tooltip key={c} content={c}>
+            <button
+              type="button"
+              onClick={() => onPick(color === c ? null : c)}
+              className={cn(
+                "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                color === c
+                  ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]"
+                  : "opacity-50 hover:opacity-100"
+              )}
+              style={{ backgroundColor: c }}
+            >
+              {color === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+            </button>
+          </Tooltip>
         ))}
       </div>
     </div>
@@ -185,7 +187,7 @@ function TagField({
 
   return (
     <div className="flex items-center gap-2.5 h-9">
-      <Tag className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+      <Tag className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-35 shrink-0" strokeWidth={2} />
       <span className="flex-1 text-[13px] text-[var(--bone-70)]">Custom tag</span>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -196,7 +198,7 @@ function TagField({
             {node.tag_color ? (
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.tag_color }} />
             ) : (
-              <Droplet className="w-3 h-3 text-[var(--bone-40)]" strokeWidth={2} />
+              <Droplet className="w-3 h-3 text-[var(--bone-100)] opacity-40" strokeWidth={2} />
             )}
             <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
           </button>
@@ -223,16 +225,19 @@ function TagField({
               className="flex-1 min-w-0 bg-[var(--bone-6)] rounded-md px-2 py-1.5 text-[12px] text-[var(--bone-100)] border-none outline-none"
             />
             <Popover open={colorOpen} onOpenChange={setColorOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  title="Color"
-                  className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-[var(--bone-12)]"
-                  style={node.tag_color ? { backgroundColor: node.tag_color } : undefined}
-                >
-                  {!node.tag_color && <CircleDashed className="w-3.5 h-3.5 text-[var(--bone-40)]" />}
-                </button>
-              </PopoverTrigger>
+              <Tooltip content="Color">
+                <span className="inline-flex shrink-0">
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-[var(--bone-12)]"
+                      style={node.tag_color ? { backgroundColor: node.tag_color } : undefined}
+                    >
+                      {!node.tag_color && <CircleDashed className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-40" />}
+                    </button>
+                  </PopoverTrigger>
+                </span>
+              </Tooltip>
               <PopoverContent
                 className="w-[170px] p-0 bg-transparent border-none shadow-none z-[330]"
                 align="end"
@@ -292,6 +297,8 @@ export function DetailsMode({
   const isWorkspace = node?.type === 'workspace';
   const isSection = node?.type === 'section';
   const isEntity = node?.type === 'entity' || node?.type === 'memory';
+  // Memory notes aren't filed in a workspace — hide that row in details.
+  const isMemory = node?.type === 'memory' || !!display?.brainOnly;
   const used = isWorkspace
     ? (display?.description?.length ?? 0)
     : (perNodeTokens[focusedNodeId] ?? 0);
@@ -326,6 +333,12 @@ export function DetailsMode({
     const next = titleDraft.trim() || 'Untitled';
     if (next !== (display?.title ?? '')) onUpdateTitle(focusedNodeId, next);
   }, [titleDraft, display?.title, focusedNodeId, onUpdateTitle]);
+
+  // Fade when preview spans 3+ lines (same threshold as node cards).
+  const { ref: previewRef, overflowing: previewOverflows } = useOverflowFade([
+    display?.preview,
+    focusedNodeId,
+  ], 3);
 
   if (!node || !display) {
     return (
@@ -362,23 +375,25 @@ export function DetailsMode({
             />
           </div>
         </div>
-        <button
-          type="button"
-          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-35)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
-          title="More"
-          aria-label="More"
-        >
-          <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-35)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
-          title="Close"
-          aria-label="Close"
-        >
-          <X className="w-4 h-4" strokeWidth={2} />
-        </button>
+        <Tooltip content="More">
+          <button
+            type="button"
+            className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-100)] opacity-35 hover:opacity-100 hover:bg-[var(--bone-6)] border-none outline-none"
+            aria-label="More"
+          >
+            <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-100)] opacity-35 hover:opacity-100 hover:bg-[var(--bone-6)] border-none outline-none"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Title */}
@@ -409,19 +424,20 @@ export function DetailsMode({
         )}
       </div>
 
-      {/* Preview — same treatment as node cards (color, size, bottom fade),
-          just taller. */}
+      {/* Preview — same treatment as node cards, taller (9 lines). Fade when
+          content spans 3+ lines. */}
       {display.preview && (
         <div className="relative px-3.5 pb-3">
-          {/* Exact 9-line box (9 × 18px): a fractional height would slice the
-              last row in half instead of clamping cleanly. */}
           <p
+            ref={previewRef}
             className="text-[11px] text-[var(--bone-70)] break-words line-clamp-[9] overflow-hidden"
             style={{ lineHeight: '18px', maxHeight: '162px' }}
           >
             {display.preview}
           </p>
-          <div className="absolute inset-x-0 bottom-3 h-6 pointer-events-none bg-gradient-to-b from-transparent to-[var(--app-panel)]" />
+          {previewOverflows && (
+            <div className="absolute inset-x-0 bottom-3 h-6 pointer-events-none bg-gradient-to-b from-transparent to-[var(--app-panel)]" />
+          )}
         </div>
       )}
 
@@ -432,7 +448,7 @@ export function DetailsMode({
       <div className="flex flex-col gap-0 px-3.5 py-2">
         {/* Priority — entity + workspace */}
         <div className="flex items-center gap-2.5 h-9">
-          <Flag className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+          <Flag className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-35 shrink-0" strokeWidth={2} />
           <span className="flex-1 text-[13px] text-[var(--bone-70)]">Priority</span>
           <Popover>
             <PopoverTrigger asChild>
@@ -477,7 +493,7 @@ export function DetailsMode({
         {/* PART-C-FIELDS: Type / Custom tag / Lifecycle */}
         {isEntity && (
           <div className="flex items-center gap-2.5 h-9">
-            <Brain className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+            <Brain className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-35 shrink-0" strokeWidth={2} />
             <span className="flex-1 text-[13px] text-[var(--bone-70)]">Type</span>
             <Popover>
               <PopoverTrigger asChild>
@@ -521,7 +537,7 @@ export function DetailsMode({
         {/* Lifecycle */}
         {(isEntity || isWorkspace) && (
           <div className="flex items-center gap-2.5 h-9">
-            <Calendar className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+            <Calendar className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-35 shrink-0" strokeWidth={2} />
             <span className="flex-1 text-[13px] text-[var(--bone-70)]">Lifecycle</span>
             {/* Exactly the picker the tasks panel uses (TaskInspectorPanel):
                 start → active_from, end → active_until. */}
@@ -562,10 +578,10 @@ export function DetailsMode({
           </div>
         )}
 
-        {/* Workspace reassign — entity only (not workspace itself) */}
-        {isEntity && (
+        {/* Workspace reassign — notes only (not workspace itself, not memory) */}
+        {isEntity && !isMemory && (
           <div className="flex items-center gap-2.5 h-9">
-            <Folder className="w-3.5 h-3.5 text-[var(--bone-35)] shrink-0" strokeWidth={2} />
+            <Folder className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-35 shrink-0" strokeWidth={2} />
             <span className="flex-1 text-[13px] text-[var(--bone-70)]">Workspace</span>
             <Popover>
               <PopoverTrigger asChild>
@@ -637,7 +653,7 @@ export function DetailsMode({
           )}
         >
           {isWorkspace ? 'Edit description' : 'Open editor'}
-          <FileText className="w-3.5 h-3.5 text-[var(--bone-60)]" strokeWidth={2} />
+          <FileText className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" strokeWidth={2} />
         </button>
       </div>
 

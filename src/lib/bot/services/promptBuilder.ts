@@ -23,6 +23,8 @@ export interface PromptBuilderContext {
   responseStyle?: ResponseStyle | string
   /** Soft default reply language code or 'auto' */
   replyLanguage?: string
+  /** Preformatted active-workspace line(s) for [CURRENT CONTEXT] (title + description). */
+  focusedWorkspaceLine?: string | null
 }
 
 function getChainInstructions(category: IntentCategory): string {
@@ -84,7 +86,7 @@ export async function buildSystemPrompt(
 Date: ${localDateString}
 Local Time: ${localTimeMinute} (${utcLabel})
 ISO Time (UTC): ${isoMinute}
-`
+${context.focusedWorkspaceLine ? context.focusedWorkspaceLine : ''}`
 
   const chainInstructions = getChainInstructions(category)
 

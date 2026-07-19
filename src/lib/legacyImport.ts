@@ -38,6 +38,8 @@ export function entityToSQLiteRow(entity: Entity): any {
     sync_mode: entity.syncMode,
     paired_entity_id: entity.pairedEntityId ?? null,
     widget_layout: entity.widgetLayout ? JSON.stringify(entity.widgetLayout) : null,
+    description: entity.description ?? null,
+    brain_only: entity.brainOnly ? 1 : 0,
   };
 }
 

@@ -27,7 +27,9 @@ function initDb(app) {
       space_id       TEXT,
       sync_mode      TEXT NOT NULL DEFAULT 'local-only',
       paired_entity_id TEXT,
-      widget_layout  TEXT
+      widget_layout  TEXT,
+      description    TEXT,
+      brain_only     INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS entities_parent_id_idx ON entities(parent_id);
     CREATE INDEX IF NOT EXISTS entities_type_idx ON entities(type);
@@ -72,6 +74,15 @@ function initDb(app) {
     );
   `);
 
+  // Migrate existing DBs missing newer entity columns
+  const cols = db.prepare(`PRAGMA table_info(entities)`).all().map((c) => c.name);
+  if (!cols.includes('description')) {
+    db.exec(`ALTER TABLE entities ADD COLUMN description TEXT`);
+  }
+  if (!cols.includes('brain_only')) {
+    db.exec(`ALTER TABLE entities ADD COLUMN brain_only INTEGER NOT NULL DEFAULT 0`);
+  }
+
   return db;
 }
 
@@ -83,8 +94,8 @@ function getDb() {
 function upsertEntity(app, row) {
   const database = initDb(app);
   const stmt = database.prepare(`
-    INSERT INTO entities (id, title, type, parent_id, last_modified, icon, tags, content, sort_order, space_id, sync_mode, paired_entity_id, widget_layout)
-    VALUES (@id, @title, @type, @parent_id, @last_modified, @icon, @tags, @content, @sort_order, @space_id, @sync_mode, @paired_entity_id, @widget_layout)
+    INSERT INTO entities (id, title, type, parent_id, last_modified, icon, tags, content, sort_order, space_id, sync_mode, paired_entity_id, widget_layout, description, brain_only)
+    VALUES (@id, @title, @type, @parent_id, @last_modified, @icon, @tags, @content, @sort_order, @space_id, @sync_mode, @paired_entity_id, @widget_layout, @description, @brain_only)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       type = excluded.type,
@@ -97,9 +108,15 @@ function upsertEntity(app, row) {
       space_id = excluded.space_id,
       sync_mode = excluded.sync_mode,
       paired_entity_id = excluded.paired_entity_id,
-      widget_layout = excluded.widget_layout
+      widget_layout = excluded.widget_layout,
+      description = excluded.description,
+      brain_only = excluded.brain_only
   `);
-  stmt.run(row);
+  stmt.run({
+    ...row,
+    description: row.description ?? null,
+    brain_only: row.brain_only ?? 0,
+  });
 }
 
 function deleteEntity(app, id) {

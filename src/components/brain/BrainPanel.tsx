@@ -91,27 +91,27 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
         {dropped && <span title="Over budget — not currently injected" className="text-amber-400 text-[10px]">dropped</span>}
         <button disabled={busy} title="Raise priority (survives budget pressure longer)"
           onClick={() => mutate({ action: 'update_node', node_id: n.id, updates: { priority: n.priority + 1 } })}
-          className="p-1 rounded hover:bg-white/10 text-[var(--bone-40)]">
+          className="p-1 rounded hover:bg-white/10 text-[var(--bone-100)] opacity-40 hover:opacity-100">
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
         <button disabled={busy} title="Lower priority"
           onClick={() => mutate({ action: 'update_node', node_id: n.id, updates: { priority: n.priority - 1 } })}
-          className="p-1 rounded hover:bg-white/10 text-[var(--bone-40)]">
+          className="p-1 rounded hover:bg-white/10 text-[var(--bone-100)] opacity-40 hover:opacity-100">
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
         <button disabled={busy} title={n.pinned ? 'Unpin' : 'Pin (never dropped by budget)'}
           onClick={() => mutate({ action: 'update_node', node_id: n.id, updates: { pinned: !n.pinned } })}
-          className={cn("p-1 rounded hover:bg-white/10", n.pinned ? "text-[var(--brand-blue)]" : "text-[var(--bone-40)]")}>
+          className={cn("p-1 rounded hover:bg-white/10", n.pinned ? "text-[var(--brand-blue)] opacity-100" : "text-[var(--bone-100)] opacity-40 hover:opacity-100")}>
           <Pin className="w-3.5 h-3.5" />
         </button>
         <button disabled={busy} title={n.enabled ? 'Disable' : 'Enable'}
           onClick={() => mutate({ action: 'update_node', node_id: n.id, updates: { enabled: !n.enabled } })}
-          className="p-1 rounded hover:bg-white/10 text-[var(--bone-40)]">
+          className="p-1 rounded hover:bg-white/10 text-[var(--bone-100)] opacity-40 hover:opacity-100">
           {n.enabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
         </button>
         <button disabled={busy} title="Remove"
           onClick={() => mutate({ action: 'remove_node', node_id: n.id })}
-          className="p-1 rounded hover:bg-white/10 text-[var(--bone-40)] hover:text-red-400">
+          className="p-1 rounded hover:bg-white/10 text-red-400 opacity-70 hover:opacity-100">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -240,7 +240,7 @@ export function BrainPanel({ onClose }: { onClose: () => void }) {
                         <span className="flex-1 text-[12px] text-[var(--bone-60)] truncate">{n.label || n.content || n.ref_id || n.id}</span>
                         <button disabled={busy} title="Restore"
                           onClick={() => mutate({ action: 'restore_node', node_id: n.id })}
-                          className="p-1 rounded hover:bg-white/10 text-[var(--bone-40)] hover:text-foreground">
+                          className="p-1 rounded hover:bg-white/10 text-[var(--bone-100)] opacity-40 hover:opacity-100">
                           <Undo2 className="w-3.5 h-3.5" />
                         </button>
                       </div>

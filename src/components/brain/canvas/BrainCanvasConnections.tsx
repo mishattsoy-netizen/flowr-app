@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { buildEdgePath, connectorPoint, closestSides, type NodeBox } from './connectorGeometry';
+import { buildEdgePath, connectorPoint, closestSides, resolveEdgeSides, type ConnectorSide, type NodeBox } from './connectorGeometry';
 import { CARD_W, CARD_H } from './BrainNodeCard';
 import type { BrainCanvasNode, BrainCanvasEdge } from './useBrainData';
 
@@ -26,7 +26,12 @@ interface BrainCanvasConnectionsProps {
   selectedEdgeId?: string | null;
   /** While the connect tool has a picked source node, draw a live line from
    *  that node to the cursor (canvas space) until a second node is clicked. */
-  pendingConnect?: { sourceNodeId: string; cursor: { x: number; y: number } | null } | null;
+  pendingConnect?: {
+    sourceNodeId: string;
+    /** When set, rubber-band sticks to this port on the source card. */
+    sourceSide?: ConnectorSide | null;
+    cursor: { x: number; y: number } | null;
+  } | null;
 }
 
 const SHIMMER_PERIOD = 64;
@@ -76,20 +81,23 @@ export function BrainCanvasConnections({
       const fromPos = positions[edge.from_node] ?? fromNode.position ?? { x: 0, y: 0 };
       const toPos = positions[edge.to_node] ?? toNode.position ?? { x: 0, y: 0 };
 
-      const fromBox: NodeBox = { x: fromPos.x, y: fromPos.y, width: CARD_W, height: heights[edge.from_node] ?? CARD_H };
-      const toBox: NodeBox = { x: toPos.x, y: toPos.y, width: CARD_W, height: heights[edge.to_node] ?? CARD_H };
-      const [fromSide, toSide] = closestSides(fromBox, toBox);
+      // Wait for measured heights — never draw with CARD_H then jump (that
+      // made every edge shift on each Brain open). Cache in the page seeds
+      // heights on remount so this is usually ready on first paint.
+      const fromH = heights[edge.from_node];
+      const toH = heights[edge.to_node];
+      if (fromH == null || toH == null) return null;
+
+      const fromBox: NodeBox = { x: fromPos.x, y: fromPos.y, width: CARD_W, height: fromH };
+      const toBox: NodeBox = { x: toPos.x, y: toPos.y, width: CARD_W, height: toH };
+      const [fromSide, toSide] = resolveEdgeSides(fromBox, toBox, edge.from_side, edge.to_side);
 
       const a = connectorPoint(fromBox, fromSide);
       const b = connectorPoint(toBox, toSide);
       const d = buildEdgePath(fromBox, fromSide, toBox, toSide);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const isDragging = draggingNodeId === edge.from_node || draggingNodeId === edge.to_node;
-      // Both endpoints' real heights land asynchronously (ResizeObserver,
-      // after first paint) — until then this path is drawn against the
-      // CARD_H fallback. Skip the CSS transition for that one correction so
-      // it snaps instead of visibly sliding every time the canvas opens.
-      const heightsKnown = edge.from_node in heights && edge.to_node in heights;
+      const heightsKnown = true;
       // Edge click: only that edge is blue. Node select: all edges on selected nodes.
       const highlighted = selectedEdgeId
         ? edge.id === selectedEdgeId
@@ -109,29 +117,18 @@ export function BrainCanvasConnections({
     const sourcePos = positions[pendingConnect.sourceNodeId] ?? sourceNode.position ?? { x: 0, y: 0 };
     const sourceBox: NodeBox = { x: sourcePos.x, y: sourcePos.y, width: CARD_W, height: heights[pendingConnect.sourceNodeId] ?? CARD_H };
     const cursorBox: NodeBox = { x: pendingConnect.cursor.x, y: pendingConnect.cursor.y, width: 0, height: 0 };
-    const [sourceSide] = closestSides(sourceBox, cursorBox);
+    const [autoSide] = closestSides(sourceBox, cursorBox);
+    const sourceSide = pendingConnect.sourceSide ?? autoSide;
     const a = connectorPoint(sourceBox, sourceSide);
     const d = buildEdgePath(sourceBox, sourceSide, cursorBox, 'top');
     return { d, a, cursor: pendingConnect.cursor };
   }, [pendingConnect, nodes, positions, heights]);
 
-  // Soft path morph only after an edge has already settled once with real
-  // heights. Enabling transition the first time heights land (CARD_H → measured)
-  // causes every line to slide on first canvas open.
-  const settledHeightsRef = useRef(new Set<string>());
-  useEffect(() => {
-    for (const p of paths) {
-      if (p?.heightsKnown) settledHeightsRef.current.add(p.id);
-    }
-  }, [paths]);
-
-  // Geometry transition only — never put stroke-dashoffset in React props
-  // (that restarts CSS dash animation on every paint).
-  const pathMoveClass = (p: { id: string; isDragging: boolean; heightsKnown: boolean }) => {
-    if (p.isDragging || !p.heightsKnown) return undefined;
-    if (!settledHeightsRef.current.has(p.id)) return undefined;
-    return 'transition-[d] duration-100';
-  };
+  // No transition-[d] on open/height settle — morphing made every edge look
+  // like it shifted when reopening Brain. Drag still updates path live without
+  // a CSS transition (isDragging used only for caller context if needed).
+  const pathMoveClass = (_p: { id: string; isDragging: boolean; heightsKnown: boolean }) =>
+    undefined;
 
   // Paths under cards. H + V shimmers share period/stops/duration, but each
   // edge animates along a→b so bands travel with the connection (not always

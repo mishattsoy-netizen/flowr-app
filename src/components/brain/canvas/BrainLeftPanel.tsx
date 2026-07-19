@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { getEntityIcon, ICON_MAP, type IconName } from '@/data/icons';
+import { usageBarFillClass } from '@/lib/usageBarColor';
 import { authHeaders } from './useBrainData';
 
 export interface BrainLeftPanelBrain {
@@ -294,7 +295,6 @@ export function BrainLeftPanel({
   const safeLimit = limit > 0 ? limit : 1;
   const pct = Math.min(100, Math.round((used / safeLimit) * 100));
   const isOverBudget = used >= limit;
-  const isNearBudget = !isOverBudget && pct >= 80;
 
   const displayRequests = statsForView?.requests ?? stats.requests;
   const displayActiveDays = statsForView?.activeDays ?? stats.activeDays;
@@ -482,7 +482,7 @@ export function BrainLeftPanel({
                       key={b.id}
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-[10px] bg-[var(--app-dark)]"
                     >
-                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
+                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-100)] opacity-40" strokeWidth={2} />
                       <input
                         ref={renameInputRef}
                         value={renameValue}
@@ -525,7 +525,7 @@ export function BrainLeftPanel({
                       }}
                       className="flex-1 min-w-0 flex items-center gap-2 px-1 py-1 text-left border-none outline-none bg-transparent text-inherit"
                     >
-                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
+                      <RowIcon className="w-3.5 h-3.5 shrink-0 text-[var(--bone-100)] opacity-40" strokeWidth={2} />
                       <span className="truncate flex-1">{b.title}</span>
                       {b.is_default && (
                         <span className="text-[10px] text-[var(--bone-30)] uppercase tracking-wide shrink-0">
@@ -545,7 +545,7 @@ export function BrainLeftPanel({
                           e.stopPropagation();
                           startRename(b);
                         }}
-                        className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-8)] border-none outline-none bg-transparent"
+                        className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[var(--bone-100)] opacity-40 hover:opacity-100 hover:bg-[var(--bone-8)] border-none outline-none bg-transparent"
                       >
                         <Pencil className="w-3 h-3" strokeWidth={2} />
                       </button>
@@ -558,7 +558,7 @@ export function BrainLeftPanel({
                             e.stopPropagation();
                             void handleSetDefault(b.id);
                           }}
-                          className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[var(--bone-40)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-8)] border-none outline-none bg-transparent"
+                          className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[var(--bone-100)] opacity-40 hover:opacity-100 hover:bg-[var(--bone-8)] border-none outline-none bg-transparent"
                         >
                           <Star className="w-3 h-3" strokeWidth={2} />
                         </button>
@@ -579,7 +579,7 @@ export function BrainLeftPanel({
           onClick={() => setExpanded(!expanded)}
           className={cn(
             "w-6 h-6 shrink-0 flex items-center justify-center rounded-[6px] border-none outline-none",
-            "text-white/30 hover:text-white/70 transition-colors"
+            "text-white opacity-30 hover:opacity-70 transition-opacity"
           )}
         >
           {expanded
@@ -610,7 +610,7 @@ export function BrainLeftPanel({
           <div
             className={cn(
               "h-full rounded-full transition-all duration-500 ease-out",
-              isOverBudget ? "bg-danger" : isNearBudget ? "bg-amber-400" : "bg-[#2A78D6]"
+              usageBarFillClass(pct),
             )}
             style={{ width: `${pct}%` }}
           />
@@ -646,8 +646,8 @@ export function BrainLeftPanel({
                 disabled={resetting || !selectedBrainId}
                 onClick={() => { void handleResetUsage(); }}
                 className={cn(
-                  "inline-flex items-center gap-1 text-[11px] text-[var(--bone-40)] hover:text-[var(--bone-70)]",
-                  "border-none outline-none bg-transparent transition-colors",
+                  "inline-flex items-center gap-1 text-[11px] text-[var(--bone-100)] opacity-40 hover:opacity-70",
+                  "border-none outline-none bg-transparent transition-opacity",
                   "disabled:opacity-50 disabled:pointer-events-none"
                 )}
               >

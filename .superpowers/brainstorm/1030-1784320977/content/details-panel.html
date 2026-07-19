@@ -1,0 +1,195 @@
+<style>
+  :root {
+    --app-dark: #121212;
+    --card-bg: #363633;
+    --bone-6: rgba(233,233,226,0.06);
+    --bone-10: rgba(233,233,226,0.10);
+    --bone-12: rgba(233,233,226,0.12);
+    --bone-30: rgba(233,233,226,0.30);
+    --bone-60: rgba(233,233,226,0.60);
+    --bone-70: rgba(233,233,226,0.70);
+    --bone-100: #eeeee8;
+    --accent: #e48921;
+    --brand-blue: #2A78D6;
+  }
+  .mock-page {
+    background: #1b1b1a;
+    color: var(--bone-100);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    padding: 24px;
+  }
+  .mock-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .mock-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bone-30); margin-bottom: 10px; font-weight: 600; }
+  .panel {
+    width: 320px;
+    background: rgba(42,42,40,0.98);
+    border: 1px solid var(--bone-12);
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--bone-10);
+  }
+  .panel-title { font-size: 13px; font-weight: 600; color: var(--bone-70); text-transform: uppercase; letter-spacing: 0.04em; }
+  .panel-close { width: 22px; height: 22px; display:flex; align-items:center; justify-content:center; border-radius: 6px; color: var(--bone-30); cursor: pointer; font-size: 16px; }
+  .panel-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .node-card {
+    background: var(--card-bg);
+    border: 1px solid var(--bone-10);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .node-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--bone-30); margin-bottom: 6px; }
+  .node-card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .node-card-preview { font-size: 12px; color: var(--bone-70); line-height: 1.5; margin-bottom: 10px; }
+  .pill-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .pill { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 500; }
+  .pill-high { background: rgba(239,68,68,0.15); color: #f87171; }
+  .pill-tok { background: var(--bone-6); color: var(--bone-60); }
+
+  .action-row { display: flex; gap: 8px; }
+  .btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 10px; border-radius: 9px; font-size: 12px; font-weight: 500;
+    background: var(--bone-6); color: var(--bone-100); border: 1px solid var(--bone-10); cursor: pointer;
+  }
+  .btn-primary { background: rgba(228,137,33,0.15); color: var(--accent); border-color: rgba(228,137,33,0.3); }
+  .btn-danger { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.2); }
+
+  /* Edge view */
+  .edge-node-row { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .edge-connector-line { width: 2px; height: 28px; background: var(--bone-30); position: relative; }
+  .edge-label-chip {
+    background: var(--app-dark); border: 1px solid var(--bone-12); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; color: var(--bone-70); text-align: center; cursor: pointer;
+  }
+  .edge-label-chip:hover { border-color: var(--brand-blue); color: var(--bone-100); }
+
+  /* Multi-select stack */
+  .stack-group { display: flex; flex-direction: column; gap: 0; }
+  .stack-connected { border: 1px dashed var(--bone-12); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .stack-connector-mini { display: flex; align-items: center; gap: 6px; padding-left: 6px; }
+  .stack-connector-mini .line { width: 2px; height: 14px; background: var(--bone-30); margin-left: 13px; }
+  .drop-slot { height: 4px; border-radius: 2px; margin: 2px 0; }
+  .drop-slot.active { background: var(--brand-blue); height: 3px; }
+  .card-compact {
+    background: var(--card-bg); border: 1px solid var(--bone-10); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-compact.drag-target { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(228,137,33,0.3); background: rgba(228,137,33,0.08); }
+  .card-compact .title { font-weight: 600; font-size: 13px; }
+  .card-compact .meta { color: var(--bone-30); font-size: 10px; margin-top: 2px; }
+
+  .note { font-size: 11px; color: var(--bone-30); margin-top: 8px; line-height: 1.5; max-width: 320px; }
+</style>
+
+<div class="mock-page">
+  <div class="mock-row">
+
+    <div>
+      <div class="mock-label">1. Single node selected</div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Node</span>
+          <span class="panel-close">✕</span>
+        </div>
+        <div class="panel-body">
+          <div class="node-card">
+            <div class="node-card-header">
+              <span>📝 Note · Unsorted</span>
+              <span>2h</span>
+            </div>
+            <div class="node-card-title">Forex Trading Status</div>
+            <div class="node-card-preview">Currently in $100K funded account evaluation (Phase 1), currently in drawdown.</div>
+            <div class="pill-row">
+              <span class="pill pill-high">High</span>
+              <span class="pill pill-tok">21 tok</span>
+            </div>
+          </div>
+          <div class="action-row">
+            <div class="btn btn-primary">↗ Open in editor</div>
+          </div>
+          <div class="action-row">
+            <div class="btn">✎ Rename</div>
+            <div class="btn">+ Connect</div>
+          </div>
+          <div class="action-row">
+            <div class="btn btn-danger">🗑 Delete</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">Clicking "+ Connect" auto-selects the Connect tool with this node already as the source — drag from here to a second node on canvas.</div>
+    </div>
+
+    <div>
+      <div class="mock-label">2. Single edge (connection line) selected</div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Connection</span>
+          <span class="panel-close">✕</span>
+        </div>
+        <div class="panel-body">
+          <div class="node-card" style="padding:10px 12px;">
+            <div class="node-card-header" style="margin-bottom:2px;"><span>📝 Note</span></div>
+            <div style="font-size:13px; font-weight:600;">Trading rules</div>
+          </div>
+          <div class="edge-node-row">
+            <div class="edge-connector-line"></div>
+            <div class="edge-label-chip">check risk rules before logging trades ✎</div>
+            <div class="edge-connector-line"></div>
+          </div>
+          <div class="node-card" style="padding:10px 12px;">
+            <div class="node-card-header" style="margin-bottom:2px;"><span>📝 Note</span></div>
+            <div style="font-size:13px; font-weight:600;">Trading info</div>
+          </div>
+          <div class="action-row">
+            <div class="btn btn-danger">✂ Break connection</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">Click the label chip to edit inline. "Break connection" removes the edge only — both nodes stay.</div>
+    </div>
+
+    <div>
+      <div class="mock-label">3. Multi-select stack (drag to connect / reorder)</div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">4 nodes selected</span>
+          <span class="panel-close">✕</span>
+        </div>
+        <div class="panel-body">
+          <div class="stack-connected">
+            <div class="card-compact">
+              <div><div class="title">Trading rules</div><div class="meta">Note · High</div></div>
+              <span style="color:var(--bone-30)">⋮⋮</span>
+            </div>
+            <div class="stack-connector-mini"><div class="line"></div><span style="font-size:10px;color:var(--bone-30);">check risk rules...</span></div>
+            <div class="card-compact">
+              <div><div class="title">Trading info</div><div class="meta">Note · High</div></div>
+              <span style="color:var(--bone-30)">⋮⋮</span>
+            </div>
+          </div>
+
+          <div class="drop-slot active"></div>
+
+          <div class="card-compact drag-target" style="margin-bottom: 8px;">
+            <div><div class="title">Forex Trading Status</div><div class="meta">Note · dragging over — drop to connect</div></div>
+            <span style="color:var(--accent)">⋮⋮</span>
+          </div>
+
+          <div class="drop-slot"></div>
+
+          <div class="card-compact">
+            <div><div class="title">Personal Identity</div><div class="meta">Note · High</div></div>
+            <span style="color:var(--bone-30)">⋮⋮</span>
+          </div>
+        </div>
+      </div>
+      <div class="note">Drag a card onto another → connects them (shown: "Forex Trading Status" hovering over drop target). Drag between cards → just reorders the stack, no connection made.</div>
+    </div>
+
+  </div>
+</div>

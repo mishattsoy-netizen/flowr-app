@@ -4,7 +4,8 @@ import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../
 import { sanitizeToolContent } from '../services/imagePromptGuard'
 import type { BlockInput } from '../../editor/markdownBlocks'
 import { extractContent } from '../providers/content-extract'
-import { extractYoutubeTranscript, isYouTubeUrl } from '../providers/youtube-extract'
+import { extractYoutubeTranscriptDetailed, isYouTubeUrl } from '../providers/youtube-extract'
+import { isRedditUrl, extractRedditPost, formatRedditPost } from '../providers/reddit-extract'
 
 /** Recursively sanitizes each block's `content` string (and any nested `children`) in place. */
 export function sanitizeBlocks(blocks: BlockInput[] | undefined): BlockInput[] | undefined {
@@ -278,17 +279,20 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       // --- WORKSPACE ---
       if (type === 'workspace') {
         const id = 'workspace-' + Date.now().toString()
+        const wsDesc =
+          typeof description === 'string' ? sanitizeToolContent(description).slice(0, 500) : null
         const { error } = await supabaseAdmin.from('entities').insert({
           id,
           title,
           type: 'workspace',
+          description: wsDesc,
           space_id: spaceId || null,
           owner_id: context.userId,
           parent_id: null,
           last_modified: Date.now()
         })
         if (error) throw error
-        return { success: true, id, type: 'workspace', title }
+        return { success: true, id, type: 'workspace', title, description: wsDesc }
       }
 
       // --- NOTE / FOLDER ---
@@ -392,9 +396,16 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         }
         return { success: true, id, title: data[0].title, type: 'task' }
       } else {
-        // --- UPDATE NOTE / CANVAS ---
+        // --- UPDATE NOTE / CANVAS / WORKSPACE / FOLDER ---
         const updates: any = {}
         if (title !== undefined) updates.title = title
+        // Workspace description (entities.description) — also harmless on other types
+        if (description !== undefined) {
+          updates.description =
+            description === null || description === ''
+              ? null
+              : String(description).slice(0, 500)
+        }
 
         if (content !== undefined || blocks !== undefined) {
           if (args.confirmed !== true) {
@@ -690,8 +701,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         let query = supabaseAdmin
           .from('entities')
           .select(readContent
-            ? 'id, title, type, content, parent_id, last_modified'
-            : 'id, title, type, parent_id, last_modified')
+            ? 'id, title, type, content, description, parent_id, last_modified'
+            : 'id, title, type, description, parent_id, last_modified')
           .eq('owner_id', context.userId)
           .in('type', entityTypes)
           .eq('brain_only', false)
@@ -823,6 +834,8 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
       const MAX_CHARS = 100000
 
       const processedResults = rawResults.map((item: any) => {
+        // Keep workspace descriptions when present; drop empty to save tokens
+        if (item.type === 'workspace' && !item.description) delete item.description
         let itemString = JSON.stringify(item)
         if (runningLength + itemString.length > MAX_CHARS) {
           if (item.content) item.content = '[TRUNCATED_DUE_TO_SIZE]'
@@ -848,24 +861,66 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
     if (!url) return { error: "'url' is required" };
 
     try {
+      if (isRedditUrl(url)) {
+        // Early auto-extract (or a prior hop this turn) already loaded a post — return
+        // cache instead of hitting Reddit again or erroring out of the tool loop.
+        const cache = context?._redditPostCache
+        if (cache?.content) {
+          logger.info('read_url: serving Reddit post from this-turn cache (skip re-fetch)')
+          return {
+            success: true,
+            url: cache.url || url,
+            content: cache.content,
+            cached: true,
+            note: 'This Reddit post was already loaded earlier this turn. Use this content; do not re-fetch.',
+          }
+        }
+
+        if (context && context._redditFetchCount) {
+          return {
+            error: 'Reddit fetch limit reached: only 1 Reddit post can be fetched per request. Ask the user to send additional posts in a separate message.',
+          };
+        }
+        if (context) context._redditFetchCount = 1;
+
+        const post = await extractRedditPost(url);
+        if (post) {
+          const content = formatRedditPost(post);
+          const imageNote =
+            post.imageUrls.length > 0
+              ? `\n\nImage URLs (not downloaded in tool mode):\n${post.imageUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+              : '';
+          const full = content + imageNote
+          if (context) {
+            context._redditPostCache = { sourceUrl: url, url: post.url, content: full }
+          }
+          return { success: true, url: post.url, content: full };
+        }
+        return {
+          error: 'Failed to read that Reddit post. It may be deleted, private, or blocked. Ask the user for a screenshot or public link.',
+        };
+      }
+
       if (isYouTubeUrl(url)) {
         if (context && context._youtubeFetchCount) {
           return { error: 'YouTube fetch limit reached: only 1 YouTube video can be fetched per request. Ask the user to send additional videos in a separate message.' };
         }
         if (context) context._youtubeFetchCount = 1;
 
-        const ytPage = await extractYoutubeTranscript(url, {
+        const ytResult = await extractYoutubeTranscriptDetailed(url, {
           startTime: startTime !== undefined ? Number(startTime) : undefined,
           endTime: endTime !== undefined ? Number(endTime) : undefined,
           lang: lang || undefined,
         });
-        if (ytPage) {
-          return { success: true, url, content: ytPage.content };
+        if (ytResult.ok) {
+          return { success: true, url: ytResult.page.url, content: ytResult.page.content };
         }
-        return { error: 'Failed to extract YouTube transcript. The video might not have captions enabled.' };
+        // Surface the real reason (network/DNS vs no captions) — do not claim
+        // "captions disabled" when the server simply cannot reach youtube.com.
+        return { error: ytResult.error, kind: ytResult.kind };
       }
 
-      // Non-YouTube URL: use existing Exa → Tavily → fetch pipeline
+      // Non-YouTube / non-Reddit URL: use existing Exa → Tavily → fetch pipeline
       const webPages = await extractContent([url], context);
       if (webPages && webPages.length > 0 && webPages[0].content) {
         return { success: true, url, content: webPages[0].content };

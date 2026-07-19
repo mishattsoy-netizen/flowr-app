@@ -1,0 +1,172 @@
+<style>
+  :root {
+    --app-dark: #121212;
+    --card-bg: #363633;
+    --panel-bg: #2A2A28;
+    --bone-6: rgba(233,233,226,0.06);
+    --bone-10: rgba(233,233,226,0.10);
+    --bone-12: rgba(233,233,226,0.12);
+    --bone-30: rgba(233,233,226,0.30);
+    --bone-60: rgba(233,233,226,0.60);
+    --bone-70: rgba(233,233,226,0.70);
+    --bone-100: #eeeee8;
+    --accent: #e48921;
+    --brand-blue: #2A78D6;
+  }
+  .mock-page { background: #101010; color: var(--bone-100); font-family: -apple-system,'Segoe UI',sans-serif; padding: 24px; }
+  .mock-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .mock-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--bone-30); margin-bottom: 10px; font-weight: 600; }
+  .panel { width: 340px; background: var(--panel-bg); border: 1px solid var(--bone-12); border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.35); overflow: hidden; }
+  .panel-top { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px 8px; }
+  .back-link { font-size: 12px; color: var(--bone-30); display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .close-x { color: var(--bone-30); font-size: 16px; cursor:pointer; }
+  .token-bar-row { display:flex; align-items:center; gap:8px; padding: 0 16px 10px; }
+  .token-pct { font-size: 12px; color: var(--bone-30); width: 26px; }
+  .token-bar { flex:1; height: 4px; border-radius: 2px; background: var(--bone-10); overflow:hidden; }
+  .token-bar-fill { height:100%; width: 6%; background: var(--brand-blue); border-radius:2px; }
+  .more-dots { color: var(--bone-30); font-size: 14px; padding: 0 4px; cursor:pointer; }
+
+  .focused-card { padding: 4px 16px 16px; }
+  .focused-title { font-size: 22px; font-weight: 600; line-height: 1.25; margin-bottom: 12px; cursor: text; }
+  .focused-preview { font-size: 12.5px; color: var(--bone-60); line-height: 1.55; margin-bottom: 14px; }
+  .field-row { display:flex; align-items:center; justify-content:space-between; padding: 9px 0; border-top: 1px solid var(--bone-6); }
+  .field-label { display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--bone-70); }
+  .field-icon { width:16px; text-align:center; opacity:.6; }
+  .field-value-pill { font-size: 11px; padding: 4px 10px; border-radius: 7px; font-weight: 500; cursor:pointer; }
+  .pill-high { background: rgba(239,68,68,.18); color: #f87171; }
+  .pill-neutral { background: var(--bone-10); color: var(--bone-70); }
+  .color-dot { width: 14px; height: 14px; border-radius: 50%; background: #eee; cursor:pointer; }
+
+  .divider { height:1px; background: var(--bone-10); margin: 6px 16px; }
+
+  .action-row-2 { display:flex; gap: 8px; padding: 12px 16px; }
+  .link-count-btn { display:flex; align-items:center; gap:6px; padding: 10px 14px; border-radius: 10px; background: var(--brand-blue); color: white; font-size: 13px; font-weight: 600; cursor:pointer; }
+  .open-editor-btn { flex:1; display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border-radius: 10px; background: var(--bone-10); color: var(--bone-100); font-size: 13px; font-weight: 500; cursor:pointer; }
+
+  .row-list { display:flex; flex-direction:column; gap: 6px; padding: 0 12px 12px; }
+  .collapsed-row {
+    display:flex; align-items:center; justify-content:space-between; padding: 12px 14px;
+    border-radius: 11px; background: rgba(255,255,255,.02); border: 1px solid var(--bone-6);
+    font-size: 14px; cursor:pointer; transition: background .12s;
+  }
+  .collapsed-row:hover { background: var(--bone-6); }
+  .collapsed-row .rt { color: var(--bone-30); }
+  .collapsed-row.hover-right { background: var(--bone-6); }
+  .hover-connect-btn { background: var(--brand-blue); color:white; width: 30px; height:30px; border-radius: 8px; display:flex; align-items:center; justify-content:center; margin: -12px -14px -12px 0; }
+
+  /* Connections panel */
+  .conn-node { display:flex; align-items:center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 14px; position: relative; }
+  .conn-node.focused { background: rgba(42,120,214,.18); border: 1.5px solid var(--brand-blue); }
+  .conn-node.plain { background: rgba(255,255,255,.02); border: 1px solid var(--bone-6); }
+  .conn-thread { display:flex; flex-direction:column; align-items:center; padding-left: 28px; }
+  .conn-line { width: 2px; height: 18px; background: var(--bone-15,rgba(233,233,226,.15)); }
+  .conn-label-chip { font-size: 11px; color: var(--bone-60); background: rgba(255,255,255,.03); border: 1px solid var(--bone-6); border-radius: 7px; padding: 4px 10px; margin: 2px 0; cursor:pointer; }
+  .conn-label-chip:hover { border-color: var(--brand-blue); color: var(--bone-100); }
+  .plus-row { display:flex; align-items:center; justify-content:center; gap:6px; padding: 10px; margin: 8px 12px; border-radius: 10px; border: 1px dashed var(--bone-12); color: var(--bone-30); font-size: 13px; cursor:pointer; }
+  .plus-row:hover { border-color: var(--bone-30); color: var(--bone-60); }
+  .section-caption { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--bone-30); padding: 10px 16px 4px; }
+
+  .note { font-size: 11px; color: var(--bone-30); margin-top: 10px; line-height: 1.5; max-width: 340px; }
+  .note b { color: var(--bone-60); }
+</style>
+
+<div class="mock-page">
+  <div class="mock-row">
+
+    <div>
+      <div class="mock-label">Details panel — focused node + collapsed selection</div>
+      <div class="panel">
+        <div class="panel-top">
+          <span></span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="more-dots">•••</span>
+            <span class="close-x">✕</span>
+          </div>
+        </div>
+        <div class="token-bar-row">
+          <span class="token-pct">6%</span>
+          <div class="token-bar"><div class="token-bar-fill"></div></div>
+        </div>
+        <div class="focused-card">
+          <div class="focused-title">Forex Trading Status &amp; Rules</div>
+          <div class="focused-preview">When creating tasks: 1. If workspace/tag are not specified, automatically assign them based on project context and profile. 2. If a tag is specified, match it against similar existing tags to avoid...</div>
+
+          <div class="field-row">
+            <span class="field-label"><span class="field-icon">⚑</span> Priority</span>
+            <span class="field-value-pill pill-high">High</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label"><span class="field-icon">◐</span> Color</span>
+            <span class="color-dot"></span>
+          </div>
+          <div class="field-row">
+            <span class="field-label"><span class="field-icon">▢</span> Workspace</span>
+            <span class="field-value-pill pill-neutral">Personal</span>
+          </div>
+        </div>
+
+        <div class="action-row-2">
+          <div class="link-count-btn">🔗 2</div>
+          <div class="open-editor-btn">Open editor <span>✎</span></div>
+        </div>
+
+        <div class="row-list">
+          <div class="collapsed-row"><span>📁 Journal <span class="rt">(idle)</span></span><span>🔗</span></div>
+          <div class="collapsed-row hover-right"><span>📄 Hover Right</span><div class="hover-connect-btn">🔗</div></div>
+          <div class="collapsed-row"><span>📁 Hover left/mid</span><span class="rt">›</span></div>
+        </div>
+      </div>
+      <div class="note">
+        <b>🔗 2</b> = focused node's real total edge count (all saved connections, not just selected nodes). Click it to open the Connections panel below.<br/>
+        Collapsed rows are the REST of the current multi-selection. Click any row → it becomes the new focused node, panel re-centers.<br/>
+        Hovering a row's right edge reveals a one-click connect button (only meaningful for rows not already connected to the focused node).
+      </div>
+    </div>
+
+    <div>
+      <div class="mock-label">Connections panel — ALL real edges of focused node</div>
+      <div class="panel">
+        <div class="panel-top">
+          <span class="back-link">‹ Back to details</span>
+          <span class="close-x">✕</span>
+        </div>
+
+        <div style="padding: 4px 12px 10px;">
+          <div class="conn-node focused">📄 Forex Trading Status &amp; Rules</div>
+          <div class="conn-thread">
+            <div class="conn-line"></div>
+            <div class="conn-label-chip">check risk rules before logging trades ✎</div>
+            <div class="conn-line"></div>
+          </div>
+          <div class="conn-node plain">📄 Experience</div>
+          <div class="conn-thread">
+            <div class="conn-line"></div>
+            <div class="conn-label-chip">(unlabeled) ✎</div>
+            <div class="conn-line"></div>
+          </div>
+          <div class="conn-node plain">📁 Journal</div>
+          <div class="conn-thread">
+            <div class="conn-line"></div>
+            <div class="conn-label-chip">weekly review syncs mood → trades ✎</div>
+            <div class="conn-line"></div>
+          </div>
+          <div class="conn-node plain">📁 Mentality</div>
+        </div>
+
+        <div class="plus-row">＋ Connect to another node</div>
+
+        <div class="section-caption">Other selected (not yet connected)</div>
+        <div class="row-list">
+          <div class="collapsed-row hover-right"><span>📄 Hover Right</span><div class="hover-connect-btn">🔗</div></div>
+          <div class="collapsed-row"><span>📁 Hover left/mid</span><span class="rt">›</span></div>
+        </div>
+      </div>
+      <div class="note">
+        Top list = <b>every real saved edge</b> of the focused node, always — independent of what's multi-selected. Click a connected node's row → it becomes focused, panel re-centers on it.<br/>
+        <b>＋ Connect to another node</b> = activates the connect tool with this node pre-seeded as source; drag on canvas to any node in the whole brain (not limited to selection).<br/>
+        Bottom section only appears if other selected nodes aren't already connected — click their hover-button for an instant one-click connect (limited to current selection, a shortcut for the common case).
+      </div>
+    </div>
+
+  </div>
+</div>

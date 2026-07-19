@@ -942,7 +942,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -970,7 +970,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -1033,7 +1033,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -1294,7 +1294,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -1356,7 +1356,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -1406,7 +1406,7 @@ export function BlockRenderer({
           <div
             className={cn(
               "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? 'top-0' : 'bottom-0'
+              closestEdge === 'top' ? '-top-1' : '-bottom-1'
             )}
           />
         )}
@@ -1533,7 +1533,7 @@ export function BlockRenderer({
         <div
           className={cn(
             "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-            closestEdge === 'top' ? 'top-0' : 'bottom-0'
+            closestEdge === 'top' ? '-top-1' : '-bottom-1'
           )}
         />
       )}

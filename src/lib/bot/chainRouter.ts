@@ -18,6 +18,12 @@ import { runExaSearchChain } from './providers/exa'
 import { runDeepResearchChain } from './providers/deepResearch'
 import { extractContent, formatExtractedPages, ExtractedPage } from './providers/content-extract'
 import { extractYoutubeTranscript, isYouTubeUrl } from './providers/youtube-extract'
+import {
+  isRedditUrl,
+  extractRedditPost,
+  formatRedditPost,
+  fetchRedditImageBuffers,
+} from './providers/reddit-extract'
 import { runCloudflare } from './providers/cloudflare'
 import { runPollinations, runPollinationsText } from './providers/pollinations'
 import { runSiliconFlow, runSiliconFlowText } from './providers/siliconflow'
@@ -203,11 +209,16 @@ export async function runChain(
     || (context?.isTempChat ? `temp:${crypto.randomUUID()}` : null)
     || context?.activeEntityId
     || 'global'
-  const [sessionState, fallbackModes, pipelineSettings] = await Promise.all([
+  const { resolveFocusedWorkspace, formatFocusedWorkspaceLine } = await import('./services/focusedWorkspace')
+  const [sessionState, fallbackModes, pipelineSettings, focusedWorkspace] = await Promise.all([
     getSessionState(sessionId),
     getFallbackModes(),
     getPipelineSettings(),
+    resolveFocusedWorkspace(context?.userId || '', context?.activeEntityId),
   ])
+  if (focusedWorkspace) {
+    dateContext += formatFocusedWorkspaceLine(focusedWorkspace)
+  }
 
   const historyLimit = pipelineSettings.historyLimit ?? 20
 
@@ -342,6 +353,70 @@ export async function runChain(
     return DEFAULT_STATUS_MESSAGES[chain] || fallback || 'Working...'
   }
 
+  // 1b. Reddit post links — extract text + images before vision/classification
+  // so a pasted reddit.com/... link works like an upload (text context + vision).
+  // User-uploaded buffers always win: we only fetch Reddit images when none attached.
+  let redditPostContext: string | null = null
+  const redditTrace: any[] = []
+  if (/https?:\/\//i.test(prompt)) {
+    const redditUrls = (prompt.match(/https?:\/\/[^\s<>"')]+/gi) || []).filter(isRedditUrl)
+    const firstReddit = redditUrls[0]
+    if (firstReddit) {
+      onStatus({
+        chain: 'WEB_SEARCH',
+        goal: 'Reading Reddit post',
+        status: 'running',
+        label: getStatusLabel('WEB_SEARCH', 'Reading Reddit post'),
+      })
+      try {
+        const post = await extractRedditPost(firstReddit)
+        if (post) {
+          redditPostContext = formatRedditPost(post)
+          // Cache for read_url so the model cannot re-fetch the same post this turn
+          // (tool loop would otherwise double-hit Reddit + burn an extra PRIMARY hop).
+          const imageNote =
+            post.imageUrls.length > 0
+              ? `\n\nImage URLs:\n${post.imageUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+              : ''
+          if (context) {
+            (context as any)._redditPostCache = {
+              sourceUrl: firstReddit,
+              url: post.url,
+              content: redditPostContext + imageNote,
+            }
+            ;(context as any)._redditFetchCount = 1
+          }
+          dateContext =
+            `${dateContext}\n\n${redditPostContext}\n\n` +
+            `[NOTE: This Reddit post is already loaded above (and any images are attached for vision). ` +
+            `Do NOT call read_url for this link — answer from [REDDIT POST] and the images.]\n`
+          logger.info(`[Reddit] Injected post context (${post.imageUrls.length} image URL(s))`)
+
+          if (activeBuffers.length === 0 && post.imageUrls.length > 0) {
+            const imgBufs = await fetchRedditImageBuffers(post.imageUrls)
+            if (imgBufs.length > 0) {
+              try {
+                const { resizeImageForApi } = await import('./image-resizer')
+                activeBuffers = await Promise.all(imgBufs.map(b => resizeImageForApi(b)))
+              } catch {
+                activeBuffers = imgBufs
+              }
+              activeBuffer = activeBuffers[0]
+              logger.info(`[Reddit] Loaded ${activeBuffers.length} image buffer(s) for vision`)
+            }
+          }
+          redditTrace.push({ model: 'reddit-extract', category: 'REDDIT', key: 'REDDIT_FETCH', success: true })
+        } else {
+          logger.warn(`[Reddit] Extract returned null for pasted URL`)
+          redditTrace.push({ model: 'reddit-extract', category: 'REDDIT', key: 'REDDIT_FETCH', success: false })
+        }
+      } catch (e: any) {
+        logger.warn(`[Reddit] Early extract failed: ${e.message}`)
+      }
+      onStatus({ chain: 'WEB_SEARCH', goal: 'Reading Reddit post', status: 'done' })
+    }
+  }
+
   // Buffers actually fed to PRIMARY as raw images this turn — populated below.
   // Text-doc attachments are never fed here (their transcript is authoritative);
   // visual attachments are fed here THIS turn only, then dropped from later turns
@@ -465,6 +540,7 @@ export async function runChain(
   logger.info(`[Router] Starting runChain for category: ${category} | prompt: "${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`)
 
   const routingTrace: RoutingTrace[] = []
+  if (redditTrace.length > 0) routingTrace.push(...redditTrace)
 
   // If classified as ADVISOR, fallback to COMPLEX to actually process the query
   if (category === 'ADVISOR') {
@@ -541,6 +617,7 @@ export async function runChain(
     brainBlock,
     responseStyle: context?.responseStyle,
     replyLanguage: context?.replyLanguage,
+    focusedWorkspaceLine: focusedWorkspace ? formatFocusedWorkspaceLine(focusedWorkspace) : null,
   })
 
   // ── Telegram awareness — inject formatting & brevity rules ──
@@ -654,7 +731,8 @@ IMAGE GENERATION:
       onStatus({ chain: 'WEB_SEARCH', goal: 'Reading linked page(s)', status: 'running', label: getStatusLabel('WEB_SEARCH', 'Reading page') })
       try {
         const ytUrls = urls.filter(u => isYouTubeUrl(u));
-        const webUrls = urls.filter(u => !isYouTubeUrl(u));
+        const redditUrlsInPrompt = urls.filter(u => isRedditUrl(u));
+        const webUrls = urls.filter(u => !isYouTubeUrl(u) && !isRedditUrl(u));
 
         let pages: ExtractedPage[] = [];
 
@@ -673,7 +751,20 @@ IMAGE GENERATION:
           });
         }
 
-        // Non-YouTube URLs: batch-process through Exa → Tavily → fetch
+        // Reddit: early path already injected into dateContext. Fallback text-only
+        // extract here if early path missed (should be rare).
+        if (redditUrlsInPrompt.length > 0 && !redditPostContext) {
+          const post = await extractRedditPost(redditUrlsInPrompt[0]);
+          if (post) {
+            pages.push({
+              url: post.url,
+              title: post.title,
+              content: formatRedditPost(post),
+            });
+          }
+        }
+
+        // Non-YouTube / non-Reddit URLs: batch-process through Exa → Tavily → fetch
         if (webUrls.length > 0) {
           const webPages = await extractContent(webUrls, context);
           if (webPages && webPages.length > 0) pages.push(...webPages);

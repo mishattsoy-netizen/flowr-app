@@ -34,7 +34,7 @@ export function BrainPresetPicker({
         >
           <Brain className="w-4 h-4 text-[var(--accent)]" strokeWidth={2} />
           <span className="font-display truncate max-w-[140px]">{current?.title ?? 'Select brain'}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-[var(--bone-30)]" strokeWidth={2} />
+          <ChevronDown className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-30" strokeWidth={2} />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -56,7 +56,7 @@ export function BrainPresetPicker({
                     : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                 )}
               >
-                <Brain className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" strokeWidth={2} />
+                <Brain className="w-3.5 h-3.5 shrink-0 text-[var(--bone-100)] opacity-40" strokeWidth={2} />
                 <span className="truncate flex-1">{b.title}</span>
                 {b.is_default && <span className="text-[10px] text-[var(--bone-30)] uppercase tracking-wide shrink-0">default</span>}
                 {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" strokeWidth={2.5} />}

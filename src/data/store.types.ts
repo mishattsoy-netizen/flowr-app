@@ -641,6 +641,8 @@ export interface AppState {
   moveEntity: (id: string, newParentId: string | null, newSpaceId?: string | null) => void;
   reorderEntities: (orderedIds: string[]) => void;
   renameEntity: (id: string, newTitle: string) => void;
+  /** Update workspace title + description (entities.description, max 500). */
+  updateWorkspaceDescription: (id: string, title: string, description: string) => void;
   duplicateEntity: (id: string) => string | undefined;
   setEntityIcon: (id: string, icon: string) => void;
   setEditingEntityId: (id: string | null, source?: EditingSource | null) => void;

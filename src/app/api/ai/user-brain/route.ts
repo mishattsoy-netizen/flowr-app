@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
       case 'restore_node':
         return NextResponse.json(await restoreBrainNode(userId, body.brain_id, body.node_id))
       case 'connect':
-        return NextResponse.json(await addBrainEdge(userId, 'user', body.brain_id, body.from, body.to, body.label))
+        return NextResponse.json(await addBrainEdge(
+          userId, 'user', body.brain_id, body.from, body.to, body.label,
+          { from_side: body.from_side, to_side: body.to_side },
+        ))
       case 'disconnect':
         return NextResponse.json(await removeBrainEdge(userId, 'user', body.brain_id, body.edge_id))
       case 'update_edge':

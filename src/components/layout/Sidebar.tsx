@@ -1259,6 +1259,15 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
               {(activeEntityId === 'chat' || activeEntityId === 'brain') ? (
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex flex-col gap-[1px] px-[10px] pt-1.5 pb-0 shrink-0">
+                    {(() => {
+                      // Chat flags (pendingNewChat / isTempChat / activeChatId) stay
+                      // set while viewing Brain so Sessions can restore the last
+                      // surface — but only highlight rows when chat is active.
+                      const chatSurfaceActive = activeEntityId === 'chat';
+                      const newChatActive = chatSurfaceActive && pendingNewChat;
+                      const tempChatActive = chatSurfaceActive && isTempChat && !pendingNewChat;
+                      return (
+                        <>
                     <button
                       onClick={() => {
                         clearSelectedSidebarIds();
@@ -1266,7 +1275,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       }}
                       className={cn(
                         "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent",
-                        pendingNewChat
+                        newChatActive
                           ? "bg-dark text-[var(--bone-100)] font-normal"
                           : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                       )}
@@ -1283,7 +1292,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       }}
                       className={cn(
                         "sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent ",
-                        isTempChat ? "bg-dark text-[var(--bone-100)] font-normal" : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                        tempChatActive
+                          ? "bg-dark text-[var(--bone-100)] font-normal"
+                          : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
                       )}
                     >
                       <MessageCircleDashed strokeWidth={2} className="w-3.5 h-3.5" />
@@ -1293,6 +1304,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <button
                         onClick={() => {
                           clearSelectedSidebarIds();
+                          // Keep chat flags so Sessions can restore this surface later.
                           useStore.getState().setActiveEntityId('brain');
                         }}
                         className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
@@ -1304,6 +1316,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                       <button
                         onClick={() => {
                           clearSelectedSidebarIds();
+                          // Restore last chat surface (new / temp / session) — flags untouched.
                           useStore.getState().setActiveEntityId('chat');
                         }}
                         className="sidebar-item-row flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 group border border-transparent text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
@@ -1312,6 +1325,9 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                         <span className="ml-[6px] flex-1 text-left text-[14px] tracking-wide">Sessions</span>
                       </button>
                     )}
+                        </>
+                      );
+                    })()}
                     <div className="h-px bg-[var(--bone-8)] -mx-[10px] mt-[10px] mb-0" />
                   </div>
 
@@ -1371,7 +1387,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                                         "sidebar-item-row group flex items-center w-full cursor-pointer select-none rounded-[var(--radius-small)] pl-[8px] pr-[3px] h-7 border border-transparent",
                                         isSelected
                                           ? "bg-[var(--app-dark)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
-                                          : activeChatId === conv.id
+                                          : (activeEntityId === 'chat' && activeChatId === conv.id && !isTempChat && !pendingNewChat)
                                             ? "bg-dark text-[var(--bone-100)] font-normal"
                                             : "text-[var(--bone-70)] hover:text-[var(--bone-100)] [&:hover:not(:has(.sidebar-actions:hover))]:bg-[var(--app-dark)]"
                                       )}

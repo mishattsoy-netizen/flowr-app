@@ -1,0 +1,178 @@
+<style>
+  :root {
+    --app-dark: #121212; --panel-bg: #1c1c1a; --card-bg: #232321;
+    --bone-6: rgba(233,233,226,.06); --bone-10: rgba(233,233,226,.10); --bone-12: rgba(233,233,226,.12);
+    --bone-30: rgba(233,233,226,.30); --bone-50: rgba(233,233,226,.5); --bone-60: rgba(233,233,226,.60);
+    --bone-70: rgba(233,233,226,.70); --bone-100: #eeeee8; --accent: #e48921; --brand-blue: #2A78D6;
+    --green: #34d399;
+  }
+  .mock-page { background:#0d0d0c; color:var(--bone-100); font-family:-apple-system,'Segoe UI',sans-serif; padding:24px; }
+  .mock-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--bone-30); margin-bottom:10px; font-weight:600; }
+  .row { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+  .panel { width: 380px; background: var(--panel-bg); border:1px solid var(--bone-12); border-radius:18px; box-shadow:0 8px 30px rgba(0,0,0,.4); overflow:hidden; }
+
+  /* compact header */
+  .ph-top { display:flex; align-items:center; justify-content:space-between; padding: 12px 14px; }
+  .brain-name { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; }
+  .brain-icon { width:26px; height:26px; border-radius:8px; background: rgba(228,137,33,.15); display:flex; align-items:center; justify-content:center; }
+  .chev { color:var(--bone-30); font-size:11px; }
+  .expand-btn { color:var(--bone-30); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px; }
+
+  .stat-strip { display:flex; align-items:center; gap:14px; padding: 0 14px 14px; }
+  .stat-chip { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--bone-70); }
+  .stat-chip b { font-size:15px; color:var(--bone-100); font-weight:600; font-variant-numeric: tabular-nums; }
+  .stat-sep { width:1px; height:14px; background:var(--bone-10); }
+  .budget-mini { flex:1; display:flex; align-items:center; gap:6px; }
+  .budget-mini-bar { flex:1; height:5px; border-radius:3px; background:var(--bone-10); overflow:hidden; }
+  .budget-mini-fill { height:100%; width:34%; background: linear-gradient(90deg,#2A78D6,#5aa6f5); border-radius:3px; }
+
+  /* expanded */
+  .expand-body { border-top:1px solid var(--bone-10); padding: 14px; display:flex; flex-direction:column; gap:16px; }
+  .stats-grid { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; }
+  .stat-card { background: var(--card-bg); border-radius:12px; padding:10px 12px; }
+  .stat-card .lbl { font-size:10px; color:var(--bone-50); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+  .stat-card .val { font-size:18px; font-weight:700; font-variant-numeric: tabular-nums; }
+  .stat-card .val.green { color: var(--green); }
+
+  .section-title { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--bone-50); font-weight:600; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+  .reset-link { font-size:10px; color:var(--bone-30); text-transform:none; letter-spacing:0; cursor:pointer; }
+
+  /* top nodes by usage - gradient bars like reference */
+  .top-node-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .top-node-name { font-size:12px; color:var(--bone-70); width:120px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .top-node-bar-track { flex:1; height:18px; border-radius:6px; background:var(--bone-6); overflow:hidden; position:relative; }
+  .top-node-bar-fill { height:100%; border-radius:6px; display:flex; align-items:center; justify-content:flex-end; padding-right:6px; }
+  .top-node-bar-fill span { font-size:10px; font-weight:700; color:white; }
+
+  /* priority donut-ish bars */
+  .priority-bars { display:flex; flex-direction:column; gap:6px; }
+  .priority-row { display:flex; align-items:center; gap:8px; font-size:11px; }
+  .priority-row .dot { width:8px; height:8px; border-radius:50%; }
+  .priority-row .track { flex:1; height:6px; border-radius:3px; background:var(--bone-6); overflow:hidden; }
+  .priority-row .fill { height:100%; border-radius:3px; }
+  .priority-row .pct { color:var(--bone-50); width:32px; text-align:right; }
+
+  /* color categories */
+  .color-chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .color-chip { display:flex; align-items:center; gap:6px; background:var(--card-bg); border-radius:9px; padding:6px 10px; font-size:11px; }
+  .color-chip .sw { width:10px; height:10px; border-radius:50%; }
+
+  /* activity calendar - github style */
+  .cal-grid { display:grid; grid-template-columns: repeat(26, 1fr); gap:2px; }
+  .cal-cell { aspect-ratio:1; border-radius:2px; background: var(--bone-6); }
+  .cal-cell.l1 { background: rgba(52,211,153,.25); }
+  .cal-cell.l2 { background: rgba(52,211,153,.5); }
+  .cal-cell.l3 { background: rgba(52,211,153,.8); }
+  .cal-cell.l4 { background: rgba(52,211,153,1); }
+  .cal-caption { font-size:10px; color:var(--bone-30); margin-top:6px; display:flex; justify-content:space-between; }
+
+  .note { font-size:11px; color:var(--bone-30); margin-top:10px; line-height:1.5; max-width:380px; }
+</style>
+
+<div class="mock-page">
+  <div class="row">
+    <div>
+      <div class="mock-label">Compact (default)</div>
+      <div class="panel">
+        <div class="ph-top">
+          <div class="brain-name"><div class="brain-icon">🧠</div> Main <span class="chev">▾</span></div>
+          <div class="expand-btn">Stats ⌄</div>
+        </div>
+        <div class="stat-strip">
+          <div class="stat-chip">📝 <b>21</b> nodes</div>
+          <div class="stat-sep"></div>
+          <div class="stat-chip">🔗 <b>15</b> edges</div>
+          <div class="stat-sep"></div>
+          <div class="budget-mini">
+            <div class="budget-mini-bar"><div class="budget-mini-fill"></div></div>
+            <b style="font-size:12px;">34%</b>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="mock-label">Expanded — analytics dashboard</div>
+      <div class="panel" style="width:420px;">
+        <div class="ph-top">
+          <div class="brain-name"><div class="brain-icon">🧠</div> Main <span class="chev">▾</span></div>
+          <div class="expand-btn">Collapse ⌃</div>
+        </div>
+        <div class="stat-strip">
+          <div class="stat-chip">📝 <b>21</b> nodes</div>
+          <div class="stat-sep"></div>
+          <div class="stat-chip">🔗 <b>15</b> edges</div>
+          <div class="stat-sep"></div>
+          <div class="budget-mini">
+            <div class="budget-mini-bar"><div class="budget-mini-fill"></div></div>
+            <b style="font-size:12px;">34%</b>
+          </div>
+        </div>
+
+        <div class="expand-body">
+          <div class="stats-grid">
+            <div class="stat-card"><div class="lbl">AI requests</div><div class="val">128</div></div>
+            <div class="stat-card"><div class="lbl">Active days</div><div class="val">14</div></div>
+            <div class="stat-card"><div class="lbl">Current streak</div><div class="val green">5d</div></div>
+          </div>
+
+          <div>
+            <div class="section-title">Top 5 by usage <span class="reset-link">Reset stats ↻</span></div>
+            <div class="top-node-row">
+              <div class="top-node-name">Forex Trading Status</div>
+              <div class="top-node-bar-track"><div class="top-node-bar-fill" style="width:82%; background:linear-gradient(90deg,#e48921,#f5a94a);"><span>18%</span></div></div>
+            </div>
+            <div class="top-node-row">
+              <div class="top-node-name">Personal Identity</div>
+              <div class="top-node-bar-track"><div class="top-node-bar-fill" style="width:64%; background:linear-gradient(90deg,#2A78D6,#5aa6f5);"><span>14%</span></div></div>
+            </div>
+            <div class="top-node-row">
+              <div class="top-node-name">Trading rules</div>
+              <div class="top-node-bar-track"><div class="top-node-bar-fill" style="width:48%; background:linear-gradient(90deg,#34d399,#6ee7b7);"><span>10%</span></div></div>
+            </div>
+            <div class="top-node-row">
+              <div class="top-node-name">Tech Stack &amp; Setup</div>
+              <div class="top-node-bar-track"><div class="top-node-bar-fill" style="width:36%; background:linear-gradient(90deg,#a78bfa,#c4b5fd);"><span>7%</span></div></div>
+            </div>
+            <div class="top-node-row">
+              <div class="top-node-name">Background &amp; Interests</div>
+              <div class="top-node-bar-track"><div class="top-node-bar-fill" style="width:24%; background:linear-gradient(90deg,#f472b6,#fbb6ce);"><span>5%</span></div></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Priority distribution</div>
+            <div class="priority-bars">
+              <div class="priority-row"><span class="dot" style="background:#f87171;"></span><span style="width:52px;">High</span><div class="track"><div class="fill" style="width:38%; background:#f87171;"></div></div><span class="pct">38%</span></div>
+              <div class="priority-row"><span class="dot" style="background:#fbbf24;"></span><span style="width:52px;">Medium</span><div class="track"><div class="fill" style="width:41%; background:#fbbf24;"></div></div><span class="pct">41%</span></div>
+              <div class="priority-row"><span class="dot" style="background:#60a5fa;"></span><span style="width:52px;">Low</span><div class="track"><div class="fill" style="width:21%; background:#60a5fa;"></div></div><span class="pct">21%</span></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Nodes by color tag</div>
+            <div class="color-chips">
+              <div class="color-chip"><span class="sw" style="background:#e48921;"></span> Trading · 5</div>
+              <div class="color-chip"><span class="sw" style="background:#2A78D6;"></span> Personal · 4</div>
+              <div class="color-chip"><span class="sw" style="background:#34d399;"></span> Tech · 3</div>
+              <div class="color-chip"><span class="sw" style="background:var(--bone-30);"></span> Untagged · 9</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Activity (last ~6mo)</div>
+            <div class="cal-grid">
+              <!-- sparse random-ish activity pattern -->
+              <div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell l1"></div><div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell l2"></div><div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell l1"></div><div class="cal-cell"></div><div class="cal-cell l3"></div><div class="cal-cell l2"></div><div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell l1"></div><div class="cal-cell l4"></div><div class="cal-cell l3"></div><div class="cal-cell l2"></div><div class="cal-cell l4"></div><div class="cal-cell l3"></div><div class="cal-cell l2"></div><div class="cal-cell l1"></div><div class="cal-cell l4"></div><div class="cal-cell l3"></div><div class="cal-cell l4"></div>
+            </div>
+            <div class="cal-caption"><span>6 months ago</span><span>Today</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    Compact strip stays visible always (nodes/edges/budget %). Clicking "Stats ⌄" grows the panel down to reveal: AI-request/streak counters (with reset), top-5-by-usage-% bars (gradient style matching your dashboard refs), priority distribution, color-tag breakdown, and a GitHub-style activity calendar.
+  </div>
+</div>

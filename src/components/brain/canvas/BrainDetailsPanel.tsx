@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronRight, FileText, Link2, Unlink } from 'lucide-react';
+import { Tooltip } from '@/components/layout/Tooltip';
 import type { BrainCanvasEdge, BrainCanvasNode } from './useBrainData';
 import { DetailsMode, type DetailsNodeDisplay, type BrainTagOption } from './DetailsMode';
 import { ConnectionsMode } from './ConnectionsMode';
@@ -40,11 +41,10 @@ export interface BrainDetailsPanelProps {
 
 /** Shared card chrome: the main panel and each selected-node card are separate
  *  floating panels stacked in a transparent column, per the approved mockup.
- *  Border (not outline): an inset outline gets painted over by opaque child
- *  backgrounds; a real border keeps children inside it. */
+ *  1px border (not outline): outline gets painted over by opaque child fills. */
 const cardChrome = cn(
   "canvas-floating-panel bg-[var(--app-panel)] backdrop-blur-xl",
-  "border-2 border-[var(--bone-12)]",
+  "border border-[var(--bone-12)]",
   "shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
 );
 
@@ -76,13 +76,14 @@ function SelectedNodeCard({
       onClick={e => e.stopPropagation()}
     >
       {/* Right hot zone: hovering it reveals the action button; clicking fires it. */}
-      <button
-        type="button"
-        title={isLinked ? 'Break connection' : 'Connect'}
-        onClick={onAction}
-        className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
-        aria-label={isLinked ? 'Break connection' : 'Connect'}
-      />
+      <Tooltip content={isLinked ? 'Break connection' : 'Connect'}>
+        <button
+          type="button"
+          onClick={onAction}
+          className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+          aria-label={isLinked ? 'Break connection' : 'Connect'}
+        />
+      </Tooltip>
       {/* Action button underneath: right-anchored and rectangular — it must
           never extend under the cover's LEFT rounded corners, or the color
           peeks through the corner notches when revealed. */}
@@ -113,7 +114,7 @@ function SelectedNodeCard({
           onClick={() => onFocus(id)}
           className="flex-1 min-w-0 h-full flex items-center gap-2.5 text-left border-none outline-none bg-transparent"
         >
-          <span className="w-4 h-4 shrink-0 text-[var(--bone-60)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
+          <span className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-60 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
             {display.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
           </span>
           <span className="font-serif text-[15px] text-[var(--bone-90)] truncate">
@@ -129,8 +130,8 @@ function SelectedNodeCard({
         className={cn(
           "absolute right-[14px] top-1/2 -translate-y-1/2 z-[15] pointer-events-none transition-opacity duration-100",
           isLinked
-            ? "text-[var(--bone-60)] peer-hover/zone:opacity-0"
-            : "text-[var(--bone-30)] opacity-0 group-hover:opacity-100 peer-hover/zone:opacity-0"
+            ? "text-[var(--bone-100)] opacity-60 peer-hover/zone:opacity-0"
+            : "text-[var(--bone-100)] opacity-0 group-hover:opacity-30 peer-hover/zone:opacity-0"
         )}
       >
         {isLinked

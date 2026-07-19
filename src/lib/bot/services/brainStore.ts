@@ -512,8 +512,22 @@ export async function restoreBrainNode(userId: string, brainId: string, nodeId: 
   return { success: true }
 }
 
+const EDGE_SIDES = new Set(['top', 'right', 'bottom', 'left'])
+
+function normalizeEdgeSide(v: unknown): string | null {
+  if (v == null || v === '') return null
+  if (typeof v !== 'string') return null
+  return EDGE_SIDES.has(v) ? v : null
+}
+
 export async function addBrainEdge(
-  userId: string, actor: 'user' | 'bot', brainId: string, from: string, to: string, label: string
+  userId: string,
+  actor: 'user' | 'bot',
+  brainId: string,
+  from: string,
+  to: string,
+  label: string,
+  opts?: { from_side?: unknown; to_side?: unknown },
 ): Promise<{ id: string } | { error: string }> {
   if (!supabaseAdmin) return { error: 'Supabase not configured' }
   const { data: endpoints } = await supabaseAdmin.from('brain_nodes')
@@ -529,11 +543,22 @@ export async function addBrainEdge(
   if (hasEdgeBetween(activeEdges ?? [], from, to)) {
     return { error: 'These nodes are already connected.' }
   }
+  const from_side = normalizeEdgeSide(opts?.from_side)
+  const to_side = normalizeEdgeSide(opts?.to_side)
   const { data, error } = await supabaseAdmin.from('brain_edges')
-    .insert({ user_id: userId, brain_id: brainId, from_node: from, to_node: to, label: label?.trim() ?? '', created_by: actor })
+    .insert({
+      user_id: userId,
+      brain_id: brainId,
+      from_node: from,
+      to_node: to,
+      label: label?.trim() ?? '',
+      created_by: actor,
+      from_side,
+      to_side,
+    })
     .select('id').single()
   if (error) return { error: error.message }
-  await logRevision(userId, actor, 'connect', { id: data.id, brain_id: brainId, from, to, label })
+  await logRevision(userId, actor, 'connect', { id: data.id, brain_id: brainId, from, to, label, from_side, to_side })
   return { id: data.id }
 }
 

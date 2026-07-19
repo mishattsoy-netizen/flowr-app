@@ -64,7 +64,7 @@ export const FLOWR_TOOLS = [
         endDate: { type: "string", description: "For tasks: end date/time. If a user asks for a 'start date' and an 'end date', put the end date here." },
         includeTime: { type: "boolean", description: "For tasks: true only if the user stated an actual time of day. False for a bare date (e.g. 'due Friday') — never invent a time like end-of-day." },
         reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
-        description: { type: "string", description: "For tasks: longer description or notes." },
+        description: { type: "string", description: "For tasks: longer notes. For workspaces: one-line purpose of the workspace (helps future placement decisions). Max 500 chars." },
         subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: list of subtasks." }
       },
       required: ["type", "title"]
@@ -77,10 +77,10 @@ export const FLOWR_TOOLS = [
     parameters: {
       type: "object",
       properties: {
-        id: { type: "string", description: "ID of the note or task to update. REQUIRED." },
+        id: { type: "string", description: "ID of the note, task, or workspace to update. REQUIRED." },
         // Shared
-        type: { type: "string", enum: ["task", "note", "canvas", "folder"],
-                description: "Entity type. Include 'task' when updating a task. Omit for auto-detection." },
+        type: { type: "string", enum: ["task", "note", "canvas", "folder", "workspace"],
+                description: "Entity type. Include 'task' when updating a task, 'workspace' when setting a workspace description. Omit for auto-detection." },
         title: { type: "string", description: "New title." },
         // Note fields
         content: { type: "string", description: "For notes: Markdown body. FULLY REPLACES the existing content. Requires confirmed:true after a dry-run — see tool description." },
@@ -114,7 +114,7 @@ export const FLOWR_TOOLS = [
         endDate: { type: "string", description: "For tasks: end date/time." },
         includeTime: { type: "boolean", description: "For tasks: true only if the user stated an actual time of day. False for a bare date (e.g. 'due Friday') — never invent a time like end-of-day." },
         reminder: { type: "string", description: "For tasks: reminder string (e.g., '5 minutes before', 'None')." },
-        description: { type: "string", description: "For tasks: longer description." },
+        description: { type: "string", description: "For tasks: longer notes. For workspaces: purpose/description (max 500). Can update workspace description without touching note bodies." },
         subtasks: { type: "array", items: subtaskItemSchema, description: "For tasks: updated subtasks list." }
       },
       required: ["id"]
@@ -236,7 +236,7 @@ export const FLOWR_TOOLS = [
 
   {
     name: "read_url",
-    description: "Read the full text content or transcript of a specific URL (articles, docs, YouTube videos). Use this when the user provides a link and asks you to summarize, read, or analyze it. Supports YouTube time ranges — pass startTime/endTime as seconds ONLY if the user explicitly gives a range (e.g. 'from 5:00 to 10:00'); never pick a time range on your own. LIMIT: only 1 YouTube video can be fetched per request — if the user sends multiple YouTube links, fetch the first and tell them to send the others one at a time.",
+    description: "Read the full text content of a specific URL (articles, docs, Reddit posts, YouTube transcripts). Use when the user provides a link and asks you to summarize, read, or analyze it. For Reddit: if a [REDDIT POST] block is already in context (auto-loaded when the user pastes a Reddit link), do NOT call this tool for that link — answer from that block and any attached images. Otherwise returns title, body, and image URLs. Supports YouTube time ranges — pass startTime/endTime as seconds ONLY if the user explicitly gives a range (e.g. 'from 5:00 to 10:00'); never pick a time range on your own. LIMIT: only 1 YouTube video and 1 Reddit post can be fetched per request.",
     parameters: {
       type: "object",
       properties: {

@@ -673,21 +673,35 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     return () => host.removeEventListener('beforeinput', handleHostBeforeInput);
   }, [handleHostBeforeInput]);
 
-  // Multi-line paste (e.g. a pasted article) while a CROSS-BLOCK selection
-  // is active (most commonly Ctrl+A) must be intercepted here, at a native
-  // CAPTURE-phase `paste` listener — not in React's onPaste prop. Measured:
-  // by the time React's bubble-phase onPaste fires, window.getSelection()
-  // is ALREADY collapsed to a single point at the first selected block —
-  // the browser processes/collapses the selection as part of its native
-  // paste handling before React's synthetic handler ever runs, so the
-  // original multi-block selection is unrecoverable there. A capture-phase
-  // listener runs before that collapse and still sees the real selection.
-  // Without this, multi-line paste over a multi-block selection left every
-  // selected block untouched in the store while inserting new blocks next
-  // to a DOM node the browser's Selection API still held a live reference
-  // to — crashing React's reconciler ("insertBefore ... not a child of
-  // this node") on the next render. Single-block/collapsed-caret paste is
-  // unaffected and still handled by the existing React onPaste (handlePaste).
+  // Sole owner of multi-line content-inserting paste (markdown or plain
+  // text), for BOTH a collapsed caret and a cross-block selection (e.g.
+  // Ctrl+A). Must be a native CAPTURE-phase `paste` listener, not React's
+  // onPaste prop — two things measured:
+  //
+  // 1. By the time React's bubble-phase onPaste fires, the browser has
+  //    already started its own native paste handling. For a collapsed
+  //    caret, execCommand-equivalent multi-line insertion has already
+  //    happened: Chrome splits embedded newlines into one new content
+  //    <div> per line, injected as untracked siblings inside a single
+  //    block's flex-row wrapper. Only the first ever gets read back into
+  //    the block's stored content — the rest render as an unrecoverable
+  //    grid of narrow columns. preventDefault() in a bubble-phase handler
+  //    is too late to stop this.
+  // 2. For a cross-block selection, window.getSelection() is ALREADY
+  //    collapsed to a single point at the first selected block by the
+  //    time onPaste fires — the original selection is unrecoverable
+  //    there. Inserting next to that stale anchor while every originally
+  //    selected block sits untouched in the store crashes React's
+  //    reconciler on the next render ("insertBefore ... not a child of
+  //    this node"), because the browser's Selection API still holds a
+  //    live reference into DOM React is about to restructure.
+  //
+  // A capture-phase listener runs before either of those, so it is the
+  // only place that can reliably intercept and replace the DOM instead of
+  // reacting to already-corrupted state. handlePaste (React onPaste) keeps
+  // image paste, image/video link paste, and single-line execCommand —
+  // none of which touch multiple blocks or embed newlines, so they aren't
+  // affected by either race.
   const handleHostCapturePaste = useCallback((native: ClipboardEvent) => {
     if (isReadMode) return;
     const host = blocksHostRef.current;
@@ -695,28 +709,55 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const target = native.target as HTMLElement;
     if (!target?.isContentEditable) return;
 
-    const selection = getBlockSelection(host);
-    if (!selection) return; // single block / collapsed caret: let handlePaste handle it
-
     const plainText = native.clipboardData?.getData('text/plain') ?? '';
-    const lines = plainText.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) return; // single line: let native/handlePaste handle it
+    if (!plainText) return;
+
+    const isMd = looksLikeMarkdown(plainText);
+    const newBlocksToInsert = isMd
+      ? parseMarkdownToBlocks(plainText)
+      : (() => {
+          const lines = plainText.split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length < 2) return null; // single line: let handlePaste's execCommand handle it
+          const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return lines.map(line => createBlock('text', { content: escapeHtml(line) }));
+        })();
+    if (!newBlocksToInsert || newBlocksToInsert.length === 0) return;
 
     native.preventDefault();
     native.stopPropagation();
 
-    const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const newTextBlocks = lines.map(line => createBlock('text', { content: escapeHtml(line) }));
+    const selection = getBlockSelection(host);
+    if (selection) {
+      // Cross-block selection: replace the whole selected block range.
+      const aIdx = blocks.findIndex(b => b.id === selection.startBlockId);
+      const bIdx = blocks.findIndex(b => b.id === selection.endBlockId);
+      if (aIdx === -1 || bIdx === -1) return;
+      const firstIdx = Math.min(aIdx, bIdx);
+      const lastIdx = Math.max(aIdx, bIdx);
+      const newBlocks = [...blocks];
+      newBlocks.splice(firstIdx, lastIdx - firstIdx + 1, ...newBlocksToInsert);
+      persistBlocks(newBlocks);
+      return;
+    }
 
-    const aIdx = blocks.findIndex(b => b.id === selection.startBlockId);
-    const bIdx = blocks.findIndex(b => b.id === selection.endBlockId);
-    if (aIdx === -1 || bIdx === -1) return;
+    // Collapsed caret: splice into/after the focused block, same as before.
+    const anchorBlockEl = blockOf(window.getSelection()?.anchorNode ?? null);
+    const focusedId = anchorBlockEl?.getAttribute('data-block-id');
+    const focusedBlock = focusedId ? blocks.find(b => b.id === focusedId) : null;
 
-    const firstIdx = Math.min(aIdx, bIdx);
-    const lastIdx = Math.max(aIdx, bIdx);
-    const newBlocks = [...blocks];
-    newBlocks.splice(firstIdx, lastIdx - firstIdx + 1, ...newTextBlocks);
-    persistBlocks(newBlocks);
+    if (focusedBlock && !focusedBlock.content.trim()) {
+      const idx = blocks.findIndex(b => b.id === focusedId);
+      const newBlocks = [...blocks];
+      newBlocks.splice(idx, 1, ...newBlocksToInsert);
+      persistBlocks(newBlocks);
+    } else if (focusedId) {
+      const idx = blocks.findIndex(b => b.id === focusedId);
+      const newBlocks = [...blocks];
+      newBlocks.splice(idx + 1, 0, ...newBlocksToInsert);
+      persistBlocks(newBlocks);
+    } else {
+      persistBlocks([...blocks, ...newBlocksToInsert]);
+    }
   }, [blocks, isReadMode, persistBlocks]);
 
   useEffect(() => {
@@ -1870,72 +1911,15 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const target = e.target as HTMLElement;
     if (target.isContentEditable) {
       e.preventDefault();
+      // Markdown paste and multi-line plain-text paste are both handled
+      // upstream by handleHostCapturePaste (native capture-phase 'paste'
+      // listener, registered below), which runs — and calls
+      // stopPropagation — before this bubble-phase React handler ever
+      // sees the event. Only single-line plain text reaches here.
       const plainText = e.clipboardData.getData('text/plain');
-
-      if (looksLikeMarkdown(plainText)) {
-        const parsedBlocks = parseMarkdownToBlocks(plainText);
-        if (parsedBlocks.length > 0) {
-          const blockEl = (document.activeElement as HTMLElement)?.closest('[data-block-id]');
-          const focusedId = blockEl?.getAttribute('data-block-id');
-          const focusedBlock = focusedId ? blocks.find(b => b.id === focusedId) : null;
-
-          if (focusedBlock && !focusedBlock.content.trim()) {
-            const idx = blocks.findIndex(b => b.id === focusedId);
-            const newBlocks = [...blocks];
-            newBlocks.splice(idx, 1, ...parsedBlocks);
-            persistBlocks(newBlocks);
-          } else if (focusedId) {
-            const idx = blocks.findIndex(b => b.id === focusedId);
-            const newBlocks = [...blocks];
-            newBlocks.splice(idx + 1, 0, ...parsedBlocks);
-            persistBlocks(newBlocks);
-          } else {
-            persistBlocks([...blocks, ...parsedBlocks]);
-          }
-          return;
-        }
-      }
-
-      // Multi-line plain text (e.g. a pasted article) must NOT go through
-      // execCommand('insertText') with embedded newlines: under the single
-      // shared contentEditable host, Chrome's native handling of a
-      // multi-line insertText splits it into one new content <div> per line,
-      // injected as siblings inside a single block's flex-row wrapper. Only
-      // the first of those divs is ever read back into the block's stored
-      // content (handleHostInput/updateBlock query the first
-      // [data-block-content] match) — the rest sit uncommitted in the live
-      // DOM, laid out side-by-side by the flex-row parent as a grid of
-      // narrow columns instead of a flowing paragraph. Splitting into real
-      // blocks up front avoids the browser ever doing that multi-div insert.
-      const lines = plainText.split('\n').map(l => l.trim()).filter(Boolean);
-      if (lines.length > 1) {
-        const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const newTextBlocks = lines.map(line => createBlock('text', { content: escapeHtml(line) }));
-
-        const sel = window.getSelection();
-        const anchorBlockEl = sel ? blockOf(sel.anchorNode) : null;
-        const focusedId = anchorBlockEl?.getAttribute('data-block-id');
-        const focusedBlock = focusedId ? blocks.find(b => b.id === focusedId) : null;
-
-        if (focusedBlock && !focusedBlock.content.trim()) {
-          const idx = blocks.findIndex(b => b.id === focusedId);
-          const newBlocks = [...blocks];
-          newBlocks.splice(idx, 1, ...newTextBlocks);
-          persistBlocks(newBlocks);
-        } else if (focusedId) {
-          const idx = blocks.findIndex(b => b.id === focusedId);
-          const newBlocks = [...blocks];
-          newBlocks.splice(idx + 1, 0, ...newTextBlocks);
-          persistBlocks(newBlocks);
-        } else {
-          persistBlocks([...blocks, ...newTextBlocks]);
-        }
-        return;
-      }
-
       document.execCommand('insertText', false, plainText);
     }
-  }, [blocks, insertAfter, persistBlocks, updateBlock]);
+  }, [blocks, persistBlocks, updateBlock]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();

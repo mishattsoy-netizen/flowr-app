@@ -100,7 +100,10 @@ const DEFAULT_DASHBOARD_LAYOUT: WidgetConfig[] = [
   { id: 'w-recent', type: 'recent', size: 'L' },
 ];
 
-const SYSTEM_ROUTES = ['chat', 'dashboard', 'tracker', 'settings'];
+// System surfaces that are not note/entity-scoped chat sessions.
+// Include 'brain' so temp/new chat while on the brain canvas shares the same
+// bucket as the chat page (not a separate sid keyed by "brain").
+const SYSTEM_ROUTES = ['chat', 'dashboard', 'tracker', 'settings', 'brain'];
 
 export const getChatSessionId = (
   activeChatId: string | null,
@@ -879,12 +882,16 @@ export const useStore = create<AppState>()(
 
       startTempChat: async () => {
         await get().cleanupActiveChatIfEmpty();
-        
+
         const { activeEntityId, activeSpaceId, isTempChat, activeChatId } = get();
-        const sid = getChatSessionId(null, activeEntityId, activeSpaceId, 'temp');
-        
-        // If already in temp chat for this entity, click should clear it
-        if (isTempChat && activeChatId === null) {
+        // Always key temp chat off the chat surface (not brain/dashboard), so
+        // Brain → Temp reopens the same bucket the user left.
+        const sid = getChatSessionId(null, 'chat', activeSpaceId, 'temp');
+
+        // Second click clears only when already viewing temp ON the chat page.
+        // If we're on brain (or elsewhere) with isTempChat still true, reopen
+        // instead of wiping the session.
+        if (isTempChat && activeChatId === null && activeEntityId === 'chat') {
           await get().clearAIChat();
           return;
         }
@@ -910,21 +917,29 @@ export const useStore = create<AppState>()(
           };
         });
 
-        try {
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          if (isSupabaseEnabled) {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.access_token) {
-              headers['Authorization'] = `Bearer ${session.access_token}`;
+        if (get().activeEntityId !== 'chat') {
+          get().setActiveEntityId('chat');
+        }
+
+        // Only wipe server memory when opening a fresh empty temp (no local msgs).
+        // Restoring an existing temp must not clear the server-side transcript.
+        if ((get().aiMessages?.length ?? 0) === 0) {
+          try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (isSupabaseEnabled) {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+              }
             }
+            await fetch('/api/ai/memory/clear', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ activeEntityId: sid }),
+            });
+          } catch (err) {
+            console.error('Failed to clear server-side memory for temp chat:', err);
           }
-          await fetch('/api/ai/memory/clear', { 
-            method: 'POST', 
-            headers,
-            body: JSON.stringify({ activeEntityId: sid }) 
-          });
-        } catch (err) {
-          console.error('Failed to clear server-side memory for temp chat:', err);
         }
       },
 
@@ -945,6 +960,9 @@ export const useStore = create<AppState>()(
           activeMode: 'default',
           thinkingEnabled: false,
         });
+        if (get().activeEntityId !== 'chat') {
+          get().setActiveEntityId('chat');
+        }
       },
 
       loadConversation: async (id: string) => {
@@ -2880,6 +2898,29 @@ export const useStore = create<AppState>()(
             });
           }
         }
+        const updatedWs = get().spaces.find(w => w.id === id);
+        if (updatedWs) debouncedPushSpace(updatedWs);
+      },
+
+      updateWorkspaceDescription: (id, title, description) => {
+        // Implementation lives in workspaceDescription.ts so UI can call it
+        // even if this action is missing after HMR of a long-lived store.
+        // Dynamic import avoided here — static import at top would risk cycle with persist.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { applyWorkspaceDescription } = require('@/data/workspaceDescription') as typeof import('@/data/workspaceDescription');
+        applyWorkspaceDescription(
+          () => get().entities,
+          (mapEntity, mapSpace) => {
+            set((state) => ({
+              entities: state.entities.map(mapEntity),
+              spaces: state.spaces.map(mapSpace),
+              editingEntity: null,
+            }));
+          },
+          id,
+          title,
+          description
+        );
         const updatedWs = get().spaces.find(w => w.id === id);
         if (updatedWs) debouncedPushSpace(updatedWs);
       },

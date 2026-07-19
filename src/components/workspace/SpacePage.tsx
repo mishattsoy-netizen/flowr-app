@@ -2,7 +2,9 @@
 
 import { Entity, useStore, generateId, EditorBlock } from '@/data/store';
 import { useState, useSyncExternalStore, useRef, useEffect, useMemo } from 'react';
-import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff, Loader2, ChevronLeft, ChevronRight, ChevronDown, HardDrive } from 'lucide-react';
+import { Plus, Pencil, Folder, FileText, Frame, Layers, Cloud, CloudOff, Loader2, ChevronLeft, ChevronRight, ChevronDown, HardDrive, AlignLeft } from 'lucide-react';
+import { WorkspaceDescriptionPopup } from '@/components/brain/canvas/WorkspaceDescriptionPopup';
+import { applyWorkspaceDescription } from '@/data/workspaceDescription';
 import { isDesktop } from '@/lib/env';
 import { getEntityIcon } from '@/data/icons';
 import { IconPicker } from '@/components/layout/IconPicker';
@@ -285,6 +287,7 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
   const [syncPending, setSyncPending] = useState(false);
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [showNewItemPopup, setShowNewItemPopup] = useState(false);
+  const [showDescPopup, setShowDescPopup] = useState(false);
 
   const isMounted = useSyncExternalStore(() => () => { }, () => true, () => false);
 
@@ -411,7 +414,7 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
                     className="bg-transparent border-none p-0 outline-none w-full max-w-[500px] text-foreground inline-block font-display text-3xl font-medium leading-[1.2]"
                   />
                 ) : (
-                  <h1 
+                  <h1
                     onDoubleClick={() => {
                       setTempTitle(entity.title);
                       setEditingEntityId(entity.id, 'view');
@@ -423,18 +426,35 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
                   </h1>
                 )}
                 {!isLoading && (
-                  <Tooltip content="Rename">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTempTitle(entity.title);
-                        setEditingEntityId(entity.id, 'view');
-                      }}
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-medium)] text-muted-foreground transition-opacity duration-200 ease-in-out ${isEditing ? 'opacity-0 pointer-events-none' : 'hover:opacity-100 opacity-60'}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  </Tooltip>
+                  <>
+                    <Tooltip content="Rename">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempTitle(entity.title);
+                          setEditingEntityId(entity.id, 'view');
+                        }}
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-medium)] text-muted-foreground transition-opacity duration-200 ease-in-out ${isEditing ? 'opacity-0 pointer-events-none' : 'hover:opacity-100 opacity-60'}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={entity.description ? 'Edit description' : 'Add description'}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDescPopup(true);
+                        }}
+                        className={cn(
+                          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-medium)] text-muted-foreground transition-opacity duration-200 ease-in-out",
+                          isEditing ? 'opacity-0 pointer-events-none' : 'hover:opacity-100 opacity-60',
+                          entity.description ? 'text-[var(--bone-90)]' : ''
+                        )}
+                      >
+                        <AlignLeft className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
+                  </>
                 )}
               </div>
             </div>
@@ -789,6 +809,30 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
 
       {showNewItemPopup && (
         <div className="fixed inset-0 z-[299]" onClick={() => setShowNewItemPopup(false)} />
+      )}
+
+      {showDescPopup && (
+        <WorkspaceDescriptionPopup
+          initialTitle={entity.title}
+          initialDescription={entity.description ?? ''}
+          onSave={(title, description) => {
+            applyWorkspaceDescription(
+              () => useStore.getState().entities,
+              (mapEntity, mapSpace) => {
+                useStore.setState(s => ({
+                  entities: s.entities.map(mapEntity),
+                  spaces: s.spaces.map(mapSpace),
+                  editingEntity: null,
+                }));
+              },
+              entity.id,
+              title,
+              description
+            );
+            setShowDescPopup(false);
+          }}
+          onCancel={() => setShowDescPopup(false)}
+        />
       )}
     </>
   );

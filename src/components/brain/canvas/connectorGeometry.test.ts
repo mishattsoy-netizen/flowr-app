@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   connectorPoint,
   buildEdgePath,
+  closestSides,
+  resolveEdgeSides,
   type ConnectorSide,
   type NodeBox,
 } from './connectorGeometry';
@@ -48,6 +50,24 @@ describe('connectorPoint', () => {
     const p = connectorPoint(box, 'left');
     expect(p.x).toBe(100 + inset);
     expect(p.y).toBe(140);
+  });
+});
+
+describe('resolveEdgeSides', () => {
+  const left: NodeBox = { x: 0, y: 0, width: 100, height: 100 };
+  const right: NodeBox = { x: 300, y: 0, width: 100, height: 100 };
+
+  it('uses closestSides when both sides are null', () => {
+    expect(resolveEdgeSides(left, right, null, null)).toEqual(closestSides(left, right));
+  });
+
+  it('pins from_side and auto-fills to_side', () => {
+    const [, autoTo] = closestSides(left, right);
+    expect(resolveEdgeSides(left, right, 'top', null)).toEqual(['top', autoTo]);
+  });
+
+  it('pins both sides', () => {
+    expect(resolveEdgeSides(left, right, 'bottom', 'top')).toEqual(['bottom', 'top']);
   });
 });
 

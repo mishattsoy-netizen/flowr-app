@@ -15,15 +15,32 @@ import type { DetailsNodeDisplay } from './DetailsMode';
 import { WorkspaceDescriptionPopup } from './WorkspaceDescriptionPopup';
 import { BrainZoomControls } from './BrainZoomControls';
 import { AddExistingEntityPopover } from './AddExistingEntityPopover';
+import { BrainNodeSearchPopover, toSearchItems } from './BrainNodeSearchPopover';
 import { logger } from '@/lib/logger';
 import { formatAge } from '@/lib/brain/formatAge';
 import { hasEdgeBetween } from '@/lib/bot/services/brainEdgeUtils';
-import { closestSides, type ConnectorSide } from './connectorGeometry';
+import { closestSides, resolveEdgeSides, type ConnectorSide } from './connectorGeometry';
 import { blocksToMarkdown } from '@/lib/editor/markdownBlocks';
 import type { EditorBlock } from '@/data/store.types';
 import { isDesktop } from '@/lib/env';
 import { getEntityIcon } from '@/data/icons';
 import { FileText, Folder, Brain, Trash2, PanelRightOpen } from 'lucide-react';
+import { Tooltip } from '@/components/layout/Tooltip';
+
+/** Survives BrainCanvasPage remount so edges keep last measured card heights
+ *  instead of redrawing at CARD_H and sliding when ResizeObserver fires. */
+const brainNodeHeightCache = new Map<string, number>();
+
+/** Soft preview for cards/details: word-boundary truncate (CSS line-clamp does the rest).
+ *  Cap is sized for the taller details clamp (~9 lines); cards still line-clamp-4. */
+function previewSnippet(text: string, max = 480): string | undefined {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!t) return undefined;
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > max * 0.6 ? cut.slice(0, sp) : cut).trimEnd();
+}
 
 /** Count direct children of a workspace for footer pills. */
 function workspaceChildPills(
@@ -108,9 +125,9 @@ function computeDisplayInfo(
     ageLabel: entity?.lastModified ? formatAge(new Date(entity.lastModified).toISOString()) : formatAge(node.created_at),
     title: node.label || entity?.title || node.content?.slice(0, 60) || 'Untitled',
     preview: node.type === 'memory'
-      ? (node.content?.slice(0, 120) ?? undefined)
+      ? (node.content ? previewSnippet(node.content) : undefined)
       : (entity?.type === 'note' && entity.content?.length
-        ? blocksToMarkdown(entity.content).slice(0, 120)
+        ? previewSnippet(blocksToMarkdown(entity.content))
         : undefined),
     priority: node.priority,
     tokenCount: perNodeTokens[node.id],
@@ -263,12 +280,15 @@ export function BrainCanvasPage() {
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
 
-  // Cards are now content-sized (height varies with preview text), so
-  // connector-line geometry needs each card's actual rendered height rather
-  // than the CARD_H constant — reported up by BrainNodeCard after it measures
-  // itself.
-  const [heights, setHeights] = useState<Record<string, number>>({});
+  // Cards are content-sized; edges need real heights. Module cache survives
+  // remount (leave/reopen Brain) so lines don't redraw at CARD_H then jump.
+  const [heights, setHeights] = useState<Record<string, number>>(() => {
+    const seed: Record<string, number> = {};
+    brainNodeHeightCache.forEach((h, id) => { seed[id] = h; });
+    return seed;
+  });
   const handleHeightChange = useCallback((nodeId: string, height: number) => {
+    brainNodeHeightCache.set(nodeId, height);
     setHeights(prev => (prev[nodeId] === height ? prev : { ...prev, [nodeId]: height }));
   }, []);
 
@@ -366,10 +386,11 @@ export function BrainCanvasPage() {
       // Memory = a brain-only note; distinct card treatment from a plain Note.
       info.isMemory = node.type === 'memory'
         || (!!node.ref_id && !!entities.find(e => e.id === node.ref_id)?.brainOnly);
-      // Per-node usage bar (share of the per-node cap), footer bottom edge.
+      // Per-node usage bar (share of the per-node cap) — always set so the
+      // bar is visible in every mode (incl. lifetime / not-yet-compiled).
       const cap = state.perNodeCap ?? 2000;
-      const tok = (state.perNodeTokens ?? {})[node.id];
-      info.usageFraction = tok != null && cap > 0 ? tok / cap : undefined;
+      const tok = (state.perNodeTokens ?? {})[node.id] ?? 0;
+      info.usageFraction = cap > 0 ? tok / cap : 0;
       map.set(node.id, info);
     }
     return map;
@@ -530,17 +551,32 @@ export function BrainCanvasPage() {
   const handleSaveWorkspaceDescription = useCallback(async (title: string, description: string) => {
     if (!wsDescEdit) return;
     try {
-      await mutate({
-        action: 'set_workspace_description',
-        entity_id: wsDescEdit.entityId,
+      // Local + cloud entity update (standalone helper — safe if store action missing after HMR)
+      const { applyWorkspaceDescription } = await import('@/data/workspaceDescription');
+      applyWorkspaceDescription(
+        () => useStore.getState().entities,
+        (mapEntity, mapSpace) => {
+          useStore.setState(s => ({
+            entities: s.entities.map(mapEntity),
+            spaces: s.spaces.map(mapSpace),
+            editingEntity: null,
+          }));
+        },
+        wsDescEdit.entityId,
         title,
-        description,
-      });
-      useStore.setState(s => ({
-        entities: s.entities.map(e =>
-          e.id === wsDescEdit.entityId ? { ...e, title, description } : e
-        ),
-      }));
+        description
+      );
+      // Server brain API path (owner-checked) when available
+      try {
+        await mutate({
+          action: 'set_workspace_description',
+          entity_id: wsDescEdit.entityId,
+          title,
+          description,
+        });
+      } catch {
+        // Non-fatal if brain API unavailable — store push still persists
+      }
       await mutate({
         action: 'update_node',
         node_id: wsDescEdit.nodeId,
@@ -638,7 +674,7 @@ export function BrainCanvasPage() {
         x: toPos.x, y: toPos.y, width: CARD_W,
         height: heights[edge.to_node] ?? CARD_H,
       };
-      const [fromSide, toSide] = closestSides(fromBox, toBox);
+      const [fromSide, toSide] = resolveEdgeSides(fromBox, toBox, edge.from_side, edge.to_side);
       add(map, edge.from_node, fromSide);
       add(map, edge.to_node, toSide);
       const edgeSelected = selectedEdgeId
@@ -717,7 +753,10 @@ export function BrainCanvasPage() {
   // Tool modes
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
+  /** Pinned source port when first click was on a specific dot; null = auto. */
+  const [connectSourceSide, setConnectSourceSide] = useState<ConnectorSide | null>(null);
   const [addExistingOpen, setAddExistingOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [newNodeMode, setNewNodeMode] = useState(false);
   // Cursor position in canvas space, tracked only while the connect tool is
   // active. Passed to every card so a card can light up its nearest connector
@@ -729,9 +768,40 @@ export function BrainCanvasPage() {
     setConnectMode(true);
     setNewNodeMode(false);
     setAddExistingOpen(false);
+    setSearchOpen(false);
     setConnectSource(nodeId);
+    setConnectSourceSide(null);
     setConnectCursor(null);
   }, []);
+
+  /** Select a node from search: pan it into view and open the details panel. */
+  const handleSearchSelectNode = useCallback((nodeId: string) => {
+    const pos = nodePositions[nodeId] ?? positions[nodeId];
+    const container = containerRef.current;
+    if (pos && container) {
+      const rect = container.getBoundingClientRect();
+      const h = heights[nodeId] ?? CARD_H;
+      const cx = pos.x + CARD_W / 2;
+      const cy = pos.y + h / 2;
+      setViewport(v => ({
+        ...v,
+        x: rect.width / 2 - cx * v.scale,
+        y: rect.height / 2 - cy * v.scale,
+      }));
+    }
+    openDetailsForNode(nodeId, 'details', { replaceSelection: true });
+    setSearchOpen(false);
+    setConnectMode(false);
+    setNewNodeMode(false);
+    setAddExistingOpen(false);
+    setConnectSource(null);
+    setConnectSourceSide(null);
+  }, [nodePositions, positions, heights, setViewport, openDetailsForNode]);
+
+  const searchItems = useMemo(
+    () => toSearchItems(activeNodes, nodeInfos),
+    [activeNodes, nodeInfos],
+  );
   const handleConnectMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -744,44 +814,68 @@ export function BrainCanvasPage() {
   // Clear pending wire and leave connect tool (Esc / right-click).
   const resetConnectTool = useCallback(() => {
     setConnectSource(null);
+    setConnectSourceSide(null);
     setConnectCursor(null);
     setConnectMode(false);
   }, []);
 
-  // Connect tool: click a node to pick it as the source, click a second node
-  // to connect them instantly (closest facing sides, no label required —
-  // the connection alone tells the AI the nodes are related; see
-  // brainCompiler's fallback line for unlabeled edges).
-  const handleNodeConnectClick = useCallback(async (nodeId: string) => {
+  // Connect tool: click a node (or a specific port) to pick source, click a
+  // second node/port to connect. Port click pins that side; body click = auto
+  // closestSides (null side). Sides persist on the edge when set.
+  const handleNodeConnectClick = useCallback(async (
+    nodeId: string,
+    side: ConnectorSide | null = null,
+  ) => {
     if (!connectSource) {
       setConnectSource(nodeId);
+      setConnectSourceSide(side);
       return;
     }
     if (connectSource === nodeId) {
-      setConnectSource(null); // clicked the same node again — deselect
+      // Same node again — deselect pending wire.
+      setConnectSource(null);
+      setConnectSourceSide(null);
       return;
     }
     const from = connectSource;
+    const from_side = connectSourceSide;
+    const to_side = side;
     // One undirected link per pair — reconnecting must not stack lines.
     if (hasEdgeBetween(state?.edges ?? [], from, nodeId)) {
       setConnectSource(null);
+      setConnectSourceSide(null);
       return;
     }
     setConnectSource(null);
+    setConnectSourceSide(null);
     // Paint the line immediately with a temp id — don't wait on the POST
     // round-trip (SELECT + INSERT + revision log against Supabase, easily
     // half a second+). The backgrounded reload below replaces `edges`
     // wholesale with server truth once it resolves, so the temp id is only
     // ever visible for that one round trip and never persisted or duplicated.
     const tempId = `temp-${from}-${nodeId}-${Date.now()}`;
-    addLocalEdge({ id: tempId, from_node: from, to_node: nodeId, label: '' });
+    addLocalEdge({
+      id: tempId,
+      from_node: from,
+      to_node: nodeId,
+      label: '',
+      from_side,
+      to_side,
+    });
     try {
-      await mutate({ action: 'connect', from, to: nodeId, label: '' }, { backgroundReload: true });
+      await mutate({
+        action: 'connect',
+        from,
+        to: nodeId,
+        label: '',
+        from_side,
+        to_side,
+      }, { backgroundReload: true });
     } catch (e) {
       logger.error('Failed to create edge:', e);
       removeLocalEdge(tempId);
     }
-  }, [connectSource, state?.edges, mutate, addLocalEdge, removeLocalEdge]);
+  }, [connectSource, connectSourceSide, state?.edges, mutate, addLocalEdge, removeLocalEdge]);
 
   // New node: click to place on the canvas
   const handleCanvasClick = useCallback(async (e: React.MouseEvent) => {
@@ -864,13 +958,17 @@ export function BrainCanvasPage() {
     const isTypingTarget = (t: EventTarget | null) => {
       if (!(t instanceof HTMLElement)) return false;
       const tag = t.tagName;
-      return tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable) return true;
+      // Modals portaled outside the canvas (workspace description, etc.)
+      if (t.closest?.('.canvas-floating-panel')) return true;
+      return false;
     };
     /** Steal focus from sidebar/chrome so Space doesn't highlight/activate them. */
     const focusCanvas = () => {
       const canvas = containerRef.current;
       if (!canvas) return;
       const active = document.activeElement;
+      if (active instanceof HTMLElement && isTypingTarget(active)) return;
       if (active instanceof HTMLElement && active !== canvas && !canvas.contains(active)) {
         active.blur();
       }
@@ -879,10 +977,26 @@ export function BrainCanvasPage() {
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || wsDescEdit) return;
       if (e.code === 'Escape' && (connectMode || connectSource)) {
         e.preventDefault();
         resetConnectTool();
+        return;
+      }
+      if (e.code === 'Escape' && searchOpen) {
+        e.preventDefault();
+        setSearchOpen(false);
+        return;
+      }
+      // / opens node search (Shift+/ is ?, so only plain Slash).
+      if (e.code === 'Slash' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        setSearchOpen(true);
+        setConnectMode(false);
+        setNewNodeMode(false);
+        setAddExistingOpen(false);
+        setConnectSource(null);
+        setConnectSourceSide(null);
         return;
       }
       if (e.code !== 'Space') return;
@@ -895,6 +1009,7 @@ export function BrainCanvasPage() {
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
+      if (isTypingTarget(e.target) || wsDescEdit) return;
       // Stop focused <button>s from firing click on Space keyup.
       e.preventDefault();
       spaceHeldRef.current = false;
@@ -914,16 +1029,20 @@ export function BrainCanvasPage() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [connectMode, connectSource, resetConnectTool]);
+  }, [connectMode, connectSource, resetConnectTool, searchOpen, wsDescEdit]);
 
   const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
     const t = e.target as HTMLElement;
     // Don't pan when interacting with floating chrome (toolbar, pickers, etc.).
     if (t.closest?.('.canvas-floating-panel')) return;
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
 
     // Own keyboard focus so the next Space doesn't target the sidebar.
     if (containerRef.current && document.activeElement !== containerRef.current) {
       const active = document.activeElement;
+      if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable || active.closest?.('.canvas-floating-panel'))) {
+        return;
+      }
       if (active instanceof HTMLElement && !containerRef.current.contains(active)) {
         active.blur();
       }
@@ -1085,7 +1204,11 @@ export function BrainCanvasPage() {
           onEdgeClick={handleEdgeClick}
           selectedNodeIds={selectedNodeIds}
           selectedEdgeId={selectedEdgeId}
-          pendingConnect={connectSource ? { sourceNodeId: connectSource, cursor: connectCursor } : null}
+          pendingConnect={connectSource ? {
+            sourceNodeId: connectSource,
+            sourceSide: connectSourceSide,
+            cursor: connectCursor,
+          } : null}
         />
 
         {/* Nodes */}
@@ -1100,6 +1223,7 @@ export function BrainCanvasPage() {
               id={node.id}
               display={info}
               position={pos}
+              initialHeight={heights[node.id]}
               onHeightChange={handleHeightChange}
               connectCursor={connectMode ? connectCursor : null}
               connectedSides={connectedSidesByNode[node.id]}
@@ -1121,13 +1245,21 @@ export function BrainCanvasPage() {
                 if (spaceHeldRef.current || e.button === 1) return;
                 if (!connectMode) onNodePointerDown(e, node.id, pos);
               }}
+              onConnectPort={(side) => {
+                if (spaceHeldRef.current || didPanRef.current) {
+                  didPanRef.current = false;
+                  return;
+                }
+                if (connectMode) handleNodeConnectClick(node.id, side);
+              }}
               onClick={(e) => {
                 if (spaceHeldRef.current || didPanRef.current) {
                   didPanRef.current = false;
                   return;
                 }
                 if (connectMode) {
-                  handleNodeConnectClick(node.id);
+                  // Card body (not a specific port) → auto sides.
+                  handleNodeConnectClick(node.id, null);
                   return;
                 }
                 if (handleNodeClick(node.id, e)) {
@@ -1179,7 +1311,7 @@ export function BrainCanvasPage() {
                       }}
                       className="popup-item w-full flex items-center gap-2 px-3 py-[4px] text-sm"
                     >
-                      <FileText strokeWidth={2} className="w-4 h-4 shrink-0" />
+                      <FileText strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)]" />
                       <span className="flex-1 text-left font-medium tracking-wide">Open in editor</span>
                     </button>
                   )}
@@ -1243,19 +1375,20 @@ export function BrainCanvasPage() {
 
       {/* Resume details after editor open */}
       {panelResumeNodeId && splitViewRightId && !detailsPanel && (
-        <button
-          type="button"
-          onClick={handleResumePanel}
-          title="Back to details"
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 right-0 z-20",
-            "h-12 w-8 rounded-l-[10px] bg-[var(--app-panel)] border border-r-0 border-[var(--bone-12)]",
-            "flex items-center justify-center text-[var(--bone-50)] hover:text-[var(--bone-100)]",
-            "shadow-[-4px_0_16px_rgba(0,0,0,0.2)]"
-          )}
-        >
-          <PanelRightOpen className="w-4 h-4" strokeWidth={2} />
-        </button>
+        <Tooltip content="Back to details" position="left">
+          <button
+            type="button"
+            onClick={handleResumePanel}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 right-0 z-20",
+              "h-12 w-8 rounded-l-[10px] bg-[var(--app-panel)] border border-r-0 border-[var(--bone-12)]",
+              "flex items-center justify-center text-[var(--bone-100)] opacity-50 hover:opacity-100",
+              "shadow-[-4px_0_16px_rgba(0,0,0,0.2)]"
+            )}
+          >
+            <PanelRightOpen className="w-4 h-4" strokeWidth={2} />
+          </button>
+        </Tooltip>
       )}
 
       {/* ── Toolbar ── */}
@@ -1263,13 +1396,57 @@ export function BrainCanvasPage() {
         <div className="relative">
         <BrainToolbar
           connectMode={connectMode}
-          onToggleConnect={() => { setConnectMode(true); setNewNodeMode(false); setAddExistingOpen(false); setConnectSource(null); }}
-          onNewNode={() => { setNewNodeMode(true); setConnectMode(false); setAddExistingOpen(false); setConnectSource(null); }}
+          onToggleConnect={() => {
+            setConnectMode(true);
+            setNewNodeMode(false);
+            setAddExistingOpen(false);
+            setSearchOpen(false);
+            setConnectSource(null);
+            setConnectSourceSide(null);
+          }}
+          onNewNode={() => {
+            setNewNodeMode(true);
+            setConnectMode(false);
+            setAddExistingOpen(false);
+            setSearchOpen(false);
+            setConnectSource(null);
+            setConnectSourceSide(null);
+          }}
           newNodeActive={newNodeMode}
           addExistingOpen={addExistingOpen}
-          onToggleAddExisting={() => setAddExistingOpen(!addExistingOpen)}
-          onSelectTool={() => { setConnectMode(false); setNewNodeMode(false); setAddExistingOpen(false); setConnectSource(null); }}
+          onToggleAddExisting={() => {
+            setAddExistingOpen(v => !v);
+            setSearchOpen(false);
+            setConnectMode(false);
+            setNewNodeMode(false);
+            setConnectSource(null);
+            setConnectSourceSide(null);
+          }}
+          searchOpen={searchOpen}
+          onToggleSearch={() => {
+            setSearchOpen(v => !v);
+            setAddExistingOpen(false);
+            setConnectMode(false);
+            setNewNodeMode(false);
+            setConnectSource(null);
+            setConnectSourceSide(null);
+          }}
+          onSelectTool={() => {
+            setConnectMode(false);
+            setNewNodeMode(false);
+            setAddExistingOpen(false);
+            setSearchOpen(false);
+            setConnectSource(null);
+            setConnectSourceSide(null);
+          }}
         />
+        {searchOpen && (
+          <BrainNodeSearchPopover
+            nodes={searchItems}
+            onSelect={handleSearchSelectNode}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
         {addExistingOpen && (
           <AddExistingEntityPopover
             onAddEntity={handleAddExisting}

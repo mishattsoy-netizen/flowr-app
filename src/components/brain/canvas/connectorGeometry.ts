@@ -204,3 +204,23 @@ export function closestSides(a: NodeBox, b: NodeBox): [ConnectorSide, ConnectorS
   const bSide: ConnectorSide = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'left' : 'right') : (dy >= 0 ? 'top' : 'bottom');
   return [aSide, bSide];
 }
+
+/**
+ * Prefer pinned sides when present; fill missing ends with closestSides.
+ * Null/undefined on either end = auto for that end only.
+ */
+export function resolveEdgeSides(
+  fromBox: NodeBox,
+  toBox: NodeBox,
+  fromSide?: ConnectorSide | null,
+  toSide?: ConnectorSide | null,
+): [ConnectorSide, ConnectorSide] {
+  const [autoFrom, autoTo] = closestSides(fromBox, toBox);
+  return [fromSide ?? autoFrom, toSide ?? autoTo];
+}
+
+const VALID_SIDES: readonly ConnectorSide[] = ['top', 'right', 'bottom', 'left'];
+
+export function isConnectorSide(v: unknown): v is ConnectorSide {
+  return typeof v === 'string' && (VALID_SIDES as readonly string[]).includes(v);
+}

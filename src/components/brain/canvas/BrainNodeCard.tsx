@@ -3,7 +3,10 @@
 import { useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Brain as BrainIcon, CalendarClock } from 'lucide-react';
+import { Tooltip } from '@/components/layout/Tooltip';
+import { usageBarFillClass } from '@/lib/usageBarColor';
 import { CONNECTOR_DOT_R, connectorPoint, type ConnectorSide } from './connectorGeometry';
+import { useOverflowFade } from './useOverflowFade';
 
 export const CARD_W = 280;
 // Fallback height used before a card's real (content-driven) height has been
@@ -50,12 +53,14 @@ interface BrainNodeCardProps {
   /** True while this card is part of a multi-select group. */
   multiSelected?: boolean;
   /**
-   * Edge-click highlight: blue border + blue connection dots, but keep normal
-   * card/footer bg (no app-dark fill). Regular multiSelected still uses dark fill.
+   * Edge-click highlight: both endpoints get dark fill + blue border; only the
+   * ports on that edge go blue (via highlightedConnectedSides).
    */
   edgeHighlight?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
   onClick?: (e: React.MouseEvent) => void;
+  /** Connect tool: click a specific port to pin that side (body click stays auto). */
+  onConnectPort?: (side: ConnectorSide, e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Reports this card's actual rendered height (content-driven, varies with
    *  preview text length) so connector-line geometry can target the real
@@ -72,6 +77,8 @@ interface BrainNodeCardProps {
   highlightedConnectedSides?: ConnectorSide[];
   /** Override card cursor (e.g. connect tool / space-pan from parent). */
   cursorClassName?: string;
+  /** Last measured height (from session cache) so connector dots match edges on first paint. */
+  initialHeight?: number;
 }
 
 /** Endpoint discs that already have an edge (idle). Selected → brand blue. */
@@ -95,12 +102,14 @@ export function BrainNodeCard({
   edgeHighlight,
   onPointerDown,
   onClick,
+  onConnectPort,
   onContextMenu,
   onHeightChange,
   connectCursor,
   connectedSides = [],
   highlightedConnectedSides = [],
   cursorClassName,
+  initialHeight,
 }: BrainNodeCardProps) {
   const priorityLabel = display.priority <= 1 ? 'high' : display.priority <= 2 ? 'medium' : 'low';
   const connectedSet = useMemo(() => new Set(connectedSides), [connectedSides]);
@@ -110,21 +119,24 @@ export function BrainNodeCard({
   );
   // Connect tool: all 4 dots fade in together on card hover.
   const [connectHover, setConnectHover] = useState(false);
+  const [cardHover, setCardHover] = useState(false);
+  /** Port under the pointer — scales that disc only (connect mode). */
+  const [hoveredPort, setHoveredPort] = useState<ConnectorSide | null>(null);
   useLayoutEffect(() => {
-    if (!connectMode) setConnectHover(false);
+    if (!connectMode) {
+      setConnectHover(false);
+      setHoveredPort(null);
+    }
   }, [connectMode]);
 
-  // The card's height is now content-driven (grows/shrinks with preview
-  // text) instead of a fixed constant, so it's measured after each render
-  // and reported up for connector-line geometry. cardHeight starts at
-  // CARD_H so the connector dots have a sane position before the first
-  // measurement lands. Re-measure when selection changes border width
-  // (1px ↔ 2px) so side midpoints stay on the true edge center.
-  const [cardHeight, setCardHeight] = useState(CARD_H);
+  // Content-driven height, measured after render. Prefer session cache
+  // (initialHeight) so dots/edges don't start at CARD_H and jump on open.
+  const [cardHeight, setCardHeight] = useState(initialHeight ?? CARD_H);
   const cardRef = useRef<HTMLDivElement>(null);
-  // Full select (dark fill + blue border) vs edge-only (blue border, keep card bg).
+  // Select / edge-select: dark fill + blue border. Edge still uses edgeHighlight
+  // for port-only blue dots (not every connected port).
   const selectedBorder = !!(multiSelected || selected || edgeHighlight);
-  const darkSelectFill = !!(connectSelected || ((multiSelected || selected) && !edgeHighlight));
+  const darkSelectFill = !!(connectSelected || multiSelected || selected || edgeHighlight);
   const highlighted = !!(connectSelected || selectedBorder);
 
   const isWorkspace = display.variant === 'workspace';
@@ -132,6 +144,19 @@ export function BrainNodeCard({
   const isMemory = !!display.isMemory;
   const isDead = !!(display.lifecycleInactive && display.activeUntil
     && Date.parse(display.activeUntil) < Date.now());
+  // Rest: soft tag tint (or plain card). Hover/select: dark only (no tag wash).
+  // Same value drives card fill + preview fade so they stay consistent.
+  const useDarkSurface = darkSelectFill || cardHover;
+  const nodeSurface = useDarkSurface
+    ? 'var(--app-dark)'
+    : tagColor
+      ? `color-mix(in srgb, ${tagColor} 11%, var(--card-bg))`
+      : 'var(--card-bg)';
+
+  // Preview fade when text spans 3+ lines (not only when clamp overflows).
+  const { ref: previewRef, overflowing: previewOverflows } = useOverflowFade([
+    display.preview,
+  ], 3);
 
   useLayoutEffect(() => {
     const el = cardRef.current;
@@ -156,37 +181,39 @@ export function BrainNodeCard({
         top: position.y,
         width: CARD_W,
       }}
-      onMouseEnter={() => { if (connectMode) setConnectHover(true); }}
-      onMouseLeave={() => setConnectHover(false)}
+      onMouseEnter={() => {
+        setCardHover(true);
+        if (connectMode) setConnectHover(true);
+      }}
+      onMouseLeave={() => {
+        setCardHover(false);
+        setConnectHover(false);
+      }}
     >
     <div
       ref={cardRef}
       data-drag-handle="true"
       className={cn(
-        "relative w-full group flex-shrink-0 bg-[var(--card-bg)] rounded-xl text-left flex flex-col overflow-hidden",
-        dragging ? "transition-none" : "transition-colors duration-200",
+        "relative w-full flex-shrink-0 rounded-xl text-left flex flex-col overflow-hidden",
         cursorClassName
           ? cursorClassName
           : connectMode
             ? "cursor-pointer"
             : "cursor-grab active:cursor-grabbing",
-        // Regular select / connect-source: dark fill + blue border.
-        // Edge highlight: blue border only at rest; full-card hover dark (same as idle).
-        // Idle + tag: tag color border. Dead: monochrome dim.
-        darkSelectFill
-          ? "bg-[var(--app-dark)] border border-[var(--brand-blue)]"
-          : selectedBorder
-            ? "border border-[var(--brand-blue)] hover:bg-[var(--app-dark)]"
-            : tagColor
-              ? "border hover:bg-[var(--app-dark)]"
-              : "border border-[var(--bone-10)] hover:bg-[var(--app-dark)]",
-        // Dim only once the node is ACTUALLY dead (past active_until) — a
-        // scheduled node awaiting its start date, or an active temporary node
-        // whose end date hasn't arrived, render normally (incl. its usage bar).
+        darkSelectFill || selectedBorder
+          ? "border border-[var(--brand-blue)]"
+          : tagColor
+            ? "border"
+            : "border border-[var(--bone-10)]",
         isDead && "opacity-50 grayscale",
       )}
       style={{
-        transform: 'translateZ(0)',  // GPU layer
+        transform: 'translateZ(0)',
+        backgroundColor: nodeSurface,
+        // Smooth hover + select (same duration as preview fade layer).
+        transition: dragging
+          ? 'none'
+          : 'background-color 200ms ease-out, border-color 200ms ease-out',
         ...(!darkSelectFill && !selectedBorder && tagColor
           ? { borderColor: tagColor }
           : {}),
@@ -202,7 +229,7 @@ export function BrainNodeCard({
     >
       {isWorkspace ? (
         /* Workspace: no meta header — large icon + title, then child pills */
-        <div className="shrink-0 pt-4 px-4 pb-1">
+        <div className="relative z-[1] shrink-0 pt-4 px-4 pb-1">
           <div className="flex items-center gap-3 min-w-0">
             <span className="w-9 h-9 shrink-0 text-[var(--bone-100)] opacity-90 [&>svg]:w-9 [&>svg]:h-9 flex items-center justify-center">
               {display.typeIcon}
@@ -215,14 +242,14 @@ export function BrainNodeCard({
       ) : (
         <>
           {/* Header + title: fixed at top, padded */}
-          <div className="shrink-0 pt-3.5 px-4">
-            <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium mb-1.5">
+          <div className="relative z-[1] shrink-0 pt-2.5 px-4">
+            <div className="flex items-center justify-between text-[11px] text-[var(--bone-30)] font-medium mb-3">
               {isMemory ? (
                 // Memory notes aren't filed anywhere — the Memory pill IS the
                 // identity line, replacing the type/workspace label entirely.
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] text-[9px] font-semibold uppercase tracking-wide bg-[#A78BFA]/15 text-[#C4B5FD]">
                   <BrainIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
-                  Memory
+                  <span className="relative top-px">Memory</span>
                 </span>
               ) : (
                 <div className="flex items-center gap-1.5">
@@ -237,41 +264,41 @@ export function BrainNodeCard({
 
             {/* Lifecycle state reads from the footer date pill — no chips
                 crowding the title. */}
-            <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-1 min-w-0">
+            <h3 className="font-display font-medium text-base text-[var(--bone-100)] line-clamp-2 leading-tight min-w-0">
               {display.title || 'Untitled'}
             </h3>
           </div>
 
-          {/* The wrapper height must be an exact multiple of the line height,
-              not flex-driven — a flex-1 box clips the text at an arbitrary
-              height, slicing the last row through the middle of the glyphs. */}
+          {/* maxHeight (not fixed height) so short previews shrink the card.
+              line-clamp-4 keeps whole lines only (4 × 18px = 72px). Bottom fade
+              when preview is 3+ lines. */}
           {display.preview && (
-            <div
-              className="relative shrink-0 px-4 mt-1.5 overflow-hidden"
-              style={{ height: '72px' }}
-            >
+            <div className="relative z-[1] shrink-0 px-4 mt-1.5 overflow-hidden max-h-[72px]">
               <p
-                className="text-[11px] text-[var(--bone-70)] break-words"
+                ref={previewRef}
+                className="text-[11px] text-[var(--bone-70)] break-words line-clamp-4"
                 style={{ lineHeight: '18px' }}
               >
                 {display.preview}
               </p>
-              <div className={cn(
-                "absolute inset-x-0 bottom-0 h-[18px] pointer-events-none bg-gradient-to-b from-transparent transition-colors duration-200",
-                darkSelectFill ? "to-[var(--app-dark)]" : "to-[var(--card-bg)] group-hover:to-[var(--app-dark)]"
-              )} />
+              {previewOverflows && (
+                <div
+                  className="absolute inset-x-0 bottom-0 h-7 pointer-events-none"
+                  style={{
+                    backgroundColor: nodeSurface,
+                    transition: dragging ? 'none' : 'background-color 200ms ease-out',
+                    maskImage: 'linear-gradient(to bottom, transparent 0%, black 100%)',
+                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 100%)',
+                  }}
+                />
+              )}
             </div>
           )}
         </>
       )}
 
-      {/* Footer: pill row (same vocabulary as the kanban TaskCard —
-          bone-10 chips, rounded-[6px], 10px medium), then the usage bar on
-          its own line beneath, inside the card's padding. */}
-      <div className={cn(
-        "relative shrink-0 w-full px-4 pt-2.5 pb-3 rounded-b-xl transition-colors duration-200",
-        darkSelectFill ? "bg-[var(--app-dark)]" : "bg-[var(--card-bg)] group-hover:bg-[var(--app-dark)]"
-      )}>
+      {/* Footer: no own fill — same card background shows through. */}
+      <div className="relative z-[1] shrink-0 w-full px-4 pt-2.5 pb-3 rounded-b-xl">
         <div className="flex flex-wrap items-center gap-1.5 w-full">
           <span className={cn(
             "inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium capitalize shrink-0",
@@ -285,23 +312,25 @@ export function BrainNodeCard({
               need to repeat it in the footer too. */}
           {/* Custom tag pill, in the tag's own colour. */}
           {display.tagName && tagColor && (
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[110px]"
-              style={{ backgroundColor: `${tagColor}26`, color: tagColor }}
-              title={display.tagName}
-            >
-              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
-              <span className="truncate">{display.tagName}</span>
-            </span>
+            <Tooltip content={display.tagName}>
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[110px]"
+                style={{ backgroundColor: `${tagColor}26`, color: tagColor }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagColor }} />
+                <span className="truncate">{display.tagName}</span>
+              </span>
+            </Tooltip>
           )}
           {/* Workspace pill, matching TaskCard's workspace chip. */}
           {display.parentLabel && !isWorkspace && (
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[90px] bg-[var(--bone-10)] text-[var(--bone-70)]"
-              title={display.parentLabel}
-            >
-              <span className="truncate">{display.parentLabel}</span>
-            </span>
+            <Tooltip content={display.parentLabel}>
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[90px] bg-[var(--bone-10)] text-[var(--bone-70)]"
+              >
+                <span className="truncate">{display.parentLabel}</span>
+              </span>
+            </Tooltip>
           )}
           {/* Lifecycle end date, TaskCard's due-date treatment. */}
           {display.activeUntil && (
@@ -323,31 +352,37 @@ export function BrainNodeCard({
           ))}
         </div>
 
-        {/* Usage bar — same visual as the details-panel header (percentage +
-            track), on its own row inside the card's padding. */}
-        {display.usageFraction != null && (
-          <div className="flex items-center gap-2 w-full mt-2.5">
-            <span className="text-[10px] font-semibold tabular-nums text-[var(--bone-60)] shrink-0">
-              {display.usageFraction >= 0.01
-                ? Math.round(display.usageFraction * 100)
-                : Math.max(0.1, Math.round(display.usageFraction * 1000) / 10)}%
-            </span>
-            <div className="flex-1 h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-[width] duration-300",
-                  display.usageFraction >= 1 ? "bg-red-400" : "bg-[#2A78D6]"
-                )}
-                style={{ width: `${Math.min(100, Math.max(1.5, display.usageFraction * 100))}%` }}
-              />
+        {/* Usage bar — always shown (incl. lifetime / empty). */}
+        {(() => {
+          const frac = display.usageFraction ?? 0;
+          const barPct = Math.min(100, Math.max(0, frac * 100));
+          return (
+            <div className="flex items-center gap-2 w-full mt-2.5">
+              <span className="text-[10px] font-semibold tabular-nums text-[var(--bone-60)] shrink-0">
+                {barPct >= 1
+                  ? Math.round(barPct)
+                  : barPct > 0
+                    ? Math.max(0.1, Math.round(barPct * 10) / 10)
+                    : 0}%
+              </span>
+              <div className="flex-1 h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width,background-color] duration-300",
+                    usageBarFillClass(barPct),
+                  )}
+                  style={{ width: `${barPct}%` }}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
 
       {/* Endpoint discs: all 4 blue dots fade in together on card hover
-          while the connect tool is active (not staggered per-dot proximity). */}
+          while the connect tool is active. Hovering a specific port scales it;
+          clicking a port pins that side (body click stays auto). */}
       {SIDES.map(side => {
         const borderW = 1;
         const local = connectorPoint(
@@ -364,17 +399,28 @@ export function BrainNodeCard({
 
         // All four sides share the same opacity so they appear as one unit.
         const blueOpacity = connectSelected || (connectMode && connectHover) ? 1 : 0;
+        const portHot = connectMode && hoveredPort === side;
+        const scale = portHot ? 1.35 : 1;
         const disc = {
           left: hit / 2 - r,
           top: hit / 2 - r,
           width: r * 2,
           height: r * 2,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center',
+          transition: 'transform 120ms ease-out, opacity 150ms ease-out, background-color 150ms ease-out',
         } as const;
 
         return (
           <div
             key={side}
-            onClick={connectMode ? (e) => { e.stopPropagation(); onClick?.(e); } : undefined}
+            onPointerEnter={connectMode ? () => setHoveredPort(side) : undefined}
+            onPointerLeave={connectMode ? () => setHoveredPort(prev => (prev === side ? null : prev)) : undefined}
+            onClick={connectMode ? (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onConnectPort?.(side, e);
+            } : undefined}
             className={cn(
               "absolute z-20",
               connectMode && "pointer-events-auto cursor-pointer"
@@ -405,7 +451,7 @@ export function BrainNodeCard({
               />
             )}
             <div
-              className="absolute rounded-full pointer-events-none transition-opacity duration-150 ease-out"
+              className="absolute rounded-full pointer-events-none"
               style={{
                 ...disc,
                 backgroundColor: 'var(--brand-blue)',

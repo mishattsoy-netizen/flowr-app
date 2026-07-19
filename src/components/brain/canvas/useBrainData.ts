@@ -26,11 +26,16 @@ export interface BrainCanvasNode {
   active_until?: string | null;
 }
 
+export type BrainConnectorSide = 'top' | 'right' | 'bottom' | 'left';
+
 export interface BrainCanvasEdge {
   id: string;
   from_node: string;
   to_node: string;
   label: string;
+  /** Pinned port; null/undefined = auto closestSides at render time. */
+  from_side?: BrainConnectorSide | null;
+  to_side?: BrainConnectorSide | null;
 }
 
 interface BrainMeta {

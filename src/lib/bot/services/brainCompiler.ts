@@ -64,21 +64,27 @@ export function compileBrainDocument(
   const enabled = nodes.filter(n => n.enabled)
   const nowMs = now.getTime()
   const expiredNodeIds = enabled.filter(n => isInactive(n, nowMs)).map(n => n.id)
-  const active = enabled.filter(n => !isInactive(n, nowMs))
-  const brokenNodeIds = active
+  // Broken refs among all enabled (incl. lifecycle-inactive) so UI can still
+  // score token cost for scheduled/dead nodes.
+  const brokenNodeIds = enabled
     .filter(n => (n.type === 'workspace' || n.type === 'entity') && !n.resolved)
     .map(n => n.id)
-  const sections = active.filter(n => n.type === 'section')
-  const renderable = active.filter(n =>
+  // Scoreable = every enabled non-section non-broken node — even if lifecycle
+  // currently excludes it from the compiled block (UI usage bars need a cost).
+  const scoreable = enabled.filter(n =>
     n.type !== 'section' && !brokenNodeIds.includes(n.id))
 
   const rendered = new Map<string, string>()
-  for (const n of renderable) rendered.set(n.id, renderNode(n, config.per_node_cap))
+  for (const n of scoreable) rendered.set(n.id, renderNode(n, config.per_node_cap))
   const cost = (id: string) => estimateTokens(rendered.get(id) ?? '')
-  // All renderable nodes (including later budget-dropped ones) so cards can
-  // still show "how big is this node" cost.
   const perNodeTokens: Record<string, number> = {}
-  for (const n of renderable) perNodeTokens[n.id] = cost(n.id)
+  for (const n of scoreable) perNodeTokens[n.id] = cost(n.id)
+
+  // Compile only lifecycle-active nodes.
+  const active = enabled.filter(n => !isInactive(n, nowMs))
+  const sections = active.filter(n => n.type === 'section')
+  const renderable = active.filter(n =>
+    n.type !== 'section' && !brokenNodeIds.includes(n.id))
 
   // Budget: pinned always kept; drop the cheapest-to-lose until under limit.
   const pinnedTotal = renderable.filter(n => n.pinned).reduce((s, n) => s + cost(n.id), 0)

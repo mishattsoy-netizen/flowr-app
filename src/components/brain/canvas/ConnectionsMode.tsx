@@ -10,6 +10,7 @@ import {
   Unlink,
   X,
 } from 'lucide-react';
+import { Tooltip } from '@/components/layout/Tooltip';
 import type { BrainCanvasEdge } from './useBrainData';
 import type { DetailsNodeDisplay } from './DetailsMode';
 
@@ -47,14 +48,15 @@ function PairNodeRow({
   onDetach: () => void;
 }) {
   return (
-    <div className="group relative h-11 rounded-[14px] overflow-hidden border-2 border-[var(--brand-blue)]">
-      <button
-        type="button"
-        title="Break connection"
-        onClick={onDetach}
-        className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
-        aria-label="Break connection"
-      />
+    <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--brand-blue)]">
+      <Tooltip content="Break connection">
+        <button
+          type="button"
+          onClick={onDetach}
+          className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+          aria-label="Break connection"
+        />
+      </Tooltip>
       <div
         aria-hidden
         className={cn(
@@ -76,14 +78,14 @@ function PairNodeRow({
           onClick={onOpen}
           className="flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
         >
-          <span className="w-4 h-4 shrink-0 text-[var(--bone-70)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
+          <span className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
             {display.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
           </span>
           <span className="font-serif text-[15px] text-[var(--bone-100)] truncate">
             {display.title}
           </span>
         </button>
-        <span className="pr-3 text-[var(--bone-60)] opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="pr-3 text-[var(--bone-100)] opacity-0 group-hover:opacity-60 transition-opacity">
           <ChevronRight className="w-4 h-4" strokeWidth={2} />
         </span>
       </div>
@@ -163,7 +165,7 @@ export function ConnectionsMode({
         <button
           type="button"
           onClick={() => onSetMode('details')}
-          className="flex-1 min-w-0 h-8 flex items-center gap-1 px-1.5 rounded-[8px] text-[13px] text-[var(--bone-60)] hover:text-[var(--bone-90)] hover:bg-[var(--bone-6)] border-none outline-none bg-transparent"
+          className="flex-1 min-w-0 h-8 flex items-center gap-1 px-1.5 rounded-[8px] text-[13px] text-[var(--bone-100)] opacity-60 hover:opacity-90 hover:bg-[var(--bone-6)] border-none outline-none bg-transparent"
         >
           <ChevronLeft className="w-4 h-4 shrink-0" strokeWidth={2} />
           <span className="truncate">Back to details</span>
@@ -171,7 +173,7 @@ export function ConnectionsMode({
         <button
           type="button"
           onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-35)] hover:text-[var(--bone-100)] hover:bg-[var(--bone-6)] border-none outline-none"
+          className="w-7 h-7 flex items-center justify-center rounded-[8px] text-[var(--bone-100)] opacity-35 hover:opacity-100 hover:bg-[var(--bone-6)] border-none outline-none"
           aria-label="Close"
         >
           <X className="w-4 h-4" strokeWidth={2} />
@@ -212,23 +214,24 @@ export function ConnectionsMode({
                   placeholder="Label"
                 />
               ) : (
-                <button
-                  type="button"
-                  onClick={() => startEditLabel(pairEdge)}
-                  className={cn(
-                    "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                    "border-none outline-none transition-colors",
-                    // Idle labels are dimmed (bg too, not just text); hover
-                    // brings the row up to full dark + brighter text.
-                    "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
-                    pairEdge.label
-                      ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
-                      : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
-                  )}
-                  title="Edit connection label"
-                >
-                  {pairEdge.label || 'Add label'}
-                </button>
+                <Tooltip content="Edit connection label">
+                  <button
+                    type="button"
+                    onClick={() => startEditLabel(pairEdge)}
+                    className={cn(
+                      "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
+                      "border-none outline-none transition-colors",
+                      // Idle labels are dimmed (bg too, not just text); hover
+                      // brings the row up to full dark + brighter text.
+                      "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
+                      pairEdge.label
+                        ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
+                        : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
+                    )}
+                  >
+                    {pairEdge.label || 'Add label'}
+                  </button>
+                </Tooltip>
               )}
             </div>
             <PairNodeRow
@@ -268,16 +271,16 @@ export function ConnectionsMode({
             className={cn(
               "group/focused w-full flex items-center gap-2 h-11 px-3 rounded-[14px] text-left",
               "bg-[rgba(42,120,214,0.12)] hover:bg-[rgba(42,120,214,0.22)]",
-              "border-2 border-[var(--brand-blue)] outline-none transition-colors"
+              "border border-[var(--brand-blue)] outline-none transition-colors"
             )}
           >
-            <span className="w-4 h-4 shrink-0 text-[var(--bone-70)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
+            <span className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
               {focusedDisplay.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
             </span>
             <span className="font-serif text-[15px] text-[var(--bone-100)] truncate flex-1">
               {focusedDisplay.title}
             </span>
-            <span className="text-[var(--bone-60)] opacity-0 group-hover/focused:opacity-100 transition-opacity">
+            <span className="text-[var(--bone-100)] opacity-0 group-hover/focused:opacity-60 transition-opacity">
               <ChevronRight className="w-4 h-4" strokeWidth={2} />
             </span>
           </button>
@@ -311,36 +314,38 @@ export function ConnectionsMode({
                       placeholder="Label"
                     />
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => startEditLabel(row.edge)}
-                      className={cn(
-                        "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                        "border-none outline-none transition-colors",
-                        // Idle labels are dimmed (bg too, not just text).
-                        "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
-                        row.edge.label
-                          ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
-                          : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
-                      )}
-                      title="Edit connection label"
-                    >
-                      {row.edge.label || 'Add label'}
-                    </button>
+                    <Tooltip content="Edit connection label">
+                      <button
+                        type="button"
+                        onClick={() => startEditLabel(row.edge)}
+                        className={cn(
+                          "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
+                          "border-none outline-none transition-colors",
+                          // Idle labels are dimmed (bg too, not just text).
+                          "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
+                          row.edge.label
+                            ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
+                            : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
+                        )}
+                      >
+                        {row.edge.label || 'Add label'}
+                      </button>
+                    </Tooltip>
                   )}
                 </div>
 
                 {/* Connected card: idle-node styling (card-bg + bone-10 border),
                     bone-6 overlay + arrow on hover, red detach revealed by
                     hovering the right zone. Dot marks it on the spine. */}
-                <div className="group relative h-11 rounded-[14px] overflow-hidden border-2 border-[var(--bone-10)]">
-                  <button
-                    type="button"
-                    title="Break connection"
-                    onClick={() => onBreakEdge(row.edge.id)}
-                    className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
-                    aria-label="Break connection"
-                  />
+                <div className="group relative h-11 rounded-[14px] overflow-hidden border border-[var(--bone-10)]">
+                  <Tooltip content="Break connection">
+                    <button
+                      type="button"
+                      onClick={() => onBreakEdge(row.edge.id)}
+                      className="peer/zone absolute right-0 top-0 bottom-0 w-11 z-20 bg-transparent border-none outline-none cursor-pointer"
+                      aria-label="Break connection"
+                    />
+                  </Tooltip>
                   <div
                     aria-hidden
                     className={cn(
@@ -362,14 +367,14 @@ export function ConnectionsMode({
                       onClick={() => onFocusNode(row.otherId)}
                       className="relative flex-1 min-w-0 h-full flex items-center gap-2 px-3 text-left border-none outline-none bg-transparent"
                     >
-                      <span className="w-4 h-4 shrink-0 text-[var(--bone-60)] flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
+                      <span className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-60 flex items-center justify-center [&_svg]:w-4 [&_svg]:h-4">
                         {d?.typeIcon ?? <FileText className="w-4 h-4" strokeWidth={1.75} />}
                       </span>
                       <span className="font-serif text-[15px] text-[var(--bone-90)] truncate">
                         {d?.title ?? 'Untitled'}
                       </span>
                     </button>
-                    <span className="relative pr-3 text-[var(--bone-30)] opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="relative pr-3 text-[var(--bone-100)] opacity-0 group-hover:opacity-30 transition-opacity">
                       <ChevronRight className="w-4 h-4" strokeWidth={2} />
                     </span>
                   </div>
@@ -380,18 +385,19 @@ export function ConnectionsMode({
         </div>
 
         {/* + Connect */}
-        <button
-          type="button"
-          onClick={() => onStartConnectFrom(focusedNodeId)}
-          className={cn(
-            "mt-3 h-11 w-full rounded-[14px] bg-[var(--bone-6)]",
-            "flex items-center justify-center text-[var(--bone-35)] hover:text-[var(--bone-90)] hover:bg-[var(--bone-10)]",
-            "border-none outline-none transition-colors"
-          )}
-          title="Connect to another node"
-        >
-          <Plus className="w-5 h-5" strokeWidth={2} />
-        </button>
+        <Tooltip content="Connect to another node">
+          <button
+            type="button"
+            onClick={() => onStartConnectFrom(focusedNodeId)}
+            className={cn(
+              "mt-3 h-11 w-full rounded-[14px] bg-[var(--bone-6)]",
+              "flex items-center justify-center text-[var(--bone-100)] opacity-35 hover:opacity-90 hover:bg-[var(--bone-10)]",
+              "border-none outline-none transition-colors"
+            )}
+          >
+            <Plus className="w-5 h-5" strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '@/data/store';
 import { cn } from '@/lib/utils';
@@ -64,20 +64,34 @@ export function BrainSidebarContent() {
   }, []);
 
   // collapsedBrains[id] === false → expanded; missing/true → collapsed
-  const [collapsedBrains, setCollapsedBrains] = useState<Record<string, boolean>>({});
+  // Seed the last-opened brain as already expanded so remounting the brain
+  // sidebar never animates closed → open.
+  const [collapsedBrains, setCollapsedBrains] = useState<Record<string, boolean>>(() =>
+    (activeBrainId || selectedBrainId)
+      ? { [activeBrainId || selectedBrainId!]: false }
+      : {},
+  );
 
   const expandBrain = useCallback((brainId: string) => {
     setCollapsedBrains(prev => (prev[brainId] === false ? prev : { ...prev, [brainId]: false }));
     fetchBrainNodes(brainId);
   }, [fetchBrainNodes]);
 
-  useEffect(() => {
+  // Layout (not effect) so expand lands before paint — no unfold flash.
+  useLayoutEffect(() => {
     if (brains.length === 0) return;
     const defaultBrain = brains.find(b => b.is_default);
     const lastId = selectedBrainId || activeBrainId || defaultBrain?.id;
     if (!lastId) return;
+    // Prefer last-opened, else default/main brain.
+    if (!activeBrainId || !brains.some(b => b.id === activeBrainId)) {
+      setActiveBrainId(lastId);
+    }
+    if (selectedBrainId !== lastId && !selectedBrainId) {
+      setSelectedBrainId(lastId);
+    }
     expandBrain(lastId);
-  }, [brains, selectedBrainId, activeBrainId, expandBrain]);
+  }, [brains, selectedBrainId, activeBrainId, expandBrain, setActiveBrainId, setSelectedBrainId]);
 
   useEffect(() => {
     if (selectedBrainId && collapsedBrains[selectedBrainId] === false) {
@@ -355,7 +369,9 @@ export function BrainSidebarContent() {
             ))}
           </div>
         ) : brains.map(brain => {
-          const isCollapsed = collapsedBrains[brain.id] ?? true;
+          // Default the active/last brain to expanded (no closed→open animate on open).
+          const openId = selectedBrainId || activeBrainId;
+          const isCollapsed = collapsedBrains[brain.id] ?? (brain.id !== openId);
           const brainNodes = nodesByBrain[brain.id] ?? [];
           const BrainIcon = brainIcon(brain);
           const isBrainActive = brain.id === selectedBrainId;
@@ -487,7 +503,8 @@ export function BrainSidebarContent() {
               </div>
 
               {/* Children */}
-              <div className={cn("grid transition-all duration-100 ease-out", !isCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+              {/* No expand/collapse transition — opening Brain must not animate unfold. */}
+              <div className={cn("grid", !isCollapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                 <div className="overflow-hidden pb-[2px] -mb-[2px]">
                   <div className="relative flex flex-col gap-[1px]">
                     {brainNodes.length > 0 && (
@@ -614,7 +631,7 @@ export function BrainSidebarContent() {
                   className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
                   onClick={() => startRenameNode(brainId, node)}
                 >
-                  <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Rename</span>
                 </button>
                 {canDuplicate && (
@@ -623,7 +640,7 @@ export function BrainSidebarContent() {
                     className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
                     onClick={() => handleDuplicateNode(brainId, node)}
                   >
-                    <Copy strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                    <Copy strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                     <span className="flex-1 text-left font-medium tracking-wide">Duplicate</span>
                   </button>
                 )}
@@ -637,17 +654,17 @@ export function BrainSidebarContent() {
                       openBrainNode(node.ref_id!);
                     }}
                   >
-                    <Columns2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                    <Columns2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                     <span className="flex-1 text-left font-medium tracking-wide">Open in right column</span>
                   </button>
                 )}
                 <div className="h-px bg-[var(--bone-6)] mx-1.5 my-[2px]" />
                 <button
                   type="button"
-                  className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none text-red-400 hover:text-red-400"
+                  className="popup-item popup-item-danger group w-full flex items-center gap-2 px-3 text-sm transition-none"
                   onClick={() => handleDeleteNode(brainId, node)}
                 >
-                  <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0 opacity-70" />
+                  <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left font-medium tracking-wide">Delete</span>
                 </button>
               </>
@@ -672,8 +689,8 @@ export function BrainSidebarContent() {
                   }}
                 >
                   {isCollapsed
-                    ? <ChevronRight strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
-                    : <ChevronDown strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />}
+                    ? <ChevronRight strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
+                    : <ChevronDown strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />}
                   <span className="flex-1 text-left font-medium tracking-wide">{isCollapsed ? 'Unfold' : 'Fold'}</span>
                 </button>
                 <button
@@ -681,7 +698,7 @@ export function BrainSidebarContent() {
                   className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none"
                   onClick={() => startRenameBrain(brainId, title)}
                 >
-                  <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <Edit2 strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Rename</span>
                 </button>
                 <button
@@ -692,16 +709,16 @@ export function BrainSidebarContent() {
                     setIconPicker({ brainId, x: menu.x, y: menu.y });
                   }}
                 >
-                  <Palette strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-70)] group-hover:text-[var(--bone-100)]" />
+                  <Palette strokeWidth={2} className="w-4 h-4 shrink-0 text-[var(--bone-100)] opacity-70 group-hover:opacity-100" />
                   <span className="flex-1 text-left font-medium tracking-wide">Change icon</span>
                 </button>
                 <div className="h-px bg-[var(--bone-6)] mx-1.5 my-[2px]" />
                 <button
                   type="button"
-                  className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none text-red-400 hover:text-red-400"
+                  className="popup-item popup-item-danger group w-full flex items-center gap-2 px-3 text-sm transition-none"
                   onClick={() => handleDeleteBrain(brainId)}
                 >
-                  <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0 opacity-70" />
+                  <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left font-medium tracking-wide">Delete</span>
                 </button>
               </>
@@ -728,7 +745,7 @@ export function BrainSidebarContent() {
                   type="button"
                   title={name}
                   onClick={() => handleSetBrainIcon(iconPicker.brainId, name)}
-                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-70)] hover:text-[var(--bone-100)] hover:bg-[var(--app-dark)]"
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-small)] text-[var(--bone-100)] opacity-70 hover:opacity-100 hover:bg-[var(--app-dark)]"
                 >
                   <Ic strokeWidth={2} className="w-4 h-4" />
                 </button>

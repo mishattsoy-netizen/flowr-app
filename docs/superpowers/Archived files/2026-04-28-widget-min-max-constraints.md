@@ -1,185 +1,116 @@
-# Widget Min/Max Size Constraints Implementation Plan
+---
+title: Widget Min/Max Size Constraints + Layout Overlap Fix
+date: 2026-04-28
+status: approved
+---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+## Problem
 
-**Goal:** Enforce `minH: 2` and `maxW: 4` for all non-clock widgets to prevent overlapping layouts, and migrate existing saved layouts to clamp to new bounds.
+Non-clock widgets have `minH: 1`, which allows them to be squished to a single row. Combined with `fillGaps` expanding widgets into available vertical space and percentage-based grid rendering, this produces visual overlaps when layouts contain tall spanners alongside short widgets (e.g., the default dashboard layout where Clock occupies only 1 row while Shortcuts spans 3).
 
-**Architecture:** Two targeted changes — (1) update registry constraints for non-clock widgets, (2) promote `recoverLayout` to a first-pass in the load effect and fix the workspace default layout. No engine changes needed; the engine already reads all constraints from the registry.
+## Goals
 
-**Tech Stack:** TypeScript, Next.js (App Router), React
+1. Enforce `minH: 2` and `maxW: 4` for all non-clock widgets in the registry.
+2. Fix default layouts so no non-clock widget starts with `h < 2`.
+3. Migrate existing saved layouts to clamp widget dimensions to new registry bounds.
+
+## Non-Goals
+
+- No changes to the bento engine (`bento-engine.ts`) logic.
+- Clock widget constraints remain unchanged: `minW: 2, minH: 1, maxW: 4, maxH: 2`.
+- No changes to the grid model (6 half-cols, 4 rows, MAX_PER_ROW=3).
 
 ---
 
-### Task 1: Update widget registry constraints
+## Design
 
-**Files:**
-- Modify: `src/components/bento/registry.tsx`
+### 1. Registry changes (`src/components/bento/registry.tsx`)
 
-- [ ] **Step 1: Open the file and locate the registry object**
+Update every non-clock entry:
 
-Open `src/components/bento/registry.tsx`. The `widgetRegistry` object starts at line 36. Each entry has `minW`, `minH`, `maxW`, `maxH` fields.
+| Widget | minW | minH | maxW | maxH |
+|---|---|---|---|---|
+| timer | 2 | 2 | 4 | 4 |
+| all-files | 2 | 2 | 4 | 4 |
+| tasks | 2 | 2 | 4 | 4 |
+| quick-links | 2 | 2 | 4 | 4 |
+| smart-tasks | 2 | 2 | 4 | 4 |
+| stacked-widgets | 2 | 2 | 4 | 4 |
+| shortcuts | 2 | 2 | 4 | 4 |
+| recent | 2 | 2 | 4 | 4 |
 
-- [ ] **Step 2: Update all non-clock entries**
+Clock stays: `minW: 2, minH: 1, maxW: 4, maxH: 2`.
 
-Replace the entire `widgetRegistry` object with the following (clock is unchanged, all others get `minH: 2, maxW: 4`):
+**Why maxW: 4?** Prevents any non-clock widget from going full-width (w=6), keeping space for at least one companion widget.
+
+### 2. Default layout fixes (`src/hooks/useBentoLayout.ts`)
+
+The `dashboard` default layout has `clock` at `h: 1`, which leaves a 1-row gap that triggers spanner/fillGaps confusion. The fix: keep clock at h=1 (it's the only widget allowed to be that short) but ensure all other widgets in the same default layout start at `h ≥ 2`.
+
+**Dashboard default** — already valid after registry change (clock is the only h=1 widget):
+```
+row 0: clock(2w,1h)  smart-tasks(4w,2h)
+row 1: shortcuts(2w,3h) [spans 1-3]
+row 2: recent(2w,2h)  all-files(2w,2h)
+```
+
+**Workspace default** — must be updated. Current values violate new constraints:
+- `shortcuts`: `w:6, h:1` → violates maxW:4 and minH:2
+- Fix: `shortcuts: w:4, h:2`; add a companion widget or leave as single-widget row rebalanced to full width. Since shortcuts is the only widget in row 1, rebalanceAll will expand it to fill the row — but maxW:4 would cap it. **Resolution**: change shortcuts in workspace default to `w:4, h:2` and pair it with a second widget, OR accept that a single widget in a row always gets w=6 via `rebalanceRow` (which overrides maxW for single-item rows: `if (n === 1) return [{ ...items[0], w: total }]`).
+
+The `rebalanceRow` single-item shortcut (`n === 1 → w: total`) bypasses maxW. This is intentional — a lone widget must fill its row. The maxW constraint only applies when there are neighbors to share space with. This is correct behavior and requires no change.
+
+### 3. Saved layout migration (`src/hooks/useBentoLayout.ts`)
+
+In the `loadBentoLayout` effect, the existing code already calls `recoverLayout` as a fallback. `recoverLayout` clamps each widget's `w` and `h` to its registry `minW/maxW/minH/maxH`.
+
+**Change**: promote `recoverLayout` from fallback-only to always-run first pass. After loading saved items, run `recoverLayout` unconditionally before `validateLayout`. If `recoverLayout` returns a valid layout, use it (even if the original was already valid — the clamp is idempotent for valid layouts).
 
 ```ts
-export const widgetRegistry: Record<string, WidgetRegistryEntry> = {
-  // w2 = 1 col, w4 = 2 col, w6 = full width; h in rows
-  'clock':            { label: 'Clock',           description: 'Live clock',                    component: ClockWidget,           defaultW: 2, defaultH: 1, minW: 2, minH: 1, maxW: 4, maxH: 2,  category: 'General' },
-  'timer':            { label: 'Timer',            description: 'Focus timer',                   component: TimerWidget,           defaultW: 2, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'General' },
-  'all-files':        { label: 'All Files',        description: 'Quick access to all files',     component: AllFilesWidget,        defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'Organization' },
-  'tasks':            { label: 'Tasks',            description: 'Global task list',              component: TasksWidget,           defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'Organization' },
-  'quick-links':      { label: 'Quick Links',      description: 'Bookmark shortcuts',            component: QuickLinksWidget,      defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'Organization' },
-  'smart-tasks':      { label: 'Smart Tasks',      description: 'Stacked task views',            component: SmartTaskStackWidget,  defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'Organization' },
-  'stacked-widgets':  { label: 'Stacked Widgets',  description: 'Combine up to 3 widgets',      component: GenericStackedWidget,  defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'General' },
-  'shortcuts':        { label: 'Shortcuts',        description: 'App-like shortcuts',            component: ShortcutsWidget,       defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'General' },
-  'recent':           { label: 'Recent',           description: 'Recently opened pages',         component: RecentWidget,          defaultW: 4, defaultH: 2, minW: 2, minH: 2, maxW: 4, maxH: 4,  category: 'General' },
-};
+// In loadBentoLayout effect, replace:
+const balanced = compactLayout(rebalanceAll(items));
+if (validateLayout(balanced).valid) {
+  setLayout(balanced);
+} else {
+  const recovered = recoverLayout(items);
+  ...
+}
+
+// With:
+const recovered = recoverLayout(items) ?? compactLayout(rebalanceAll(items));
+if (validateLayout(recovered).valid) {
+  setLayout(recovered);
+} else {
+  // fallback to defaults (existing logic)
+}
 ```
 
-- [ ] **Step 3: Verify TypeScript compiles**
-
-```bash
-cd "c:\Users\misha\Documents\Vibe Coding\flowr-4-main" && npx tsc --noEmit 2>&1 | head -40
-```
-
-Expected: no errors related to `registry.tsx`.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/components/bento/registry.tsx
-git commit -m "feat(registry): enforce minH=2 maxW=4 for all non-clock widgets"
-```
+`recoverLayout` already does: clamp w/h to registry bounds → `compactLayout(rebalanceAll(...))` → `validateLayout`. So this is safe and idempotent.
 
 ---
 
-### Task 2: Fix workspace default layout + promote recoverLayout in load effect
+## Invariants Preserved
 
-**Files:**
-- Modify: `src/hooks/useBentoLayout.ts`
-
-- [ ] **Step 1: Fix the workspace default layout**
-
-In `src/hooks/useBentoLayout.ts`, the `DEFAULT_LAYOUTS` object starts at line 19. The `workspace` default has `shortcuts` at `h: 1` and `w: 6` — both violate the new constraints when there are neighbors. Fix `shortcuts` to `h: 2`:
-
-Replace:
-```ts
-  workspace: [
-    { i: 'ws-tasks',     type: 'smart-tasks', row: 0, order: 0, w: 4, h: 2 },
-    { i: 'ws-all-files', type: 'all-files',   row: 0, order: 1, w: 2, h: 2 }, 
-    { i: 'ws-shortcuts', type: 'shortcuts',   row: 1, order: 0, w: 6, h: 1 },
-  ],
-```
-
-With:
-```ts
-  workspace: [
-    { i: 'ws-tasks',     type: 'smart-tasks', row: 0, order: 0, w: 4, h: 2 },
-    { i: 'ws-all-files', type: 'all-files',   row: 0, order: 1, w: 2, h: 2 },
-    { i: 'ws-shortcuts', type: 'shortcuts',   row: 1, order: 0, w: 6, h: 2 },
-  ],
-```
-
-Note: `w: 6` is fine here — `rebalanceRow` expands a single-item row to fill the full width regardless of `maxW`, which is correct (a lone widget must fill its row).
-
-- [ ] **Step 2: Promote recoverLayout to first-pass in load effect**
-
-In the same file, find the `loadBentoLayout` effect (starts around line 70). Replace the body where saved items are processed.
-
-Replace:
-```ts
-        const items = saved.items.map(it => it.type === 'upcoming' ? { ...it, type: 'recent' } : it);
-        const balanced = compactLayout(rebalanceAll(items));
-        if (validateLayout(balanced).valid) {
-          setLayout(balanced);
-        } else {
-          const recovered = recoverLayout(items);
-          if (recovered) {
-            console.warn("[useBentoLayout] Saved layout recovered after clamping invalid values.");
-            setLayout(recovered);
-          } else {
-            console.error("[useBentoLayout] Saved layout is invalid and unrecoverable, using default.");
-            const defaults = rebalanceAll(DEFAULT_LAYOUTS[contextId] ?? DEFAULT_LAYOUTS['workspace'] ?? []);
-            setLayout(defaults);
-          }
-        }
-```
-
-With:
-```ts
-        const items = saved.items.map(it => it.type === 'upcoming' ? { ...it, type: 'recent' } : it);
-        // Always run recoverLayout first — it clamps w/h to current registry bounds,
-        // which migrates saved layouts when constraints change (e.g. minH 1→2).
-        const recovered = recoverLayout(items) ?? compactLayout(rebalanceAll(items));
-        if (validateLayout(recovered).valid) {
-          setLayout(recovered);
-        } else {
-          console.error("[useBentoLayout] Saved layout is invalid and unrecoverable, using default.");
-          const defaults = rebalanceAll(DEFAULT_LAYOUTS[contextId] ?? DEFAULT_LAYOUTS['workspace'] ?? []);
-          setLayout(defaults);
-        }
-```
-
-- [ ] **Step 3: Verify TypeScript compiles**
-
-```bash
-cd "c:\Users\misha\Documents\Vibe Coding\flowr-4-main" && npx tsc --noEmit 2>&1 | head -40
-```
-
-Expected: no errors.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/hooks/useBentoLayout.ts
-git commit -m "feat(layout): fix workspace default h, migrate saved layouts via recoverLayout"
-```
+- Row invariant (sum of w per row = 6) — maintained by `rebalanceAll` inside `recoverLayout`.
+- No engine logic changes — all min/max enforcement flows through existing registry reads.
+- `validateLayout` already rejects layouts where any widget violates `minW/minH/maxW/maxH`.
+- `resizeDivider`, `rebalanceRow`, `fillGaps`, `ruleInsertDisplace` etc. all read from registry — they will automatically respect new bounds after registry update.
 
 ---
 
-### Task 3: Manual verification in the browser
+## Files Changed
 
-**Files:** none (verification only)
+| File | Change |
+|---|---|
+| `src/components/bento/registry.tsx` | Update minH → 2, maxW → 4 for all non-clock widgets |
+| `src/hooks/useBentoLayout.ts` | Fix workspace default (shortcuts h:1→2), promote `recoverLayout` to first-pass in load effect |
 
-- [ ] **Step 1: Start the dev server**
+---
 
-```bash
-cd "c:\Users\misha\Documents\Vibe Coding\flowr-4-main" && npm run dev
-```
+## Testing
 
-- [ ] **Step 2: Open the dashboard and enter edit mode**
-
-Navigate to the dashboard. Click "Edit Layout". Verify:
-- All widgets are at least 2 rows tall (except clock which can be 1 row)
-- No widgets overlap
-- Divider handles appear between adjacent widgets
-
-- [ ] **Step 3: Test horizontal divider drag**
-
-Hover a widget to reveal the vertical divider handle between two side-by-side widgets. Drag it. Verify:
-- Neither widget can be shrunk below h=2
-- Neither widget can be expanded beyond w=4 (when it has a neighbor)
-- No overlap occurs at any drag position
-
-- [ ] **Step 4: Test vertical divider drag**
-
-Hover a widget to reveal the horizontal divider handle between two vertically adjacent widgets. Drag it. Verify:
-- Neither widget can be shrunk below h=2
-- No overlap or gap at any drag position
-
-- [ ] **Step 5: Test reset layout**
-
-Click "Reset" in edit mode. Verify the default layout renders without overlap and all non-clock widgets are h≥2.
-
-- [ ] **Step 6: Test adding a widget**
-
-Open the Widget Picker and add a widget. Verify it appears at h≥2.
-
-- [ ] **Step 7: Commit verification note (no code change needed)**
-
-If everything looks correct, no commit needed. If you found a regression, fix it and commit with:
-```bash
-git commit -m "fix(layout): <describe what was wrong>"
-```
+1. Open dashboard with existing saved layout — verify widgets clamp to new bounds, no overlaps.
+2. In edit mode, drag dividers — verify no widget can be shrunk below h=2 or expanded beyond w=4.
+3. Add a new widget from WidgetPicker — verify it starts at h≥2.
+4. Reset layout — verify default layout renders without overlap.
+5. Verify clock can still be h=1 and w=2–4.

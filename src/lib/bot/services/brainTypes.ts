@@ -35,6 +35,8 @@ export interface BrainNodeRow {
   updated_at: string
 }
 
+export type ConnectorSide = 'top' | 'right' | 'bottom' | 'left'
+
 export interface BrainEdgeRow {
   id: string
   user_id: string
@@ -42,6 +44,9 @@ export interface BrainEdgeRow {
   from_node: string
   to_node: string
   label: string
+  /** Pinned port; null = auto closestSides at render time. */
+  from_side?: ConnectorSide | null
+  to_side?: ConnectorSide | null
   created_by: 'user' | 'bot'
   deleted_at: string | null
   created_at: string

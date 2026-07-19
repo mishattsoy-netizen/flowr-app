@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { redeemPromoCode, downgradeToFree } from '@/app/settings/actions'
+import { usageBarFillClass } from '@/lib/usageBarColor'
 
 interface UsageWindow { spent: number; cap: number; resets_at: string }
 interface RecentSpendRow { amount_usd: string; created_at: string; mode: string }
@@ -33,7 +34,7 @@ function UsageBar({ label, usage, large }: { label: string; usage: UsageWindow; 
         <span className="text-[var(--bone-60)] text-[12px]">Resets in {formatResetCountdown(usage.resets_at)}</span>
       </div>
       <div className="w-full h-2.5 rounded-full bg-[var(--bone-10)] overflow-hidden">
-        <div className="h-full rounded-full bg-[var(--brand-blue)]" style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${usageBarFillClass(pct)}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
