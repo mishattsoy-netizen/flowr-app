@@ -1843,6 +1843,43 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         }
       }
 
+      // Multi-line plain text (e.g. a pasted article) must NOT go through
+      // execCommand('insertText') with embedded newlines: under the single
+      // shared contentEditable host, Chrome's native handling of a
+      // multi-line insertText splits it into one new content <div> per line,
+      // injected as siblings inside a single block's flex-row wrapper. Only
+      // the first of those divs is ever read back into the block's stored
+      // content (handleHostInput/updateBlock query the first
+      // [data-block-content] match) — the rest sit uncommitted in the live
+      // DOM, laid out side-by-side by the flex-row parent as a grid of
+      // narrow columns instead of a flowing paragraph. Splitting into real
+      // blocks up front avoids the browser ever doing that multi-div insert.
+      const lines = plainText.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length > 1) {
+        const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const newTextBlocks = lines.map(line => createBlock('text', { content: escapeHtml(line) }));
+
+        const sel = window.getSelection();
+        const anchorBlockEl = sel ? blockOf(sel.anchorNode) : null;
+        const focusedId = anchorBlockEl?.getAttribute('data-block-id');
+        const focusedBlock = focusedId ? blocks.find(b => b.id === focusedId) : null;
+
+        if (focusedBlock && !focusedBlock.content.trim()) {
+          const idx = blocks.findIndex(b => b.id === focusedId);
+          const newBlocks = [...blocks];
+          newBlocks.splice(idx, 1, ...newTextBlocks);
+          persistBlocks(newBlocks);
+        } else if (focusedId) {
+          const idx = blocks.findIndex(b => b.id === focusedId);
+          const newBlocks = [...blocks];
+          newBlocks.splice(idx + 1, 0, ...newTextBlocks);
+          persistBlocks(newBlocks);
+        } else {
+          persistBlocks([...blocks, ...newTextBlocks]);
+        }
+        return;
+      }
+
       document.execCommand('insertText', false, plainText);
     }
   }, [blocks, insertAfter, persistBlocks, updateBlock]);
