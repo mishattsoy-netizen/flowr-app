@@ -654,6 +654,23 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
   );
 };
 
+/**
+ * Parses "flowr:<type>:<id>" into { type, id }.
+ * Returns null if the href doesn't start with "flowr:" or lacks a colon separator.
+ */
+function parseEntityHref(href: string): { type: string; id: string } | null {
+  if (!href || !href.startsWith('flowr:')) return null
+  const rest = href.slice('flowr:'.length)
+  const colonIdx = rest.indexOf(':')
+  if (colonIdx === -1) return null
+  return { type: rest.slice(0, colonIdx), id: rest.slice(colonIdx + 1) }
+}
+
+/** Removes a single leading '@' if present. */
+function stripAt(text: string): string {
+  return text.startsWith('@') ? text.slice(1) : text
+}
+
 export const getEntityIconReact = (type: string, iconName?: string) => {
   if (iconName) {
     const IconComp = getEntityIcon(iconName);
@@ -1274,6 +1291,36 @@ export const ChatMessage = memo(({
 
       a: ({ href, children }: any) => {
         const isCitation = typeof children === 'string' && /^\[\d+\]$/.test(children);
+
+        // ── Entity mention pill (flowr:<type>:<id>) ──
+        const entityRef = parseEntityHref(href)
+        if (entityRef && ['note','folder','canvas','workspace'].includes(entityRef.type)) {
+          const store = useStore.getState()
+          const resolved = store.entities.find((e: any) => e.id === entityRef.id)
+            || store.spaces.find((s: any) => s.id === entityRef.id)
+          // Normalize: Space uses 'name' not 'title', and its type is 'personal'|'shared' not 'workspace'
+          const resolvedData = resolved as any
+          const isSpace = resolvedData && 'name' in resolvedData && !('title' in resolvedData)
+          const label = isSpace ? resolvedData.name : (resolvedData?.title ?? stripAt(typeof children === 'string' ? children : ''))
+          const displayType = isSpace ? 'workspace' : (resolvedData?.type ?? entityRef.type)
+          const displayIcon = isSpace
+            ? (resolvedData?.icon || (resolvedData?.type === 'personal' ? 'User' : 'Box'))
+            : resolvedData?.icon
+
+          return (
+            <button
+              className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+              onClick={() => entityRef.type === 'workspace'
+                ? store.setActiveSpaceId(entityRef.id)
+                : store.addTab(entityRef.id)}
+              title={entityRef.type === 'workspace' ? `Switch to ${label}` : `Open ${label}`}
+            >
+              {getEntityIconReact(displayType, displayIcon)}
+              <span>{label}</span>
+            </button>
+          )
+        }
+        // ── end entity mention pill ──
 
         const ensureAbsoluteUrl = (urlStr: string): string => {
           if (!urlStr) return '';
