@@ -481,7 +481,7 @@ export function TableBlock({ block, onUpdate, onContextMenu, isReadOnly = false 
       {!isReadOnly && contextMenu && typeof document !== 'undefined' && createPortal(
         <div
           ref={contextMenuRef}
-          className="fixed popup-glass-small z-[9999] min-w-[140px] p-1.5 flex flex-col gap-[3px] shadow-2xl"
+          className="fixed popup-glass-small z-[9999] min-w-[140px] flex flex-col gap-[3px] shadow-2xl"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -491,7 +491,7 @@ export function TableBlock({ block, onUpdate, onContextMenu, isReadOnly = false 
               if (contextMenu.type === 'row') handleDeleteRow(contextMenu.index);
               else handleDeleteCol(contextMenu.index);
             }}
-            className="popup-item-danger gap-2"
+            className="popup-item gap-2 !text-danger hover:!bg-danger/10"
           >
             <Trash2 className="w-3.5 h-3.5 shrink-0" />
             <span>Delete {contextMenu.type === 'row' ? 'row' : 'column'}</span>

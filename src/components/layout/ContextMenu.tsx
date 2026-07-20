@@ -105,7 +105,7 @@ function MenuItemComponent({
         }}
         className={cn(
           "popup-item group w-full flex items-center gap-2 px-3 py-[4px] text-sm",
-          item.danger && "popup-item-danger",
+          item.danger && "!text-danger hover:!bg-danger/10",
           isOpen && "bg-[var(--app-dark)] text-[var(--bone-100)]",
           item.selected && "bg-[var(--app-dark)] text-[var(--bone-100)]"
         )}
@@ -119,7 +119,7 @@ function MenuItemComponent({
 
       {item.children && isOpen && (
         <div 
-          className="fixed z-[310] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+          className="fixed z-[310] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
           style={{ 
             left: subMenuPos.x, 
             top: subMenuPos.y 
@@ -485,7 +485,7 @@ export function ContextMenu() {
         <div
           ref={ref}
           className={cn(
-            "fixed z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]",
+            "fixed z-[300] popup-glass-small min-w-[180px] flex flex-col gap-[2px]",
             adjustedPos.x === 0 && "opacity-0"
           )}
           style={{ 
@@ -507,7 +507,7 @@ export function ContextMenu() {
           {/* Space options popover */}
           {spaceOptionsId && (
             <div
-              className="fixed z-[310] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+              className="fixed z-[310] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
               style={{ left: spaceOptionsPos.x, top: spaceOptionsPos.y }}
               onClick={(e) => e.stopPropagation()}
             >

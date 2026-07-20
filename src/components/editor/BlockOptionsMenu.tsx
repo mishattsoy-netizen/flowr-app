@@ -199,7 +199,7 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] p-1.5 gap-[3px]"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
@@ -272,7 +272,7 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[260px] max-h-[400px] pt-1.5 pb-1.5 pl-1.5 pr-0 gap-[3px]"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[260px] max-h-[400px] gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button
@@ -339,7 +339,7 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] p-1.5 gap-[3px]"
+        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] gap-[3px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button className={btnCls} onClick={() => setSubMenu(null)}>

@@ -521,7 +521,7 @@ function ShortcutItem({ shortcut, entities, rowSpan, onSelectEntity, onRemove, o
       {showMenu && createPortal(
         <div
           onClick={(e) => e.stopPropagation()}
-          className="fixed z-[500] popup-glass-small p-1 flex flex-col gap-[3px] pointer-events-auto min-w-[100px]"
+          className="fixed z-[500] popup-glass-small flex flex-col gap-[3px] pointer-events-auto min-w-[100px]"
           style={{
             left: `${menuPos.x}px`,
             top: `${menuPos.y}px`

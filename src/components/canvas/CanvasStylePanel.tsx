@@ -393,7 +393,7 @@ function ExportSelect({
               : posRef.current.left, 
             width: width 
           }}
-          className="z-[200] popup-glass-small p-1 flex flex-col gap-0.5 canvas-floating-panel"
+          className="z-[200] popup-glass-small flex flex-col gap-0.5 canvas-floating-panel"
         >
           {options.map(({ value: optVal, label, icon }) => (
             <button
@@ -539,7 +539,7 @@ function ArrowheadDropdown({
               : posRef.current.left, 
             width: 120 
           }}
-          className="z-[200] popup-glass-small p-1 flex flex-col gap-0.5 canvas-floating-panel"
+          className="z-[200] popup-glass-small flex flex-col gap-0.5 canvas-floating-panel"
         >
           {Object.entries(labels).map(([key, label]) => (
             <button

@@ -2030,7 +2030,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setChatMenuOpenId(null)} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
             style={{ left: chatMenuPos.x, top: chatMenuPos.y }}
           >
             <button
@@ -2094,7 +2094,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setNewPagePopupPos(null)} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
             style={{ left: newPagePopupPos.x, top: newPagePopupPos.y }}
           >
             {[
@@ -2128,7 +2128,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setProfilePopupPos(null)} />
           <div
-            className="fixed z-[300] popup-glass-small p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small flex flex-col gap-[2px]"
             style={{ left: profilePopupPos.x, bottom: profilePopupPos.bottom, width: profilePopupPos.width }}
           >
             {user?.email && (
@@ -2192,7 +2192,7 @@ export const Sidebar = React.memo(function Sidebar({ forceFull, initialEntityId 
                 signOut();
                 setProfilePopupPos(null);
               }}
-              className="popup-item-danger !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
+              className="popup-item !text-danger hover:!bg-danger/10 !py-1 group w-full flex items-center gap-2 px-3 text-sm transition-none"
             >
               <LogOut strokeWidth={2} className="w-4 h-4 shrink-0 text-red-400 group-hover:text-red-300" />
               <span className="flex-1 text-left font-medium tracking-wide">Log out</span>

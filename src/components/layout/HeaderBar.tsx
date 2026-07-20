@@ -901,7 +901,7 @@ export const HeaderBar = memo(function HeaderBar({ leftWidth, rightWidth, resolv
         <Portal>
           <div className="fixed inset-0 z-[9998]" onClick={() => setNewItemPopup(null)} />
           <div
-            className="fixed z-[9999] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px] [-webkit-app-region:no-drag]"
+            className="fixed z-[9999] popup-glass-small min-w-[160px] flex flex-col gap-[2px] [-webkit-app-region:no-drag]"
             style={{ left: newItemPopup.x, top: newItemPopup.y }}
           >
             {([

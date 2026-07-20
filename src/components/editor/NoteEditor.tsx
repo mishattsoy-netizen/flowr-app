@@ -327,7 +327,7 @@ function TagItem({
       </div>
 
       {isEditing && showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 z-[300] popup-glass-small min-w-[160px] p-1.5 flex flex-col gap-[3px]">
+        <div className="absolute top-full left-0 mt-1 z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[3px]">
           {suggestions.map((s, idx) => (
             <button
               key={s}
@@ -2380,7 +2380,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             onClick={() => setOptionsMenuPos(null)}
           />
           <div
-            className="fixed z-[9999] popup-glass-small backdrop-blur-xl p-1 min-w-[180px] flex flex-col gap-[2px]"
+            className="fixed z-[9999] popup-glass-small backdrop-blur-xl min-w-[180px] flex flex-col gap-[2px]"
             style={{
               top: optionsMenuPos.y,
               left: optionsMenuPos.x
@@ -2448,7 +2448,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               </button>
 
               {showExportMenu && (
-                <div className="absolute right-[calc(100%+4px)] top-0 z-[10000] popup-glass-small backdrop-blur-xl p-1 min-w-[140px] flex flex-col gap-[2px]">
+                <div className="absolute right-[calc(100%+4px)] top-0 z-[10000] popup-glass-small backdrop-blur-xl min-w-[140px] flex flex-col gap-[2px]">
                   <button
                     onClick={() => {
                       openModal({ kind: 'pdfExport', entityId: entity.id, entityTitle: entity.title, blocks });

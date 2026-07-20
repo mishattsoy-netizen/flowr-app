@@ -58,7 +58,7 @@ function PrefSelect<T extends string>({
         <ChevronDown className="w-4 h-4 text-[var(--bone-70)] shrink-0" />
       </button>
       {isOpen && (
-        <div className="absolute z-[300] top-full left-0 right-0 mt-1 popup-glass-small min-w-full p-1 flex flex-col gap-[2px] max-h-64 overflow-y-auto">
+        <div className="absolute z-[300] top-full left-0 right-0 mt-1 popup-glass-small min-w-full flex flex-col gap-[2px] max-h-64 overflow-y-auto">
           {options.map(opt => (
             <button
               key={opt.key}
@@ -107,7 +107,7 @@ function TimezoneSelect({ value, onChange, timezones }: { value: string | null; 
       </button>
 
       {isOpen && (
-        <div className="absolute z-[300] top-full left-0 right-0 mt-1 popup-glass-small min-w-full p-1 flex flex-col gap-[2px] max-h-64 overflow-y-auto">
+        <div className="absolute z-[300] top-full left-0 right-0 mt-1 popup-glass-small min-w-full flex flex-col gap-[2px] max-h-64 overflow-y-auto">
           <button
             type="button"
             onClick={() => { onChange(null); setIsOpen(false); }}

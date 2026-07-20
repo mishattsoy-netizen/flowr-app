@@ -614,7 +614,7 @@ export function BrainSidebarContent() {
       {menu && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]"
+          className="fixed z-[300] popup-glass-small min-w-[180px] flex flex-col gap-[2px]"
           style={{ left: menu.x, top: menu.y }}
           onClick={e => e.stopPropagation()}
         >
@@ -661,7 +661,7 @@ export function BrainSidebarContent() {
                 <div className="h-px bg-[var(--bone-6)] mx-1.5 my-[2px]" />
                 <button
                   type="button"
-                  className="popup-item popup-item-danger group w-full flex items-center gap-2 px-3 text-sm transition-none"
+                  className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none !text-danger hover:!bg-danger/10"
                   onClick={() => handleDeleteNode(brainId, node)}
                 >
                   <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
@@ -715,7 +715,7 @@ export function BrainSidebarContent() {
                 <div className="h-px bg-[var(--bone-6)] mx-1.5 my-[2px]" />
                 <button
                   type="button"
-                  className="popup-item popup-item-danger group w-full flex items-center gap-2 px-3 text-sm transition-none"
+                  className="popup-item group w-full flex items-center gap-2 px-3 text-sm transition-none !text-danger hover:!bg-danger/10"
                   onClick={() => handleDeleteBrain(brainId)}
                 >
                   <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
@@ -731,7 +731,7 @@ export function BrainSidebarContent() {
       {iconPicker && createPortal(
         <div
           ref={iconPickerRef}
-          className="fixed z-[300] popup-glass-small p-2 min-w-[200px]"
+          className="fixed z-[300] popup-glass-small min-w-[200px]"
           style={{ left: iconPicker.x, top: iconPicker.y }}
           onClick={e => e.stopPropagation()}
         >

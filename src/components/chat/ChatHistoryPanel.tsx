@@ -216,7 +216,7 @@ export function ChatHistoryPanel() {
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setMenuOpenId(null)} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
             <button

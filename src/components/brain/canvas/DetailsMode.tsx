@@ -74,7 +74,7 @@ function priorityMeta(p: number): { label: string; className: string } {
  */
 function TagColorGrid({ color, onPick }: { color: string | null; onPick: (c: string | null) => void }) {
   return (
-    <div className="popup-glass-small p-2 flex flex-col gap-2 min-w-[160px] shadow-2xl">
+    <div className="popup-glass-small flex flex-col gap-2 min-w-[160px] shadow-2xl">
       <button
         type="button"
         onClick={() => onPick(null)}
@@ -203,7 +203,7 @@ function TagField({
             <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="popup-glass-small !w-auto min-w-[200px] p-2 z-[320]" align="end">
+        <PopoverContent className="popup-glass-small !w-auto min-w-[200px] z-[320]" align="end">
           <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
 
           {/* Name field (search-as-you-type over the list below) + color dot,

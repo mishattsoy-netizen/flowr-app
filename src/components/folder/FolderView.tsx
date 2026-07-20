@@ -436,7 +436,7 @@ export function FolderView({ entity, isLoading }: FolderViewProps) {
                   {showNewItemPopup && (
                     <>
                       <div className="fixed inset-0 z-[299]" onClick={() => setShowNewItemPopup(false)} />
-                      <div className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]">
+                      <div className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[2px]">
                         {[
                           { type: 'note' as const, label: 'Note', icon: FileText },
                           { type: 'canvas' as const, label: 'Canvas', icon: Frame },
@@ -486,7 +486,7 @@ export function FolderView({ entity, isLoading }: FolderViewProps) {
                     <ChevronDown className="w-3 h-3" />
                   </button>
                   {showSortPicker && (
-                    <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] p-1 flex flex-col gap-[2px]">
+                    <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] flex flex-col gap-[2px]">
                       {([['opened', 'Last opened'], ['edited', 'Last edited']] as const).map(([val, label]) => (
                         <button
                           key={val}
@@ -607,7 +607,7 @@ export function FolderView({ entity, isLoading }: FolderViewProps) {
                         <ChevronDown className="w-3 h-3" />
                       </button>
                       {showContentSortPicker && (
-                        <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[120px] p-1 flex flex-col gap-[2px]">
+                        <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[120px] flex flex-col gap-[2px]">
                           <button
                             onClick={() => { setContentSort('recent'); setShowContentSortPicker(false); }}
                             className={cn("popup-item", contentSort === 'recent' && "text-[var(--bone-100)] bg-[var(--app-dark)]")}

@@ -45,7 +45,7 @@ export default function RowOptionsDropdown({
 
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed popup-glass-small z-[9999] min-w-[120px] p-1.5 flex flex-col gap-[3px] shadow-2xl border border-[var(--bone-12)]"
+          className="fixed popup-glass-small z-[9999] min-w-[120px] flex flex-col gap-[3px] shadow-2xl border border-[var(--bone-12)]"
           style={{
             top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 120 > window.innerHeight ? 'auto' : (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,
             bottom: (ref.current?.getBoundingClientRect().bottom ?? 0) + 120 > window.innerHeight ? window.innerHeight - (ref.current?.getBoundingClientRect().top ?? 0) + 4 : 'auto',

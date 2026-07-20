@@ -115,7 +115,7 @@ export default function OpenRouterRoutingProviderSelector({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
           ref={menuRef}
-          className="fixed popup-glass-small z-[9999] min-w-[160px] max-h-72 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 p-2 flex flex-col gap-1 shadow-2xl border border-white/10"
+          className="fixed popup-glass-small z-[9999] min-w-[160px] max-h-72 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-1 shadow-2xl border border-white/10"
           style={{
             top: (ref.current?.getBoundingClientRect().bottom ?? 0) + 4,
             left: (ref.current?.getBoundingClientRect().left ?? 0) - 134, // align with right edge of button

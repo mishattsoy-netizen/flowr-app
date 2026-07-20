@@ -435,7 +435,7 @@ export function Dashboard({ isLoading }: { isLoading?: boolean }) {
             {showPlusPopup && (
               <div
                 ref={plusPopupRef}
-                className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] p-1 flex flex-col gap-[2px]"
+                className="absolute right-0 mt-2 z-[300] popup-glass-small min-w-[160px] flex flex-col gap-[2px]"
               >
                 {[
                   { type: 'note' as const, label: 'Note', icon: FileText },
@@ -487,7 +487,7 @@ export function Dashboard({ isLoading }: { isLoading?: boolean }) {
                   <ChevronDown className="w-3 h-3" />
                 </button>
                 {showSortPicker && (
-                  <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] p-1 flex flex-col gap-[2px]">
+                  <div className="absolute right-0 mt-1 z-[300] popup-glass-small min-w-[140px] flex flex-col gap-[2px]">
                     {([['opened', 'Last opened'], ['edited', 'Last edited']] as const).map(([val, label]) => (
                       <button
                         key={val}

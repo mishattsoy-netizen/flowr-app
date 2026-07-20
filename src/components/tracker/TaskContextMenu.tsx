@@ -270,7 +270,7 @@ export function TaskContextMenu({
     <div
       ref={ref}
       className={cn(
-        "fixed popup-glass-small z-[9999] min-w-[180px] p-1.5 flex flex-col gap-[2px] shadow-2xl",
+        "fixed popup-glass-small z-[9999] min-w-[180px] flex flex-col gap-[2px] shadow-2xl",
         "origin-top-left transition-[opacity,transform] duration-100 ease-out",
         ready ? "opacity-100 scale-100" : "opacity-0 scale-95"
       )}
@@ -323,7 +323,7 @@ export function TaskContextMenu({
         </button>
         {activeSubmenu === 'priority' && (
           <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] shadow-2xl">
-            <div className="popup-glass-small p-1.5 flex flex-col gap-[2px] min-w-[140px]">
+            <div className="popup-glass-small flex flex-col gap-[2px] min-w-[140px]">
               {(['high', 'medium', 'low'] as const).map(p => (
                 <button
                   key={p}
@@ -389,7 +389,7 @@ export function TaskContextMenu({
         </button>
         {activeSubmenu === 'moveTo' && (
           <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] min-w-[150px] shadow-2xl">
-            <div className="popup-glass-small p-1.5 flex flex-col gap-[2px]">
+            <div className="popup-glass-small flex flex-col gap-[2px]">
               {MOVE_TARGETS.map(c => {
                 const isCurrent = c.id === commonColumn;
                 return (
@@ -737,7 +737,7 @@ export function TaskContextMenu({
         </button>
         {activeSubmenu === 'workspace' && (
           <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] min-w-[160px] max-h-[260px] shadow-2xl">
-            <div className="popup-glass-small p-1.5 flex flex-col gap-[2px] max-h-[240px] overflow-y-auto scrollbar-thin">
+            <div className="popup-glass-small flex flex-col gap-[2px] max-h-[240px] overflow-y-auto scrollbar-thin">
               <button
                 onClick={() => actSub(() => {
                   targetIds.forEach(id => updateTask(id, { entityId: null }));
@@ -807,7 +807,7 @@ export function TaskContextMenu({
         </button>
         {activeSubmenu === 'tag' && (
           <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] min-w-[160px] max-h-[260px] shadow-2xl">
-            <div className="popup-glass-small p-1.5 flex flex-col gap-[2px]">
+            <div className="popup-glass-small flex flex-col gap-[2px]">
               <input
                 type="text"
                 placeholder="Tag..."
@@ -905,7 +905,7 @@ export function TaskContextMenu({
         </button>
         {activeSubmenu === 'colorTag' && (
           <div className="absolute left-full top-0 -mt-1.5 pl-1.5 z-[9999] shadow-2xl">
-            <div className="popup-glass-small p-2 flex flex-col gap-2 min-w-[160px]">
+            <div className="popup-glass-small flex flex-col gap-2 min-w-[160px]">
               <button
                 onClick={() => actSub(() => {
                   targetIds.forEach(id => updateTask(id, { color: '' }));
@@ -986,7 +986,7 @@ export function TaskContextMenu({
 
       <div className="popup-divider" />
 
-      <button className="popup-item-danger gap-2.5" onClick={() => act(() => {
+      <button className="popup-item gap-2.5 !text-danger hover:!bg-danger/10" onClick={() => act(() => {
         targetIds.forEach(id => deleteTask(id));
         useStore.getState().clearTaskSelection();
       })}>

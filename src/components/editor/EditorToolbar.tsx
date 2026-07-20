@@ -389,7 +389,7 @@ export function EditorToolbar({
           </button>
         </Tooltip>
         {showStyleDropdown && (
-          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-1.5 min-w-[160px] overflow-hidden flex flex-col gap-[3px]">
+          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small min-w-[160px] overflow-hidden flex flex-col gap-[3px]">
             {BLOCK_STYLES.map(s => (
               <button
                 key={s.value}
@@ -458,7 +458,7 @@ export function EditorToolbar({
         </Tooltip>
 
         {showLinkPopover && (
-          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small p-1.5 min-w-[240px] flex gap-2 items-center">
+          <div className="absolute top-full left-0 mt-2 z-[100] popup-glass-small min-w-[240px] flex gap-2 items-center">
             <input
               ref={linkInputRef}
               type="text"
@@ -499,7 +499,7 @@ export function EditorToolbar({
           </button>
         </Tooltip>
         {showHighlightPicker && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 popup-glass-small p-1.5 flex flex-col gap-[3px]">
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 popup-glass-small flex flex-col gap-[3px]">
             <div className="flex gap-1.5">
               {HIGHLIGHT_COLORS.map(c => (
                 <button

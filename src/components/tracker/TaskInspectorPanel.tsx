@@ -551,7 +551,7 @@ function TaskPanelContent({ taskId, closePanel, isActive, setSyncState }: { task
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-[170px] p-0 bg-transparent border-none shadow-none z-[202]" align="start">
-              <div className="popup-glass-small p-2 flex flex-col gap-2 min-w-[160px] shadow-2xl">
+              <div className="popup-glass-small flex flex-col gap-2 min-w-[160px] shadow-2xl">
                 <button
                   onClick={() => setColor('')}
                   className={cn(

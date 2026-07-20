@@ -156,7 +156,7 @@ export function SlashCommandMenu({ position, search, onClose, onInsertBlock, act
   return (
     <div
       ref={menuRef}
-      className="fixed z-[150] popup-glass-small w-[280px] max-h-[340px] flex flex-col overflow-hidden p-1.5 gap-[3px]"
+      className="fixed z-[150] popup-glass-small w-[280px] max-h-[340px] flex flex-col overflow-hidden gap-[3px]"
       style={{ left: position.x, top: position.y }}
     >
       <div className="flex-1 overflow-y-auto scrollbar-thin">

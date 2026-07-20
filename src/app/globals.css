@@ -20,11 +20,11 @@
 }
 
 :root {
-  --app-background: #F8F8F6;
-  --app-panel: #FFFFFF;
-  --app-dark: #EFEEEB;
-  --card-bg: #F0F0F0;
-  --sys-color: #F7F7F6;
+  --app-background: #ebebeb;
+  --app-panel: #e0e0e2;
+  --app-dark: #cbcbcf;
+  --card-bg: #e9e9ec;
+  --sys-color: #e1e1e2;
   --slider-pill: var(--app-panel);
   --slider-track: var(--bone-6);
   --slider-pill-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
@@ -517,7 +517,7 @@ html[data-interface-size="big"] {
 
 @utility popup-glass-small {
   background-color: var(--color-panel);
-  @apply border border-[var(--bone-12)] rounded-[var(--radius-regular)] transition-none;
+  @apply border border-[var(--bone-12)] rounded-[var(--radius-regular)] transition-none p-1;
   box-shadow: 0 4px 12px var(--popup-shadow-color);
 }
 
@@ -1743,6 +1743,7 @@ a:focus:not(:focus-visible),
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 /* Cross-block selection: the native text highlight remains, and every block the
    selection touches gets a faint tint so the span is obvious at a glance. */
 .editor-block:has(::selection) {

@@ -1291,7 +1291,7 @@ export function BrainCanvasPage() {
         <>
           <div className="fixed inset-0 z-[299]" onClick={() => setNodeContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setNodeContextMenu(null); }} />
           <div
-            className="fixed z-[300] popup-glass-small min-w-[180px] p-1 flex flex-col gap-[2px]"
+            className="fixed z-[300] popup-glass-small min-w-[180px] flex flex-col gap-[2px]"
             style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
           >
             {(() => {
@@ -1318,7 +1318,7 @@ export function BrainCanvasPage() {
                   <button
                     type="button"
                     onClick={() => handleDeleteNode(nodeContextMenu.nodeId)}
-                    className="popup-item popup-item-danger w-full flex items-center gap-2 px-3 py-[4px] text-sm"
+                    className="popup-item w-full flex items-center gap-2 px-3 py-[4px] text-sm !text-danger hover:!bg-danger/10"
                   >
                     <Trash2 strokeWidth={2} className="w-4 h-4 shrink-0" />
                     <span className="flex-1 text-left font-medium tracking-wide">Delete</span>

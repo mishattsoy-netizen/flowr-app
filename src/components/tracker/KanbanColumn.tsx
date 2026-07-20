@@ -156,7 +156,7 @@ function KanbanColumnInner({ id, title, tasks, gap, activeDragId, justDropped, i
           {isSortMenuOpen && typeof document !== 'undefined' && createPortal(
             <div
               ref={sortMenuRef}
-              className="fixed popup-glass-small z-[9999] min-w-[160px] p-1.5 flex flex-col gap-[3px] shadow-2xl"
+              className="fixed popup-glass-small z-[9999] min-w-[160px] flex flex-col gap-[3px] shadow-2xl"
               style={{
                 top: (sortButtonRef.current?.getBoundingClientRect().bottom ?? 0) + 4,
                 left: (sortButtonRef.current?.getBoundingClientRect().right ?? 0) - 160,

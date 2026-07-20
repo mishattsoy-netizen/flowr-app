@@ -234,7 +234,7 @@ export function SelectionToolbar({ editorRef, isReadOnly = false }: { editorRef:
     <Portal>
       <div
         ref={toolbarRef}
-        className="fixed z-[5000] popup-glass-small px-1.5 py-1 flex items-center gap-0.5"
+        className="fixed z-[5000] popup-glass-small flex items-center gap-0.5"
         style={{ top: position.top, left: position.left }}
         onMouseDown={(e) => e.preventDefault()}
       >
@@ -273,7 +273,7 @@ export function SelectionToolbar({ editorRef, isReadOnly = false }: { editorRef:
             <Tooltip content="Link"><Link strokeWidth={2} className="w-3.5 h-3.5" /></Tooltip>
           </button>
           {showLinkPopover && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small p-1.5 min-w-[240px] flex items-center justify-between gap-2">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small min-w-[240px] flex items-center justify-between gap-2">
               <input
                 ref={linkInputRef}
                 type="text"
@@ -303,7 +303,7 @@ export function SelectionToolbar({ editorRef, isReadOnly = false }: { editorRef:
             <Tooltip content="Highlight"><Highlighter strokeWidth={2} className="w-3.5 h-3.5" /></Tooltip>
           </button>
           {showHighlightPicker && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small p-1.5 flex gap-1.5">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[5001] popup-glass-small flex gap-1.5">
               {HIGHLIGHT_COLORS.map(c => (
                 <button
                   key={c.name}
