@@ -8,7 +8,6 @@ import {
   ChevronUp,
   Check,
   Pencil,
-  RotateCcw,
   Star,
 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -649,22 +648,7 @@ export function BrainLeftPanel({
               percentage rides inside the bar when it fits, outside when it's
               too narrow to hold the text. */}
           <section className="flex flex-col gap-2.5">
-            <div className="flex items-center justify-between gap-2 px-0.5">
-              <h3 className={SECTION_LABEL}>Top 5 by usage</h3>
-              <button
-                type="button"
-                disabled={resetting || !selectedBrainId}
-                onClick={() => { void handleResetUsage(); }}
-                className={cn(
-                  "inline-flex items-center gap-1 text-[10px] text-[var(--bone-100)] opacity-40 hover:opacity-70",
-                  "border-none outline-none bg-transparent transition-opacity",
-                  "disabled:opacity-50 disabled:pointer-events-none"
-                )}
-              >
-                Reset stats
-                <RotateCcw className="w-[11px] h-[11px]" strokeWidth={2} />
-              </button>
-            </div>
+            <h3 className={cn(SECTION_LABEL, "px-0.5")}>Top 5 by usage</h3>
             {top5.length === 0 ? (
               <p className="text-[12px] text-[var(--bone-30)] px-0.5">No nodes yet</p>
             ) : (
