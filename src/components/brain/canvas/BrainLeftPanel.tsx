@@ -100,8 +100,6 @@ const LEVEL_CLASS: Record<number, string> = {
 
 const SECTION_LABEL =
   'text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--bone-35)]';
-const NESTED_CARD =
-  'rounded-[14px] bg-[var(--app-dark)] px-3.5 py-3';
 
 function buildCalendarWeeks(calendar: UsageCalendarCell[]): { date: string; level: number }[][] {
   const byDate = new Map(calendar.map(c => [c.date, c.level as number]));
@@ -714,7 +712,7 @@ export function BrainLeftPanel({
           </section>
 
           {/* Priority distribution */}
-          <section className={cn(NESTED_CARD, "flex flex-col gap-2.5")}>
+          <section className="flex flex-col gap-2.5">
             <h3 className={SECTION_LABEL}>Priority distribution</h3>
             <div className="flex flex-col gap-2">
               {priorityDist.map(row => (
@@ -739,7 +737,7 @@ export function BrainLeftPanel({
           </section>
 
           {/* Nodes by color tag */}
-          <section className={cn(NESTED_CARD, "flex flex-col gap-2.5")}>
+          <section className="flex flex-col gap-2.5">
             <h3 className={SECTION_LABEL}>Nodes by color tag</h3>
             <div className="flex flex-wrap gap-x-3.5 gap-y-2">
               {tagChips.map((chip, i) => {
@@ -771,7 +769,7 @@ export function BrainLeftPanel({
           </section>
 
           {/* Activity strip */}
-          <section className={cn(NESTED_CARD, "flex flex-col gap-2")}>
+          <section className="flex flex-col gap-2">
             <h3 className={SECTION_LABEL}>Activity (last ~6mo)</h3>
             {showStatsLoading ? (
               <div className="h-6 rounded-[6px] bg-[var(--bone-6)] animate-pulse" />
