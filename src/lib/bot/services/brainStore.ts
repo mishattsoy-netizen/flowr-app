@@ -278,7 +278,10 @@ export async function resetBrainUsage(userId: string, brainId: string): Promise<
 }
 
 export async function compileBrain(userId: string, brainId: string): Promise<CompiledBrain & { version: string }> {
+  const _t = Date.now(); let _last = _t
+  const _mark = (l: string) => { logger.info(`[brain-perf]     compile.${l}: ${Date.now() - _last}ms`); _last = Date.now() }
   const version = await computeBrainVersion(userId, brainId)
+  _mark('computeBrainVersion')
   if (!supabaseAdmin) {
     return { compiled: '', tokenCount: 0, droppedNodeIds: [], brokenNodeIds: [], perNodeTokens: {}, version }
   }
@@ -286,16 +289,22 @@ export async function compileBrain(userId: string, brainId: string): Promise<Com
     .from('brain_compiles')
     .select('compiled, token_count, dropped_node_ids, broken_node_ids, per_node_tokens')
     .eq('user_id', userId).eq('version', version).maybeSingle()
+  _mark('cacheLookup')
   if (cached) {
+    logger.info(`[brain-perf]   compileBrain TOTAL (CACHE HIT): ${Date.now() - _t}ms`)
     return {
       compiled: cached.compiled, tokenCount: cached.token_count, version,
       droppedNodeIds: cached.dropped_node_ids ?? [], brokenNodeIds: cached.broken_node_ids ?? [],
       perNodeTokens: (cached.per_node_tokens as Record<string, number> | null) ?? {},
     }
   }
+  logger.info('[brain-perf]     compile: CACHE MISS — full recompile')
   const { nodes, edges } = await fetchBrainRows(userId, brainId)
+  _mark('fetchBrainRows')
   const compileNodes = await resolveNodes(userId, nodes)
+  _mark(`resolveNodes(${nodes.length} nodes)`)
   const cfg = await getBrainConfigForUser(userId)
+  _mark('getConfig')
   const result = compileBrainDocument(
     compileNodes,
     edges.map(e => ({ from_node: e.from_node, to_node: e.to_node, label: e.label })),
@@ -306,6 +315,8 @@ export async function compileBrain(userId: string, brainId: string): Promise<Com
     dropped_node_ids: result.droppedNodeIds, broken_node_ids: result.brokenNodeIds,
     per_node_tokens: result.perNodeTokens,
   })
+  _mark('upsertCache')
+  logger.info(`[brain-perf]   compileBrain TOTAL (MISS): ${Date.now() - _t}ms`)
   return { ...result, version }
 }
 
@@ -588,9 +599,14 @@ export async function updateBrainEdge(
 }
 
 export async function listBrain(userId: string, brainId: string) {
+  const _t = Date.now(); let _last = _t
+  const _mark = (l: string) => { logger.info(`[brain-perf]   listBrain.${l}: ${Date.now() - _last}ms`); _last = Date.now() }
   const { nodes, edges } = await fetchBrainRows(userId, brainId)
+  _mark('fetchBrainRows')
   const compiled = await compileBrain(userId, brainId)
+  _mark('compileBrain')
   const cfg = await getBrainConfigForUser(userId)
+  _mark('getBrainConfigForUser')
   // Extras for the P1 panel: recently deleted nodes (restore surface, spec §8)
   // and the user's workspaces (the "add workspace to brain" picker).
   let deletedNodes: BrainNodeRow[] = []
@@ -612,6 +628,8 @@ export async function listBrain(userId: string, brainId: string) {
     return false
   }
   const expiredNodeIds = nodes.filter(n => n.enabled && isInactiveRow(n)).map(n => n.id)
+  _mark('deleted+workspaces')
+  logger.info(`[brain-perf] listBrain TOTAL: ${Date.now() - _t}ms`)
 
   return {
     brainId, nodes, edges, deletedNodes, availableWorkspaces,

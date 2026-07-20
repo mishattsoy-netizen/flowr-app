@@ -12,6 +12,15 @@ import {
 import { logger } from '@/lib/logger'
 
 async function authedUserId(req: NextRequest): Promise<string | null> {
+  const t0 = Date.now()
+  try {
+    return await authedUserIdInner(req)
+  } finally {
+    logger.info(`[brain-perf] auth: ${Date.now() - t0}ms`)
+  }
+}
+
+async function authedUserIdInner(req: NextRequest): Promise<string | null> {
   if (!isSupabaseEnabled) return null
   // Use the resolved supabaseUrl (matches this app's real proxy/port setup,
   // see lib/supabase.ts's getSupabaseUrl), NOT the raw NEXT_PUBLIC_SUPABASE_URL
