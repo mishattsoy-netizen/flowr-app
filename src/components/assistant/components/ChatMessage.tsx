@@ -6,7 +6,7 @@ import { Layout, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft,
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
 import { useStore, generateId } from '@/data/store';
 import type { AIMessage, AIAttachment, EditorBlock } from '@/data/store';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Tooltip } from '../../layout/Tooltip';
 import { AIAvatar } from './AIAvatar';
@@ -671,6 +671,17 @@ function stripAt(text: string): string {
   return text.startsWith('@') ? text.slice(1) : text
 }
 
+/**
+ * react-markdown's defaultUrlTransform strips any non-allowlisted URL scheme
+ * (safeProtocol = https?|ircs?|mailto|xmpp), turning "flowr:note:id" into "".
+ * That breaks entity-mention pills before the `a` renderer ever sees them.
+ * Allow "flowr:" through; defer everything else to the default sanitizer.
+ */
+function flowrUrlTransform(url: string): string {
+  if (typeof url === 'string' && /^flowr:/i.test(url)) return url
+  return defaultUrlTransform(url)
+}
+
 export const getEntityIconReact = (type: string, iconName?: string) => {
   if (iconName) {
     const IconComp = getEntityIcon(iconName);
@@ -1292,36 +1303,6 @@ export const ChatMessage = memo(({
       a: ({ href, children }: any) => {
         const isCitation = typeof children === 'string' && /^\[\d+\]$/.test(children);
 
-        // ── Entity mention pill (flowr:<type>:<id>) ──
-        const entityRef = parseEntityHref(href)
-        if (entityRef && ['note','folder','canvas','workspace'].includes(entityRef.type)) {
-          const store = useStore.getState()
-          const resolved = store.entities.find((e: any) => e.id === entityRef.id)
-            || store.spaces.find((s: any) => s.id === entityRef.id)
-          // Normalize: Space uses 'name' not 'title', and its type is 'personal'|'shared' not 'workspace'
-          const resolvedData = resolved as any
-          const isSpace = resolvedData && 'name' in resolvedData && !('title' in resolvedData)
-          const label = isSpace ? resolvedData.name : (resolvedData?.title ?? stripAt(typeof children === 'string' ? children : ''))
-          const displayType = isSpace ? 'workspace' : (resolvedData?.type ?? entityRef.type)
-          const displayIcon = isSpace
-            ? (resolvedData?.icon || (resolvedData?.type === 'personal' ? 'User' : 'Box'))
-            : resolvedData?.icon
-
-          return (
-            <button
-              className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
-              onClick={() => entityRef.type === 'workspace'
-                ? store.setActiveSpaceId(entityRef.id)
-                : store.addTab(entityRef.id)}
-              title={entityRef.type === 'workspace' ? `Switch to ${label}` : `Open ${label}`}
-            >
-              {getEntityIconReact(displayType, displayIcon)}
-              <span>{label}</span>
-            </button>
-          )
-        }
-        // ── end entity mention pill ──
-
         const ensureAbsoluteUrl = (urlStr: string): string => {
           if (!urlStr) return '';
           if (
@@ -1336,8 +1317,38 @@ export const ChatMessage = memo(({
           }
           return `https://${urlStr}`;
         };
-
         const absoluteHref = ensureAbsoluteUrl(href);
+
+        // ── Entity mention pill (flowr:<type>:<id>) ──
+        const entityRef = href && typeof href === 'string' && parseEntityHref(href)
+        if (entityRef && ['note','folder','canvas','workspace'].includes(entityRef.type)) {
+          const store = useStore.getState()
+          const resolved = store.entities.find((e) => e.id === entityRef.id)
+            || store.spaces.find((s) => s.id === entityRef.id)
+          // Normalize: Space uses 'name' not 'title', type is 'personal'|'shared' not 'workspace'
+          const resolvedData = resolved
+          const isSpace = resolvedData && 'name' in resolvedData && !('title' in resolvedData)
+          const label = isSpace ? resolvedData.name : (resolvedData?.title ?? stripAt(typeof children === 'string' ? children : ''))
+          const displayType = isSpace ? 'workspace' : (resolvedData?.type ?? entityRef.type)
+          const displayIcon = isSpace
+            ? (resolvedData?.icon || (resolvedData?.type === 'personal' ? 'User' : 'Box'))
+            : resolvedData?.icon
+
+          return (
+            <Tooltip content={entityRef.type === 'workspace' ? `Switch to ${label}` : `Open ${label}`}>
+              <button
+                className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                onClick={() => entityRef.type === 'workspace'
+                  ? store.setActiveSpaceId(entityRef.id)
+                  : store.addTab(entityRef.id)}
+              >
+                {getEntityIconReact(displayType, displayIcon)}
+                <span>{label}</span>
+              </button>
+            </Tooltip>
+          )
+        }
+        // ── end entity mention pill ──
 
         if (isCitation) {
           return (
@@ -1912,6 +1923,7 @@ export const ChatMessage = memo(({
                         )} style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '15.5px' : '18px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
+                            urlTransform={flowrUrlTransform}
                             components={markdownComponents as any}
                           >
                             {renderedDisplayContent}
