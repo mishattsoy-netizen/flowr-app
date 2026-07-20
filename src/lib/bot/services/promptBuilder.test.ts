@@ -70,3 +70,26 @@ describe('buildSystemPrompt — AI prefs overlays', () => {
     expect(staticPrompt).not.toContain('[REPLY LANGUAGE]')
   })
 })
+
+describe('buildSystemPrompt — entity mentions', () => {
+  const mentionPhrases = [
+    'flowr:<type>:<id>',
+    'write it as a clickable mention',
+    'Only mention entities you have a real',
+    'Mentionable types: note, folder, canvas, workspace',
+  ]
+
+  it('includes entity mention instructions in the static prompt', async () => {
+    const { staticPrompt } = await buildSystemPrompt('REGULAR', baseContext)
+    for (const phrase of mentionPhrases) {
+      expect(staticPrompt).toContain(phrase)
+    }
+  })
+
+  it('still strips the static prompt for IMAGE_GEN', async () => {
+    const { staticPrompt, dynamicContext } = await buildSystemPrompt('IMAGE_GEN', baseContext)
+    expect(staticPrompt).toBe('')
+    expect(dynamicContext).toBe('')
+  })
+})
+
