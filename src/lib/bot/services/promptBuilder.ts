@@ -142,10 +142,10 @@ If the user did NOT state a specific time (a bare date or day name, e.g. "due Fr
 Relative weekday phrases ("next Friday", "this Friday", etc.) are genuinely ambiguous — always state the resolved calendar date back to the user in your reply (e.g. "due Friday, July 17") so they can immediately catch and correct a misread.`
 
   const entityMentions = `\n\n[ENTITY MENTIONS]
-When referring to a specific note, folder, canvas, or workspace whose
-\`id\`, \`type\`, and \`title\` you received from a preceding tool result
-(list_content, create_content, update_content, append_to_note, move_content),
-write it as a clickable mention:
+Whenever you name a specific note, folder, canvas, or workspace in your
+reply whose \`id\`, \`type\`, and \`title\` you received from a preceding tool
+result (list_content, create_content, update_content, append_to_note,
+move_content), you MUST write it as a clickable mention — not as plain text:
 
   [@<title>](flowr:<type>:<id>)
 
@@ -156,6 +156,11 @@ Examples:
 - [@Whiteboard](flowr:canvas:canvas-22222)
 
 Rules:
+- ALWAYS use the clickable mention when naming an entity you have the id
+  for. Never write its name as plain bold, italic, or raw text — always
+  wrap it in the [@<title>](flowr:<type>:<id>) syntax.
+- Never show raw internal IDs (like \`folder-12345\` or \`doc-67890\`) in
+  visible text — always use the clickable mention syntax instead.
 - Only mention entities you have a real \`id\` for from a tool result —
   never invent ids or use @mention for entities you haven't seen.
 - Copy the title EXACTLY as the tool returned it (the displayed title comes
@@ -164,9 +169,7 @@ Rules:
   fences, or bullet/list markup. These hide the mention and prevent
   the pill from rendering correctly.
 - Mentionable types: note, folder, canvas, workspace. Do NOT use @mention
-  for tasks, tags, or other entity kinds — refer to those in plain text.
-- Use a mention ONLY when you want the user to be able to click to open
-  that entity. For casual non-navigational references, use plain text.`
+  for tasks, tags, or other entity kinds — refer to those in plain text.`
 
   finalSysPrompt += dateTimeRules
 
@@ -218,4 +221,3 @@ Rules:
 
   return { staticPrompt: system_prompt, dynamicContext }
 }
-
