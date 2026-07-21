@@ -271,8 +271,14 @@ export function BrainCanvasPage() {
   /** After "Open editor", remember which node to restore the panel for. */
   const [panelResumeNodeId, setPanelResumeNodeId] = useState<string | null>(null);
 
+  useEffect(() => {
+    logger.info('[brain-perf-client] BrainCanvasPage MOUNT');
+    return () => logger.info('[brain-perf-client] BrainCanvasPage UNMOUNT');
+  }, []);
+
   // When loading a new brain, reset positions
   useEffect(() => {
+    logger.info(`[brain-perf-client] positions RESET (selectedBrainId changed to ${selectedBrainId})`);
     setPositions({});
   }, [selectedBrainId]);
 
