@@ -141,11 +141,17 @@ export function useBrainData() {
           return;
         }
         logger.info(`[brain-perf-client] load LANDING reqId=${reqId} silent=${!!opts?.silent} nodeCount=${data.nodes?.length} editSeqNow=${localEditSeq.current} editSeqAtStart=${editSeqAtStart}`);
-        // A newer local edit landed while this silent reload was in flight —
-        // applying this response now would revert that edit for a frame.
-        // The next scheduled reconcile (fired by that edit) will catch up.
-        if (opts?.silent && localEditSeq.current !== editSeqAtStart) {
+        // A newer local edit landed while THIS request was in flight — applying
+        // this now-stale response would revert that edit for a frame (root
+        // cause of the node-creation flicker: a leftover non-silent load from
+        // page-open landed after an optimistic addLocalNode and clobbered it
+        // with the pre-add node list). Not silent-only: a stale non-silent
+        // load is exactly as wrong as a stale silent one — `reqId` staleness
+        // only catches a NEWER load() call superseding this one, not a local
+        // optimistic edit applied without calling load() at all.
+        if (localEditSeq.current !== editSeqAtStart) {
           logger.info(`[brain-perf-client] load SKIPPED (clobber guard) reqId=${reqId}`);
+          if (!opts?.silent) setError(null); // still clear any stale error
           return;
         }
         // data.brainId is the server's authoritative id for the brain this
