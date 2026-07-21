@@ -141,7 +141,10 @@ function ensurePosition(
   existing: Record<string, { x: number; y: number }>,
 ): { x: number; y: number } {
   if (existing[node.id]) return existing[node.id];
-  if (node.position) return node.position;
+  if (node.position) {
+    logger.info(`[brain-perf-client] ensurePosition FALLBACK-TO-SERVER-POS nodeId=${node.id} pos=${JSON.stringify(node.position)}`);
+    return node.position;
+  }
   // Cascade: place new nodes in a grid starting from (40, 40)
   const cols = Math.floor((typeof window !== 'undefined' ? window.innerWidth : 1200) / (CARD_W + 40));
   const col = index % Math.max(cols, 3);
@@ -371,7 +374,10 @@ export function BrainCanvasPage() {
       setPositions(prev => {
         const next = { ...prev };
         for (const n of state.nodes) {
-          if (!next[n.id] && n.position) next[n.id] = n.position;
+          if (!next[n.id] && n.position) {
+            logger.info(`[brain-perf-client] positions-fill-effect FILLING nodeId=${n.id} fromServerPos=${JSON.stringify(n.position)}`);
+            next[n.id] = n.position;
+          }
         }
         return next;
       });
@@ -728,11 +734,26 @@ export function BrainCanvasPage() {
     }
   }, [selectedNodeIds, nodePositions]);
 
-  // Commit position to API (debounced — fires on pointer up)
+  // Commit position to API (debounced — fires on pointer up). A node still
+  // carrying its creation temp id (add_node hasn't resolved yet) can't be
+  // committed — the server has never heard of that id and rejects it
+  // outright (Postgres uuid parse error), so the drag would silently fail to
+  // persist and the position would snap back on the next reconcile. Buffer
+  // it instead; flushPendingTempPosition sends it once the real id exists.
+  // This can't be fixed by racing the debounce against the add_node
+  // round-trip (rekeying an already-fired timer) — the debounce routinely
+  // wins that race, so the doomed request is already in flight before a
+  // rename could ever intervene.
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingTempPos = useRef<Record<string, { x: number; y: number }>>({});
   const commitOnePosition = useCallback((nodeId: string, pos: { x: number; y: number }) => {
+    if (nodeId.startsWith('temp-node-')) {
+      pendingTempPos.current[nodeId] = pos;
+      return;
+    }
     if (debounceTimers.current[nodeId]) clearTimeout(debounceTimers.current[nodeId]);
     debounceTimers.current[nodeId] = setTimeout(async () => {
+      delete debounceTimers.current[nodeId];
       try {
         await mutate({ action: 'update_node', node_id: nodeId, updates: { position: pos } });
       } catch (e) {
@@ -740,6 +761,14 @@ export function BrainCanvasPage() {
       }
     }, 300);
   }, [mutate]);
+
+  // Send a temp-id node's buffered drag position (if any) under its real id
+  // once add_node resolves and the id is known.
+  const flushPendingTempPosition = useCallback((tempId: string, realId: string) => {
+    const pos = pendingTempPos.current[tempId];
+    delete pendingTempPos.current[tempId];
+    if (pos) commitOnePosition(realId, pos);
+  }, [commitOnePosition]);
 
   const handleCommit = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     setDraggingNodeId(null);
@@ -956,12 +985,13 @@ export function BrainCanvasPage() {
           const { [tempId]: pos, ...rest } = prev;
           return { ...rest, [result.id]: pos };
         });
+        flushPendingTempPosition(tempId, result.id);
       }
     } catch (e) {
       removeLocalNode(tempId);
       logger.error('Failed to add brain node:', e);
     }
-  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel, addLocalNode, removeLocalNode, renameLocalNode]);
+  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel, addLocalNode, removeLocalNode, renameLocalNode, flushPendingTempPosition]);
 
   // Ref ids already on this brain — block duplicate cards of the same entity.
   const brainRefIds = useMemo(
@@ -995,12 +1025,13 @@ export function BrainCanvasPage() {
           const { [tempId]: pos, ...rest } = prev;
           return { ...rest, [result.id]: pos };
         });
+        flushPendingTempPosition(tempId, result.id);
       }
     } catch (e) {
       removeLocalNode(tempId);
       logger.error('Failed to add existing entity:', e);
     }
-  }, [activeNodes.length, brainRefIds, mutate, addLocalNode, removeLocalNode, renameLocalNode]);
+  }, [activeNodes.length, brainRefIds, mutate, addLocalNode, removeLocalNode, renameLocalNode, flushPendingTempPosition]);
 
   // Space / middle-click pan — always navigation, even over nodes and with
   // connect/new-node tools active. State (not only refs) so cursors re-render.
