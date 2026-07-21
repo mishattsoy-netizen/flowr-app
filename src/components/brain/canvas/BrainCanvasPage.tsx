@@ -951,8 +951,12 @@ export function BrainCanvasPage() {
     }
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = (e.clientX - rect.left - viewport.x) / viewport.scale;
-    const y = (e.clientY - rect.top - viewport.y) / viewport.scale;
+    // Center the card on the click point (place its top-left half a card up and
+    // left), so the node appears under the cursor rather than starting there.
+    // Height is content-driven; CARD_H is the pre-measurement fallback, so
+    // vertical centering is approximate — close enough on create.
+    const x = (e.clientX - rect.left - viewport.x) / viewport.scale - CARD_W / 2;
+    const y = (e.clientY - rect.top - viewport.y) / viewport.scale - CARD_H / 2;
 
     setNewNodeMode(false);
 
