@@ -259,6 +259,7 @@ export function BrainCanvasPage() {
   const moveEntity = useStore(s => s.moveEntity);
   const renameEntity = useStore(s => s.renameEntity);
   const splitViewRightId = useStore(s => s.splitViewRightId);
+  const setBrainNodePosition = useStore(s => s.setBrainNodePosition);
 
   // Details panel: single-click opens panel; editor is mutually exclusive.
   const [detailsPanel, setDetailsPanel] = useState<{
@@ -276,15 +277,33 @@ export function BrainCanvasPage() {
     return () => logger.info('[brain-perf-client] BrainCanvasPage UNMOUNT');
   }, []);
 
-  // When loading a new brain, reset positions
-  useEffect(() => {
-    logger.info(`[brain-perf-client] positions RESET (selectedBrainId changed to ${selectedBrainId})`);
-    setPositions({});
-  }, [selectedBrainId]);
-
-  // Optimistic positions (synced on drag commit)
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  // Optimistic node positions (working copy for live drag). Seeded from the
+  // store so it survives BrainCanvasPage remounting — closing the split-view
+  // editor column collapses two columns to one, which swaps the canvas into a
+  // different JSX subtree and unmounts/remounts it. A plain useState({}) here
+  // would reset to empty on that remount, and moved nodes would fall back
+  // through ensurePosition to their stale cached node.position (visible snap
+  // to the pre-drag spot) until the next reconcile refilled them ~2s later.
+  //
+  // Keyed off state.brainId, NOT selectedBrainId: on a fresh remount
+  // selectedBrainId is null (useBrainData starts at null and only sets it
+  // after the ~2s load resolves), whereas state.brainId is already populated
+  // via the persisted-cache fallback — so seeding hits the store immediately
+  // with no null gap that would reopen the snapback.
+  const seedBrainId = state?.brainId ?? null;
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
+    () => (seedBrainId ? useStore.getState().brainNodePositionsByBrain[seedBrainId] ?? {} : {}),
+  );
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+
+  // On brain switch (or when brainId first resolves), re-seed the working copy
+  // from that brain's committed positions in the store. Was previously
+  // `setPositions({})`, which threw away committed positions — safe only
+  // because they were re-fetched, but that re-fetch is exactly the ~2s
+  // snapback window this fix closes.
+  useEffect(() => {
+    setPositions(seedBrainId ? useStore.getState().brainNodePositionsByBrain[seedBrainId] ?? {} : {});
+  }, [seedBrainId]);
 
   // Cards are content-sized; edges need real heights. Module cache survives
   // remount (leave/reopen Brain) so lines don't redraw at CARD_H then jump.
@@ -753,6 +772,10 @@ export function BrainCanvasPage() {
       return;
     }
     logger.info(`[brain-perf-client] commitOnePosition SCHEDULE (real id) nodeId=${nodeId} pos=${JSON.stringify(pos)}`);
+    // Mirror into the store immediately (not in the debounced timeout) so the
+    // committed position survives a remount that happens before the debounce
+    // fires — e.g. moving a node then closing the split-view editor column.
+    if (selectedBrainId) setBrainNodePosition(selectedBrainId, nodeId, pos);
     if (debounceTimers.current[nodeId]) clearTimeout(debounceTimers.current[nodeId]);
     debounceTimers.current[nodeId] = setTimeout(async () => {
       delete debounceTimers.current[nodeId];
@@ -763,7 +786,7 @@ export function BrainCanvasPage() {
         logger.error('Failed to save node position:', e);
       }
     }, 300);
-  }, [mutate]);
+  }, [mutate, selectedBrainId, setBrainNodePosition]);
 
   // Send a temp-id node's buffered drag position (if any) under its real id
   // once add_node resolves and the id is known.

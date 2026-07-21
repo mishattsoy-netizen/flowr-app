@@ -547,6 +547,10 @@ export interface AppState {
   // brains, so only caching ones actually visited keeps this bounded.
   brainCanvasStateByBrain: Record<string, Record<string, any>>;
   setBrainCanvasStateForBrain: (brainId: string, state: Record<string, any>) => void;
+  // Committed brain-canvas node positions, keyed by brain then node id.
+  // Not persisted — survives BrainCanvasPage remount (split-view collapse).
+  brainNodePositionsByBrain: Record<string, Record<string, { x: number; y: number }>>;
+  setBrainNodePosition: (brainId: string, nodeId: string, pos: { x: number; y: number }) => void;
   setShowTempNotice: (show: boolean) => void;
 
   // Actions

@@ -334,6 +334,20 @@ export const useStore = create<AppState>()(
       brainCanvasStateByBrain: {},
       setBrainCanvasStateForBrain: (brainId, state) =>
         set(s => ({ brainCanvasStateByBrain: { ...s.brainCanvasStateByBrain, [brainId]: state } })),
+      // Committed brain-canvas node positions, keyed by brain then node id.
+      // Deliberately NOT persisted (absent from partialize) — kept in the
+      // store only so it survives BrainCanvasPage remounting when the
+      // split-view collapses two columns to one (which swaps the canvas into
+      // a different JSX subtree and unmounts it). Live drag stays in local
+      // component state; only the final committed position is written here.
+      brainNodePositionsByBrain: {},
+      setBrainNodePosition: (brainId, nodeId, pos) =>
+        set(s => ({
+          brainNodePositionsByBrain: {
+            ...s.brainNodePositionsByBrain,
+            [brainId]: { ...(s.brainNodePositionsByBrain[brainId] ?? {}), [nodeId]: pos },
+          },
+        })),
       tempChatGreeting: "Write like nobody's listening.",
       isAIAssistantExtended: true,
       isAILoading: false,
