@@ -5,6 +5,16 @@ import { supabase, isSupabaseEnabled } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { useStore } from '@/data/store';
 
+// Bumped by every optimistic local edit (patchLocalNode/Edge, addLocalEdge,
+// addLocalNode, removeLocalNode...) across ALL useBrainData() instances.
+// Module-level (not per-hook useRef) because BrainCanvasPage and
+// BrainSidebarContent each mount their own instance of this hook but share
+// the same underlying brain state — a per-instance counter can't detect an
+// edit made through a sibling instance, so its clobber guard (see `load`
+// below) would never trigger for that edit and a stale response would
+// overwrite it.
+const localEditSeqGlobal = { current: 0 };
+
 // ---- Types matching the route response ----
 export interface BrainCanvasNode {
   id: string;
@@ -112,15 +122,9 @@ export function useBrainData() {
   // allowed to write state.
   const requestIdRef = useRef(0);
 
-  // Bumped by every optimistic local edit (patchLocalNode/Edge, addLocalEdge,
-  // addLocalNode, removeLocalNode...). A silent reload started before a later
-  // local edit must not overwrite that edit when it lands — see the guard in
-  // `load` below.
-  const localEditSeq = useRef(0);
-
   const load = useCallback(async (brainId?: string | null, opts?: { silent?: boolean }) => {
     const reqId = ++requestIdRef.current;
-    const editSeqAtStart = localEditSeq.current;
+    const editSeqAtStart = localEditSeqGlobal.current;
     logger.info(`[brain-perf-client] load START reqId=${reqId} brainId=${brainId} silent=${!!opts?.silent} editSeq=${editSeqAtStart}`);
     // A silent reload must NOT flip the global loading flag: the page swaps the
     // whole canvas for a progress bar while it's true, which would blow away
@@ -140,7 +144,7 @@ export function useBrainData() {
           logger.info(`[brain-perf-client] load STALE-after-json reqId=${reqId}`);
           return;
         }
-        logger.info(`[brain-perf-client] load LANDING reqId=${reqId} silent=${!!opts?.silent} nodeCount=${data.nodes?.length} editSeqNow=${localEditSeq.current} editSeqAtStart=${editSeqAtStart}`);
+        logger.info(`[brain-perf-client] load LANDING reqId=${reqId} silent=${!!opts?.silent} nodeCount=${data.nodes?.length} editSeqNow=${localEditSeqGlobal.current} editSeqAtStart=${editSeqAtStart}`);
         // A newer local edit landed while THIS request was in flight — applying
         // this now-stale response would revert that edit for a frame (root
         // cause of the node-creation flicker: a leftover non-silent load from
@@ -149,7 +153,7 @@ export function useBrainData() {
         // load is exactly as wrong as a stale silent one — `reqId` staleness
         // only catches a NEWER load() call superseding this one, not a local
         // optimistic edit applied without calling load() at all.
-        if (localEditSeq.current !== editSeqAtStart) {
+        if (localEditSeqGlobal.current !== editSeqAtStart) {
           logger.info(`[brain-perf-client] load SKIPPED (clobber guard) reqId=${reqId}`);
           if (!opts?.silent) setError(null); // still clear any stale error
           return;
@@ -213,7 +217,7 @@ export function useBrainData() {
   const addLocalEdge = useCallback((edge: BrainCanvasEdge) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, edges: [...state.edges, edge] });
-    localEditSeq.current++;
+    localEditSeqGlobal.current++;
   }, [setState, state, selectedBrainId]);
 
   // Remove a locally-added edge (e.g. the temp one from addLocalEdge) if its
@@ -222,7 +226,7 @@ export function useBrainData() {
   const removeLocalEdge = useCallback((edgeId: string) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, edges: state.edges.filter(e => e.id !== edgeId) });
-    localEditSeq.current++;
+    localEditSeqGlobal.current++;
   }, [setState, state, selectedBrainId]);
 
   // Same pattern as addLocalEdge/removeLocalEdge, for node creation — call
@@ -231,8 +235,8 @@ export function useBrainData() {
   const addLocalNode = useCallback((node: BrainCanvasNode) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: [...state.nodes, node] });
-    localEditSeq.current++;
-    logger.info(`[brain-perf-client] addLocalNode id=${node.id} editSeq=${localEditSeq.current}`);
+    localEditSeqGlobal.current++;
+    logger.info(`[brain-perf-client] addLocalNode id=${node.id} editSeq=${localEditSeqGlobal.current}`);
   }, [setState, state, selectedBrainId]);
 
   // Remove a locally-added node (e.g. the temp one from addLocalNode) if its
@@ -240,8 +244,8 @@ export function useBrainData() {
   const removeLocalNode = useCallback((nodeId: string) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: state.nodes.filter(n => n.id !== nodeId) });
-    localEditSeq.current++;
-    logger.info(`[brain-perf-client] removeLocalNode id=${nodeId} editSeq=${localEditSeq.current}`);
+    localEditSeqGlobal.current++;
+    logger.info(`[brain-perf-client] removeLocalNode id=${nodeId} editSeq=${localEditSeqGlobal.current}`);
   }, [setState, state, selectedBrainId]);
 
   /** Patch one node in local state immediately, before the server round trip.
@@ -254,7 +258,7 @@ export function useBrainData() {
       ...state,
       nodes: state.nodes.map(n => (n.id === nodeId ? { ...n, ...patch } : n)),
     });
-    localEditSeq.current++;
+    localEditSeqGlobal.current++;
   }, [setState, state, selectedBrainId]);
 
   /** Same, for an edge's label. */
@@ -264,7 +268,7 @@ export function useBrainData() {
       ...state,
       edges: state.edges.map(e => (e.id === edgeId ? { ...e, ...patch } : e)),
     });
-    localEditSeq.current++;
+    localEditSeqGlobal.current++;
   }, [setState, state, selectedBrainId]);
 
   const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
