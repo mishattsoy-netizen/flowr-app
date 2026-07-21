@@ -159,7 +159,26 @@ export function useBrainData() {
         // be undefined in that case.
         // perNodeCap defaults to pro tier (2000) so a stale cached/server
         // response missing the field never divides by zero in token UI.
-        if (data.brainId) setState(data.brainId, { ...data, perNodeCap: data.perNodeCap ?? 2000 });
+        if (data.brainId) {
+          // Carry forward any optimistic temp nodes the server hasn't
+          // confirmed yet. A background load can start AFTER an addLocalNode
+          // (so the clobber-guard counter matches and lets it through) but
+          // still return a node list from BEFORE the add_node POST committed —
+          // e.g. creating a node while the editor is closed remounts the canvas
+          // and fires a fresh load that races the still-in-flight POST. Without
+          // this merge that load deletes the just-created card for ~2-3s until
+          // the next reconcile brings it back. A background load must never
+          // drop an optimistic node the server simply hasn't committed yet.
+          const cur = (useStore.getState().brainCanvasStateByBrain as Record<string, BrainCanvasState>)[data.brainId];
+          const serverIds = new Set((data.nodes ?? []).map((n: BrainCanvasNode) => n.id));
+          const pendingTempNodes = (cur?.nodes ?? []).filter(
+            n => n.id.startsWith('temp-node-') && !serverIds.has(n.id),
+          );
+          const mergedNodes = pendingTempNodes.length
+            ? [...(data.nodes ?? []), ...pendingTempNodes]
+            : data.nodes;
+          setState(data.brainId, { ...data, nodes: mergedNodes, perNodeCap: data.perNodeCap ?? 2000 });
+        }
         setError(null);
         // Only adopt the server's brainId when we didn't already know which
         // brain we wanted (initial load) — otherwise this would keep
