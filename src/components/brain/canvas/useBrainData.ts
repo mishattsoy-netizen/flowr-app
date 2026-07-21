@@ -121,6 +121,7 @@ export function useBrainData() {
   const load = useCallback(async (brainId?: string | null, opts?: { silent?: boolean }) => {
     const reqId = ++requestIdRef.current;
     const editSeqAtStart = localEditSeq.current;
+    logger.info(`[brain-perf-client] load START reqId=${reqId} brainId=${brainId} silent=${!!opts?.silent} editSeq=${editSeqAtStart}`);
     // A silent reload must NOT flip the global loading flag: the page swaps the
     // whole canvas for a progress bar while it's true, which would blow away
     // the optimistic update we just applied and make every edit feel like a
@@ -129,14 +130,24 @@ export function useBrainData() {
     try {
       const qs = brainId ? `?brain_id=${brainId}` : '';
       const res = await fetch(`/api/ai/user-brain${qs}`, { headers: await authHeaders() });
-      if (reqId !== requestIdRef.current) return; // a newer request superseded this one
+      if (reqId !== requestIdRef.current) {
+        logger.info(`[brain-perf-client] load STALE (superseded) reqId=${reqId}`);
+        return; // a newer request superseded this one
+      }
       if (res.ok) {
         const data = await res.json();
-        if (reqId !== requestIdRef.current) return;
+        if (reqId !== requestIdRef.current) {
+          logger.info(`[brain-perf-client] load STALE-after-json reqId=${reqId}`);
+          return;
+        }
+        logger.info(`[brain-perf-client] load LANDING reqId=${reqId} silent=${!!opts?.silent} nodeCount=${data.nodes?.length} editSeqNow=${localEditSeq.current} editSeqAtStart=${editSeqAtStart}`);
         // A newer local edit landed while this silent reload was in flight —
         // applying this response now would revert that edit for a frame.
         // The next scheduled reconcile (fired by that edit) will catch up.
-        if (opts?.silent && localEditSeq.current !== editSeqAtStart) return;
+        if (opts?.silent && localEditSeq.current !== editSeqAtStart) {
+          logger.info(`[brain-perf-client] load SKIPPED (clobber guard) reqId=${reqId}`);
+          return;
+        }
         // data.brainId is the server's authoritative id for the brain this
         // response describes — correct even on the very first load (called
         // with no brainId arg), unlike the `brainId` param above which may
@@ -173,9 +184,12 @@ export function useBrainData() {
   // trailing reconcile after edits settle.
   const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleReconcile = useCallback((brainId: string | null) => {
+    const wasPending = !!reconcileTimer.current;
     if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    logger.info(`[brain-perf-client] scheduleReconcile brainId=${brainId} clearedExisting=${wasPending}`);
     reconcileTimer.current = setTimeout(() => {
       reconcileTimer.current = null;
+      logger.info(`[brain-perf-client] scheduleReconcile FIRING brainId=${brainId}`);
       void load(brainId, { silent: true });
     }, 600);
   }, [load]);
@@ -212,6 +226,7 @@ export function useBrainData() {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: [...state.nodes, node] });
     localEditSeq.current++;
+    logger.info(`[brain-perf-client] addLocalNode id=${node.id} editSeq=${localEditSeq.current}`);
   }, [setState, state, selectedBrainId]);
 
   // Remove a locally-added node (e.g. the temp one from addLocalNode) if its
@@ -220,6 +235,7 @@ export function useBrainData() {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: state.nodes.filter(n => n.id !== nodeId) });
     localEditSeq.current++;
+    logger.info(`[brain-perf-client] removeLocalNode id=${nodeId} editSeq=${localEditSeq.current}`);
   }, [setState, state, selectedBrainId]);
 
   /** Patch one node in local state immediately, before the server round trip.
