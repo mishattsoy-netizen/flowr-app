@@ -112,8 +112,15 @@ export function useBrainData() {
   // allowed to write state.
   const requestIdRef = useRef(0);
 
+  // Bumped by every optimistic local edit (patchLocalNode/Edge, addLocalEdge,
+  // addLocalNode, removeLocalNode...). A silent reload started before a later
+  // local edit must not overwrite that edit when it lands — see the guard in
+  // `load` below.
+  const localEditSeq = useRef(0);
+
   const load = useCallback(async (brainId?: string | null, opts?: { silent?: boolean }) => {
     const reqId = ++requestIdRef.current;
+    const editSeqAtStart = localEditSeq.current;
     // A silent reload must NOT flip the global loading flag: the page swaps the
     // whole canvas for a progress bar while it's true, which would blow away
     // the optimistic update we just applied and make every edit feel like a
@@ -126,6 +133,10 @@ export function useBrainData() {
       if (res.ok) {
         const data = await res.json();
         if (reqId !== requestIdRef.current) return;
+        // A newer local edit landed while this silent reload was in flight —
+        // applying this response now would revert that edit for a frame.
+        // The next scheduled reconcile (fired by that edit) will catch up.
+        if (opts?.silent && localEditSeq.current !== editSeqAtStart) return;
         // data.brainId is the server's authoritative id for the brain this
         // response describes — correct even on the very first load (called
         // with no brainId arg), unlike the `brainId` param above which may
@@ -155,6 +166,24 @@ export function useBrainData() {
 
   useEffect(() => { load(selectedBrainId); }, [load, selectedBrainId]);
 
+  // Coalesce background reconciles: rapid edits (e.g. typing in the tag name
+  // field, which autosaves per keystroke) would otherwise fire one ~1.5s
+  // silent GET per edit, each overwriting state as it lands — visible as lag
+  // even though each edit is itself optimistic. Collapse them into a single
+  // trailing reconcile after edits settle.
+  const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReconcile = useCallback((brainId: string | null) => {
+    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    reconcileTimer.current = setTimeout(() => {
+      reconcileTimer.current = null;
+      void load(brainId, { silent: true });
+    }, 600);
+  }, [load]);
+
+  useEffect(() => () => {
+    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+  }, []);
+
   // Append an edge to local state immediately — call BEFORE the connect POST
   // even starts, with a temp id, so the line paints on click instead of
   // waiting on the request round-trip. A background reload (mutate's
@@ -164,6 +193,7 @@ export function useBrainData() {
   const addLocalEdge = useCallback((edge: BrainCanvasEdge) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, edges: [...state.edges, edge] });
+    localEditSeq.current++;
   }, [setState, state, selectedBrainId]);
 
   // Remove a locally-added edge (e.g. the temp one from addLocalEdge) if its
@@ -172,6 +202,7 @@ export function useBrainData() {
   const removeLocalEdge = useCallback((edgeId: string) => {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, edges: state.edges.filter(e => e.id !== edgeId) });
+    localEditSeq.current++;
   }, [setState, state, selectedBrainId]);
 
   /** Patch one node in local state immediately, before the server round trip.
@@ -184,6 +215,7 @@ export function useBrainData() {
       ...state,
       nodes: state.nodes.map(n => (n.id === nodeId ? { ...n, ...patch } : n)),
     });
+    localEditSeq.current++;
   }, [setState, state, selectedBrainId]);
 
   /** Same, for an edge's label. */
@@ -193,6 +225,7 @@ export function useBrainData() {
       ...state,
       edges: state.edges.map(e => (e.id === edgeId ? { ...e, ...patch } : e)),
     });
+    localEditSeq.current++;
   }, [setState, state, selectedBrainId]);
 
   const mutate = useCallback(async (body: Record<string, unknown>, opts?: { backgroundReload?: boolean }) => {
@@ -212,9 +245,9 @@ export function useBrainData() {
       // may have already applied the real result locally (e.g. addLocalEdge)
       // for instant feedback.
       if (opts?.backgroundReload) {
-        // Silent: reconcile server truth without swapping the canvas for the
-        // full-screen loader (which would discard the optimistic update).
-        load(brainId, { silent: true });
+        // Coalesced: rapid successive edits share one trailing reconcile
+        // instead of each firing its own ~1.5s GET.
+        scheduleReconcile(brainId);
       } else {
         await load(brainId);
       }
@@ -225,7 +258,7 @@ export function useBrainData() {
     } finally {
       if (!opts?.backgroundReload) setLoading(false);
     }
-  }, [selectedBrainId, load]);
+  }, [selectedBrainId, load, scheduleReconcile]);
 
   return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, patchLocalNode, patchLocalEdge };
 }
