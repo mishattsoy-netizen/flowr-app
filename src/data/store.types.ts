@@ -551,6 +551,11 @@ export interface AppState {
   // Not persisted — survives BrainCanvasPage remount (split-view collapse).
   brainNodePositionsByBrain: Record<string, Record<string, { x: number; y: number }>>;
   setBrainNodePosition: (brainId: string, nodeId: string, pos: { x: number; y: number }) => void;
+  // Brain-canvas pan/zoom viewport, keyed by brain. Not persisted — survives
+  // BrainCanvasPage remount (split-view editor open/close) so pan/zoom aren't
+  // reset to origin + 100%.
+  brainViewportByBrain: Record<string, { x: number; y: number; scale: number }>;
+  setBrainViewport: (brainId: string, viewport: { x: number; y: number; scale: number }) => void;
   setShowTempNotice: (show: boolean) => void;
 
   // Actions

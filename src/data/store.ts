@@ -348,6 +348,16 @@ export const useStore = create<AppState>()(
             [brainId]: { ...(s.brainNodePositionsByBrain[brainId] ?? {}), [nodeId]: pos },
           },
         })),
+      // Brain-canvas pan/zoom viewport, keyed by brain. Not persisted — kept in
+      // the store only so pan/zoom survives BrainCanvasPage remounting when the
+      // split-view opens/closes the editor column (same remount that wipes
+      // node positions above). Without this, opening a node reset the canvas to
+      // origin + 100% zoom.
+      brainViewportByBrain: {},
+      setBrainViewport: (brainId, viewport) =>
+        set(s => ({
+          brainViewportByBrain: { ...s.brainViewportByBrain, [brainId]: viewport },
+        })),
       tempChatGreeting: "Write like nobody's listening.",
       isAIAssistantExtended: true,
       isAILoading: false,

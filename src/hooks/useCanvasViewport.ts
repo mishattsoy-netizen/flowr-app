@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useStore } from '@/data/store';
 
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 4.0;
@@ -15,10 +16,39 @@ export interface CanvasViewport {
 // CanvasPage's handleBgPointerDown via setViewport — it is not moved here,
 // since it's entangled with tool state, selection clearing, and other
 // pointer-down branches that don't belong in a viewport-only hook.
-export function useCanvasViewport(containerRef: React.RefObject<HTMLDivElement | null>) {
-  const [viewport, setViewport] = useState<CanvasViewport>({ x: 0, y: 0, scale: 1 });
+//
+// `brainId` keys the persisted-in-store viewport so pan/zoom survives
+// BrainCanvasPage remounting when the split-view editor column opens/closes
+// (the same remount that would otherwise reset scale to 1 and pan to origin).
+export function useCanvasViewport(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  brainId?: string | null,
+) {
+  const setBrainViewport = useStore(s => s.setBrainViewport);
+  // Seed from the store so a remount restores the last pan/zoom instead of
+  // snapping to origin + 100%.
+  const [viewport, setViewport] = useState<CanvasViewport>(
+    () => (brainId ? useStore.getState().brainViewportByBrain[brainId] ?? { x: 0, y: 0, scale: 1 } : { x: 0, y: 0, scale: 1 }),
+  );
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+
+  // Mirror viewport into the store (keyed by brain) so it survives the next
+  // remount. Done in an effect, not inside the setViewport updater, to keep
+  // the updater pure (StrictMode double-invokes updaters).
+  useEffect(() => {
+    if (brainId) setBrainViewport(brainId, viewport);
+  }, [viewport, brainId, setBrainViewport]);
+
+  // Re-seed when the brain changes (switching brains) so each brain keeps its
+  // own pan/zoom rather than carrying over the previous brain's. Skips the
+  // very first run (initial state already seeded above) via a ref guard, so it
+  // doesn't clobber the seeded value on mount.
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    setViewport(brainId ? useStore.getState().brainViewportByBrain[brainId] ?? { x: 0, y: 0, scale: 1 } : { x: 0, y: 0, scale: 1 });
+  }, [brainId]);
 
   useEffect(() => {
     // Window capture + contains(): (1) runs before the browser's ctrl/cmd+wheel

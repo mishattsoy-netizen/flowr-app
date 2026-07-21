@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useStore } from '@/data/store';
 import { useCanvasViewport, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from '@/hooks/useCanvasViewport';
 import { cn } from '@/lib/utils';
@@ -151,12 +151,15 @@ function ensurePosition(
 
 export function BrainCanvasPage() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { viewport, setViewport, viewportRef } = useCanvasViewport(containerRef);
   // Match ColumnHeader / HeaderBar left inset for dashboard/tracker/chat/brain.
   const headerContentLeft = isDesktop() ? 30 : 20;
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
   const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, renameLocalNode, patchLocalNode, patchLocalEdge } = useBrainData();
+  // Keyed off state.brainId (not selectedBrainId — null during the remount's
+  // load window) so viewport survives the editor-open remount, same as the
+  // node-position store slice.
+  const { viewport, setViewport, viewportRef } = useCanvasViewport(containerRef, state?.brainId ?? null);
   const activeBrainId = useStore(s => s.activeBrainId);
   const setActiveBrainId = useStore(s => s.setActiveBrainId);
 
@@ -681,6 +684,30 @@ export function BrainCanvasPage() {
     return map;
   }, [activeNodes, positions]);
 
+  // When a node opens into the right editor column (splitViewRightId set), pan
+  // the canvas so that node is centered in the now-narrower left column —
+  // without changing zoom. Runs in a layout effect after the column has
+  // reflowed, so the container width we measure is the post-open (narrow) one
+  // (SplitViewLayout doesn't width-transition the open, so the rect is final).
+  // Fires on open and when switching which node is open. Not on close.
+  useLayoutEffect(() => {
+    if (!splitViewRightId) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const node = activeNodes.find(n => n.ref_id === splitViewRightId);
+    if (!node) return;
+    const pos = nodePositions[node.id];
+    if (!pos) return;
+    const rect = container.getBoundingClientRect();
+    const cx = pos.x + CARD_W / 2;
+    const cy = pos.y + (heights[node.id] ?? CARD_H) / 2;
+    setViewport(v => ({ ...v, x: rect.width / 2 - cx * v.scale, y: rect.height / 2 - cy * v.scale }));
+    // nodePositions/heights intentionally omitted: we want this to fire on the
+    // open transition (splitViewRightId) and node switch, not on every drag or
+    // height re-measure, which would fight the user's manual panning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitViewRightId]);
+
   // Which sides already have an edge — same box + closestSides as line geometry
   // so card dots mark the ports the paths actually use.
   // Also: sides on the far end of edges that touch a selected node (blue dots
@@ -964,14 +991,13 @@ export function BrainCanvasPage() {
     const entityId = addEntity({ type: 'note', title: 'New Note', content: [] });
     if (!entityId) return;
 
-    // Open it immediately in the right column so the click feels instant —
-    // don't wait on the brain-node round trip.
-    openBrainNode(entityId);
-
     // Paint the card FIRST, with a temp id (same pattern as addLocalEdge), so
     // placing a new block feels instant. Previously this came after an awaited
     // upsertEntity round trip, so the card didn't appear until that write
     // returned — the "wait, then the card shows up already delayed" lag.
+    // Added BEFORE openBrainNode so the temp node is already in canvas state
+    // when opening the editor column remounts the canvas and its centering
+    // layout effect runs — otherwise the effect can't find the node to center.
     const tempId = `temp-node-${Date.now()}`;
     const nowIso = new Date().toISOString();
     addLocalNode({
@@ -981,6 +1007,10 @@ export function BrainCanvasPage() {
       created_by: 'user', created_at: nowIso, updated_at: nowIso,
       tag_color: null, tag_name: null, active_from: null, active_until: null,
     });
+
+    // Open it immediately in the right column so the click feels instant —
+    // don't wait on the brain-node round trip.
+    openBrainNode(entityId);
     try {
       // addEntity's own Supabase write is debounced (see debouncedPushEntity),
       // so the entity may not exist server-side yet when add_node's
