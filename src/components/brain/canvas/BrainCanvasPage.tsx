@@ -964,19 +964,10 @@ export function BrainCanvasPage() {
     // don't wait on the brain-node round trip.
     openBrainNode(entityId);
 
-    // addEntity's own Supabase write is debounced (see debouncedPushEntity),
-    // so the entity may not exist server-side yet when add_node's
-    // assertOwnedEntity check runs. Push it synchronously here first —
-    // otherwise add_node 404s silently and the card never appears.
-    const entity = useStore.getState().entities.find(en => en.id === entityId);
-    if (entity) {
-      const { upsertEntity } = await import('@/lib/sync');
-      await upsertEntity(entity);
-    }
-
-    // Add it as a brain node — paint the card immediately with a temp id
-    // (same pattern as addLocalEdge) instead of waiting on the round trip +
-    // a full server compile, which was the ~3s freeze on node creation.
+    // Paint the card FIRST, with a temp id (same pattern as addLocalEdge), so
+    // placing a new block feels instant. Previously this came after an awaited
+    // upsertEntity round trip, so the card didn't appear until that write
+    // returned — the "wait, then the card shows up already delayed" lag.
     const tempId = `temp-node-${Date.now()}`;
     const nowIso = new Date().toISOString();
     addLocalNode({
@@ -987,6 +978,16 @@ export function BrainCanvasPage() {
       tag_color: null, tag_name: null, active_from: null, active_until: null,
     });
     try {
+      // addEntity's own Supabase write is debounced (see debouncedPushEntity),
+      // so the entity may not exist server-side yet when add_node's
+      // assertOwnedEntity check runs. Push it synchronously first — otherwise
+      // add_node 404s silently. This still gates the POST, but no longer gates
+      // the optimistic paint above.
+      const entity = useStore.getState().entities.find(en => en.id === entityId);
+      if (entity) {
+        const { upsertEntity } = await import('@/lib/sync');
+        await upsertEntity(entity);
+      }
       const result = await mutate(
         { action: 'add_node', type: 'entity', ref_id: entityId, position: { x, y } },
         { backgroundReload: true },
