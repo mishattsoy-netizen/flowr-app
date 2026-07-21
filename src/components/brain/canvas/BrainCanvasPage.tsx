@@ -748,6 +748,7 @@ export function BrainCanvasPage() {
   const pendingTempPos = useRef<Record<string, { x: number; y: number }>>({});
   const commitOnePosition = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     if (nodeId.startsWith('temp-node-')) {
+      logger.info(`[brain-perf-client] commitOnePosition BUFFERED (temp id) nodeId=${nodeId} pos=${JSON.stringify(pos)}`);
       pendingTempPos.current[nodeId] = pos;
       return;
     }
@@ -755,7 +756,8 @@ export function BrainCanvasPage() {
     debounceTimers.current[nodeId] = setTimeout(async () => {
       delete debounceTimers.current[nodeId];
       try {
-        await mutate({ action: 'update_node', node_id: nodeId, updates: { position: pos } });
+        const result = await mutate({ action: 'update_node', node_id: nodeId, updates: { position: pos } });
+        logger.info(`[brain-perf-client] commitOnePosition RESULT nodeId=${nodeId} pos=${JSON.stringify(pos)} result=${JSON.stringify(result)}`);
       } catch (e) {
         logger.error('Failed to save node position:', e);
       }
@@ -767,6 +769,7 @@ export function BrainCanvasPage() {
   const flushPendingTempPosition = useCallback((tempId: string, realId: string) => {
     const pos = pendingTempPos.current[tempId];
     delete pendingTempPos.current[tempId];
+    logger.info(`[brain-perf-client] flushPendingTempPosition tempId=${tempId} realId=${realId} pos=${JSON.stringify(pos)}`);
     if (pos) commitOnePosition(realId, pos);
   }, [commitOnePosition]);
 
@@ -785,7 +788,7 @@ export function BrainCanvasPage() {
     }
   }, [selectedNodeIds, positions, commitOnePosition]);
 
-  const { onNodePointerDown } = useBrainDrag(viewport, {
+  const { onNodePointerDown, consumeDidDrag } = useBrainDrag(viewport, {
     onPositionChange: handlePositionChange,
     onCommit: handleCommit,
   });
@@ -1345,6 +1348,9 @@ export function BrainCanvasPage() {
                   didPanRef.current = false;
                   return;
                 }
+                // A drop just happened on this node — swallow the click so it
+                // doesn't also toggle the details panel / re-select.
+                if (consumeDidDrag()) return;
                 if (connectMode) {
                   // Card body (not a specific port) → auto sides.
                   handleNodeConnectClick(node.id, null);

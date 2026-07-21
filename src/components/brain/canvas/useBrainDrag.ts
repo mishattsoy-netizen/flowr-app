@@ -34,17 +34,24 @@ export function useBrainDrag(
     startY: number;
     originX: number;
     originY: number;
+    moved: boolean;
   } | null>(null);
+  // Set true on pointer-up when the pointer actually moved during the gesture,
+  // so the click that the browser fires right after can be suppressed (a drop
+  // must not also register as a click — otherwise dropping the focused node
+  // toggles its details panel closed). Mirrors CanvasPage's didPanRef pattern.
+  const didDragRef = useRef(false);
 
   const onNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string, pos: NodePosition) => {
     if (e.button !== 0) return; // left-click only; middle-click is for panning
     if (!(e.target as HTMLElement).closest('[data-drag-handle="true"]')) return;
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    dragRef.current = { nodeId, startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y };
+    dragRef.current = { nodeId, startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y, moved: false };
 
     const onMove = (ev: PointerEvent) => {
       if (!dragRef.current) return;
+      dragRef.current.moved = true;
       const dx = (ev.clientX - dragRef.current.startX) / viewport.scale;
       const dy = (ev.clientY - dragRef.current.startY) / viewport.scale;
       callbacks.onPositionChange(dragRef.current.nodeId, {
@@ -58,7 +65,10 @@ export function useBrainDrag(
       const dx = (ev.clientX - dragRef.current.startX) / viewport.scale;
       const dy = (ev.clientY - dragRef.current.startY) / viewport.scale;
       const finalPos = { x: dragRef.current.originX + dx, y: dragRef.current.originY + dy };
-      callbacks.onCommit(dragRef.current.nodeId, finalPos);
+      if (dragRef.current.moved) {
+        didDragRef.current = true;
+        callbacks.onCommit(dragRef.current.nodeId, finalPos);
+      }
       dragRef.current = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -68,5 +78,13 @@ export function useBrainDrag(
     window.addEventListener('pointerup', onUp);
   }, [viewport.scale, callbacks]);
 
-  return { onNodePointerDown };
+  // Consumed by the node's onClick: if the last gesture was a real drag,
+  // swallow the click (and clear the flag) instead of treating it as a tap.
+  const consumeDidDrag = useCallback(() => {
+    if (!didDragRef.current) return false;
+    didDragRef.current = false;
+    return true;
+  }, []);
+
+  return { onNodePointerDown, consumeDidDrag };
 }
