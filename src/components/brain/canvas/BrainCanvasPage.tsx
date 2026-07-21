@@ -272,11 +272,6 @@ export function BrainCanvasPage() {
   /** After "Open editor", remember which node to restore the panel for. */
   const [panelResumeNodeId, setPanelResumeNodeId] = useState<string | null>(null);
 
-  useEffect(() => {
-    logger.info('[brain-perf-client] BrainCanvasPage MOUNT');
-    return () => logger.info('[brain-perf-client] BrainCanvasPage UNMOUNT');
-  }, []);
-
   // Optimistic node positions (working copy for live drag). Seeded from the
   // store so it survives BrainCanvasPage remounting — closing the split-view
   // editor column collapses two columns to one, which swaps the canvas into a
@@ -767,11 +762,9 @@ export function BrainCanvasPage() {
   const pendingTempPos = useRef<Record<string, { x: number; y: number }>>({});
   const commitOnePosition = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     if (nodeId.startsWith('temp-node-')) {
-      logger.info(`[brain-perf-client] commitOnePosition BUFFERED (temp id) nodeId=${nodeId} pos=${JSON.stringify(pos)}`);
       pendingTempPos.current[nodeId] = pos;
       return;
     }
-    logger.info(`[brain-perf-client] commitOnePosition SCHEDULE (real id) nodeId=${nodeId} pos=${JSON.stringify(pos)}`);
     // Mirror into the store immediately (not in the debounced timeout) so the
     // committed position survives a remount that happens before the debounce
     // fires — e.g. moving a node then closing the split-view editor column.
@@ -780,8 +773,7 @@ export function BrainCanvasPage() {
     debounceTimers.current[nodeId] = setTimeout(async () => {
       delete debounceTimers.current[nodeId];
       try {
-        const result = await mutate({ action: 'update_node', node_id: nodeId, updates: { position: pos } });
-        logger.info(`[brain-perf-client] commitOnePosition RESULT nodeId=${nodeId} pos=${JSON.stringify(pos)} result=${JSON.stringify(result)}`);
+        await mutate({ action: 'update_node', node_id: nodeId, updates: { position: pos } });
       } catch (e) {
         logger.error('Failed to save node position:', e);
       }
@@ -793,7 +785,6 @@ export function BrainCanvasPage() {
   const flushPendingTempPosition = useCallback((tempId: string, realId: string) => {
     const pos = pendingTempPos.current[tempId];
     delete pendingTempPos.current[tempId];
-    logger.info(`[brain-perf-client] flushPendingTempPosition tempId=${tempId} realId=${realId} pos=${JSON.stringify(pos)}`);
     if (pos) commitOnePosition(realId, pos);
   }, [commitOnePosition]);
 

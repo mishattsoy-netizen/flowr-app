@@ -125,7 +125,6 @@ export function useBrainData() {
   const load = useCallback(async (brainId?: string | null, opts?: { silent?: boolean }) => {
     const reqId = ++requestIdRef.current;
     const editSeqAtStart = localEditSeqGlobal.current;
-    logger.info(`[brain-perf-client] load START reqId=${reqId} brainId=${brainId} silent=${!!opts?.silent} editSeq=${editSeqAtStart}`);
     // A silent reload must NOT flip the global loading flag: the page swaps the
     // whole canvas for a progress bar while it's true, which would blow away
     // the optimistic update we just applied and make every edit feel like a
@@ -135,16 +134,13 @@ export function useBrainData() {
       const qs = brainId ? `?brain_id=${brainId}` : '';
       const res = await fetch(`/api/ai/user-brain${qs}`, { headers: await authHeaders() });
       if (reqId !== requestIdRef.current) {
-        logger.info(`[brain-perf-client] load STALE (superseded) reqId=${reqId}`);
         return; // a newer request superseded this one
       }
       if (res.ok) {
         const data = await res.json();
         if (reqId !== requestIdRef.current) {
-          logger.info(`[brain-perf-client] load STALE-after-json reqId=${reqId}`);
           return;
         }
-        logger.info(`[brain-perf-client] load LANDING reqId=${reqId} silent=${!!opts?.silent} nodeCount=${data.nodes?.length} editSeqNow=${localEditSeqGlobal.current} editSeqAtStart=${editSeqAtStart}`);
         // A newer local edit landed while THIS request was in flight — applying
         // this now-stale response would revert that edit for a frame (root
         // cause of the node-creation flicker: a leftover non-silent load from
@@ -154,7 +150,6 @@ export function useBrainData() {
         // only catches a NEWER load() call superseding this one, not a local
         // optimistic edit applied without calling load() at all.
         if (localEditSeqGlobal.current !== editSeqAtStart) {
-          logger.info(`[brain-perf-client] load SKIPPED (clobber guard) reqId=${reqId}`);
           if (!opts?.silent) setError(null); // still clear any stale error
           return;
         }
@@ -194,12 +189,9 @@ export function useBrainData() {
   // trailing reconcile after edits settle.
   const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleReconcile = useCallback((brainId: string | null) => {
-    const wasPending = !!reconcileTimer.current;
     if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
-    logger.info(`[brain-perf-client] scheduleReconcile brainId=${brainId} clearedExisting=${wasPending}`);
     reconcileTimer.current = setTimeout(() => {
       reconcileTimer.current = null;
-      logger.info(`[brain-perf-client] scheduleReconcile FIRING brainId=${brainId}`);
       void load(brainId, { silent: true });
     }, 600);
   }, [load]);
@@ -236,7 +228,6 @@ export function useBrainData() {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: [...state.nodes, node] });
     localEditSeqGlobal.current++;
-    logger.info(`[brain-perf-client] addLocalNode id=${node.id} editSeq=${localEditSeqGlobal.current}`);
   }, [setState, state, selectedBrainId]);
 
   // Remove a locally-added node (e.g. the temp one from addLocalNode) if its
@@ -245,7 +236,6 @@ export function useBrainData() {
     if (!state || !selectedBrainId) return;
     setState(selectedBrainId, { ...state, nodes: state.nodes.filter(n => n.id !== nodeId) });
     localEditSeqGlobal.current++;
-    logger.info(`[brain-perf-client] removeLocalNode id=${nodeId} editSeq=${localEditSeqGlobal.current}`);
   }, [setState, state, selectedBrainId]);
 
   // Swap a temp node's id for the server's real id once add_node resolves —
@@ -264,7 +254,6 @@ export function useBrainData() {
     // prevent).
     const cur = (useStore.getState().brainCanvasStateByBrain as Record<string, BrainCanvasState>)[selectedBrainId];
     if (!cur) return;
-    logger.info(`[brain-perf-client] renameLocalNode tempId=${tempId} realId=${realId}`);
     setState(selectedBrainId, {
       ...cur,
       nodes: cur.nodes.map(n => (n.id === tempId ? { ...n, id: realId } : n)),
