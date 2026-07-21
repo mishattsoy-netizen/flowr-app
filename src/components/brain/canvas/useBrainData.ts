@@ -205,6 +205,23 @@ export function useBrainData() {
     localEditSeq.current++;
   }, [setState, state, selectedBrainId]);
 
+  // Same pattern as addLocalEdge/removeLocalEdge, for node creation — call
+  // BEFORE the add_node POST with a temp id so the card paints on click
+  // instead of waiting on the round trip + a full compile.
+  const addLocalNode = useCallback((node: BrainCanvasNode) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, { ...state, nodes: [...state.nodes, node] });
+    localEditSeq.current++;
+  }, [setState, state, selectedBrainId]);
+
+  // Remove a locally-added node (e.g. the temp one from addLocalNode) if its
+  // POST fails, or a node the user deleted, immediately (optimistic delete).
+  const removeLocalNode = useCallback((nodeId: string) => {
+    if (!state || !selectedBrainId) return;
+    setState(selectedBrainId, { ...state, nodes: state.nodes.filter(n => n.id !== nodeId) });
+    localEditSeq.current++;
+  }, [setState, state, selectedBrainId]);
+
   /** Patch one node in local state immediately, before the server round trip.
    *  Panel edits (title/priority/tag/lifecycle/workspace) are authoritative on
    *  the client, so waiting for a refetch + recompile just to see your own
@@ -260,5 +277,5 @@ export function useBrainData() {
     }
   }, [selectedBrainId, load, scheduleReconcile]);
 
-  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, patchLocalNode, patchLocalEdge };
+  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, patchLocalNode, patchLocalEdge };
 }

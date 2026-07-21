@@ -156,7 +156,7 @@ export function BrainCanvasPage() {
   const headerContentLeft = isDesktop() ? 30 : 20;
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
-  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, patchLocalNode, patchLocalEdge } = useBrainData();
+  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, patchLocalNode, patchLocalEdge } = useBrainData();
   const activeBrainId = useStore(s => s.activeBrainId);
   const setActiveBrainId = useStore(s => s.setActiveBrainId);
 
@@ -322,6 +322,8 @@ export function BrainCanvasPage() {
     const ent = node?.ref_id ? entities.find(e => e.id === node.ref_id) : null;
     try {
       if (ent?.brainOnly && node?.ref_id) {
+        // Permanent + confirmed — rare, and the entity itself is being
+        // deleted, not just the brain card. Blocking is fine here.
         if (!confirm('This memory is only in your brain — deleting it is permanent.')) return;
         await mutate({
           action: 'delete_memory_node',
@@ -329,13 +331,22 @@ export function BrainCanvasPage() {
           entity_id: node.ref_id,
         });
       } else {
-        await mutate({ action: 'remove_node', node_id: nodeId });
+        // Optimistic: remove from the canvas immediately instead of waiting
+        // on the round trip + a full compile. Restore via a real reload if
+        // the delete actually fails server-side.
+        removeLocalNode(nodeId);
+        try {
+          await mutate({ action: 'remove_node', node_id: nodeId }, { backgroundReload: true });
+        } catch (e) {
+          await load(selectedBrainId);
+          throw e;
+        }
       }
       setDetailsPanel(prev => (prev?.focusedNodeId === nodeId ? null : prev));
     } catch (e) {
       logger.error('Failed to delete brain node:', e);
     }
-  }, [mutate, state?.nodes, entities]);
+  }, [mutate, state?.nodes, entities, removeLocalNode, load, selectedBrainId]);
 
   const openDetailsForNode = useCallback((
     nodeId: string,
@@ -916,13 +927,28 @@ export function BrainCanvasPage() {
       await upsertEntity(entity);
     }
 
-    // Add it as a brain node
+    // Add it as a brain node — paint the card immediately with a temp id
+    // (same pattern as addLocalEdge) instead of waiting on the round trip +
+    // a full server compile, which was the ~3s freeze on node creation.
+    const tempId = `temp-node-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+    addLocalNode({
+      id: tempId, type: 'entity', ref_id: entityId, position: { x, y },
+      content: null, label: null, section_id: null,
+      priority: 0, pinned: false, enabled: true,
+      created_by: 'user', created_at: nowIso, updated_at: nowIso,
+      tag_color: null, tag_name: null, active_from: null, active_until: null,
+    });
     try {
-      await mutate({ action: 'add_node', type: 'entity', ref_id: entityId, position: { x, y } });
+      await mutate(
+        { action: 'add_node', type: 'entity', ref_id: entityId, position: { x, y } },
+        { backgroundReload: true },
+      );
     } catch (e) {
+      removeLocalNode(tempId);
       logger.error('Failed to add brain node:', e);
     }
-  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel]);
+  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel, addLocalNode, removeLocalNode]);
 
   // Ref ids already on this brain — block duplicate cards of the same entity.
   const brainRefIds = useMemo(
@@ -938,12 +964,22 @@ export function BrainCanvasPage() {
     }
     const x = 40 + (activeNodes.length % 5) * (CARD_W + 40);
     const y = 40 + Math.floor(activeNodes.length / 5) * (CARD_H + 40);
+    const tempId = `temp-node-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+    addLocalNode({
+      id: tempId, type, ref_id: refId, position: { x, y },
+      content: null, label: null, section_id: null,
+      priority: 0, pinned: false, enabled: true,
+      created_by: 'user', created_at: nowIso, updated_at: nowIso,
+      tag_color: null, tag_name: null, active_from: null, active_until: null,
+    });
     try {
-      await mutate({ action: 'add_node', type, ref_id: refId, position: { x, y } });
+      await mutate({ action: 'add_node', type, ref_id: refId, position: { x, y } }, { backgroundReload: true });
     } catch (e) {
+      removeLocalNode(tempId);
       logger.error('Failed to add existing entity:', e);
     }
-  }, [activeNodes.length, brainRefIds, mutate]);
+  }, [activeNodes.length, brainRefIds, mutate, addLocalNode, removeLocalNode]);
 
   // Space / middle-click pan — always navigation, even over nodes and with
   // connect/new-node tools active. State (not only refs) so cursors re-render.
