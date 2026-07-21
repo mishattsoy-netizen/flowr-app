@@ -248,6 +248,29 @@ export function useBrainData() {
     logger.info(`[brain-perf-client] removeLocalNode id=${nodeId} editSeq=${localEditSeqGlobal.current}`);
   }, [setState, state, selectedBrainId]);
 
+  // Swap a temp node's id for the server's real id once add_node resolves —
+  // called instead of waiting for the background reload so any local state
+  // keyed by the temp id (e.g. BrainCanvasPage's drag `positions` map) can be
+  // remapped in the same tick, before the reconcile GET lands and the
+  // "fill in position only if missing" effect finds the real id unpopulated
+  // and falls back to the node's stale pre-drag position.
+  const renameLocalNode = useCallback((tempId: string, realId: string) => {
+    if (!selectedBrainId) return;
+    // Read fresh from the store rather than the closed-over `state` — this
+    // is always called after an `await mutate(...)`, so the render-time
+    // `state` closure is stale relative to any addLocalNode that happened
+    // just before the await. Writing through it here would silently revert
+    // that add (the exact appear/disappear/reappear flicker this exists to
+    // prevent).
+    const cur = (useStore.getState().brainCanvasStateByBrain as Record<string, BrainCanvasState>)[selectedBrainId];
+    if (!cur) return;
+    setState(selectedBrainId, {
+      ...cur,
+      nodes: cur.nodes.map(n => (n.id === tempId ? { ...n, id: realId } : n)),
+    });
+    localEditSeqGlobal.current++;
+  }, [setState, selectedBrainId]);
+
   /** Patch one node in local state immediately, before the server round trip.
    *  Panel edits (title/priority/tag/lifecycle/workspace) are authoritative on
    *  the client, so waiting for a refetch + recompile just to see your own
@@ -303,5 +326,5 @@ export function useBrainData() {
     }
   }, [selectedBrainId, load, scheduleReconcile]);
 
-  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, patchLocalNode, patchLocalEdge };
+  return { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, renameLocalNode, patchLocalNode, patchLocalEdge };
 }

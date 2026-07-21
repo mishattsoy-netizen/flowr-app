@@ -156,7 +156,7 @@ export function BrainCanvasPage() {
   const headerContentLeft = isDesktop() ? 30 : 20;
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
-  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, patchLocalNode, patchLocalEdge } = useBrainData();
+  const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, renameLocalNode, patchLocalNode, patchLocalEdge } = useBrainData();
   const activeBrainId = useStore(s => s.activeBrainId);
   const setActiveBrainId = useStore(s => s.setActiveBrainId);
 
@@ -940,15 +940,28 @@ export function BrainCanvasPage() {
       tag_color: null, tag_name: null, active_from: null, active_until: null,
     });
     try {
-      await mutate(
+      const result = await mutate(
         { action: 'add_node', type: 'entity', ref_id: entityId, position: { x, y } },
         { backgroundReload: true },
       );
+      // Swap the temp id for the server's real id now, in the same tick as
+      // the drag position remap below — otherwise the background reconcile
+      // lands with the real id, finds no `positions[realId]` entry (the
+      // drag, if any, was recorded under tempId), and falls back to this
+      // stale pre-drag position, snapping the card back.
+      if (result?.id) {
+        renameLocalNode(tempId, result.id);
+        setPositions(prev => {
+          if (!(tempId in prev)) return prev;
+          const { [tempId]: pos, ...rest } = prev;
+          return { ...rest, [result.id]: pos };
+        });
+      }
     } catch (e) {
       removeLocalNode(tempId);
       logger.error('Failed to add brain node:', e);
     }
-  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel, addLocalNode, removeLocalNode]);
+  }, [newNodeMode, viewport, addEntity, mutate, openBrainNode, selectedNodeIds, selectedEdgeId, detailsPanel, addLocalNode, removeLocalNode, renameLocalNode]);
 
   // Ref ids already on this brain — block duplicate cards of the same entity.
   const brainRefIds = useMemo(
@@ -974,12 +987,20 @@ export function BrainCanvasPage() {
       tag_color: null, tag_name: null, active_from: null, active_until: null,
     });
     try {
-      await mutate({ action: 'add_node', type, ref_id: refId, position: { x, y } }, { backgroundReload: true });
+      const result = await mutate({ action: 'add_node', type, ref_id: refId, position: { x, y } }, { backgroundReload: true });
+      if (result?.id) {
+        renameLocalNode(tempId, result.id);
+        setPositions(prev => {
+          if (!(tempId in prev)) return prev;
+          const { [tempId]: pos, ...rest } = prev;
+          return { ...rest, [result.id]: pos };
+        });
+      }
     } catch (e) {
       removeLocalNode(tempId);
       logger.error('Failed to add existing entity:', e);
     }
-  }, [activeNodes.length, brainRefIds, mutate, addLocalNode, removeLocalNode]);
+  }, [activeNodes.length, brainRefIds, mutate, addLocalNode, removeLocalNode, renameLocalNode]);
 
   // Space / middle-click pan — always navigation, even over nodes and with
   // connect/new-node tools active. State (not only refs) so cursors re-render.
