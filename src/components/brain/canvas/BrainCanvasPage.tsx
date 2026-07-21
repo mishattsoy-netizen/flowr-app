@@ -141,10 +141,7 @@ function ensurePosition(
   existing: Record<string, { x: number; y: number }>,
 ): { x: number; y: number } {
   if (existing[node.id]) return existing[node.id];
-  if (node.position) {
-    logger.info(`[brain-perf-client] ensurePosition FALLBACK-TO-SERVER-POS nodeId=${node.id} pos=${JSON.stringify(node.position)}`);
-    return node.position;
-  }
+  if (node.position) return node.position;
   // Cascade: place new nodes in a grid starting from (40, 40)
   const cols = Math.floor((typeof window !== 'undefined' ? window.innerWidth : 1200) / (CARD_W + 40));
   const col = index % Math.max(cols, 3);
@@ -374,10 +371,7 @@ export function BrainCanvasPage() {
       setPositions(prev => {
         const next = { ...prev };
         for (const n of state.nodes) {
-          if (!next[n.id] && n.position) {
-            logger.info(`[brain-perf-client] positions-fill-effect FILLING nodeId=${n.id} fromServerPos=${JSON.stringify(n.position)}`);
-            next[n.id] = n.position;
-          }
+          if (!next[n.id] && n.position) next[n.id] = n.position;
         }
         return next;
       });
@@ -752,6 +746,7 @@ export function BrainCanvasPage() {
       pendingTempPos.current[nodeId] = pos;
       return;
     }
+    logger.info(`[brain-perf-client] commitOnePosition SCHEDULE (real id) nodeId=${nodeId} pos=${JSON.stringify(pos)}`);
     if (debounceTimers.current[nodeId]) clearTimeout(debounceTimers.current[nodeId]);
     debounceTimers.current[nodeId] = setTimeout(async () => {
       delete debounceTimers.current[nodeId];

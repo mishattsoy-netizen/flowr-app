@@ -264,6 +264,7 @@ export function useBrainData() {
     // prevent).
     const cur = (useStore.getState().brainCanvasStateByBrain as Record<string, BrainCanvasState>)[selectedBrainId];
     if (!cur) return;
+    logger.info(`[brain-perf-client] renameLocalNode tempId=${tempId} realId=${realId}`);
     setState(selectedBrainId, {
       ...cur,
       nodes: cur.nodes.map(n => (n.id === tempId ? { ...n, id: realId } : n)),
