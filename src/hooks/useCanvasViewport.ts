@@ -20,28 +20,6 @@ export function useCanvasViewport(containerRef: React.RefObject<HTMLDivElement |
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
 
-  // Keep the canvas-space point under the container's center fixed when the
-  // container itself resizes (e.g. the split-view editor column opening
-  // shrinks the canvas) — otherwise the same viewport.x/y now represents a
-  // different on-screen position and the canvas appears to jump.
-  const prevSizeRef = useRef<{ width: number; height: number } | null>(null);
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      const prev = prevSizeRef.current;
-      prevSizeRef.current = { width, height };
-      if (!prev) return; // first observation — nothing to compensate yet
-      const dw = width - prev.width;
-      const dh = height - prev.height;
-      if (!dw && !dh) return;
-      setViewport(v => ({ ...v, x: v.x + dw / 2, y: v.y + dh / 2 }));
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [containerRef]);
-
   useEffect(() => {
     // Window capture + contains(): (1) runs before the browser's ctrl/cmd+wheel
     // page zoom so preventDefault actually works; (2) still works when the
