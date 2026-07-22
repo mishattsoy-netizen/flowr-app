@@ -535,6 +535,26 @@ export function BlockRenderer({
     // this function's logic (markdown shortcuts, Enter, Tab, Backspace).
   }, [block.id, block.type, block.children, index, depth, isList, isChecklist, onInsertAfter, onDelete, onUpdate, onSlash, onIndent, onUnindent, slashMenuOpen]);
 
+  // Opens a flowr:<type>:<id> entity reference in-app instead of trying to
+  // navigate a fake URL. Shared by the plain click handler below and the
+  // hover popup's OPEN button. Returns true if it handled the href (i.e. it
+  // was a flowr: link), false otherwise so callers can fall through to
+  // their normal behavior.
+  const openFlowrMention = useCallback((href: string): boolean => {
+    if (!href.startsWith('flowr:')) return false;
+    const parts = href.split(':');
+    const type = parts[1];
+    const id = parts.slice(2).join(':');
+    if (!type || !id) return true;
+    const store = useStore.getState();
+    if (type === 'workspace' && store.spaces.some((s: any) => s.id === id)) {
+      store.setActiveSpaceId(id);
+    } else {
+      store.addTab(id);
+    }
+    return true;
+  }, []);
+
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (isDraggingGlobal) {
       e.preventDefault();
@@ -546,9 +566,11 @@ export function BlockRenderer({
     if (anchor) {
       e.preventDefault();
       e.stopPropagation();
+      const href = anchor.getAttribute('href') || '';
+      if (openFlowrMention(href)) return;
       window.open(anchor.href, '_blank', 'noopener,noreferrer');
     }
-  }, [isDraggingGlobal]);
+  }, [isDraggingGlobal, openFlowrMention]);
 
   const saveInlineLabel = useCallback((newLabel: string) => {
     if (!activeInlineBtn) return;
@@ -869,6 +891,7 @@ export function BlockRenderer({
                     e.preventDefault();
                     e.stopPropagation();
                     if (activeInlineBtn.url) {
+                      if (openFlowrMention(activeInlineBtn.url)) return;
                       window.open(activeInlineBtn.url, '_blank', 'noopener,noreferrer');
                     }
                   }}

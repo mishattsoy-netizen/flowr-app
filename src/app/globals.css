@@ -1767,3 +1767,33 @@ a:focus:not(:focus-visible),
   border-radius: var(--radius-medium);
   transition: background-color 80ms ease-out;
 }
+
+/* ── Entity mention pills inside note blocks (flowr:<type>:<id> anchors) ──
+   Attribute selector on purpose: also upgrades legacy plain <a> links saved
+   before pills existed. */
+[data-block-content] a[href^="flowr:"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin: 0 1px;
+  border-radius: 8px;
+  background: var(--bone-6);
+  color: var(--bone-100);
+  font-weight: 500;
+  font-size: 0.925em;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: all;
+  transition: background-color 0.15s ease;
+  vertical-align: baseline;
+}
+[data-block-content] a[href^="flowr:"]:hover {
+  background: var(--bone-10);
+}
+[data-block-content] a[href^="flowr:"]::before {
+  content: '@';
+  opacity: 0.55;
+  font-weight: 600;
+}
