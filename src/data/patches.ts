@@ -22,6 +22,40 @@ export interface Patch {
 
 export const PATCHES: Patch[] = [
   {
+    version: '1.4.6',
+    build: '1460',
+    date: '2026-07-23',
+    title: 'Smarter AI Notes & Editor Reliability',
+    featured: true,
+    sections: [
+      {
+        type: 'added',
+        items: [
+          'Mention Pills in Notes: @-mention other notes, folders, canvases, and workspaces right inside your notes — with real icons and one-click navigation, just like in chat.',
+          'Brain Canvas Polish: Smooth centering animation when opening a node, preserved zoom, and instant optimistic node creation.'
+        ]
+      },
+      {
+        type: 'fixed',
+        items: [
+          'Numbered Lists That Actually Number: Fixed AI-written reports where every item showed "1." instead of counting up — both in how notes are parsed and how they display.',
+          'AI Delete Confirmations: Deleting a note or folder now waits properly for your "yes" instead of sometimes reporting "failed" or timing out too quickly if you took a minute to reply.',
+          'No More Stray Symbols: Cleaned up rare cases where the AI would leave a literal backslash or asterisk in generated note text.',
+          'Formatting Toolbar Fixes: Bold/italic no longer resets your text selection, multi-select with Ctrl+Click stays intact while dragging, and the toolbar now hides properly when another menu is open.',
+          '"Turn Into" Menu: Fixed an issue where changing a block\'s type from the options menu silently did nothing.',
+          'Editor headings and bullet lists written by the AI render correctly instead of showing stray "####" symbols.'
+        ]
+      },
+      {
+        type: 'improved',
+        items: [
+          'Brain Canvas feels noticeably snappier: faster node switching, smoother dragging, and fewer flickers when creating or moving nodes.',
+          'The AI is more reliable about following through on multi-step requests (like "delete this and create a new one") in the right order.'
+        ]
+      }
+    ]
+  },
+  {
     version: '1.4.5',
     build: '1450',
     date: '2026-07-19',
