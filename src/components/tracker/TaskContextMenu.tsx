@@ -679,7 +679,7 @@ export function TaskContextMenu({
                               className={cn(
                                 "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[8px] cursor-pointer transition-colors border-none bg-transparent outline-none",
                                 isSelected
-                                  ? "bg-black/35 text-[var(--bone-100)] font-medium"
+                                  ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium"
                                   : "text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-90)]"
                               )}
                             >

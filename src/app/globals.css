@@ -692,10 +692,17 @@ html {
 ::-webkit-scrollbar-thumb {
   background: var(--bone-15);
   border-radius: 10px;
+  cursor: grab;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--bone-30);
+  cursor: grab;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--bone-35);
+  cursor: grabbing;
 }
 
 ::-webkit-scrollbar-corner {
@@ -732,20 +739,29 @@ html {
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--bone-6);
+  border-radius: 10px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--bone-15);
   border-radius: 10px;
+  cursor: grab;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--bone-30);
+  cursor: grab;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:active {
+  background: var(--bone-35);
+  cursor: grabbing;
 }
 
 /* Reveal modifier — compose with `scrollbar-thin` to keep its exact style
@@ -1299,16 +1315,22 @@ body.is-dragging-widget [data-widget-id] * {
 /* â”€â”€â”€ Multi-Block Selection & Dragging â”€â”€â”€ */
 
 .note-editor-bg {
-  cursor: default;
+  cursor: text;
   direction: ltr !important;
 }
 
-.note-editor-bg:active {
-  cursor: crosshair;
+::selection {
+  background-color: #195ab6;
+  color: #ffffff;
 }
 
-.selected-block > .flex-1.flex.items-start,
-.selected-block > .relative.w-full {
+::highlight(disjoint-selection) {
+  background-color: #195ab6;
+  color: #ffffff;
+}
+
+.selected-block>.flex-1.flex.items-start,
+.selected-block>.relative.w-full {
   background-color: var(--bone-6);
   box-shadow: none;
   user-select: none;
@@ -1794,6 +1816,7 @@ a:focus:not(:focus-visible),
   transition: background-color 0.15s ease !important;
   vertical-align: baseline;
 }
+
 [data-block-content] a[data-mention="1"]:hover,
 [data-block-content] a[href^="flowr:"]:hover {
   background: var(--bone-10) !important;

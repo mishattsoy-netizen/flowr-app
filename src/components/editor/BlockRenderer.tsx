@@ -27,7 +27,7 @@ interface BlockViewProps {
   listNumber?: number;
   slashMenuOpen?: boolean;
   menuOpen?: boolean;
-  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean) => void;
+  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean, ctrlKey?: boolean) => void;
   onFocus?: (id: string) => void;
   isSelected?: boolean;
   isActive?: boolean;
@@ -397,10 +397,10 @@ export function BlockRenderer({
 
       if (isKnownIconName) {
         const IconComp = getEntityIcon(iconName);
-        iconSpan.innerHTML = renderToStaticMarkup(<IconComp className="w-3 h-3 opacity-70 shrink-0" />);
+        iconSpan.innerHTML = renderToStaticMarkup(<IconComp className="w-3.5 h-3.5 opacity-60 shrink-0" />);
       } else if (iconName) {
         const emojiSpan = document.createElement('span');
-        emojiSpan.className = 'font-emoji text-[11px] leading-none';
+        emojiSpan.className = 'font-emoji text-[12px] leading-none text-center';
         emojiSpan.textContent = iconName; // safe: never parsed as HTML
         iconSpan.appendChild(emojiSpan);
       } else {
@@ -411,7 +411,7 @@ export function BlockRenderer({
           : resolvedType === 'canvas'
           ? getEntityIcon('Frame')
           : getEntityIcon('FileText');
-        iconSpan.innerHTML = renderToStaticMarkup(<FallbackIcon className="w-3 h-3 opacity-70 shrink-0" />);
+        iconSpan.innerHTML = renderToStaticMarkup(<FallbackIcon className="w-3.5 h-3.5 opacity-60 shrink-0" />);
       }
       anchor.insertBefore(iconSpan, anchor.firstChild);
     });
@@ -1033,7 +1033,7 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="2px" />
         <div className={cn(
           "flex items-center w-full py-4 relative group rounded-[var(--radius-medium)] transition-colors duration-0",
-          isSelected && "bg-[var(--app-dark)]",
+
           isDragging && "bg-sidebar/80 rounded-[var(--radius-medium)]"
         )}>
           <div className="flex-1 h-px bg-[var(--bone-12)]" />
@@ -1041,8 +1041,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1062,15 +1062,15 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
           "relative w-full rounded-3xl transition-colors duration-0 group/table",
-          isSelected && "bg-[var(--app-dark)]"
+
         )}>
           <TableBlock block={block} onUpdate={onUpdate} onContextMenu={handleContextMenu} isReadOnly={isReadOnly} />
         </div>
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1113,9 +1113,9 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
           "relative w-full transition-colors duration-0",
-          isSelected && "bg-[var(--app-dark)] rounded-3xl"
+          isSelected && "rounded-3xl"
         )}>
-          <div className={cn("relative group/media border border-white/5 bg-white/5", widthClass, "rounded-3xl ")}>
+          <div className={cn("relative group/media border border-[var(--bone-5)] bg-[var(--bone-5)]", widthClass, "rounded-3xl ")}>
             <MediaControls blockId={block.id} currentWidth={block.mediaWidth || 4} onWidthChange={(w) => onUpdate(block.id, { mediaWidth: w as any })} />
             <div className="overflow-hidden rounded-3xl">
               {isImage ? (
@@ -1125,15 +1125,15 @@ export function BlockRenderer({
                   {isEmbed ? <iframe src={videoUrl} className="w-full h-full border-none" allowFullScreen /> : <video src={videoUrl} controls className="w-full h-full" />}
                 </div>
               )}
-              <input type="text" placeholder="Add a caption..." value={captionDraft ?? (block.mediaCaption || '')} onChange={(e) => commitCaption(e.target.value)} className="w-full bg-white/[0.03] backdrop-blur-md px-5 py-3 text-[11px] font-medium text-muted-foreground/40 outline-none opacity-0 group-hover/media:opacity-100 focus:opacity-100 border-t border-white/5 focus:text-foreground/80 placeholder:opacity-20" />
+              <input type="text" placeholder="Add a caption..." value={captionDraft ?? (block.mediaCaption || '')} onChange={(e) => commitCaption(e.target.value)} className="w-full bg-[var(--bone-3)] backdrop-blur-md px-5 py-3 text-[11px] font-medium text-muted-foreground/40 outline-none opacity-0 group-hover/media:opacity-100 focus:opacity-100 border-t border-[var(--bone-5)] focus:text-foreground/80 placeholder:opacity-20" />
             </div>
           </div>
         </div>
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1393,8 +1393,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1412,7 +1412,7 @@ export function BlockRenderer({
         className={cn(
           "flex-1 basis-0 min-w-0 break-words rounded-[var(--radius-medium)] pl-14 pr-4 column-container relative group group/column transition-colors duration-0",
           !isReadOnly && "group-hover:bg-hover/10 group-focus-within:bg-hover/10",
-          isSelected && "bg-[var(--app-dark)]",
+
           !block.children?.length && "empty"
         )}
       >
@@ -1425,8 +1425,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute top-0 bottom-0 w-[4px] bg-accent rounded-full pointer-events-none z-50",
-              closestEdge === 'left' ? 'left-0' : 'right-0'
+              "absolute top-0 bottom-0 w-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'left' ? 'left-[-10px]' : 'right-[-10px]'
             )}
           />
         )}
@@ -1455,8 +1455,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1480,7 +1480,7 @@ export function BlockRenderer({
         <BlockControls {...controlsProps} topOffset="8px" />
         <div className={cn(
           "flex-1 flex items-start w-full relative rounded-[var(--radius-medium)] pl-3 pr-1 py-1 transition-all duration-0",
-          isSelected ? "bg-[var(--app-dark)]" : (!isReadOnly && "group-hover:bg-[var(--bone-2)]")
+          (!isSelected && !isReadOnly) && "group-hover:bg-[var(--bone-2)]"
         )}>
           <ListBlock
             block={block}
@@ -1505,8 +1505,8 @@ export function BlockRenderer({
         {closestEdge && (
           <div
             className={cn(
-              "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-              closestEdge === 'top' ? '-top-1' : '-bottom-1'
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
             )}
           />
         )}
@@ -1543,8 +1543,7 @@ export function BlockRenderer({
           effectiveStyle === 'mono'
             ? "relative w-full rounded-3xl transition-colors duration-0"
             : "flex-1 flex items-start w-full relative min-h-[1.5em] transition-all duration-0 rounded-[var(--radius-medium)] pl-3 pr-1 py-1",
-          (!isSelected && effectiveStyle !== 'mono' && !isReadOnly) && (isFocused ? "bg-[var(--bone-2)]" : "group-hover:bg-[var(--bone-2)]"),
-          block.bgColor && "border px-[16px] py-[8px]"
+          (!isSelected && effectiveStyle !== 'mono' && !isReadOnly) && (isFocused ? "bg-[var(--bone-2)]" : "group-hover:bg-[var(--bone-2)]")
         )}
         style={{ ... (block.bgColor ? colorStyle : {}) }}
       >
@@ -1621,7 +1620,7 @@ export function BlockRenderer({
                 const text = contentRef.current?.textContent || '';
                 navigator.clipboard.writeText(text);
               }}
-              className="absolute top-2.5 right-3 px-2 py-1.5 rounded-md bg-white/[0.05] text-white/40 hover:bg-white/[0.1] hover:text-white border border-[var(--bone-6)] transition-all opacity-0 group-hover:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5"
+              className="absolute top-2.5 right-3 px-2 py-1.5 rounded-md bg-[var(--bone-5)] text-[var(--bone-30)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] border border-[var(--bone-6)] transition-all opacity-0 group-hover:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5"
 
             >
               <Copy className="w-3.5 h-3.5" />
@@ -1630,12 +1629,12 @@ export function BlockRenderer({
         </div>
       </div>
       {closestEdge && (
-        <div
-          className={cn(
-            "absolute left-0 right-0 h-[2px] bg-[var(--bone-35)] rounded-full pointer-events-none z-50",
-            closestEdge === 'top' ? '-top-1' : '-bottom-1'
-          )}
-        />
+          <div
+            className={cn(
+              "absolute left-0 right-0 h-[2px] bg-[var(--brand-blue)] rounded-full pointer-events-none z-50 transition-all duration-200 animate-in fade-in",
+              closestEdge === 'top' ? 'top-[-1px]' : 'bottom-[-1px]'
+            )}
+          />
       )}
 
       {/* Dynamic Popover for Inline Link Buttons */}
@@ -1709,7 +1708,7 @@ interface ControlsProps {
   blockId: string;
   menuOpen?: boolean;
   onInsertAfter: (afterId: string, forceType?: BlockType, openSlash?: boolean, inside?: boolean) => void;
-  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean) => void;
+  onOpenMenu: (id: string, position: { x: number; y: number }, shiftKey?: boolean, ctrlKey?: boolean) => void;
   isDragging?: boolean;
   variant?: 'standard' | 'column' | 'section';
   blockStyle?: string;
@@ -1743,16 +1742,17 @@ function BlockControls({
   isReadOnly = false
 }: BlockControlsProps) {
   if (isReadOnly) return null;
-  const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bone-10)] text-muted-foreground/40 hover:text-[var(--bone-100)] transition-none";
+  const markerBtnClass = "w-7 h-7 flex items-center justify-center rounded-sm hover:bg-[var(--bone-10)] text-muted-foreground opacity-40 hover:opacity-100 hover:text-[var(--bone-100)] transition-none";
 
   const handleGripClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     if (isDraggingGlobal) return;
+    window.getSelection()?.removeAllRanges();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // User requested left side popup. Setting X to left edge - estimate menu width (approx 210px). 
     // BlockOptionsMenu has internal bounding logic to keep it safe inside screen width.
-    onOpenMenu(blockId, { x: rect.left - 218, y: rect.top }, e.shiftKey);
+    onOpenMenu(blockId, { x: rect.left - 218, y: rect.top }, e.shiftKey, e.ctrlKey || e.metaKey);
   };
 
   const heightClass = getLineHeightClass(blockStyle as BlockStyle);
@@ -1761,7 +1761,7 @@ function BlockControls({
     <div
       contentEditable={false}
       className={cn(
-        "absolute right-full pr-[8px] flex items-start justify-center gap-1",
+        "absolute right-full pr-[8px] flex items-start justify-center gap-1 select-none",
         heightClass,
         (menuOpen || isDragging || isFocused || isSelected) ? "opacity-100 visible" : "opacity-0 group-hover:opacity-100 hover:opacity-100 has-[:active]:opacity-100 transition-none",
         isDraggingGlobal && "pointer-events-none opacity-0 invisible"
@@ -1785,6 +1785,7 @@ function BlockControls({
           ref={dragHandleRef}
           onClick={handleGripClick}
           onMouseDown={() => { window.getSelection()?.removeAllRanges(); }}
+          onMouseUp={() => { window.getSelection()?.removeAllRanges(); }}
           className={cn(
             markerBtnClass,
             "cursor-grab active:cursor-grabbing",
@@ -1816,7 +1817,7 @@ function MediaControls({ blockId, currentWidth, onWidthChange }: { blockId: stri
             "px-2.5 py-1.5 text-[9px] font-bold rounded-lg  ",
             currentWidth === size.value
               ? "bg-accent/10 border border-accent/30 text-accent"
-              : "text-muted-foreground/60 hover:bg-white/10 hover:text-foreground"
+              : "text-muted-foreground/60 hover:bg-[var(--bone-10)] hover:text-foreground"
           )}
         >
           {size.label}

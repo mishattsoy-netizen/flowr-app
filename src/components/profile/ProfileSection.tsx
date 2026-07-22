@@ -54,7 +54,7 @@ export default function ProfileSection() {
         </p>
         <button
           onClick={signInWithGoogle}
-          className="inline-flex items-center gap-3 px-6 py-2.5 rounded-md bg-[#2a2a29] hover:bg-[#3f3f3e] text-bone-100 text-[13px] font-medium transition-all"
+          className="inline-flex items-center gap-3 px-6 py-2.5 rounded-md bg-[var(--app-dark)] hover:bg-[var(--bone-10)] text-bone-100 text-[13px] font-medium transition-all"
         >
           <svg width="18" height="18" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
@@ -83,7 +83,7 @@ export default function ProfileSection() {
             <h4 className="text-[14px] font-medium text-bone-100">Avatar</h4>
           </div>
           <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full bg-[#2a2a29] flex items-center justify-center overflow-hidden shrink-0 border border-[#3f3f3e]">
+            <div className="w-8 h-8 rounded-full bg-[var(--app-dark)] flex items-center justify-center overflow-hidden shrink-0 border border-[var(--bone-10)]">
               {effectiveAvatar ? (
                 <img src={effectiveAvatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
               ) : (
@@ -136,7 +136,7 @@ export default function ProfileSection() {
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold font-sans select-none border transition-colors ${
                   isConnected
                     ? 'bg-[var(--brand-blue)]/10 border-[var(--brand-blue)]/30 text-[var(--brand-blue)]'
-                    : 'bg-[#1b1b1a] border-[var(--bone-10)] text-bone-70 opacity-40'
+                    : 'bg-[var(--app-background)] border-[var(--bone-10)] text-bone-70 opacity-40'
                 }`}
               >
                 {isConnected && <Check className="w-3.5 h-3.5" strokeWidth={2.5} />}
@@ -162,14 +162,14 @@ export default function ProfileSection() {
       <div className="flex items-center justify-end gap-2 px-4">
         <button
           onClick={handleSignOut}
-          className="px-3 py-1.5 rounded-md text-[13px] font-medium text-[var(--bone-60)] hover:bg-[#2b2a29] hover:text-bone-100 transition-colors"
+          className="px-3 py-1.5 rounded-md text-[13px] font-medium text-[var(--bone-60)] hover:bg-[var(--app-dark)] hover:text-bone-100 transition-colors"
         >
           Sign Out
         </button>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-3 py-1.5 rounded-md bg-[#3f3f3e] hover:bg-[#4a4a49] text-[13px] font-medium text-bone-100 transition-colors disabled:opacity-50"
+          className="px-3 py-1.5 rounded-md bg-[var(--bone-10)] hover:bg-[var(--bone-15)] text-[13px] font-medium text-bone-100 transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save Changes'}
         </button>

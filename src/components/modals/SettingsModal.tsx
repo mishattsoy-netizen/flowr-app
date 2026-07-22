@@ -85,7 +85,7 @@ export function SettingsModal() {
       {/* Modal Content */}
       <div
         ref={modalRef}
-        className="relative w-full max-w-4xl h-full max-h-[700px] bg-background rounded-[var(--radius-big)] border border-[#2e2e2e] overflow-hidden flex opacity-0 shadow-2xl transition-all"
+        className="relative w-full max-w-4xl h-full max-h-[700px] bg-background rounded-[var(--radius-big)] border border-[var(--bone-10)] overflow-hidden flex opacity-0 shadow-2xl transition-all"
       >
         {/* Sidebar */}
         <div className="w-[240px] flex-shrink-0 flex flex-col p-4 bg-background">
@@ -117,8 +117,8 @@ export function SettingsModal() {
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 rounded-md group text-[14px]",
                     isActive
-                      ? "bg-[#2b2a29] text-bone-100 font-medium"
-                      : "text-bone-70 hover:text-bone-100 hover:bg-[#2b2a29]/50"
+                      ? "bg-[var(--app-dark)] text-bone-100 font-medium"
+                      : "text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-5)]"
                   )}
                 >
                   <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-bone-100" : "text-bone-70 group-hover:text-bone-100")} strokeWidth={1.5} />
@@ -130,12 +130,12 @@ export function SettingsModal() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] relative border-l border-[#2e2e2e]">
+        <div className="flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] relative border-l border-[var(--bone-10)]">
           {/* Close Button */}
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={closeModal}
-              className="p-1.5 rounded-md text-bone-70 hover:text-bone-100 hover:bg-[#3f3f3e] transition-colors"
+              className="p-1.5 rounded-md text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-10)] transition-colors"
             >
               <X strokeWidth={1.5} className="w-5 h-5" />
             </button>

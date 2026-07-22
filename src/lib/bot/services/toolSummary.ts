@@ -27,7 +27,29 @@ export function summarizeToolCalls(calls: any[]): string {
   const parts: string[] = []
   let anyFailure = false
 
+  let anyPending = false
+
   for (const c of calls) {
+    // A dry-run awaiting the user's yes/no is NOT a failure — it carries
+    // status: 'pending_confirmation' and (for deletes) no real success flag.
+    // Must be handled BEFORE the `failed` check below: the dry-run result is
+    // logged with success:false, which would otherwise render "Delete failed"
+    // to a user who was only ever shown a confirmation preview.
+    if (c.status === 'pending_confirmation') {
+      anyPending = true
+      const items = Array.isArray(c.items_to_delete) ? c.items_to_delete : []
+      const names = items
+        .map((it: any) => (it?.title ? `"${String(it.title).slice(0, 60)}"` : (it?.type ?? 'item')))
+        .join(', ')
+      const verbLabel = FAIL_VERBS[c.tool] ?? 'Confirm'
+      parts.push(
+        names
+          ? `${verbLabel} ${names}? Reply to confirm.`
+          : `${verbLabel} — awaiting your confirmation.`
+      )
+      continue
+    }
+
     const failed = c.success === false || !!c.error
     if (failed) anyFailure = true
     const verb = VERBS[c.tool] ?? null
@@ -44,5 +66,8 @@ export function summarizeToolCalls(calls: any[]): string {
   }
 
   if (parts.length === 0) return `✅ Completed ${calls.length} action(s)`
-  return `${anyFailure ? '⚠️' : '✅'} ${parts.join(' · ')}`
+  // A real failure wins the icon; otherwise a pending confirmation shows the
+  // question mark (it's neither done nor broken); else success.
+  const icon = anyFailure ? '⚠️' : anyPending ? '❓' : '✅'
+  return `${icon} ${parts.join(' · ')}`
 }

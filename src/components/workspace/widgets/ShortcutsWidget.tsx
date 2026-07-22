@@ -191,7 +191,7 @@ export function ShortcutsWidget({ contextId, isLoading }: { contextId: string; i
           </div>
         ) : (
           <div className={cn(
-            "h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-opacity duration-200",
+            "h-full flex flex-col items-center justify-center gap-3 p-4 bg-[var(--bone-2)] rounded-[12px] min-h-[140px] transition-opacity duration-200",
             isAdding && "opacity-20 pointer-events-none"
           )}>
             <div className="text-center max-w-[320px]">

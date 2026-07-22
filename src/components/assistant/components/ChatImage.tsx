@@ -114,12 +114,12 @@ export const ChatImage = memo(({ src, alt, description, messageId, onHeightChang
   };
 
   return (
-    <div className="mt-4 mb-6 max-w-[50%] relative group rounded-2xl bg-white/5 overflow-hidden min-h-[100px] flex flex-col justify-center">
+    <div className="mt-4 mb-6 max-w-[50%] relative group rounded-2xl bg-[var(--bone-5)] overflow-hidden min-h-[100px] flex flex-col justify-center">
       {loading && !error && (
         <div className="flex flex-col items-center justify-center gap-3 py-10 w-full">
           <div className="relative">
             <StarIcon className="w-8 h-8 text-bone-100 animate-pulse" />
-            <div className="absolute inset-0 w-8 h-8 rounded-[var(--radius-small)] bg-white/10 blur-xl animate-pulse" />
+            <div className="absolute inset-0 w-8 h-8 rounded-[var(--radius-small)] bg-[var(--bone-10)] blur-xl animate-pulse" />
           </div>
           <div className="text-[11px] text-bone-100 font-bold uppercase tracking-widest">Generating...</div>
         </div>
@@ -127,7 +127,7 @@ export const ChatImage = memo(({ src, alt, description, messageId, onHeightChang
 
       {error && (
         <div className="flex flex-col items-center justify-center gap-4 py-8 text-center bg-[var(--black-overlay)] z-20 w-full">
-          <Skull strokeWidth={2} className="w-8 h-8 opacity-70 grayscale contrast-125 text-white/40" />
+          <Skull strokeWidth={2} className="w-8 h-8 opacity-70 grayscale contrast-125 text-[var(--bone-30)]" />
           <div className="space-y-1.5 px-6">
             <h3 className="text-[11px] font-bold uppercase tracking-[0.25em] text-foreground/80">Generation Timeout</h3>
           </div>

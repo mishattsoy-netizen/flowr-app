@@ -206,7 +206,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   // Instantly hide the app if they log out or are not authenticated on a protected path
   if (!loading && !user && !isGuest && isProtectedPath) {
-    return <div className="h-screen w-screen bg-[#0a0a0a]" />
+    return <div className="h-screen w-screen bg-background" />
   }
 
   return (

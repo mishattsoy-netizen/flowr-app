@@ -62,17 +62,17 @@ export function ChatConversation({ isLoading }: { isLoading?: boolean }) {
       {/* Message list */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pt-16 pb-60 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/30"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pt-16 pb-60 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--bone-12)] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[var(--bone-15)]"
         style={{ overflowAnchor: 'auto' }}
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {aiSessionContext?.distilled_summary && (
             <div
               onClick={() => openModal({ kind: 'summaryPreview', summary: aiSessionContext.distilled_summary! })}
-              className="my-3 mx-1 p-3 rounded-[12px] border border-[var(--bone-12)] bg-white/[0.02] hover:bg-white/[0.06] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between group select-none shadow-sm"
+              className="my-3 mx-1 p-3 rounded-[12px] border border-[var(--bone-12)] bg-[var(--bone-3)] hover:bg-[var(--bone-6)] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between group select-none shadow-sm"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-[var(--bone-12)] flex items-center justify-center text-bone-70 group-hover:text-accent group-hover:border-accent/30 transition-all shrink-0">
+                <div className="w-7 h-7 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] flex items-center justify-center text-bone-70 group-hover:text-accent group-hover:border-accent/30 transition-all shrink-0">
                   <Brain className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col items-start text-left min-w-0">

@@ -476,7 +476,7 @@ export function BentoDashboard({ contextId, title, actions }: BentoDashboardProp
                           checked={isFullWidth}
                           onChange={() => setIsFullWidth()}
                         />
-                        <div className="w-7 h-4 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-accent border border-white/5" />
+                        <div className="w-7 h-4 bg-[var(--bone-10)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--bone-100)] after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-accent border border-[var(--bone-5)]" />
                       </div>
                       <span className="font-medium text-bone-70 opacity-60 hover:opacity-100 transition-opacity">Full Width</span>
                     </label>

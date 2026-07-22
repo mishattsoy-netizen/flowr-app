@@ -1,4 +1,4 @@
-import type { EditorBlock } from './markdownBlocks'
+import type { EditorBlock } from '@/data/store.types'
 
 /**
  * Carry block IDs from a note's previous blocks over to freshly re-parsed

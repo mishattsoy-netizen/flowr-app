@@ -131,7 +131,7 @@ export default function UsagePanel() {
           <button
             onClick={handleDowngrade}
             disabled={downgrading}
-            className="px-3 py-1.5 rounded-md bg-[#3f3f3e] border border-transparent text-[13px] font-medium text-bone-100 hover:bg-[#4a4a49] disabled:opacity-50 transition-all shrink-0"
+            className="px-3 py-1.5 rounded-md bg-[var(--bone-10)] border border-transparent text-[13px] font-medium text-bone-100 hover:bg-[var(--bone-15)] disabled:opacity-50 transition-all shrink-0"
           >
             {downgrading ? 'Downgrading...' : 'Downgrade to Free'}
           </button>
@@ -167,7 +167,7 @@ export default function UsagePanel() {
           <button
             onClick={handleRedeem}
             disabled={redeeming || !promoInput.trim()}
-            className="px-4 py-1.5 rounded-md bg-[var(--brand-blue)] text-white text-[13px] font-medium disabled:opacity-50 transition-all hover:brightness-110 shrink-0"
+            className="px-4 py-1.5 rounded-md bg-[var(--brand-blue)] text-[var(--on-accent)] text-[13px] font-medium disabled:opacity-50 transition-all hover:brightness-110 shrink-0"
           >
             {redeeming ? 'Redeeming...' : 'Apply'}
           </button>
@@ -179,7 +179,7 @@ export default function UsagePanel() {
           <h5 className="text-[12px] font-medium text-[var(--bone-70)] uppercase tracking-wide shrink-0 mb-2">Recent Activity</h5>
           <div className="overflow-y-auto overflow-x-hidden pr-2 pb-8 space-y-0.5 custom-scrollbar">
             {data.recentSpend.map((row, i) => (
-              <div key={i} className="flex justify-between items-center text-[13px] text-[var(--bone-70)] py-2 px-3 -mx-3 rounded-md hover:bg-[#2b2a29] transition-colors">
+              <div key={i} className="flex justify-between items-center text-[13px] text-[var(--bone-70)] py-2 px-3 -mx-3 rounded-md hover:bg-[var(--app-dark)] transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="whitespace-nowrap">{new Date(row.created_at).toLocaleString()}</span>
                   {row.mode && (

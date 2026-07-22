@@ -11,6 +11,12 @@ export interface ListRow {
   content: string;
   checked?: boolean;
   depth: number;
+  // Each row keeps its OWN block type. A numberedList item can have bulletList
+  // children (AI writes "1. Foo" then an indented "* bar"); without this, every
+  // row inherited the parent block's type and a bullet child rendered as a
+  // spurious "2." number. Optional so pre-existing callers that build rows by
+  // hand still typecheck; consumers fall back to the block's own type.
+  type?: BlockType;
 }
 
 /**
@@ -26,14 +32,14 @@ export function flattenRows(block: EditorBlock): ListRow[] {
 
   function walk(items: EditorBlock[], depth: number) {
     for (const item of items) {
-      rows.push({ id: item.id, content: item.content, checked: item.checked, depth });
+      rows.push({ id: item.id, content: item.content, checked: item.checked, depth, type: item.type });
       if (item.children) {
         walk(item.children, depth + 1);
       }
     }
   }
 
-  rows.push({ id: block.id, content: block.content, checked: block.checked, depth: 0 });
+  rows.push({ id: block.id, content: block.content, checked: block.checked, depth: 0, type: block.type });
   walk(block.children ?? [], 0);
 
   return rows;
@@ -48,7 +54,10 @@ export function nestRows(rows: ListRow[], blockType: BlockType): { content: stri
     while (i < items.length) {
       const row = items[i];
       if (row.depth < minDepth) break;
-      const node: EditorBlock = { id: row.id, type: blockType, content: row.content, checked: row.checked };
+      // Keep the row's own type (a bulletList child of a numberedList must
+      // stay a bulletList across an edit round-trip) and only fall back to the
+      // block's type for rows that never carried one.
+      const node: EditorBlock = { id: row.id, type: row.type ?? blockType, content: row.content, checked: row.checked };
       const childRows: ListRow[] = [];
       i++;
       while (i < items.length && items[i].depth > row.depth) {
@@ -130,24 +139,30 @@ function RowEl({
   }, [row.content]);
 
   const d = row.depth % 3;
+  // A row renders with ITS OWN type — a bulletList child of a numberedList must
+  // show a bullet, not a number. Fall back to the block's type for rows that
+  // were built without one (legacy callers / the block row itself).
+  const rowType = row.type ?? blockType;
 
   const marker = () => {
-    if (blockType === 'bulletList') {
+    if (rowType === 'bulletList') {
       if (d === 0) return <div className="w-[5.5px] h-[5.5px] rounded-full bg-[var(--bone-70)] flex-shrink-0" />;
       if (d === 1) return <div className="w-[5.5px] h-[5.5px] rounded-sm border border-[var(--bone-70)] flex-shrink-0" />;
       return <div className="w-[5.5px] h-[5.5px] bg-[var(--bone-70)] flex-shrink-0" />;
     }
-    if (blockType === 'dashedList') {
+    if (rowType === 'dashedList') {
       if (d === 0) return <div className="w-[8px] h-[1px] bg-[var(--bone-70)] flex-shrink-0" />;
       if (d === 1) return <div className="w-[6px] h-[1px] bg-[var(--bone-70)] flex-shrink-0" />;
       return <div className="w-[3px] h-[3px] rounded-full bg-[var(--bone-70)] flex-shrink-0" />;
     }
-    if (blockType === 'numberedList') {
+    if (rowType === 'numberedList') {
       const counterStyle = d === 0 ? 'arabic' : d === 1 ? 'alpha' : 'roman';
+      // Count only numberedList rows at this depth — a bulletList sibling in
+      // between (a sub-point) must not advance or reset the number.
       let count = 0;
       for (let i = 0; i <= rowIndex; i++) {
-        if (rows[i].depth === row.depth) count++;
         if (i < rowIndex && rows[i].depth < row.depth) count = 0;
+        if (rows[i].depth === row.depth && (rows[i].type ?? blockType) === 'numberedList') count++;
       }
       if (rowIndex === 0 && row.depth === 0 && listNumber != null) count = listNumber;
       return <span className="text-bone-70/40 text-[16px] font-normal leading-[1.6]" style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>{formatCounter(count, counterStyle)}.</span>;

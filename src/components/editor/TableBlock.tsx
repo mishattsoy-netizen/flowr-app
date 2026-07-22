@@ -35,7 +35,7 @@ function RowHandle({
   return (
     <td
       className={cn(
-        "w-8 border-b border-[var(--bone-10)] bg-[var(--bone-5)] relative border-r border-[var(--bone-10)]",
+        "w-8 min-w-[2rem] border-b border-[var(--bone-10)] bg-[var(--bone-5)] relative border-r border-[var(--bone-10)]",
         isSelected && "bg-[var(--bone-3)]"
       )}
     >
@@ -222,8 +222,8 @@ function SortableRow({
         "group/row relative transition-colors duration-0",
         ri > 0 && "hover:bg-[var(--bone-2)]",
         (isSelected || isDragging) && "bg-[var(--bone-3)]",
-        closestEdge === 'top' && "[&>td]:border-t-2 [&>td]:border-t-[var(--bone-35)]",
-        closestEdge === 'bottom' && "[&>td]:border-b-2 [&>td]:border-b-[var(--bone-35)]"
+        closestEdge === 'top' && "[&>td]:border-t-2 [&>td]:border-t-[var(--brand-blue)] transition-all duration-200",
+        closestEdge === 'bottom' && "[&>td]:border-b-2 [&>td]:border-b-[var(--brand-blue)] transition-all duration-200"
       )}
     >
       {!isReadOnly && (
@@ -241,7 +241,7 @@ function SortableRow({
             initialValue={cell}
             onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
-              "relative px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug group/cell",
+              "relative pl-4 pr-9 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug group/cell min-w-[100px]",
               "font-bold text-bone-100 bg-[var(--bone-5)] text-[10.5px] uppercase tracking-wider",
               ci === 0 && "font-semibold",
               ri === colCount - 1 && "border-b-0",
@@ -265,7 +265,7 @@ function SortableRow({
             initialValue={cell}
             onUpdate={(html) => onCellUpdate(ri, ci, html)}
             className={cn(
-              "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug",
+              "px-4 py-2.5 text-[13px] font-sans border-b border-r border-[var(--bone-10)] last:border-r-0 outline-none transition-colors leading-snug min-w-[80px]",
               "text-bone-100 focus:bg-[var(--bone-2)]",
               ci === 0 && "font-semibold text-bone-100",
               ri === colCount - 1 && "border-b-0",
@@ -293,6 +293,30 @@ export function TableBlock({ block, onUpdate, onContextMenu, isReadOnly = false 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'row' | 'col'; index: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      ro.disconnect();
+    };
+  }, [checkScroll, tableData]);
 
   const rowIds = tableData.map((_, ri) => `row-${ri}`);
   const colCount = tableData[0]?.length ?? 0;
@@ -429,53 +453,72 @@ export function TableBlock({ block, onUpdate, onContextMenu, isReadOnly = false 
   const rowCount = tableData.length;
 
   return (
-    <div ref={containerRef} className="relative w-full">
-      <div className="border border-[var(--bone-10)] rounded-3xl overflow-hidden bg-panel">
-        <table className="w-full border-collapse">
-          <tbody>
-            {tableData.map((row: string[], ri: number) => (
-              <SortableRow
-                key={rowIds[ri]}
-                id={rowIds[ri]}
-                row={row}
-                ri={ri}
-                isSelected={selectedRow === ri}
-                selectedCol={selectedCol}
-                onSelect={() => { setSelectedRow(ri); setSelectedCol(null); }}
-                onContextMenu={(e) => handleRowContextMenu(e, ri)}
-                onColSelect={(ci) => { setSelectedCol(ci); setSelectedRow(null); }}
-                onColContextMenu={handleColContextMenu}
-                onCellUpdate={handleCellUpdate}
-                colCount={rowCount}
-                onMoveColumn={handleMoveColumn}
-                blockId={block.id}
-                onLinkContextMenu={onContextMenu}
-                isReadOnly={isReadOnly}
-              />
-            ))}
-          </tbody>
-        </table>
+    <div ref={containerRef} className="w-full">
+      <div className="relative">
+        <div className="relative rounded-3xl border border-[var(--bone-10)] overflow-hidden bg-panel">
+          {/* Scroll Fade Overlay Left */}
+          <div
+            className={cn(
+              "pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-panel to-transparent z-10 transition-opacity duration-200",
+              canScrollLeft ? "opacity-100" : "opacity-0"
+            )}
+          />
+          {/* Scroll Fade Overlay Right */}
+          <div
+            className={cn(
+              "pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-panel to-transparent z-10 transition-opacity duration-200",
+              canScrollRight ? "opacity-100" : "opacity-0"
+            )}
+          />
+
+          <div ref={scrollRef} className="w-full overflow-x-auto scrollbar-thin">
+            <table className="w-full min-w-max border-collapse">
+            <tbody>
+              {tableData.map((row: string[], ri: number) => (
+                <SortableRow
+                  key={rowIds[ri]}
+                  id={rowIds[ri]}
+                  row={row}
+                  ri={ri}
+                  isSelected={selectedRow === ri}
+                  selectedCol={selectedCol}
+                  onSelect={() => { setSelectedRow(ri); setSelectedCol(null); }}
+                  onContextMenu={(e) => handleRowContextMenu(e, ri)}
+                  onColSelect={(ci) => { setSelectedCol(ci); setSelectedRow(null); }}
+                  onColContextMenu={handleColContextMenu}
+                  onCellUpdate={handleCellUpdate}
+                  colCount={rowCount}
+                  onMoveColumn={handleMoveColumn}
+                  blockId={block.id}
+                  onLinkContextMenu={onContextMenu}
+                  isReadOnly={isReadOnly}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {!isReadOnly && (
-        <>
-          <button
-            onClick={() => {
-              const cols = tableData[0]?.length ?? 3;
-              onUpdate(block.id, { tableData: [...tableData, Array(cols).fill('')] });
-            }}
-            className="h-6 w-full opacity-0 group-hover/table:opacity-100 flex items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-b-[var(--radius-medium)] transition-all mt-0.5 uppercase tracking-widest"
-          >
-            + Add Row
-          </button>
+        <button
+          onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })}
+          className="absolute top-0 bottom-0 right-[-1.5rem] w-5 opacity-0 group-hover/table:opacity-100 flex flex-col items-center justify-center text-[10px] font-medium text-muted-foreground/40 hover:text-foreground hover:bg-[var(--bone-5)] rounded-[var(--radius-small)] transition-all [writing-mode:vertical-rl]"
+        >
+          + Add Column
+        </button>
+      )}
+    </div>
 
-          <button
-            onClick={() => onUpdate(block.id, { tableData: tableData.map((row: string[]) => [...row, '']) })}
-            className="absolute top-0 bottom-0 right-[-1.5rem] w-5 opacity-0 group-hover/table:opacity-100 flex flex-col items-center justify-center text-[9px] font-bold text-muted-foreground/30 hover:text-foreground hover:bg-white/5 rounded-r-[var(--radius-medium)] transition-all [writing-mode:vertical-rl] uppercase tracking-widest"
-          >
-            + Add Column
-          </button>
-        </>
+      {!isReadOnly && (
+        <button
+          onClick={() => {
+            const cols = tableData[0]?.length ?? 3;
+            onUpdate(block.id, { tableData: [...tableData, Array(cols).fill('')] });
+          }}
+          className="h-6 w-full opacity-0 group-hover/table:opacity-100 flex items-center justify-center text-[10px] font-medium text-muted-foreground/40 hover:text-foreground hover:bg-[var(--bone-5)] rounded-[var(--radius-small)] transition-all mt-0.5"
+        >
+          + Add Row
+        </button>
       )}
 
       {!isReadOnly && contextMenu && typeof document !== 'undefined' && createPortal(

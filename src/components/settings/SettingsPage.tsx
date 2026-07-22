@@ -35,7 +35,7 @@ export function ClearCacheButton() {
         "flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all shrink-0",
         cleared
           ? "bg-green-500/10 text-green-500"
-          : "bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100"
+          : "bg-[var(--bone-10)] hover:bg-[var(--bone-15)] text-bone-100"
       )}
     >
       {cleared ? (
@@ -113,8 +113,8 @@ export function SettingsPage() {
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2 rounded-md group text-[14px]",
                   isActive
-                    ? "bg-[#2b2a29] text-bone-100 font-medium"
-                    : "text-bone-70 hover:text-bone-100 hover:bg-[#2b2a29]/50"
+                    ? "bg-[var(--app-dark)] text-bone-100 font-medium"
+                    : "text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-5)]"
                 )}
               >
                 <Icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-bone-100" : "text-bone-70 group-hover:text-bone-100")} strokeWidth={1.5} />
@@ -126,7 +126,7 @@ export function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className={cn("flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] border-l border-[#2e2e2e] relative", activeTab === 'usage' ? 'overflow-hidden' : 'overflow-y-auto')}>
+      <div className={cn("flex-1 flex flex-col min-w-0 bg-[var(--app-panel)] border-l border-[var(--bone-10)] relative", activeTab === 'usage' ? 'overflow-hidden' : 'overflow-y-auto')}>
         <div className="flex-1 flex flex-col min-h-0 max-w-2xl w-full mx-auto px-12 py-10 pt-16">
           {activeTab === 'general' && (
             <div className="space-y-8">

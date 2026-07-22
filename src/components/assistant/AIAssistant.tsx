@@ -749,7 +749,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       className={cn(
                         "w-full px-3 py-2 rounded-xl text-left text-[11px] flex items-center justify-between group tracking-wide",
                         selectedMicId === mic.deviceId
-                          ? "bg-white/10 text-bone-100 font-bold"
+                          ? "bg-[var(--bone-10)] text-bone-100 font-bold"
                           : "text-muted-foreground/60 hover:text-foreground hover:bg-hover"
                       )}
                     >
@@ -770,7 +770,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       key={i}
                       className={cn(
                         "w-1 h-3 rounded-full",
-                        (volume * 8) >= i ? "bg-bone-100" : "bg-white/5"
+                        (volume * 8) >= i ? "bg-bone-100" : "bg-[var(--bone-5)]"
                       )}
                     />
                   ))}
@@ -801,11 +801,11 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
       >
         {isDragging && (
           <div className="absolute inset-x-5 bottom-32 z-[110] pointer-events-none ">
-            <div className="bg-white/10 backdrop-blur-xl border border-[var(--bone-12)] p-4 rounded-3xl flex items-center justify-center gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 text-bone-100 flex items-center justify-center">
+            <div className="bg-[var(--bone-10)] backdrop-blur-xl border border-[var(--bone-12)] p-4 rounded-3xl flex items-center justify-center gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-[var(--bone-12)] text-bone-100 flex items-center justify-center">
                 <ImageIcon strokeWidth={2} className="w-5 h-5" />
               </div>
-              <p className="text-[13px] font-bold text-white tracking-tight pr-4">Drop files to attach</p>
+              <p className="text-[13px] font-bold text-[var(--bone-100)] tracking-tight pr-4">Drop files to attach</p>
             </div>
           </div>
         )}
@@ -871,10 +871,10 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
             {aiSessionContext?.distilled_summary && (
               <div
                 onClick={() => openModal({ kind: 'summaryPreview', summary: aiSessionContext.distilled_summary! })}
-                className="my-3 mx-1 p-3 rounded-[12px] border border-[var(--bone-12)] bg-white/[0.02] hover:bg-white/[0.06] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between group select-none shadow-sm"
+                className="my-3 mx-1 p-3 rounded-[12px] border border-[var(--bone-12)] bg-[var(--bone-3)] hover:bg-[var(--bone-6)] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-between group select-none shadow-sm"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-[var(--bone-12)] flex items-center justify-center text-bone-70 group-hover:text-accent group-hover:border-accent/30 transition-all shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] flex items-center justify-center text-bone-70 group-hover:text-accent group-hover:border-accent/30 transition-all shrink-0">
                     <Brain className="w-3.5 h-3.5" />
                   </div>
                   <div className="flex flex-col items-start text-left min-w-0">
@@ -1074,7 +1074,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                 {attachments.map((att, i) => (
                   <div key={`pending-att-${i}`} className="relative group shrink-0">
                     <div className={cn(
-                      "rounded-[10px] overflow-hidden border border-[var(--bone-12)] bg-white/5 flex items-center justify-center",
+                      "rounded-[10px] overflow-hidden border border-[var(--bone-12)] bg-[var(--bone-5)] flex items-center justify-center",
                       att.type === 'audio' ? "w-auto h-auto" : "w-11 h-11"
                     )}>
                       {att.type === 'image' ? (
@@ -1138,7 +1138,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     targetRow.classList.add('pulse-highlight');
                   }
                 }}
-                className="flex items-center justify-between bg-white/5 rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-white/30 gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-white/10 "
+                className="flex items-center justify-between bg-[var(--bone-5)] rounded-[10px] px-3 py-1.5 mb-1 border-l-2 border-[var(--bone-15)] gap-3 animate-fade-in shrink-0 cursor-pointer hover:bg-[var(--bone-10)] "
               >
                 <div className="flex flex-col min-w-0">
                   <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-bone-70">
@@ -1153,7 +1153,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                     e.stopPropagation();
                     setReplyMessage(null);
                   }}
-                  className="p-1 rounded-md hover:bg-white/10 text-[var(--bone-40)] hover:text-white  shrink-0"
+                  className="p-1 rounded-md hover:bg-[var(--bone-10)] text-[var(--bone-40)] hover:text-[var(--bone-100)]  shrink-0"
                 >
                   <X strokeWidth={2} className="w-3 h-3" />
                 </button>
@@ -1493,14 +1493,14 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                               : `${Math.round(((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) * 100)}%`}
                           </span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-[var(--bone-5)] rounded-full overflow-hidden">
                           <div
                             className={cn(
                               "h-full duration-1000",
                               aiSessionContext === null
                                 ? "bg-transparent"
                                 : ((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) > (aiSessionContext.compaction_threshold ?? 0.8) 
-                                  ? "bg-white/40" 
+                                  ? "bg-[var(--bone-30)]" 
                                   : "bg-[var(--brand-blue)]"
                             )}
                             style={{ width: aiSessionContext === null ? '0%' : `${Math.min(((aiSessionContext.token_usage_total ?? 0) / (aiSessionContext.context_limit ?? 10000)) * 100, 100)}%` }}
@@ -1509,7 +1509,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                         <div className="flex flex-col gap-2 mb-2 shrink-0">
                           {aiMessages.filter(m => m.role === 'user' || m.role === 'assistant').length === 0 && (
                             <div className="text-[11px] text-bone-50 leading-tight">
-                              Press <span className="font-mono text-[9px] bg-white/10 px-1 py-0.5 rounded text-bone-80">/</span> for tools
+                              Press <span className="font-mono text-[9px] bg-[var(--bone-10)] px-1 py-0.5 rounded text-bone-80">/</span> for tools
                             </div>
                           )}
                            <p className="text-[9px] text-bone-30 opacity-60 leading-relaxed italic">
@@ -1537,8 +1537,8 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                               className={cn(
                                 "w-full py-1.5 rounded-[8px] text-[10px] font-semibold tracking-tight pointer-events-auto flex items-center justify-center gap-2",
                                 canCompact
-                                  ? "bg-white/10 text-bone-100 hover:bg-white/20 active:scale-[0.98]"
-                                  : "bg-white/5 text-bone-20 cursor-not-allowed opacity-50"
+                                  ? "bg-[var(--bone-10)] text-bone-100 hover:bg-[var(--bone-15)] active:scale-[0.98]"
+                                  : "bg-[var(--bone-5)] text-bone-20 cursor-not-allowed opacity-50"
                               )}
                             >
                               {isCompacting ? (
@@ -1610,7 +1610,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       onClick={() => handleSend()}
                       disabled={attachments.some(att => att.uploading)}
                       className={cn(
-                        "w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-white/10 text-bone-100 hover:bg-white/20 active:scale-90",
+                        "w-7 h-7 shrink-0 flex items-center justify-center rounded-[8px] bg-[var(--bone-10)] text-bone-100 hover:bg-[var(--bone-15)] active:scale-90",
                         attachments.some(att => att.uploading) && "opacity-40 cursor-not-allowed pointer-events-none"
                       )}
                     >
@@ -1662,7 +1662,7 @@ const AIAssistantComponent = ({ isFloating = false, chatPageMode = false, forceV
                       </div>
                       {(cmd.prefix || i === activeCommandIndex) && (
                         <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                          <span className="px-1.5 py-0.5 rounded-[4px] bg-white/5 text-[10px] font-mono tracking-wide text-bone-70">
+                          <span className="px-1.5 py-0.5 rounded-[4px] bg-[var(--bone-5)] text-[10px] font-mono tracking-wide text-bone-70">
                             {cmd.prefix ? cmd.prefix.trim() : 'ENTER'}
                           </span>
                         </div>

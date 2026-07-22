@@ -187,6 +187,8 @@ export interface Entity {
   syncMode: SyncMode;
   /** Brain-only Memory: hidden from workspace/unsorted views, visible on brain canvas. */
   brainOnly?: boolean;
+  /** Optional font family style for the note: 'serif' (default) or 'sans'. */
+  fontFamily?: 'serif' | 'sans';
   /** Workspace description (entities.description). */
   description?: string | null;
 }
@@ -664,6 +666,7 @@ export interface AppState {
   toggleCommandPalette: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   updateEntityContent: (id: string, content: any) => void;
+  updateEntityMeta: (id: string, meta: Partial<Entity>) => void;
   addTagToEntity: (id: string, tag: string) => void;
   removeTagFromEntity: (id: string, tag: string) => void;
   updateTagInEntity: (id: string, oldTag: string, newTag: string) => void;

@@ -106,8 +106,18 @@ describe('isPendingActionFresh', () => {
   })
 
   it('rejects a pending action older than the TTL (abandoned dry-run from turns ago)', () => {
-    const staleTime = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const staleTime = new Date(Date.now() - 40 * 60 * 1000).toISOString()
     expect(isPendingActionFresh({ created_at: staleTime })).toBe(false)
+  })
+
+  // Regression: a real user took ~15 minutes to reply "yes" to a delete
+  // confirmation (reading the generated report first) and the old 5-minute
+  // TTL silently expired the dry-run — the model still said "yes" was heard
+  // and called confirmed:true, but the server rejected it as stale, so the
+  // delete never ran. 30 minutes is a human-realistic reply window.
+  it('accepts a confirmation ~15 minutes after the dry-run (realistic reading time)', () => {
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+    expect(isPendingActionFresh({ created_at: fifteenMinAgo })).toBe(true)
   })
 
   it('rejects a pending action with a clock-skewed future timestamp', () => {
@@ -143,5 +153,39 @@ describe('isPendingActionSameNextTurn', () => {
 
   it('rejects when the current turn_seq is missing', () => {
     expect(isPendingActionSameNextTurn({ turn_seq: 3 }, undefined)).toBe(false)
+  })
+})
+
+describe('pending_action injection/gate alignment (chainRouter)', () => {
+  // Regression: promptBuilder injects "[PENDING CONFIRMATION] — act on this"
+  // into the model's context whenever sessionState.pending_action exists, with
+  // no freshness/turn check of its own — only the confirmed:true gate in
+  // delete_content enforces those. That mismatch let the model be told to
+  // confirm a dry-run the server would then reject, so a user's genuine "yes"
+  // silently did nothing. chainRouter must run the SAME two checks the gate
+  // runs before it decides whether to inject pending_action at all — this
+  // documents that composed check independent of chainRouter's DB plumbing.
+  function shouldInject(pending: { created_at?: string; turn_seq?: number } | null, currentTurnSeq: number | undefined) {
+    if (!pending) return false
+    return isPendingActionFresh(pending) && isPendingActionSameNextTurn(pending, currentTurnSeq)
+  }
+
+  it('injects when the pending action is fresh and lands on the next turn', () => {
+    const pending = { created_at: new Date().toISOString(), turn_seq: 5 }
+    expect(shouldInject(pending, 6)).toBe(true)
+  })
+
+  it('does NOT inject a pending action older than the TTL, even if turn_seq lines up', () => {
+    const pending = { created_at: new Date(Date.now() - 40 * 60 * 1000).toISOString(), turn_seq: 5 }
+    expect(shouldInject(pending, 6)).toBe(false)
+  })
+
+  it('does NOT inject a pending action from a skipped turn, even if it is still fresh', () => {
+    const pending = { created_at: new Date().toISOString(), turn_seq: 5 }
+    expect(shouldInject(pending, 8)).toBe(false)
+  })
+
+  it('does NOT inject when there is no pending action', () => {
+    expect(shouldInject(null, 6)).toBe(false)
   })
 })

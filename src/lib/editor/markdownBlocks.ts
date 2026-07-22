@@ -180,16 +180,49 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
   // Option C: Forgiving parser for mashed-up lists.
   // If the LLM generates "- [ ] Item 1 - [ ] Item 2" on one line, split them.
   let cleanedMd = md.replace(/(\S)\s+(-\s*\[\s*[xX ]?\s*\])/g, '$1\n$2');
-  // Numbered lists: "1. ", "2. ", etc. — but never split a heading like "### 1. Title"
-  cleanedMd = cleanedMd.replace(/([^\s#])\s+(\d+\.\s+)/g, '$1\n$2');
-  // Bullet lists using * or + (We avoid "-" for regular bullets because it breaks normal sentences like "Movie - A masterpiece")
-  cleanedMd = cleanedMd.replace(/(\S)\s+([*+]\s+)/g, '$1\n$2');
+  // Numbered lists: "1. ", "2. ", etc. — but ONLY when the line is a genuine
+  // single-line mashup of MULTIPLE items ("Steps: 1. First 2. Second"), never
+  // when a lone "N. " is just prose (a date/amount sentence boundary like
+  // "Oct 24, 2025. You took…" or "…lots in 2026. This preserved…"). The signal
+  // that separates the two is the presence of a SECOND "\d+.\s" marker later on
+  // the same line: a real mashup has 1.…2.…; prose has one isolated number.
+  // Splitting isolated numbers was injecting phantom top-level numbered items
+  // that reset the rendered "1., 2., 3." counter — the exact "everything shows
+  // 1./2." bug the user reported. Never split a heading like "### 1. Title".
+  cleanedMd = cleanedMd
+    .split('\n')
+    .map(line => {
+      if (/^\s*#/.test(line)) return line; // heading line — leave untouched
+      // Set aside the line's OWN leading list marker ("1. ") — classifyLine
+      // consumes that legitimately. A genuine single-line mashup has 2+ markers
+      // AFTER it ("Steps: 1. First 2. Second"); prose that merely starts with a
+      // number and later contains a date/amount ("1. …lots in 2026. This…") has
+      // only that trailing lone number, which is NOT a real item boundary.
+      const body = line.replace(/^(\s*)\d+\.\s+/, '$1');
+      const markerCount = (body.match(/(?:^|\s)\d+\.\s/g) ?? []).length;
+      if (markerCount < 2) return line; // lone number = prose, don't split
+      return line.replace(/([^\s#])\s+(\d+\.\s+)/g, '$1\n$2');
+    })
+    .join('\n');
+  // NOTE: we deliberately do NOT split "* " / "+ " mid-line. Doing so turned
+  // ordinary prose ("EURUSD + EURGBP", "high conviction + calm sizing") into
+  // spurious bullets — and worse, those stray bullet blocks reset numbered-list
+  // counters. Genuine "* "/"+ " bullets arrive on their own line and are
+  // classified directly by classifyLine; a mid-sentence + or * is prose.
   
   const lines = cleanedMd.split('\n');
   const root: EditorBlock[] = [];
   const stack: Array<{ block: EditorBlock; depth: number }> = [];
   let inFence = false;
   let fenceLines: string[] = [];
+  // Lazy continuation: the last top-level list item pushed, and whether the
+  // immediately-preceding source line was blank. A flush-left plain paragraph
+  // that directly follows a list item (no blank line) is that item's
+  // description — models routinely write it un-indented — and must nest under
+  // the item, not sit between items where it would reset the render counter.
+  let lastRootListItem: EditorBlock | null = null;
+  let prevLineBlank = true;
+  const LIST_ITEM_TYPES = new Set<BlockType>(['bulletList', 'numberedList', 'dashedList', 'checklist']);
 
   const pushBlock = (block: EditorBlock, depth: number) => {
     while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {
@@ -253,9 +286,9 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
 
     const { indent, kind } = classifyLine(rawLine);
 
-    if (kind.kind === 'blank') continue;
-    if (kind.kind === 'fenceOpen') { inFence = true; fenceLines = []; continue; }
-    if (kind.kind === 'fenceClose') { inFence = false; continue; }
+    if (kind.kind === 'blank') { prevLineBlank = true; continue; }
+    if (kind.kind === 'fenceOpen') { inFence = true; fenceLines = []; prevLineBlank = false; continue; }
+    if (kind.kind === 'fenceClose') { inFence = false; prevLineBlank = false; continue; }
 
     let block: EditorBlock;
 
@@ -286,7 +319,31 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
         break;
     }
 
-    pushBlock(block, indent);
+    // Lazy continuation: a flush-left body paragraph immediately after a
+    // top-level list item (no blank line between) is that item's description.
+    // Attach it as the item's child so it never sits between items as a
+    // counter-resetting sibling. Anything else — a blank line before it, an
+    // indented line (already nested), or a list item itself — is untouched.
+    if (
+      kind.kind === 'text' &&
+      indent === 0 &&
+      !prevLineBlank &&
+      lastRootListItem !== null &&
+      stack.length > 0 &&
+      stack[stack.length - 1].block === lastRootListItem
+    ) {
+      if (!lastRootListItem.children) lastRootListItem.children = [];
+      lastRootListItem.children.push(block);
+    } else {
+      pushBlock(block, indent);
+      if (indent === 0 && LIST_ITEM_TYPES.has(block.type)) {
+        lastRootListItem = block;
+      } else if (indent === 0) {
+        lastRootListItem = null;
+      }
+    }
+
+    prevLineBlank = false;
   }
 
   return root;

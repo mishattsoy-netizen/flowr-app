@@ -322,7 +322,7 @@ export function ContextMenu() {
                 setSpaceOptionsPos({ x: rect.right, y: rect.top });
                 setSpaceOptionsId(ws.id);
               }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-[2px] rounded hover:bg-white/10"
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-[2px] rounded hover:bg-[var(--bone-10)]"
             >
               <MoreVertical strokeWidth={2} className="w-3.5 h-3.5 text-[var(--bone-50)] hover:text-[var(--bone-100)] shrink-0" />
             </button>

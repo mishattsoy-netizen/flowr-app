@@ -315,7 +315,7 @@ export default function AISettingsSection() {
         }}
         className={cn(
           "mt-6 flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 cursor-pointer",
-          "bg-white/5 hover:bg-white/10 border border-white/10 group/card text-left"
+          "bg-[var(--bone-5)] hover:bg-[var(--bone-10)] border border-[var(--bone-10)] group/card text-left"
         )}
       >
         <div className="flex items-center text-bone-80 opacity-30 shrink-0 transition-all group-hover/card:opacity-80">

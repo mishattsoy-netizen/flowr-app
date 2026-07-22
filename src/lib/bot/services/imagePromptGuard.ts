@@ -27,6 +27,13 @@ export function sanitizeToolContent(text: string, maxLen?: number): string {
   }
   // Drop a leading "[CURRENT REQUEST]" label if the request itself remains
   out = out.replace(/\[CURRENT REQUEST\]\s*/g, '')
+  // A model occasionally backslash-escapes a markdown special character in
+  // block content ("\*Size must be…") the way it would in a markdown FILE —
+  // but block content here is stored and rendered largely as-is, not re-run
+  // through a markdown parser that would interpret "\*" as an escaped literal
+  // asterisk. Left alone, the user sees the raw "\*" in the rendered note.
+  // Unescape the common CommonMark escape targets before persisting.
+  out = out.replace(/\\([*_`\\[\]()#+\-.!>~])/g, '$1')
   out = out.replace(/\n{3,}/g, '\n\n').trim()
   return typeof maxLen === 'number' ? out.slice(0, maxLen) : out
 }

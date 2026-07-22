@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useState, useRef, useEffect, useMemo, createContext, useContext } from 'react';
+import React, { memo, useState, useRef, useEffect, useMemo, useCallback, createContext, useContext } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Layout, Copy, ThumbsUp, ThumbsDown, RotateCcw, Paperclip, CornerUpLeft, FileText, File, ClipboardCopy, ChevronDown, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, Brain, Check, ExternalLink, Folder, Frame, Box, Hash, Globe, Telescope, Image as ImageIcon } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '../../ui/popover';
@@ -26,6 +26,61 @@ const InTableContext = createContext(false);
 const InHeaderContext = createContext(false);
 const InListContext = createContext(false);
 const ListTypeContext = createContext<'ul' | 'ol' | null>(null);
+
+function MarkdownTable({ children, inList, compact }: { children: any; inList: boolean; compact?: boolean }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      ro.disconnect();
+    };
+  }, [checkScroll, children]);
+
+  return (
+    <InTableContext.Provider value={true}>
+      <div className={cn("relative my-3 w-full", inList && "ml-[-12px] !w-[calc(100%+12px)]")}>
+        <div className="relative rounded-3xl border border-[var(--bone-10)] overflow-hidden bg-panel">
+          {/* Scroll Fade Overlay Left */}
+          <div
+            className={cn(
+              "pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-panel to-transparent z-10 transition-opacity duration-200",
+              canScrollLeft ? "opacity-100" : "opacity-0"
+            )}
+          />
+          {/* Scroll Fade Overlay Right */}
+          <div
+            className={cn(
+              "pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-panel to-transparent z-10 transition-opacity duration-200",
+              canScrollRight ? "opacity-100" : "opacity-0"
+            )}
+          />
+
+          <div ref={scrollRef} className="w-full overflow-x-auto scrollbar-thin">
+            <table className={cn("w-full min-w-max border-collapse font-sans", compact ? "text-[11.5px]" : "text-[13px]")}>
+              {children}
+            </table>
+          </div>
+        </div>
+      </div>
+    </InTableContext.Provider>
+  );
+}
 
 // Pre-compiled regexes
 const THINK_TAG_FULL = /<think>[\s\S]*?<\/think>/g;
@@ -608,16 +663,16 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
   };
 
   return (
-    <div className="mt-4 mb-6 w-full p-4 rounded-[17px] bg-white/5 border border-white/10 relative overflow-hidden backdrop-blur-xl group">
-      <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-white/5 rounded-full blur-[60px] pointer-events-none transition-opacity group-hover:opacity-100" />
+    <div className="mt-4 mb-6 w-full p-4 rounded-[17px] bg-[var(--bone-5)] border border-[var(--bone-10)] relative overflow-hidden backdrop-blur-xl group">
+      <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-[var(--bone-5)] rounded-full blur-[60px] pointer-events-none transition-opacity group-hover:opacity-100" />
       <div className="flex flex-col gap-3 relative z-10 w-full">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10 relative overflow-hidden">
-              <div className="absolute inset-0 bg-white/5 animate-pulse" />
+            <div className="w-8 h-8 rounded-full bg-[var(--bone-10)] flex items-center justify-center border border-[var(--bone-10)] relative overflow-hidden">
+              <div className="absolute inset-0 bg-[var(--bone-5)] animate-pulse" />
               <div className="relative flex items-center justify-center w-full h-full">
                 <div className="relative h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--bone-30)] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-bone-100"></span>
                 </div>
               </div>
@@ -630,7 +685,7 @@ const ApplyCanvasCard = ({ content }: { content: string }) => {
               "flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-bold uppercase transition-all duration-300",
               applied
                 ? "bg-bone-100 text-black scale-[1.02]"
-                : "bg-white/10 text-bone-100 border border-white/20 hover:bg-white/20 active:scale-[0.98]"
+                : "bg-[var(--bone-10)] text-bone-100 border border-[var(--bone-12)] hover:bg-[var(--bone-15)] active:scale-[0.98]"
             )}
           >
             {applied ? (
@@ -725,7 +780,8 @@ export const parseMentions = (contentArray: any[], entities: any[], spaces: any[
               newParts.push(
                 <button
                   key={`${item.id}-${i}`}
-                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[6px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium not-italic tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal' }}
                   onClick={() => useStore.getState().setActiveSpaceId(item.id)}
                   title={`Switch to ${item.title}`}
                 >
@@ -736,7 +792,8 @@ export const parseMentions = (contentArray: any[], entities: any[], spaces: any[
               newParts.push(
                 <button
                   key={`${item.id}-${i}`}
-                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[6px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium not-italic tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                  style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal' }}
                   onClick={() => useStore.getState().addTab(item.id)}
                   title={`Open ${item.title}`}
                 >
@@ -777,7 +834,7 @@ const UserMessageBubble = ({
   return (
     <div className="flex flex-col items-end gap-1.5 max-w-full">
       {msg.intentTag && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-[var(--app-dark)] border border-white/5 text-[var(--bone-60)] text-[11px] font-medium tracking-wide">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] bg-[var(--app-dark)] border border-[var(--bone-5)] text-[var(--bone-60)] text-[11px] font-medium tracking-wide">
           {msg.intentTag === '/search' && <Globe className="w-3 h-3" />}
           {msg.intentTag === '/research' && <Telescope className="w-3 h-3" />}
           {msg.intentTag === '/image' && <ImageIcon className="w-3 h-3" />}
@@ -975,7 +1032,7 @@ const AdvisorCard = ({ content, state, compact = false }: { content: string; sta
           <span className="text-[10px] font-medium text-amber-400/70 ml-auto">Needs your input</span>
         )}
       </div>
-      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-[14px] prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100 prose-code:text-emerald-300 prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg w-full overflow-hidden [&_p]:my-0 break-words" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
+      <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-[var(--bone-5)] prose-pre:border prose-pre:border-[var(--bone-10)] prose-pre:rounded-[14px] prose-headings:font-bold prose-headings:text-bone-100 prose-p:text-bone-80 prose-strong:text-bone-100 prose-code:text-emerald-300 prose-code:bg-emerald-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-blockquote:border-l-emerald-500/50 prose-blockquote:bg-emerald-500/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg w-full overflow-hidden [&_p]:my-0 break-words" style={{ fontFamily: 'var(--font-display)', fontSize: compact ? '13.5px' : '17px', fontWeight: 400, letterSpacing: '-0.01em', color: 'var(--bone-100)' }}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {content}
         </ReactMarkdown>
@@ -1337,7 +1394,8 @@ export const ChatMessage = memo(({
           return (
             <Tooltip content={entityRef.type === 'workspace' ? `Switch to ${label}` : `Open ${label}`}>
               <button
-                className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[8px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-1.5 py-[1px] mx-[1px] rounded-[6px] bg-[var(--bone-6)] hover:bg-[var(--bone-10)] text-[var(--bone-100)] font-medium not-italic tracking-tight text-[13px] align-middle select-all transition-colors cursor-pointer"
+                style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal' }}
                 onClick={() => entityRef.type === 'workspace'
                   ? store.setActiveSpaceId(entityRef.id)
                   : store.addTab(entityRef.id)}
@@ -1356,7 +1414,7 @@ export const ChatMessage = memo(({
               href={absoluteHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center w-3.5 h-3.5 -mt-2.5 ml-0.5 bg-white/10 hover:bg-white/20 rounded-full text-[8.5px] font-bold text-bone-100 no-underline align-super transition-all duration-200 select-none border border-white/5"
+              className="inline-flex items-center justify-center w-3.5 h-3.5 -mt-2.5 ml-0.5 bg-[var(--bone-10)] hover:bg-[var(--bone-15)] rounded-full text-[8.5px] font-bold text-bone-100 no-underline align-super transition-all duration-200 select-none border border-[var(--bone-5)]"
             >
               {children.replace(/[\[\]]/g, '')}
             </a>
@@ -1561,7 +1619,7 @@ export const ChatMessage = memo(({
         return null;
       },
       blockquote: ({ children }: any) => (
-        <blockquote className="border-l-4 border-white/10 pl-4 py-1 mt-3 mb-6 italic bg-white/5 rounded-r text-bone-70">
+        <blockquote className="border-l-4 border-[var(--bone-10)] pl-4 py-1 mt-3 mb-6 italic bg-[var(--bone-5)] rounded-r text-bone-70">
           {children}
         </blockquote>
       ),
@@ -1618,7 +1676,7 @@ export const ChatMessage = memo(({
             <button
               onClick={() => navigator.clipboard.writeText(contentStr)}
               className={cn(
-                "absolute right-3 px-2 py-1.5 rounded-md bg-white/[0.05] text-white/40 hover:bg-white/[0.1] hover:text-white border border-[var(--bone-6)] transition-all opacity-0 group-hover/code:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5",
+                "absolute right-3 px-2 py-1.5 rounded-md bg-[var(--bone-5)] text-[var(--bone-30)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-100)] border border-[var(--bone-6)] transition-all opacity-0 group-hover/code:opacity-100 select-none cursor-pointer z-20 flex items-center gap-1.5",
                 isSingleRow ? "top-1/2 -translate-y-1/2" : "top-2.5"
               )}
             >
@@ -1654,16 +1712,7 @@ export const ChatMessage = memo(({
       },
       table: ({ children }: any) => {
         const inList = !!useContext(InListContext);
-        return (
-          <InTableContext.Provider value={true}>
-            <div className={cn(
-              "overflow-x-auto mt-3 mb-6 border border-[var(--bone-10)] rounded-2xl w-full bg-panel",
-              inList && "ml-[-12px] !w-[calc(100%+12px)]"
-            )}>
-              <table className={cn("w-full border-collapse font-sans", compact ? "text-[11.5px]" : "text-[13px]")}>{children}</table>
-            </div>
-          </InTableContext.Provider>
-        );
+        return <MarkdownTable children={children} inList={inList} compact={compact} />;
       },
       thead: ({ children }: any) => (
         <InHeaderContext.Provider value={true}>
@@ -1672,9 +1721,16 @@ export const ChatMessage = memo(({
       ),
       tbody: ({ children }: any) => <tbody>{children}</tbody>,
       tr: ({ children }: any) => <tr className="border-b border-b-[var(--bone-10)] last:border-b-0">{children}</tr>,
-      th: ({ children }: any) => <th className={cn("px-3 py-2.5 text-left font-bold uppercase tracking-wider text-bone-100 font-sans border-r border-r-[var(--bone-10)] last:border-r-0", compact ? "text-[9.5px]" : "text-[10.5px]")}>{children}</th>,
+      th: ({ children }: any) => (
+        <th className={cn(
+          "px-3.5 py-2.5 text-left font-bold text-bone-100 font-sans border-r border-r-[var(--bone-10)] last:border-r-0 min-w-[100px] bg-[var(--bone-5)]",
+          compact ? "text-[10px]" : "text-[10.5px]"
+        )}>
+          {children}
+        </th>
+      ),
       td: ({ children }: any) => (
-        <td className="px-3 py-2.5 text-bone-100 font-sans leading-snug first:font-semibold first:text-bone-100 border-r border-r-[var(--bone-10)] last:border-r-0">
+        <td className="px-3.5 py-2.5 text-bone-100 font-sans leading-snug first:font-semibold first:text-bone-100 border-r border-r-[var(--bone-10)] last:border-r-0 min-w-[80px]">
           {children}
         </td>
       ),
@@ -1858,9 +1914,9 @@ export const ChatMessage = memo(({
                         <button
                           onClick={() => setShowThinking(!showThinking)}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-[12px] transition-all border border-white/5",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-[12px] transition-all border border-[var(--bone-5)]",
                             showThinking
-                              ? "bg-white/10 text-bone-100 border-white/10"
+                              ? "bg-[var(--bone-10)] text-bone-100 border-[var(--bone-10)]"
                               : "bg-[var(--bone-5)] hover:bg-[var(--bone-10)] text-[var(--bone-70)] hover:text-[var(--bone-90)]"
                           )}
                         >
@@ -1869,7 +1925,7 @@ export const ChatMessage = memo(({
                           <ChevronDown className={cn("w-3.5 h-3.5 opacity-50 transition-transform duration-300", showThinking && "rotate-180")} />
                         </button>
                         {showThinking && (
-                          <div className="mt-2 pl-4 ml-2 border-l border-white/10 pr-4 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div className="mt-2 pl-4 ml-2 border-l border-[var(--bone-10)] pr-4 py-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
                             <div className="text-[14px] text-[var(--bone-70)] leading-relaxed prose prose-invert !max-w-none prose-p:my-1 prose-sm opacity-90 font-sans">
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {thinkContent}
@@ -1980,7 +2036,7 @@ export const ChatMessage = memo(({
                                 }
                               }}
                               className={cn(
-                                "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 group/card"
+                                "flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 cursor-pointer bg-[var(--bone-5)] hover:bg-[var(--bone-10)] border border-[var(--bone-10)] group/card"
                               )}
                             >
                               <div className={cn("flex items-center text-bone-80 opacity-30 shrink-0 transition-all group-hover/card:opacity-80")}>
@@ -2020,7 +2076,7 @@ export const ChatMessage = memo(({
                         )}
                       >
                         {msg.citations && msg.citations.length > 0 && !displayContent.includes('[pill:') && (
-                          <div className="mt-2 flex flex-wrap gap-2 pt-3 border-t border-white/5 w-full">
+                          <div className="mt-2 flex flex-wrap gap-2 pt-3 border-t border-[var(--bone-5)] w-full">
 
                             {msg.citations.slice(0, 8).map((url, i) => {
                               let domain = '';
@@ -2034,7 +2090,7 @@ export const ChatMessage = memo(({
                                   href={url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[var(--bone-70)] hover:text-bone-100 transition-none max-w-[160px] shrink-0"
+                                  className="flex items-center gap-2 px-2 py-1 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] rounded-lg text-[11px] font-medium text-[var(--bone-70)] hover:text-bone-100 transition-none max-w-[160px] shrink-0"
                                 >
 
                                   {faviconUrl && (
@@ -2087,7 +2143,7 @@ export const ChatMessage = memo(({
                                 </Tooltip>
                               )}
                               {totalVariants > 1 && msg.id && (
-                                <div className="flex items-center gap-0.5 h-6 px-1 rounded-md border border-white/5 bg-white/[0.02]">
+                                <div className="flex items-center gap-0.5 h-6 px-1 rounded-md border border-[var(--bone-5)] bg-[var(--bone-3)]">
                                   <button
                                     onClick={() => setVariantIndex(msg.id!, currentVariantIndex - 1)}
                                     disabled={currentVariantIndex === 0}
@@ -2146,8 +2202,8 @@ export const ChatMessage = memo(({
                               {process.env.NODE_ENV === 'development' && chatPageMode && (
                                 (msg as any).transcript_md ? (
                                   <>
-                                    <div className="h-3 w-[1px] bg-white/5 mx-0.5" />
-                                    <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
+                                    <div className="h-3 w-[1px] bg-[var(--bone-5)] mx-0.5" />
+                                    <div className="flex items-center gap-0 relative h-6 border border-[var(--bone-5)] rounded-md overflow-hidden bg-[var(--bone-3)] hover:bg-[var(--bone-6)] transition-colors">
                                       <Tooltip content="Copy full transcript (request, all chain inputs/outputs, reasoning, traces)">
                                         <button
                                           onClick={() => navigator.clipboard.writeText((msg as any).transcript_md)}
@@ -2161,7 +2217,7 @@ export const ChatMessage = memo(({
                                   </>
                                 ) : !isAILoading && (
                                   <Tooltip content="Transcript not available (requires new AI request)">
-                                    <div className="flex items-center gap-0 relative h-6 border border-white/5 rounded-md overflow-hidden opacity-30 cursor-not-allowed">
+                                    <div className="flex items-center gap-0 relative h-6 border border-[var(--bone-5)] rounded-md overflow-hidden opacity-30 cursor-not-allowed">
                                       <button disabled className="h-full px-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bone-40)]">
                                         <ClipboardCopy strokeWidth={2} className="w-2.5 h-2.5" />
                                         <span>Transcript</span>

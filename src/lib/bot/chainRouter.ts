@@ -252,6 +252,24 @@ export async function runChain(
     await updateSessionState(sessionId, { turn_seq: sessionState.turn_seq })
   }
 
+  // A pending_action that the confirmed:true gate would already reject (too
+  // old, or more than one turn past its dry-run) must not still be injected
+  // into the prompt as "[PENDING CONFIRMATION] — act on this". Without this
+  // check the model dutifully calls confirmed:true exactly as told, the
+  // server rejects it as stale, and the user's "yes" silently does nothing —
+  // observed live as a 15-minute-old delete confirmation being bounced.
+  // Clearing it here also stops it from being re-injected (and re-rejected)
+  // on every subsequent turn.
+  if (sessionState?.pending_action) {
+    const { isPendingActionFresh, isPendingActionSameNextTurn } = await import('./tools/handlers')
+    const stillValid = isPendingActionFresh(sessionState.pending_action)
+      && isPendingActionSameNextTurn(sessionState.pending_action, sessionState.turn_seq)
+    if (!stillValid) {
+      sessionState.pending_action = null
+      await updateSessionState(sessionId, { pending_action: null })
+    }
+  }
+
   // 1. Specialized Vision Flow (Buffer or URL)
   let rawBuffers = Array.isArray(inputBuffer) ? inputBuffer : (inputBuffer ? [inputBuffer] : [])
   let activeBuffers: Buffer[] = []

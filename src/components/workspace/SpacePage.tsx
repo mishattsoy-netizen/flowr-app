@@ -81,7 +81,7 @@ function NoteBlockPreview({ blocks }: { blocks: EditorBlock[] }) {
           <div key={i} className={cn(
             'truncate',
             isH ? 'font-semibold text-[12px] text-[var(--bone-80)]' :
-            isMono ? 'font-mono text-[10px] text-[var(--bone-50)] bg-black/20 px-1.5 py-[1px] rounded' :
+            isMono ? 'font-mono text-[10px] text-[var(--bone-50)] bg-[var(--bone-10)] px-1.5 py-[1px] rounded' :
             'text-[11px] text-[var(--bone-60)]'
           )}>
             {content}
@@ -218,7 +218,7 @@ function CanvasMiniPreview({ canvasBlocks }: { canvasBlocks: EditorBlock[] }) {
           <div
             key={b.id}
             className={cn(
-              "absolute border-[0.5px] border-white/10 opacity-70",
+              "absolute border-[0.5px] border-[var(--bone-10)] opacity-70",
               isCircle ? "rounded-full" : "rounded-[1.5px]"
             )}
             style={{ left, top, width, height, backgroundColor: fill }}
@@ -719,7 +719,7 @@ export function SpacePage({ entity, isLoading }: { entity: Entity; isLoading?: b
                 })}
               </HorizontalOverlayScrollbar>
             ) : (
-              <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] text-center">
+              <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 p-4 bg-[var(--bone-2)] rounded-[12px] text-center">
                 <div className="text-center max-w-[320px]">
                   <p className="text-base font-semibold text-bone-100 opacity-40">No recent documents</p>
                   <p className="text-xs text-bone-70 opacity-25 mt-1 leading-snug text-balance">Your recently updated Notes and Canvases in this Space will appear here.</p>

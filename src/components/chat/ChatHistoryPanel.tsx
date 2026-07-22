@@ -104,7 +104,7 @@ export function ChatHistoryPanel() {
               onClick={startNewChat}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                pendingNewChat ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
+                pendingNewChat ? "bg-[var(--bone-10)] text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
               )}
             >
               <Pen className="w-3.5 h-3.5" />
@@ -114,7 +114,7 @@ export function ChatHistoryPanel() {
               onClick={startTempChat}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                isTempChat ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
+                isTempChat ? "bg-[var(--bone-10)] text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
               )}
             >
               <MessageCircleDashed className="w-3.5 h-3.5" />
@@ -124,7 +124,7 @@ export function ChatHistoryPanel() {
               onClick={() => setBrainOpen(true)}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                brainOpen ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
+                brainOpen ? "bg-[var(--bone-10)] text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-hover"
               )}
             >
               <Brain className="w-3.5 h-3.5" />
@@ -164,7 +164,7 @@ export function ChatHistoryPanel() {
                           if (e.key === 'Escape') setEditingId(null);
                         }}
                         onClick={e => e.stopPropagation()}
-                        className="flex-1 bg-transparent text-[13px] outline-none border-b border-white/30"
+                        className="flex-1 bg-transparent text-[13px] outline-none border-b border-[var(--bone-15)]"
                       />
                     ) : (
                       <span className="flex-1 text-[13px] truncate leading-snug" style={{ color: 'inherit' }}>{conv.title}</span>

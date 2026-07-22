@@ -65,7 +65,7 @@ const TAG_SWATCHES = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#E
 function priorityMeta(p: number): { label: string; className: string } {
   if (p <= 1) return { label: 'High', className: 'bg-red-500/15 text-red-400' };
   if (p <= 2) return { label: 'Medium', className: 'bg-amber-500/15 text-amber-400' };
-  return { label: 'Low', className: 'bg-[var(--bone-10)] text-[var(--bone-60)]' };
+  return { label: 'Low', className: 'bg-blue-500/15 text-blue-400' };
 }
 
 /**
@@ -193,19 +193,21 @@ function TagField({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none max-w-[140px]"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[11px] font-medium border-none outline-none max-w-[150px] cursor-pointer",
+              !node.tag_color && "bg-[var(--bone-10)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+            )}
+            style={node.tag_color ? { backgroundColor: `${node.tag_color}26`, color: node.tag_color } : undefined}
           >
             {node.tag_color ? (
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.tag_color }} />
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: node.tag_color }} />
             ) : (
-              <Droplet className="w-3 h-3 text-[var(--bone-100)] opacity-40" strokeWidth={2} />
+              <Droplet className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-40 shrink-0" strokeWidth={2} />
             )}
             <span className="truncate">{node.tag_name || (node.tag_color ? 'Color' : 'None')}</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="popup-glass-small !w-auto min-w-[200px] z-[320]" align="end">
-          <p className="text-[10px] uppercase tracking-wide text-[var(--bone-40)] px-1 mb-1.5">Tag</p>
-
+        <PopoverContent className="popup-glass-small !w-auto min-w-[200px] !p-1.5 !rounded-[12px] z-[320]" align="end">
           {/* Name field (search-as-you-type over the list below) + color dot,
               which opens the task-style swatch grid in a nested popover. */}
           <div className="flex items-center gap-1.5 mb-2">
@@ -455,7 +457,7 @@ export function DetailsMode({
               <button
                 type="button"
                 className={cn(
-                  "px-2 py-0.5 rounded-full text-[11px] font-medium border-none outline-none",
+                  "px-2.5 py-1 rounded-[8px] text-[11px] font-medium capitalize border-none outline-none cursor-pointer",
                   prio.className
                 )}
               >
@@ -463,7 +465,7 @@ export function DetailsMode({
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-36 p-1 bg-[var(--app-panel)] border border-[var(--bone-12)] rounded-[12px] z-[320]"
+              className="popup-glass-small !p-1 !rounded-[12px] flex flex-col gap-[2px] w-auto min-w-[140px] z-[320]"
               align="end"
               sideOffset={4}
             >
@@ -477,13 +479,21 @@ export function DetailsMode({
                   type="button"
                   onClick={() => onUpdatePriority(focusedNodeId, opt.p)}
                   className={cn(
-                    "w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] border-none outline-none",
+                    "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer border-none outline-none transition-none",
                     display.priority === opt.p
-                      ? "bg-[var(--app-dark)] text-[var(--bone-100)]"
-                      : "text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)]"
+                      ? opt.p === 1 ? "bg-red-500/15 text-red-400" :
+                        opt.p === 2 ? "bg-amber-500/15 text-amber-400" :
+                          "bg-blue-500/15 text-blue-400"
+                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
                   )}
                 >
-                  {opt.label}
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full shrink-0",
+                    opt.p === 1 ? "bg-red-400" :
+                    opt.p === 2 ? "bg-amber-400" :
+                    "bg-blue-400"
+                  )} />
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </PopoverContent>
@@ -499,25 +509,51 @@ export function DetailsMode({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[11px] font-medium border-none outline-none cursor-pointer",
+                    display.brainOnly
+                      ? "bg-[#A78BFA]/15 text-[#C4B5FD]"
+                      : "bg-[var(--bone-10)] text-[var(--bone-70)] hover:text-[var(--bone-100)]"
+                  )}
                 >
-                  {display.brainOnly ? 'Memory' : 'Note'}
+                  {display.brainOnly ? (
+                    <Brain className="w-3 h-3 text-[#C4B5FD] shrink-0" strokeWidth={2} />
+                  ) : (
+                    <FileText className="w-3 h-3 opacity-70 shrink-0" strokeWidth={2} />
+                  )}
+                  <span>{display.brainOnly ? 'Memory' : 'Note'}</span>
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-40 p-1 bg-[var(--app-panel)] border border-[var(--bone-12)] rounded-[12px] z-[320]" align="end">
+              <PopoverContent
+                className="popup-glass-small !p-1 !rounded-[12px] flex flex-col gap-[2px] w-auto min-w-[140px] z-[320]"
+                align="end"
+                sideOffset={4}
+              >
                 <button
                   type="button"
                   onClick={() => onSetBrainOnly?.(focusedNodeId, false)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] border-none outline-none"
+                  className={cn(
+                    "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer border-none outline-none transition-none",
+                    !display.brainOnly
+                      ? "bg-[var(--bone-10)] text-[var(--bone-100)]"
+                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                  )}
                 >
-                  Note
+                  <FileText className="w-3.5 h-3.5 shrink-0 opacity-70" strokeWidth={2} />
+                  <span>Note</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onSetBrainOnly?.(focusedNodeId, true)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] border-none outline-none"
+                  className={cn(
+                    "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center gap-2.5 cursor-pointer border-none outline-none transition-none",
+                    display.brainOnly
+                      ? "bg-[#A78BFA]/20 text-[#C4B5FD]"
+                      : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                  )}
                 >
-                  Memory
+                  <Brain className="w-3.5 h-3.5 shrink-0 text-[#C4B5FD]" strokeWidth={2} />
+                  <span>Memory</span>
                 </button>
               </PopoverContent>
             </Popover>
@@ -587,33 +623,44 @@ export function DetailsMode({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none hover:text-[var(--bone-100)]"
+                  className="px-2.5 py-1 rounded-[8px] text-[11px] font-medium bg-[var(--bone-10)] text-[var(--bone-70)] border-none outline-none hover:text-[var(--bone-100)] cursor-pointer"
                 >
                   {display.workspaceLabel || 'Unsorted'}
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-48 p-1 max-h-56 overflow-y-auto bg-[var(--app-panel)] border border-[var(--bone-12)] rounded-[12px] z-[320]"
+                className="popup-glass-small !p-1 !rounded-[12px] flex flex-col gap-[2px] w-auto min-w-[180px] max-h-[290px] overflow-y-auto scrollbar-thin z-[320]"
                 align="end"
                 sideOffset={4}
               >
                 <button
                   type="button"
                   onClick={() => onMoveToWorkspace(focusedNodeId, null)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] border-none outline-none"
+                  className={cn(
+                    "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center justify-between cursor-pointer border-none outline-none transition-none",
+                    !display.workspaceLabel ? "bg-[var(--bone-6)] text-[var(--bone-100)]" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                  )}
                 >
-                  Unsorted
+                  <span className="truncate">Unsorted</span>
+                  {!display.workspaceLabel && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-2" />}
                 </button>
-                {workspaceOptions.map(ws => (
-                  <button
-                    key={ws.id}
-                    type="button"
-                    onClick={() => onMoveToWorkspace(focusedNodeId, ws.id)}
-                    className="w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] text-[var(--bone-70)] hover:bg-[var(--app-dark)] hover:text-[var(--bone-100)] border-none outline-none truncate"
-                  >
-                    {ws.title}
-                  </button>
-                ))}
+                {workspaceOptions.map(ws => {
+                  const isCurrent = display.workspaceLabel === ws.title;
+                  return (
+                    <button
+                      key={ws.id}
+                      type="button"
+                      onClick={() => onMoveToWorkspace(focusedNodeId, ws.id)}
+                      className={cn(
+                        "w-full px-3 py-1.5 rounded-[8px] text-left text-[13px] font-medium flex items-center justify-between cursor-pointer border-none outline-none transition-none",
+                        isCurrent ? "bg-[var(--bone-6)] text-[var(--bone-100)]" : "text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+                      )}
+                    >
+                      <span className="truncate">{ws.title}</span>
+                      {isCurrent && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-2" />}
+                    </button>
+                  );
+                })}
               </PopoverContent>
             </Popover>
           </div>
@@ -626,10 +673,13 @@ export function DetailsMode({
         <button
           type="button"
           onClick={() => onSetMode('connections')}
-          className="h-9 px-3 rounded-[12px] bg-[var(--brand-blue)] text-white text-[13px] font-medium inline-flex items-center gap-1.5 border-none outline-none hover:brightness-110"
+          className="relative overflow-hidden group h-9 px-3 rounded-[12px] bg-[var(--brand-blue)] text-white text-[13px] font-medium border-none outline-none"
         >
-          <Link2 className="w-4 h-4" strokeWidth={2} />
-          {edgeCount}
+          <div className="absolute inset-0 bg-[var(--bone-12)] opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+          <div className="relative z-10 flex items-center gap-1.5 pointer-events-none">
+            <Link2 className="w-4 h-4" strokeWidth={2} />
+            {edgeCount}
+          </div>
         </button>
         <button
           type="button"
@@ -647,13 +697,15 @@ export function DetailsMode({
             || !(node.ref_id && (isEntity || isWorkspace))
           }
           className={cn(
-            "flex-1 h-9 rounded-[12px] bg-[var(--app-dark)] text-[13px] font-medium text-[var(--bone-90)]",
-            "inline-flex items-center justify-center gap-2 border-none outline-none",
-            "hover:bg-[var(--card-bg)] disabled:opacity-40 disabled:pointer-events-none"
+            "relative overflow-hidden group flex-1 h-9 rounded-[12px] bg-[var(--app-dark)] text-[13px] font-medium text-[var(--bone-90)] border-none outline-none",
+            "disabled:opacity-40 disabled:pointer-events-none"
           )}
         >
-          {isWorkspace ? 'Edit description' : 'Open editor'}
-          <FileText className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" strokeWidth={2} />
+          <div className="absolute inset-0 bg-[var(--bone-6)] opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-center gap-2 pointer-events-none">
+            {isWorkspace ? 'Edit description' : 'Open editor'}
+            <FileText className="w-3.5 h-3.5 text-[var(--bone-100)] opacity-60" strokeWidth={2} />
+          </div>
         </button>
       </div>
 

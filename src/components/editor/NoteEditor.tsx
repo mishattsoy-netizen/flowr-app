@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
-import { X, Plus, Pencil, MoreVertical, BookOpen, Star, Link, Copy, Trash2, Download, ChevronRight, FileText, FileCode, Image as ImageIcon, FileJson, Globe } from 'lucide-react';
+import { X, Plus, Pencil, MoreVertical, BookOpen, Star, Link, Copy, Trash2, Download, ChevronRight, FileText, FileCode, Image as ImageIcon, FileJson, Globe, Type } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Entity, EditorBlock, BlockType, BlockStyle, generateId, useStore } from '@/data/store';
 import { SelectionToolbar } from './SelectionToolbar';
@@ -14,6 +14,7 @@ import { Portal } from '../layout/Portal';
 import { Tooltip } from '../layout/Tooltip';
 import { useTooltipSuppression } from '../layout/TooltipOverlayContext';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Toggle } from '@/components/ui/Toggle';
 import { OverlayScrollbar } from '@/components/tracker/OverlayScrollbar';
 import { mergeAcrossBlocks } from '@/lib/editor/mergeSelection';
 import { getBlockSelection, restoreCursor, sliceHtmlByTextOffset, blockOf } from '@/lib/editor/domSelection';
@@ -373,6 +374,7 @@ const ScrollWrapper = ({ children, isSplit }: { children: React.ReactNode, isSpl
 
 export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorProps) {
   const updateEntityContent = useStore(s => s.updateEntityContent);
+  const updateEntityMeta = useStore(s => s.updateEntityMeta);
   const removeTagFromEntity = useStore(s => s.removeTagFromEntity);
   const updateTagInEntity = useStore(s => s.updateTagInEntity);
   const renameEntity = useStore(s => s.renameEntity);
@@ -435,6 +437,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         ? entity.content
         : [createBlock('text', { style: 'body' })];
       setBlocks(newContent);
+      setHistory([newContent]);
+      setHistoryIndex(0);
       lastSyncedVersion.current = JSON.stringify(Array.isArray(entity.content) ? entity.content : []);
       lastEntityId.current = entity.id;
       isFirstMount.current = true;
@@ -486,7 +490,128 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
 
   const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
+  const [disjointTextRanges, setDisjointTextRanges] = useState<Array<{ id: string; text: string; range: Range }>>([]);
   const [isDragging, setIsDragging] = useState(false);
+  // The most recent PLAIN (non-ctrl) text selection, captured at its mouseup.
+  // Chrome collapses the old selection on a ctrl+mousedown, so by the time the
+  // ctrl-select mouseup fires, the first word is already gone from the live
+  // selection — it can only be recovered from a value stashed beforehand.
+  const lastPlainSelection = useRef<{ text: string; range: Range } | null>(null);
+
+  // Apply CSS Custom Highlight for multi-range text selections
+  useEffect(() => {
+    if (typeof CSS === 'undefined' || !(CSS as any).highlights) return;
+
+    try {
+      const validRanges = disjointTextRanges.map(r => r.range).filter(r => !r.collapsed);
+      if (validRanges.length > 0) {
+        const highlight = new (window as any).Highlight(...validRanges);
+        (CSS as any).highlights.set('disjoint-selection', highlight);
+      } else {
+        (CSS as any).highlights.delete('disjoint-selection');
+      }
+    } catch (_) {}
+
+    return () => {
+      try {
+        (CSS as any).highlights?.delete?.('disjoint-selection');
+      } catch (_) {}
+    };
+  }, [disjointTextRanges]);
+
+  // Capture multi-range inline text selection on mouseup when Ctrl / Cmd is held
+  useEffect(() => {
+    const mkEntry = (t: string, r: Range) => ({
+      id: `range-${Date.now()}-${Math.random()}`,
+      text: t,
+      range: r,
+    });
+
+    // On ctrl+mousedown, immediately promote the remembered first plain
+    // selection (word A) into the disjoint list so its highlight is painted by
+    // the CSS Custom Highlight — which survives Chrome collapsing word A's
+    // native selection as the drag for word B begins. Without this, word A
+    // vanishes during the drag and only reappears at mouseup. MUST NOT touch
+    // the live selection here — word B's native drag-select is forming now.
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const host = blocksHostRef.current;
+      if (!host) return;
+      const target = e.target as HTMLElement;
+      if (!host.contains(target) && target !== editorRef.current) return;
+      setDisjointTextRanges(prev =>
+        prev.length === 0 && lastPlainSelection.current
+          ? [mkEntry(lastPlainSelection.current.text, lastPlainSelection.current.range)]
+          : prev
+      );
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      const host = blocksHostRef.current;
+      if (!host) return;
+
+      const target = e.target as HTMLElement;
+      if (!host.contains(target) && target !== editorRef.current) return;
+
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          // A plain click that selects nothing clears both the multi-select and
+          // the remembered plain selection, so a later ctrl-select can't seed
+          // from a stale word the user already clicked away from.
+          lastPlainSelection.current = null;
+          setDisjointTextRanges([]);
+        }
+        return;
+      }
+
+      const text = sel.toString();
+      if (!text || !text.trim()) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        try {
+          const range = sel.getRangeAt(0).cloneRange();
+          setDisjointTextRanges(prev => {
+            // First ctrl-select: the existing PLAIN selection was never in the
+            // disjoint list (plain select clears it). Seed the list with that
+            // saved first word so it isn't lost, then add this one. (handleMouseDown
+            // usually seeds word A already, making prev length 1 here — this is
+            // the fallback for when that setState hasn't flushed yet.)
+            if (prev.length === 0 && lastPlainSelection.current) {
+              const seed = lastPlainSelection.current;
+              return [mkEntry(seed.text, seed.range), mkEntry(text, range)];
+            }
+            return [...prev, mkEntry(text, range)];
+          });
+          // Collapse single native selection so no unified box bridges intermediate text
+          sel.removeAllRanges();
+        } catch (_) {}
+      } else if (!e.shiftKey) {
+        // Plain selection: remember it so a subsequent ctrl-select can promote
+        // it into the first disjoint range, and clear any prior multi-select.
+        lastPlainSelection.current = { text, range: sel.getRangeAt(0).cloneRange() };
+        setDisjointTextRanges([]);
+      }
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      if (disjointTextRanges.length > 0) {
+        e.preventDefault();
+        const combinedText = disjointTextRanges.map(r => r.text.trim()).filter(Boolean).join('\n');
+        e.clipboardData?.setData('text/plain', combinedText);
+      }
+    };
+
+    document.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('copy', handleCopy);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('copy', handleCopy);
+    };
+  }, [disjointTextRanges]);
+
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       setIsDragging(false);
@@ -815,8 +940,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     const isEditorBg = target === editorRef.current || target.classList.contains('note-editor-bg');
 
     if (isEditorBg) {
-      // Clear selection unless Shift is held
-      if (!e.shiftKey) {
+      // Clear selection unless Shift or Ctrl/Cmd is held
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
         setSelectedBlockIds(new Set());
       }
 
@@ -884,10 +1009,29 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
       // If clicking entirely outside any block and any popup menu (e.g. empty space), reset state
       if (!clickedInsideBlock && !clickedInsidePopup) {
-        setSelectedBlockIds(new Set());
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          setSelectedBlockIds(new Set());
+        }
         setActiveOptionsMenu(null);
         setSlashMenu(null);
         return;
+      }
+
+      // Handle Ctrl/Cmd click on block elements to toggle disjoint selection without selecting intermediate rows
+      if (clickedInsideBlock && (e.ctrlKey || e.metaKey)) {
+        const blockId = clickedBlockEl.dataset.blockId;
+        if (blockId) {
+          setActiveOptionsMenu(null);
+          setSelectedBlockIds(prev => {
+            const next = new Set(prev);
+            if (next.has(blockId)) {
+              next.delete(blockId);
+            } else {
+              next.add(blockId);
+            }
+            return next;
+          });
+        }
       }
 
       // Clicking a DIFFERENT block than the one the slash menu is anchored
@@ -1715,13 +1859,54 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
 
 
 
-  const handleOpenMenu = useCallback((blockId: string, position: { x: number; y: number }, shiftKey?: boolean) => {
+  const handleOpenMenu = useCallback((blockId: string, position: { x: number; y: number }, shiftKey?: boolean, ctrlKey?: boolean) => {
     if (shiftKey) {
       setActiveOptionsMenu(null);
       setSelectedBlockIds(prev => {
         const next = new Set(prev);
-        if (next.has(blockId)) next.delete(blockId);
-        else next.add(blockId);
+        const anchorId = Array.from(prev).pop() || activeBlockId;
+
+        if (anchorId && anchorId !== blockId) {
+          const getFlattenedIds = (list: EditorBlock[]): string[] => {
+            let res: string[] = [];
+            for (const b of list) {
+              res.push(b.id);
+              if (b.children && !b.isFolded) {
+                res = res.concat(getFlattenedIds(b.children));
+              }
+            }
+            return res;
+          };
+
+          const allIds = getFlattenedIds(blocks);
+          const startIdx = allIds.indexOf(anchorId);
+          const endIdx = allIds.indexOf(blockId);
+
+          if (startIdx !== -1 && endIdx !== -1) {
+            const min = Math.min(startIdx, endIdx);
+            const max = Math.max(startIdx, endIdx);
+            for (let i = min; i <= max; i++) {
+              next.add(allIds[i]);
+            }
+          } else {
+            if (next.has(blockId)) next.delete(blockId);
+            else next.add(blockId);
+          }
+        } else {
+          if (next.has(blockId)) next.delete(blockId);
+          else next.add(blockId);
+        }
+        return next;
+      });
+    } else if (ctrlKey) {
+      setActiveOptionsMenu(null);
+      setSelectedBlockIds(prev => {
+        const next = new Set(prev);
+        if (next.has(blockId)) {
+          next.delete(blockId);
+        } else {
+          next.add(blockId);
+        }
         return next;
       });
     } else {
@@ -1729,11 +1914,11 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
         if (prev?.blockId === blockId) {
           return null;
         }
-        setSelectedBlockIds(new Set([blockId]));
         return { blockId, position };
       });
+      setSelectedBlockIds(new Set([blockId]));
     }
-  }, []);
+  }, [blocks, activeBlockId]);
 
   const insertBlock = useCallback((type: BlockType, extra?: Record<string, unknown>) => {
     if (!slashMenu) return;
@@ -2247,7 +2432,8 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             "mx-auto py-8 editor-content-container note-editor-bg",
             "max-w-[850px]",
             splitViewActive ? "pl-[80px] pr-10" : "px-4",
-            isDragging && "dragging-active-content"
+            isDragging && "dragging-active-content",
+            entity.fontFamily === 'sans' && "font-sans [--font-display:var(--font-sans)] tracking-wide"
           )}
           dir="ltr"
           style={{ direction: 'ltr' }}
@@ -2297,7 +2483,10 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                           setEditingEntityId(null);
                         }
                       }}
-                      className="text-5xl font-display font-medium outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none"
+                      className={cn(
+                        "text-5xl font-display outline-none cursor-text select-text text-foreground flex-1 break-words leading-tight block transition-none duration-0 transform-none",
+                        entity.fontFamily === 'sans' ? "font-semibold" : "font-medium"
+                      )}
                     >
                       {entity.title}
                     </h1>
@@ -2417,10 +2606,10 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
                       className="py-20 text-center cursor-text  group opacity-0 "
                       onClick={() => persistBlocks([createBlock('text')])}
                     >
-                      <p className="text-[#a1a1aa] text-lg font-light tracking-wide group-hover:text-[#f26f21]/50 ">
+                      <p className="text-[var(--bone-60)] text-lg font-light tracking-wide group-hover:text-accent/50 ">
                         This note is empty. Click anywhere to start writing...
                       </p>
-                      <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-[#f26f21]/20 to-transparent mx-auto" />
+                      <div className="mt-4 w-12 h-[1px] bg-gradient-to-r from-transparent via-accent/20 to-transparent mx-auto" />
                     </div>
                   ) : (
                     renderBlocksRecursive(renderedBlocks)
@@ -2545,6 +2734,26 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
               <Link className="w-3.5 h-3.5 text-[var(--bone-40)]" />
               <span>Copy link</span>
             </button>
+
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                const isSans = entity.fontFamily === 'sans';
+                updateEntityMeta(entity.id, { fontFamily: isSans ? 'serif' : 'sans' });
+              }}
+              className="popup-item flex items-center justify-between w-full text-left cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2">
+                <Type className="w-3.5 h-3.5 text-[var(--bone-40)]" />
+                <span>Sans font</span>
+              </div>
+              <Toggle
+                checked={entity.fontFamily === 'sans'}
+                onChange={() => {}}
+                size="sm"
+                className="pointer-events-none"
+              />
+            </div>
 
             <button
               onClick={() => {
@@ -2708,7 +2917,13 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
           </div>
         </Portal>
       )}
-      <SelectionToolbar editorRef={editorRef} isReadOnly={isReadMode} />
+      <SelectionToolbar
+        editorRef={editorRef}
+        isReadOnly={isReadMode}
+        disjointTextRanges={disjointTextRanges}
+        setDisjointTextRanges={setDisjointTextRanges}
+        forceHide={Boolean(activeOptionsMenu || slashMenu || mentionMenu)}
+      />
     </div>
   );
 }

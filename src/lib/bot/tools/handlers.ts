@@ -19,7 +19,11 @@ export function sanitizeBlocks(blocks: BlockInput[] | undefined): BlockInput[] |
   return blocks
 }
 
-const PENDING_ACTION_TTL_MS = 5 * 60 * 1000
+// 30 min, not 5: a user reading a generated report before replying "yes"
+// routinely takes longer than 5 minutes, and a dry-run that expires mid-read
+// silently turns their confirmation into a rejected delete_content call (the
+// model still says "yes" was heard, but the server drops the actual delete).
+const PENDING_ACTION_TTL_MS = 30 * 60 * 1000
 
 /**
  * A stored pending_action only backs a confirmed:true call if it's recent.

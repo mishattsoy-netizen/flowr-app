@@ -97,7 +97,7 @@ export default function CapabilitiesPanel() {
         </div>
         <button
           onClick={handleOpenAdd}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-[#3f3f3e] hover:bg-[#4a4a49] text-bone-100 transition-colors shrink-0"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[13px] font-medium bg-[var(--bone-10)] hover:bg-[var(--bone-15)] text-bone-100 transition-colors shrink-0"
         >
           <Plus className="w-4 h-4" />
           Add Memory
@@ -111,7 +111,7 @@ export default function CapabilitiesPanel() {
           </div>
         ) : (
           memories.map(mem => (
-            <div key={mem.id} className="flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 bg-white/5 hover:bg-white/10 border border-white/10 group/card">
+            <div key={mem.id} className="flex items-center gap-3 w-full px-4 py-3 rounded-[14px] transition-all duration-200 bg-[var(--bone-5)] hover:bg-[var(--bone-10)] border border-[var(--bone-10)] group/card">
               <div className="flex items-center text-bone-80 opacity-30 shrink-0 group-hover/card:opacity-80 transition-all">
                 <Brain strokeWidth={1.5} className="w-8 h-8" />
               </div>
@@ -122,13 +122,13 @@ export default function CapabilitiesPanel() {
               <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
                 <button
                   onClick={() => handleOpenEdit(mem)}
-                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/10 text-bone-40 hover:text-bone-100 transition-colors"
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-bone-40 hover:text-bone-100 transition-colors"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger asChild>
-                    <button className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/10 text-bone-40 hover:text-bone-100 transition-colors">
+                    <button className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-bone-40 hover:text-bone-100 transition-colors">
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenu.Trigger>
@@ -136,11 +136,11 @@ export default function CapabilitiesPanel() {
                     <DropdownMenu.Content
                       align="end"
                       sideOffset={4}
-                      className="min-w-[140px] z-[999] bg-[#2b2a29] border border-[#3e3d3c] rounded-[10px] p-1 shadow-xl animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
+                      className="min-w-[140px] z-[999] bg-panel border border-[var(--bone-10)] rounded-[10px] p-1 shadow-xl animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
                     >
                       <DropdownMenu.Item
                         onSelect={() => handleOpenEdit(mem)}
-                        className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-bone-100 font-medium rounded-md hover:bg-white/5 outline-none cursor-pointer"
+                        className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-bone-100 font-medium rounded-md hover:bg-[var(--bone-5)] outline-none cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5 opacity-70" />
                         Edit details
@@ -163,14 +163,14 @@ export default function CapabilitiesPanel() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#2b2a29] border border-[#3e3d3c] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#3e3d3c]">
+          <div className="w-full max-w-md bg-panel border border-[var(--bone-10)] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--bone-10)]">
               <h2 className="text-[15px] font-semibold text-bone-100">
                 {editingId ? 'Edit Memory' : 'Add Memory'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/10 text-bone-70 hover:text-bone-100 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--bone-10)] text-bone-70 hover:text-bone-100 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -207,17 +207,17 @@ export default function CapabilitiesPanel() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#3e3d3c] bg-white/[0.02]">
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[var(--bone-10)] bg-[var(--bone-3)]">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-1.5 rounded-lg text-[13px] font-medium text-bone-100 hover:bg-white/5 transition-colors"
+                className="px-4 py-1.5 rounded-lg text-[13px] font-medium text-bone-100 hover:bg-[var(--bone-5)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[13px] font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[13px] font-medium bg-emerald-500 hover:bg-emerald-600 text-[var(--on-accent)] transition-colors disabled:opacity-50"
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Save

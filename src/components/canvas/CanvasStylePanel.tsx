@@ -1182,12 +1182,12 @@ export function CanvasStylePanel({
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <SidebarInput
-                        prefix={<span className="text-[10px] text-[#888] font-mono">W</span>}
+                        prefix={<span className="text-[10px] text-[var(--bone-30)] font-mono">W</span>}
                         value={Math.round(ref?.width ?? 800)}
                         onChange={v => updateCanvasBlock(ref!.id, { width: Number(v) || 1 })}
                       />
                       <SidebarInput
-                        prefix={<span className="text-[10px] text-[#888] font-mono">H</span>}
+                        prefix={<span className="text-[10px] text-[var(--bone-30)] font-mono">H</span>}
                         value={Math.round(ref?.height ?? 600)}
                         onChange={v => updateCanvasBlock(ref!.id, { height: Number(v) || 1 })}
                       />

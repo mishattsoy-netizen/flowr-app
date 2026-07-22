@@ -85,7 +85,7 @@ export function Calendar({
                       className={cn(
                         "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[8px] cursor-pointer transition-colors border-none bg-transparent outline-none",
                         isSelected 
-                          ? "bg-black/35 text-[var(--bone-100)] font-medium" 
+                          ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" 
                           : "text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-90)]"
                       )}
                     >
@@ -107,21 +107,21 @@ export function Calendar({
               setMonth(today);
               onSelect?.(today);
             }}
-            className="h-6 px-2 flex items-center justify-center rounded-[6px] text-xs font-semibold text-[var(--bone-60)] hover:text-white transition-all hover:bg-[var(--bone-10)] mr-1 cursor-pointer border-none bg-transparent outline-none"
+            className="h-6 px-2 flex items-center justify-center rounded-[6px] text-xs font-semibold text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all hover:bg-[var(--bone-10)] mr-1 cursor-pointer border-none bg-transparent outline-none"
           >
             Today
           </button>
           <button 
             type="button"
             onClick={() => setMonth(addMonths(month, -1))}
-            className="h-6 w-6 flex items-center justify-center rounded-[6px] text-[var(--bone-60)] hover:text-white transition-all hover:bg-[var(--bone-10)]"
+            className="h-6 w-6 flex items-center justify-center rounded-[6px] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all hover:bg-[var(--bone-10)]"
           >
             <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.5} />
           </button>
           <button 
             type="button"
             onClick={() => setMonth(addMonths(month, 1))}
-            className="h-6 w-6 flex items-center justify-center rounded-[6px] text-[var(--bone-60)] hover:text-white transition-all hover:bg-[var(--bone-10)]"
+            className="h-6 w-6 flex items-center justify-center rounded-[6px] text-[var(--bone-60)] hover:text-[var(--bone-100)] transition-all hover:bg-[var(--bone-10)]"
           >
             <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
           </button>

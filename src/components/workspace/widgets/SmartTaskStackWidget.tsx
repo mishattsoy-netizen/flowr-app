@@ -471,7 +471,7 @@ export function SmartTaskStackWidget({ data, onUpdateData, isEditing, contextId,
             )}
           </div>
         ) : !adding ? (
-          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-[background-color,color] duration-200">
+          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-[var(--bone-2)] rounded-[12px] min-h-[140px] transition-[background-color,color] duration-200">
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">All caught up!</p>
               <p className="text-xs text-bone-70 opacity-40 mt-1 leading-snug text-balance">No tasks to display in {activeTabDef.label}. Enjoy your day!</p>

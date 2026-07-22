@@ -104,7 +104,7 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
       </div>
       {/* Scrollbar Track / Hover Zone */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-3 z-50 pointer-events-auto cursor-pointer"
+        className="absolute right-0 top-0 bottom-0 w-3 z-50 pointer-events-auto cursor-grab active:cursor-grabbing"
         onMouseEnter={() => { isHoveringTrack.current = true; updateThumb(); show(); }}
         onMouseLeave={() => { isHoveringTrack.current = false; if (!isDragging.current) hide(); }}
         onWheel={(e) => {
@@ -120,7 +120,7 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
           <div
             ref={thumbRef}
             onMouseDown={onThumbMouseDown}
-            className="absolute w-full rounded-full cursor-pointer pointer-events-auto"
+            className="absolute w-full rounded-full cursor-grab active:cursor-grabbing pointer-events-auto"
             style={{ background: 'rgba(233,233,226,0.2)' }}
           />
         </div>

@@ -55,6 +55,7 @@ import {
 import { isDesktop } from '@/lib/env';
 import { createDebouncedPush } from '@/lib/debouncedPush';
 import { markForPurge, clearPurge } from '@/lib/sync';
+import { saveEntity } from '@/lib/persistence';
 
 // Debounces the ~20 per-mutation Supabase push call sites below by 1.5s per row id,
 // so rapid edits (typing) collapse into one network call instead of firing on every
@@ -3032,8 +3033,25 @@ export const useStore = create<AppState>()(
 
         const updated = get().entities.find(e => e.id === id);
 
-        if (updated && updated.syncMode !== 'local-only') {
-          debouncedPushEntity(updated);
+        if (updated) {
+          saveEntity(updated).catch(err => console.error('[store] saveEntity failed:', err));
+          if (updated.syncMode !== 'local-only') {
+            debouncedPushEntity(updated);
+          }
+        }
+      },
+      updateEntityMeta: (id, meta) => {
+        const now = Date.now();
+        set((state) => ({
+          entities: state.entities.map(e => e.id === id ? { ...e, ...meta, lastModified: now } : e),
+          lastSaved: now
+        }));
+        const updated = get().entities.find(e => e.id === id);
+        if (updated) {
+          saveEntity(updated).catch(err => console.error('[store] saveEntity failed:', err));
+          if (updated.syncMode !== 'local-only') {
+            debouncedPushEntity(updated);
+          }
         }
       },
 

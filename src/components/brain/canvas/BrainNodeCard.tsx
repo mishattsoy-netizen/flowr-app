@@ -323,7 +323,7 @@ export function BrainNodeCard({
             </Tooltip>
           )}
           {/* Workspace pill, matching TaskCard's workspace chip. */}
-          {display.parentLabel && !isWorkspace && (
+          {display.parentLabel && !isWorkspace && !isMemory && (
             <Tooltip content={display.parentLabel}>
               <span
                 className="inline-flex items-center px-2 py-0.5 rounded-[6px] text-[10px] font-medium shrink-0 max-w-[90px] bg-[var(--bone-10)] text-[var(--bone-70)]"

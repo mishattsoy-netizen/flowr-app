@@ -43,7 +43,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
 
       <button
         onClick={togglePlay}
-        className="w-8 h-8 rounded-full bg-white/20 text-bone-100 flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all"
+        className="w-8 h-8 rounded-full bg-[var(--bone-12)] text-bone-100 flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all"
       >
         {isPlaying ? <Pause strokeWidth={2} className="w-3.5 h-3.5 fill-current" /> : <Play strokeWidth={2} className="w-3.5 h-3.5 fill-current ml-0.5" />}
       </button>
@@ -57,7 +57,7 @@ export const ChatAudioPlayer = memo(({ url, name, isPending = false, onRemove }:
               key={i}
               className={cn(
                 "w-0.5 rounded-full transition-all duration-300",
-                isActive ? "bg-bone-100" : "bg-white/10"
+                isActive ? "bg-bone-100" : "bg-[var(--bone-10)]"
               )}
               style={{
                 height: `${Math.max(20, 30 + Math.sin(i * 0.8) * 40 + (isPlaying ? Math.random() * 20 : 0))}%`

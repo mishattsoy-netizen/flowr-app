@@ -27,4 +27,40 @@ describe('summarizeToolCalls', () => {
   it('falls back to a count when calls are unrecognizable', () => {
     expect(summarizeToolCalls([{}])).toBe('✅ Completed 1 action(s)')
   })
+
+  it('renders a delete dry-run as a confirmation prompt, NOT a failure', () => {
+    // Regression: the dry-run result carries status:'pending_confirmation' and
+    // is logged with success:false — it must never read as "Delete failed".
+    const out = summarizeToolCalls([{
+      tool: 'delete_content',
+      status: 'pending_confirmation',
+      success: false,
+      items_to_delete: [{ id: 'doc-1', title: 'Trade Analysis Report', type: 'note' }],
+    }])
+    expect(out).toContain('❓')
+    expect(out).toContain('Delete "Trade Analysis Report"?')
+    expect(out).not.toMatch(/failed/i)
+  })
+
+  it('lists multiple items in a pending delete confirmation', () => {
+    const out = summarizeToolCalls([{
+      tool: 'delete_content',
+      status: 'pending_confirmation',
+      success: false,
+      items_to_delete: [
+        { id: 'a', title: 'Report A', type: 'note' },
+        { id: 'b', title: 'Report B', type: 'note' },
+      ],
+    }])
+    expect(out).toContain('"Report A", "Report B"')
+    expect(out).not.toMatch(/failed/i)
+  })
+
+  it('a genuine failure still wins the icon over a pending confirmation', () => {
+    const out = summarizeToolCalls([
+      { tool: 'delete_content', status: 'pending_confirmation', success: false, items_to_delete: [{ title: 'X' }] },
+      { tool: 'update_content', title: 'Y', success: false, error: 'boom' },
+    ])
+    expect(out.startsWith('⚠️')).toBe(true)
+  })
 })

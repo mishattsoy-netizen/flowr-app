@@ -7,35 +7,13 @@ import {
   List, Minus, ListOrdered, CheckSquare, Quote,
   Columns2, Columns3, Columns4, SeparatorHorizontal,
   FileInput, Table, Kanban, GalleryHorizontalEnd, ListFilter,
-  ChevronRight, ChevronLeft, Search, Plus, ImageIcon, Video, ClipboardPaste
-, Check} from 'lucide-react';
+  ChevronRight, ChevronLeft, Search, Plus, ImageIcon, Video, ClipboardPaste,
+  Check, X, CircleDashed
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/data/store';
 import { Toggle } from '@/components/ui/Toggle';
 import type { EditorBlock, BlockType } from '@/data/store';
-
-/* ────────────────────────────────────────────────── */
-/*  Color palette                                     */
-/* ────────────────────────────────────────────────── */
-
-const BLOCK_COLORS = [
-  { id: 'default', label: 'Default', hex: undefined },
-  { id: 'accent', label: 'Accent', hex: 'var(--accent)' },
-  { id: 'red', label: 'Red', hex: 'var(--color-danger)' },
-  { id: 'yellow', label: 'Yellow', hex: '#ffbc42' },
-  { id: 'blue', label: 'Blue', hex: '#1d4e89' },
-  { id: 'purple', label: 'Purple', hex: '#54478c' },
-  { id: 'green', label: 'Green', hex: '#1b998b' },
-  { id: 'grey', label: 'Grey', hex: '#888888' },
-] as const;
-
-function hexToRgba(hex: string, alpha: number): string {
-  if (hex.startsWith('var(')) return hex;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
 
 /* ────────────────────────────────────────────────── */
 /*  "Turn into" command list                          */
@@ -50,24 +28,25 @@ interface TurnIntoItem {
   category: string;
   type: BlockType;
   extra?: Record<string, unknown>;
+  shortcut?: string;
 }
 
 const TURN_INTO_ITEMS: TurnIntoItem[] = [
-  { id: 'title', label: 'Title', icon: <Type strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'title' } },
-  { id: 'heading', label: 'Heading', icon: <Heading1 strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'heading' } },
-  { id: 'subheading', label: 'Subheading', icon: <Heading2 strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'subheading' } },
-  { id: 'body', label: 'Body', icon: <FileText strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'body' } },
-  { id: 'mono', label: 'Mono', icon: <Code strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'mono' } },
-  { id: 'bullet', label: 'Bulleted List', icon: <List strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'bulletList' },
-  { id: 'dashed', label: 'Dashed List', icon: <Minus strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'dashedList' },
-  { id: 'numbered', label: 'Numbered List', icon: <ListOrdered strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'numberedList' },
-  { id: 'checklist', label: 'Checklist', icon: <CheckSquare strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'checklist' },
-  { id: 'quote', label: 'Quote', icon: <Quote strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'quote' },
-  { id: 'divider', label: 'Divider', icon: <SeparatorHorizontal strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'divider' },
+  { id: 'title', label: 'Title', icon: <Type strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'title' }, shortcut: 'H1' },
+  { id: 'heading', label: 'Heading', icon: <Heading1 strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'heading' }, shortcut: '#' },
+  { id: 'subheading', label: 'Subheading', icon: <Heading2 strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'subheading' }, shortcut: '##' },
+  { id: 'body', label: 'Body', icon: <FileText strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'body' }, shortcut: 'T' },
+  { id: 'mono', label: 'Mono', icon: <Code strokeWidth={2} className={ICON_CLS} />, category: 'Text', type: 'text', extra: { style: 'mono' }, shortcut: '`' },
+  { id: 'bullet', label: 'Bulleted List', icon: <List strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'bulletList', shortcut: '-' },
+  { id: 'dashed', label: 'Dashed List', icon: <Minus strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'dashedList', shortcut: '--' },
+  { id: 'numbered', label: 'Numbered List', icon: <ListOrdered strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'numberedList', shortcut: '1.' },
+  { id: 'checklist', label: 'Checklist', icon: <CheckSquare strokeWidth={2} className={ICON_CLS} />, category: 'Lists', type: 'checklist', shortcut: '[]' },
+  { id: 'quote', label: 'Quote', icon: <Quote strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'quote', shortcut: '>' },
+  { id: 'divider', label: 'Divider', icon: <SeparatorHorizontal strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'divider', shortcut: '---' },
   { id: '2col', label: '2 Columns', icon: <Columns2 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 2 } },
   { id: '3col', label: '3 Columns', icon: <Columns3 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 3 } },
   { id: '4col', label: '4 Columns', icon: <Columns4 strokeWidth={2} className={ICON_CLS} />, category: 'Layout', type: 'columns', extra: { columnCount: 4 } },
-  { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Tables', type: 'table' },
+  { id: 'table', label: 'Simple Table', icon: <Table strokeWidth={2} className={ICON_CLS} />, category: 'Tables', type: 'table', shortcut: '|' },
   { id: 'image', label: 'Image', icon: <ImageIcon strokeWidth={2} className={ICON_CLS} />, category: 'Media', type: 'image' },
   { id: 'video', label: 'Video', icon: <Video strokeWidth={2} className={ICON_CLS} />, category: 'Media', type: 'video' },
 ];
@@ -186,84 +165,156 @@ export function BlockOptionsMenu({
       if (g) g.items.push(item);
       else groups.push({ category: item.category, items: [item] });
     }
-      return groups;
-    }, [turnIntoSearch, block]);
+    return groups;
+  }, [turnIntoSearch, block]);
 
   if (!block) return null;
 
   const btnCls = "popup-item";
   const dangerBtnCls = "popup-item-danger";
+  const COLORS = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#06B6D4'];
 
-  /* ── Render → Main menu ─────────────────────────── */
-  if (subMenu === null) {
+  /* ── Render → Main menu & Color sub-menu ─────────────────────────── */
+  if (subMenu === null || subMenu === 'color') {
     return (
-      <div
-        ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] gap-[3px]"
-        style={{ left: adjustedPos.x, top: adjustedPos.y }}
-      >
-        <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
-          <span className="flex items-center gap-3"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
-          <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
-        </button>
-        {!['database', 'table', 'image', 'video', 'embed'].includes(block.type) && !(block.type === 'text' && block.style === 'mono') && (
-          <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('color')}>
-            <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
+      <>
+        <div
+          ref={menuRef}
+          className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[200px] gap-[3px]"
+          style={{ left: adjustedPos.x, top: adjustedPos.y }}
+        >
+          <button className={cn(btnCls, "justify-between")} onClick={() => setSubMenu('turnInto')}>
+            <span className="flex items-center gap-3"><ArrowRightFromLine strokeWidth={2} className="w-4 h-4" /> Turn into</span>
             <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
           </button>
-        )}
-        {['title', 'heading', 'subheading'].includes(block.style || '') && (
-          <>
-            <button 
-              className={cn(btnCls, "justify-between")}
-              onClick={() => {
-                const newEnabled = !block.foldingEnabled;
-                onUpdate(block.id, { 
-                  foldingEnabled: newEnabled,
-                  isFolded: newEnabled ? block.isFolded : false 
-                });
-              }}
-            >
-              <span className="flex items-center gap-2.5"><SeparatorHorizontal strokeWidth={2} className="w-4 h-4" /> Fold content</span>
-              <Toggle 
-                size="sm"
-                checked={!!block.foldingEnabled}
-                onChange={() => {}} 
-                className="pointer-events-none"
-              />
+          {!['database', 'table', 'image', 'video', 'embed'].includes(block.type) && !(block.type === 'text' && block.style === 'mono') && (
+            <button className={cn(btnCls, "justify-between", subMenu === 'color' && "bg-[var(--bone-6)]")} onClick={(e) => { e.stopPropagation(); setSubMenu(subMenu === 'color' ? null : 'color'); }}>
+              <span className="flex items-center gap-2.5"><Paintbrush strokeWidth={2} className="w-4 h-4" /> Color</span>
+              <ChevronRight strokeWidth={2} className="w-3.5 h-3.5 text-muted-foreground/50" />
             </button>
-            <div className="h-px bg-border/50 my-1 mx-2" />
-          </>
-        )}
-        <button className={btnCls} onClick={() => { onMoveToTop(block.id); onClose(); }}>
-          <Pin strokeWidth={2} className="w-4 h-4" /> Pin to top
-        </button>
-        <button className={btnCls} onClick={() => { copyBlock(block); onClose(); }}>
-          <Copy strokeWidth={2} className="w-4 h-4" /> Copy
-        </button>
-        {copiedBlock && (
-          <button className={btnCls} onClick={() => { pasteBlock(entityId, block.id); onClose(); }}>
-            <ClipboardPaste strokeWidth={2} className="w-4 h-4" /> Paste after
+          )}
+          {['title', 'heading', 'subheading'].includes(block.style || '') && (
+            <>
+              <button
+                className={cn(btnCls, "justify-between")}
+                onClick={() => {
+                  const newEnabled = !block.foldingEnabled;
+                  onUpdate(block.id, {
+                    foldingEnabled: newEnabled,
+                    isFolded: newEnabled ? block.isFolded : false
+                  });
+                }}
+              >
+                <span className="flex items-center gap-2.5"><SeparatorHorizontal strokeWidth={2} className="w-4 h-4" /> Fold content</span>
+                <Toggle
+                  size="sm"
+                  checked={!!block.foldingEnabled}
+                  onChange={() => { }}
+                  className="pointer-events-none"
+                />
+              </button>
+              <div className="h-px bg-border/50 my-1 mx-2" />
+            </>
+          )}
+          <button className={btnCls} onClick={() => { onMoveToTop(block.id); onClose(); }}>
+            <Pin strokeWidth={2} className="w-4 h-4" /> Pin to top
           </button>
-        )}
-        <button className={btnCls} onClick={() => { onDuplicate(block.id); onClose(); }}>
-          <Copy strokeWidth={2} className="w-4 h-4" /> Duplicate
-        </button>
-        {onMoveTo && (
-          <button className={btnCls} onClick={() => { onMoveTo(block.id); onClose(); }}>
-            <FolderInput strokeWidth={2} className="w-4 h-4" /> Move to
+          <button className={btnCls} onClick={() => { copyBlock(block); onClose(); }}>
+            <Copy strokeWidth={2} className="w-4 h-4" /> Copy
           </button>
-        )}
-        {(block.type === 'column' && onAddColumn) && (
-          <button className={btnCls} onClick={() => { onAddColumn(block.id); onClose(); }}>
-            <Plus strokeWidth={2} className="w-4 h-4" /> Add Column
+          {copiedBlock && (
+            <button className={btnCls} onClick={() => { pasteBlock(entityId, block.id); onClose(); }}>
+              <ClipboardPaste strokeWidth={2} className="w-4 h-4" /> Paste after
+            </button>
+          )}
+          <button className={btnCls} onClick={() => { onDuplicate(block.id); onClose(); }}>
+            <Copy strokeWidth={2} className="w-4 h-4" /> Duplicate
           </button>
+          {onMoveTo && (
+            <button className={btnCls} onClick={() => { onMoveTo(block.id); onClose(); }}>
+              <FolderInput strokeWidth={2} className="w-4 h-4" /> Move to
+            </button>
+          )}
+          {(block.type === 'column' && onAddColumn) && (
+            <button className={btnCls} onClick={() => { onAddColumn(block.id); onClose(); }}>
+              <Plus strokeWidth={2} className="w-4 h-4" /> Add Column
+            </button>
+          )}
+          <div className="h-px bg-border/50 my-1 mx-2" />
+          <button className={dangerBtnCls} onClick={() => { onDelete(block.id); onClose(); }}>
+            <Trash2 strokeWidth={2} className="w-4 h-4" /> Delete
+          </button>
+        </div>
+
+        {subMenu === 'color' && (
+          <div
+            className="fixed z-[201] flex flex-col popup-glass-small overflow-hidden min-w-[160px] py-1.5 px-0 gap-2"
+            style={{ left: adjustedPos.x + 204, top: adjustedPos.y + 36 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-2 px-2 pb-1">
+              <button
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onUpdate(block.id, { bgColor: undefined });
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[8px] text-[13px] font-medium cursor-pointer transition-none text-[var(--bone-70)] hover:bg-[var(--bone-5)]"
+              >
+                <CircleDashed className="w-3.5 h-3.5 shrink-0 text-[var(--bone-40)]" />
+                <span>None</span>
+                {!block.bgColor && <Check className="w-3 h-3 text-[var(--bone-60)] shrink-0 ml-auto" />}
+              </button>
+              <div className="grid grid-cols-4 gap-2 px-1 pb-0.5 place-items-center">
+                {COLORS.slice(0, 4).map(c => (
+                  <button
+                    key={c}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onUpdate(block.id, { bgColor: block.bgColor === c ? undefined : c });
+                      onClose();
+                    }}
+                    className={cn(
+                      "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                      block.bgColor === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
+                    )}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  >
+                    {block.bgColor === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-2 px-1 pb-0 place-items-center">
+                {COLORS.slice(4, 8).map(c => (
+                  <button
+                    key={c}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onUpdate(block.id, { bgColor: block.bgColor === c ? undefined : c });
+                      onClose();
+                    }}
+                    className={cn(
+                      "w-7 h-7 rounded-full transition-all cursor-pointer flex items-center justify-center",
+                      block.bgColor === c ? "scale-110 ring-1 ring-[var(--bone-70)] ring-offset-2 ring-offset-[var(--color-panel)]" : "opacity-50 hover:opacity-100"
+                    )}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  >
+                    {block.bgColor === c && <Check className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
-        <div className="h-px bg-border/50 my-1 mx-2" />
-        <button className={dangerBtnCls} onClick={() => { onDelete(block.id); onClose(); }}>
-          <Trash2 strokeWidth={2} className="w-4 h-4" /> Delete
-        </button>
-      </div>
+      </>
     );
   }
 
@@ -272,150 +323,95 @@ export function BlockOptionsMenu({
     return (
       <div
         ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[260px] max-h-[400px] gap-[3px]"
+        // popup-glass-small is also the marker NoteEditor's document-level
+        // mousedown handler checks (`target.closest('.popup-glass-small')`) to
+        // know a click landed inside an active popup rather than empty space.
+        // Without it, clicking any "turn into" item closed the whole menu on
+        // mousedown — before the button's click/onTurnInto ever fired.
+        className="fixed z-[200] flex flex-col w-72 p-2 rounded-xl popup-glass-small bg-panel border border-[var(--bone-10)] shadow-lg overflow-hidden max-h-[400px]"
         style={{ left: adjustedPos.x, top: adjustedPos.y }}
       >
         <button
-          className={cn(btnCls, "mr-1.5")}
+          type="button"
+          className="flex items-center gap-1.5 mb-2 px-2 py-1.5 w-full rounded-md hover:bg-[var(--bone-6)] transition-colors text-[13px] font-medium text-[var(--bone-100)] opacity-60 hover:opacity-100 cursor-pointer text-left"
           onClick={() => setSubMenu(null)}
         >
-          <ChevronLeft strokeWidth={2} className="w-3.5 h-3.5" /> Turn into
+          <ChevronLeft strokeWidth={2} className="w-4 h-4" />
+          Turn into
         </button>
-        <div className="px-2 py-1.5 bg-hover/20 mr-1.5">
-          <div className="relative">
-            <Search strokeWidth={2} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-            <input
-              ref={turnIntoInputRef}
-              type="text"
-              placeholder="Search blocks..."
-              value={turnIntoSearch}
-              onChange={(e) => setTurnIntoSearch(e.target.value)}
-              className="w-full bg-hover/50 text-xs pl-8 pr-2.5 py-1.5 rounded-[var(--radius-medium)] outline-none placeholder:text-muted-foreground/30 border border-transparent focus:border-[var(--bone-6)] "
-            />
+        {/* Search field — matches AddExistingEntityPopover */}
+        <div className="relative mb-2">
+          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+            <Search className="w-[14px] h-[14px] text-[var(--bone-100)] opacity-70" strokeWidth={2} />
           </div>
+          <input
+            ref={turnIntoInputRef}
+            type="text"
+            placeholder="Search blocks…"
+            value={turnIntoSearch}
+            onChange={(e) => setTurnIntoSearch(e.target.value)}
+            className={cn(
+              'w-full bg-[var(--bone-6)] border border-transparent hover:border-[var(--bone-12)]',
+              'focus:border-[var(--brand-blue)] focus:shadow-[0_0_0_0.5px_var(--brand-blue)]',
+              'rounded-md pl-9 py-1.5 text-[13px] text-bone-100 placeholder:text-bone-70/50',
+              'outline-none transition-colors',
+              turnIntoSearch ? 'pr-8' : 'pr-3',
+            )}
+          />
+          {turnIntoSearch && (
+            <button
+              type="button"
+              onClick={() => setTurnIntoSearch('')}
+              aria-label="Clear search"
+              className="absolute inset-y-0 right-0 pr-2 flex items-center text-[var(--bone-100)] opacity-40 hover:opacity-100 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
-        <div className="popup-divider mr-1.5" />
-        <div className="overflow-y-auto scrollbar-thin flex-1 min-h-[160px] flex flex-col gap-[3px] pr-1.5">
+        {/* Items list */}
+        <div className="flex flex-col gap-[1px] max-h-64 overflow-y-auto">
           {groupedTurnInto.length > 0 ? (
             groupedTurnInto.map(group => (
-              <div key={group.category} className="pb-1 flex flex-col gap-[3px]">
-                <div className="px-3.5 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
+              <div key={group.category}>
+                <div className="px-2 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
                   {group.category}
                 </div>
                 {group.items.map(item => {
-                  const isSelected = block.type === item.type && (item.extra?.style === undefined || block.style === item.extra.style);
+                  const isCurrentType = block.type === item.type && (item.extra?.style === undefined || block.style === item.extra.style);
                   return (
                     <button
                       key={item.id}
+                      type="button"
                       className={cn(
-                        "popup-item border-none",
-                        isSelected && "bg-hover text-foreground"
+                        "flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-[12px] hover:bg-[var(--app-dark)] text-left transition-colors cursor-pointer",
+                        isCurrentType && "bg-[var(--bone-6)]"
                       )}
                       onClick={() => {
                         onTurnInto(block.id, item.type, { ...item.extra, content: block.content });
                         onClose();
                       }}
                     >
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
+                      <span className="text-[var(--bone-100)] opacity-60 shrink-0">{item.icon}</span>
+                      <span className="truncate text-foreground">{item.label}</span>
+                      <div className="ml-auto flex items-center gap-2">
+                        {item.shortcut && <span className="text-[10px] text-[var(--bone-100)] opacity-40 font-mono tracking-wider">{item.shortcut}</span>}
+                        {isCurrentType && <Check className="w-3.5 h-3.5 text-[var(--brand-blue)]" />}
+                      </div>
                     </button>
                   );
                 })}
               </div>
             ))
           ) : (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              No types found for &ldquo;{turnIntoSearch}&rdquo;
-            </div>
+            <p className="text-[11px] text-[var(--bone-30)] text-center py-3">
+              No blocks found for &ldquo;{turnIntoSearch}&rdquo;
+            </p>
           )}
         </div>
       </div>
     );
   }
-
-  /* ── Render → Color sub-menu ────────────────────── */
-  if (subMenu === 'color') {
-    return (
-      <div
-        ref={menuRef}
-        className="fixed z-[200] flex flex-col popup-glass-small overflow-hidden min-w-[220px] gap-[3px]"
-        style={{ left: adjustedPos.x, top: adjustedPos.y }}
-      >
-        <button className={btnCls} onClick={() => setSubMenu(null)}>
-          <ChevronLeft strokeWidth={2} className="w-3.5 h-3.5" /> Color
-        </button>
-        <div className="popup-divider" />
-        <div className="flex flex-col gap-[3px]">
-        <div className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
-          Text color
-        </div>
-        <div className="flex items-center gap-1.5 px-3.5 pb-2">
-          {BLOCK_COLORS.map(c => {
-            const isActive = (c.hex ?? undefined) === (block.textColor ?? undefined);
-            return (
-              <button
-                key={c.id}
-                title={c.label}
-                onClick={() => {
-                  onUpdate(block.id, { textColor: c.hex ?? undefined });
-                }}
-                className={cn(
-                  "w-5 h-5 rounded-[var(--radius-small)] ",
-                  isActive ? "border-foreground" : "border-transparent"
-                )}
-                style={{
-                  backgroundColor: c.hex
-                    ? (c.hex.startsWith('var(') ? 'var(--accent)' : c.hex)
-                    : 'var(--muted-foreground)',
-                }}
-              >
-                {c.id === 'default' && (
-                  <span className="text-[9px] font-bold text-white">A</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        <div className="popup-divider" />
-        <div className="flex flex-col gap-[3px]">
-        <div className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-semibold text-muted-foreground/40 uppercase tracking-wider">
-          Background color
-        </div>
-        <div className="flex items-center gap-1.5 px-3.5 pb-3">
-          {BLOCK_COLORS.map(c => {
-            const isActive = (c.hex ?? undefined) === (block.bgColor ?? undefined);
-            const bgPreview = c.hex
-              ? (c.hex.startsWith('var(')
-                ? 'color-mix(in srgb, var(--accent) 20%, transparent)'
-                : hexToRgba(c.hex, 0.20))
-              : 'var(--hover-background)';
-            return (
-              <button
-                key={c.id}
-                title={c.label}
-                onClick={() => {
-                  onUpdate(block.id, { bgColor: c.hex ?? undefined });
-                }}
-                className={cn(
-                  "w-5 h-5 rounded-[var(--radius-small)] ",
-                  isActive ? "border-foreground" : "border-transparent"
-                )}
-                style={{ backgroundColor: bgPreview }}
-              >
-                {c.id === 'default' && (
-                  <span className="text-[9px] font-bold text-muted-foreground">–</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-      </div>
-    );
-  }
-
   return null;
 }
 

@@ -388,7 +388,7 @@ export function BrainLeftPanel({
       className={cn(
         "w-[288px] flex flex-col gap-[12px] px-[13px] py-[14px] select-none canvas-floating-panel",
         "bg-[var(--app-panel)] backdrop-blur-xl shadow-[0_8px_28px_rgba(0,0,0,0.28)] rounded-[15px]",
-        "outline outline-1 outline-[rgba(255,255,255,0.12)] -outline-offset-1"
+        "border border-[var(--bone-10)]"
       )}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -405,7 +405,7 @@ export function BrainLeftPanel({
               disabled={!selectedBrainId}
               className={cn(
                 "w-6 h-6 shrink-0 flex items-center justify-center rounded-[6px] border-none outline-none",
-                "text-white hover:bg-[var(--bone-6)] transition-colors",
+                "text-[var(--bone-100)] hover:bg-[var(--bone-6)] transition-colors",
                 "disabled:opacity-40 disabled:pointer-events-none"
               )}
             >
@@ -465,7 +465,7 @@ export function BrainLeftPanel({
                 "text-[var(--bone-100)] transition-colors hover:bg-[var(--bone-6)] border-none outline-none"
               )}
             >
-              <span className="font-serif font-normal text-[18px] leading-[18px] truncate flex-1 text-left text-white">
+              <span className="font-serif font-normal text-[18px] leading-[18px] truncate flex-1 text-left text-[var(--bone-100)]">
                 {current?.title ?? 'Select brain'}
               </span>
             </button>
@@ -585,7 +585,7 @@ export function BrainLeftPanel({
           onClick={() => setExpanded(!expanded)}
           className={cn(
             "w-6 h-6 shrink-0 flex items-center justify-center rounded-[6px] border-none outline-none",
-            "text-white opacity-30 hover:opacity-70 transition-opacity"
+            "text-[var(--bone-100)] opacity-30 hover:opacity-70 transition-opacity"
           )}
         >
           {expanded
@@ -594,25 +594,25 @@ export function BrainLeftPanel({
         </button>
       </div>
 
-      {/* Budget pill — Figma: #141414, 9px radius, 10px labels, 4px bar */}
+      {/* Budget pill — Figma: 9px radius, 10px labels, 4px bar */}
       <div
-        className="rounded-[9px] bg-[#141414] px-[13px] py-[11px]"
+        className="rounded-[9px] bg-[var(--app-dark)] px-[13px] py-[11px]"
         title={`${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
       >
         <div className="flex items-baseline justify-between mb-[8px]">
           <span
             className={cn(
               "text-[10px] font-semibold tabular-nums leading-none font-sans",
-              isOverBudget ? "text-danger" : "text-white"
+              isOverBudget ? "text-danger" : "text-[var(--bone-100)]"
             )}
           >
             {pct}%
           </span>
-          <span className="text-[10px] font-medium tabular-nums leading-none font-sans text-white/30">
+          <span className="text-[10px] font-medium tabular-nums leading-none font-sans text-[var(--bone-30)]">
             100%
           </span>
         </div>
-        <div className="w-full h-[4px] rounded-full bg-[rgba(217,217,217,0.10)] overflow-hidden">
+        <div className="w-full h-[4px] rounded-full bg-[var(--bone-10)] overflow-hidden">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-500 ease-out",
@@ -623,17 +623,17 @@ export function BrainLeftPanel({
         </div>
       </div>
 
-      {/* 4-stat tiles — Figma: 40px tall, 7px radius, white/6%, 19px nums / 7px labels */}
+      {/* 4-stat tiles — Figma: 40px tall, 7px radius, 19px nums / 7px labels */}
       <div className="flex items-center gap-[5px]">
         {gridStats.map(s => (
           <div
             key={s.label}
-            className="flex-1 min-w-0 h-[40px] flex flex-col items-start justify-center gap-0 pl-2 pr-1 rounded-[7px] bg-white/[0.06]"
+            className="flex-1 min-w-0 h-[40px] flex flex-col items-start justify-center gap-0 pl-2 pr-1 rounded-[7px] bg-[var(--bone-6)]"
           >
-            <span className="font-sans font-medium text-[19px] text-white/70 tabular-nums leading-none tracking-tight">
+            <span className="font-sans font-medium text-[19px] text-[var(--bone-70)] tabular-nums leading-none tracking-tight">
               {s.value}
             </span>
-            <span className="font-sans font-medium text-[7px] text-white/[0.39] leading-none mt-[3px] truncate max-w-full">
+            <span className="font-sans font-medium text-[7px] text-[var(--bone-30)] leading-none mt-[3px] truncate max-w-full">
               {s.label}
             </span>
           </div>
@@ -677,7 +677,7 @@ export function BrainLeftPanel({
                           style={{ width: `${barWidth}%`, backgroundColor: color }}
                         >
                           {labelInside && (
-                            <span className="text-[10px] font-semibold tabular-nums text-black/70 pr-1.5 leading-none">
+                            <span className="text-[10px] font-semibold tabular-nums text-[var(--on-accent)] pr-1.5 leading-none">
                               {label}
                             </span>
                           )}

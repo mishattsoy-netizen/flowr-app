@@ -52,7 +52,7 @@ export function SummaryPreviewModal() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/[0.04] border border-[var(--bone-12)] flex items-center justify-center text-accent shadow-inner">
+            <div className="w-10 h-10 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] flex items-center justify-center text-accent shadow-inner">
               <Brain className="w-5 h-5 text-accent animate-pulse" />
             </div>
             <div className="flex flex-col">
@@ -62,14 +62,14 @@ export function SummaryPreviewModal() {
           </div>
           <button 
             onClick={closeModal} 
-            className="w-8 h-8 rounded-full bg-white/5 border border-[var(--bone-12)] text-bone-70 hover:text-bone-100 hover:bg-white/10 flex items-center justify-center transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--bone-5)] border border-[var(--bone-12)] text-bone-70 hover:text-bone-100 hover:bg-[var(--bone-10)] flex items-center justify-center transition-all"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Informative Note */}
-        <div className="p-3.5 rounded-[12px] bg-white/[0.02] border border-[var(--bone-6)] flex gap-2.5 items-start">
+        <div className="p-3.5 rounded-[12px] bg-[var(--bone-3)] border border-[var(--bone-6)] flex gap-2.5 items-start">
           <Info className="w-4 h-4 text-bone-50 shrink-0 mt-0.5" />
           <p className="text-[11px] leading-relaxed text-bone-70">
             Earlier parts of this session were distilled to optimize token capacity. The AI assistant retains the core context below to maintain deep memory and fast responses.
@@ -78,13 +78,13 @@ export function SummaryPreviewModal() {
 
         {/* Scrollable Summary Container */}
         <div className="relative group">
-          <div className="max-h-[300px] overflow-y-auto overflow-x-hidden rounded-[16px] border border-[var(--bone-12)] bg-white/[0.01] p-4 text-[13.5px] leading-relaxed text-[var(--bone-80)] whitespace-pre-wrap select-text scrollbar-thin">
+          <div className="max-h-[300px] overflow-y-auto overflow-x-hidden rounded-[16px] border border-[var(--bone-12)] bg-[var(--bone-2)] p-4 text-[13.5px] leading-relaxed text-[var(--bone-80)] whitespace-pre-wrap select-text scrollbar-thin">
             {summary || "No distilled summary available yet."}
           </div>
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-3 gap-3 p-3.5 rounded-[16px] bg-white/[0.02] border border-[var(--bone-6)]">
+        <div className="grid grid-cols-3 gap-3 p-3.5 rounded-[16px] bg-[var(--bone-3)] border border-[var(--bone-6)]">
           <div className="text-center">
             <p className="text-bone-30 text-[9px] uppercase tracking-wider font-semibold">Distilled Words</p>
             <p className="text-bone-100 font-bold text-sm mt-1">{wordCount.toLocaleString()}</p>
@@ -105,13 +105,13 @@ export function SummaryPreviewModal() {
           <div className="flex gap-2">
             <button
               onClick={closeModal}
-              className="px-4 py-2 text-xs font-semibold rounded-full bg-white/5 hover:bg-white/10 text-bone-80 hover:text-bone-100 transition-colors"
+              className="px-4 py-2 text-xs font-semibold rounded-full bg-[var(--bone-5)] hover:bg-[var(--bone-10)] text-bone-80 hover:text-bone-100 transition-colors"
             >
               Close Preview
             </button>
             <button
               onClick={handleCopy}
-              className="px-4 py-2 text-xs font-semibold rounded-full bg-accent text-white flex items-center gap-2 hover:bg-accent/95 shadow-lg active:scale-95 transition-all"
+              className="px-4 py-2 text-xs font-semibold rounded-full bg-accent text-[var(--on-accent)] flex items-center gap-2 hover:bg-accent/95 shadow-lg active:scale-95 transition-all"
             >
               {copied ? (
                 <>

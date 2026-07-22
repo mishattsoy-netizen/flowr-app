@@ -94,7 +94,7 @@ export function AllFilesWidget({ data, onUpdateData, contextId }: AllFilesWidget
           (view === 'flat' ? filtered : rootItems).map(e => renderItem(e))
         )}
         {!showSkeleton && filtered.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-white/[0.01] rounded-[12px] min-h-[140px] transition-all duration-300">
+          <div className="h-full flex flex-col items-center justify-center gap-3 p-4 bg-[var(--bone-2)] rounded-[12px] min-h-[140px] transition-all duration-300">
             <Search strokeWidth={2} className="w-12 h-12 text-[var(--bone-100)] opacity-25 mb-1 animate-in fade-in duration-300" />
             <div className="text-center max-w-[320px]">
               <p className="text-base font-semibold text-bone-100 opacity-40">No files found</p>

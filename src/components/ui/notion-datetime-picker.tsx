@@ -263,17 +263,6 @@ export function NotionDateTimePicker({
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (newOpen && !startDate) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      const yearStr = tomorrow.getFullYear();
-      const monthStr = String(tomorrow.getMonth() + 1).padStart(2, '0');
-      const dayStr = String(tomorrow.getDate()).padStart(2, '0');
-      
-      setStartDate(`${yearStr}-${monthStr}-${dayStr}`);
-      setIncludeTime(false);
-    }
   };
 
   return (
@@ -322,14 +311,6 @@ export function NotionDateTimePicker({
               onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleDateInputBlur('start', startText); } }}
               onClick={() => {
                 setActiveInput('start');
-                if (!startDate) {
-                   const tomorrow = new Date();
-                   tomorrow.setDate(tomorrow.getDate() + 1);
-                   const yearStr = tomorrow.getFullYear();
-                   const monthStr = String(tomorrow.getMonth() + 1).padStart(2, '0');
-                   const dayStr = String(tomorrow.getDate()).padStart(2, '0');
-                   setStartDate(`${yearStr}-${monthStr}-${dayStr}`);
-                }
               }}
               className="w-full bg-transparent px-3 py-1.5 text-sm font-medium outline-none text-[var(--bone-90)] placeholder-[var(--bone-40)]"
             />
@@ -395,10 +376,6 @@ export function NotionDateTimePicker({
                 onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleDateInputBlur('end', endText); } }}
                 onClick={() => {
                   setActiveInput('end');
-                  if (!endDate) {
-                     const tStr = new Date().toISOString();
-                     setEndDate(tStr);
-                  }
                 }}
                 className="w-full bg-transparent px-3 py-1.5 text-sm font-medium outline-none text-[var(--bone-90)] placeholder-[var(--bone-40)]"
               />
@@ -514,7 +491,7 @@ export function NotionDateTimePicker({
                         className={cn(
                           "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-[8px] cursor-pointer transition-colors border-none bg-transparent outline-none",
                           isSelected 
-                            ? "bg-black/35 text-[var(--bone-100)] font-medium" 
+                            ? "bg-[var(--bone-15)] text-[var(--bone-100)] font-medium" 
                             : "text-[var(--bone-70)] hover:bg-[var(--bone-10)] hover:text-[var(--bone-90)]"
                         )}
                       >

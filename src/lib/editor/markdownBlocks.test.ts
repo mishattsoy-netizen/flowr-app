@@ -454,6 +454,40 @@ describe('heading + numbered-list interaction', () => {
     expect(numbered).toHaveLength(2);
   });
 
+  it('does NOT split a lone number mid-prose (date/amount sentence boundary)', () => {
+    // "Oct 24, 2025. You took…" must stay one bullet — the "2025. You" split
+    // was injecting a phantom numbered item that reset the rendered counter.
+    const blocks = parseMarkdownToBlocks('* *Example:* Oct 24, 2025. You took 5 trades in one day.');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('bulletList');
+    expect(blocks.some(b => b.type === 'numberedList')).toBe(false);
+  });
+
+  it('does NOT split "…lots in 2026. This preserved…" into a phantom item', () => {
+    const blocks = parseMarkdownToBlocks('1. Scaled down to 0.6 lots in 2026. This preserved the account.');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('numberedList');
+    // The whole sentence stays in the single item, not split at "2026. ".
+    expect(blocks[0].content).toContain('This preserved the account');
+  });
+
+  it('nests indented bullet children under a numbered item without splitting', () => {
+    const md = [
+      '1. **The Avalanche Effect:**',
+      '   * *Example:* Oct 24, 2025. You took 5 trades.',
+      '   * *The Mistake:* Over-trading to recover losses.',
+      '2. **Lot Size Inconsistency:**',
+      '   * *Example:* Swinging from 2.5 lots down to 0.6 lots.',
+    ].join('\n');
+    const blocks = parseMarkdownToBlocks(md);
+    const topNumbered = blocks.filter(b => b.type === 'numberedList');
+    // Exactly two top-level numbered items — no phantom third from a split.
+    expect(topNumbered).toHaveLength(2);
+    // Each carries its bullet sub-points as children, still typed bulletList.
+    expect(topNumbered[0].children?.every(c => c.type === 'bulletList')).toBe(true);
+    expect(topNumbered[0].children).toHaveLength(2);
+  });
+
   it('drops a bare ### line instead of emitting a text block', () => {
     const blocks = parseMarkdownToBlocks('###\n1. First item');
     expect(blocks.some(b => b.content === '###')).toBe(false);
@@ -510,6 +544,83 @@ describe('heading + numbered-list interaction', () => {
     expect(textBlocks).toHaveLength(0);
     const numbered = blocks.filter(b => b.type === 'numberedList');
     expect(numbered).toHaveLength(2);
+  });
+});
+
+describe('lazy continuation — flush-left paragraph after a list item', () => {
+  it('nests a non-indented paragraph directly under the preceding numbered item', () => {
+    // The all-"1." bug: models write the description flush-left with no blank
+    // line, so it landed as a top-level text sibling BETWEEN numbered items and
+    // reset the render counter. It must attach as the item's child instead.
+    const blocks = parseMarkdownToBlocks(
+      '1. **Size escalation**\nJumping to 2.5 lots turned bad days worse.\n\n2. **Revenge trading**\nOct 24 was the textbook day.'
+    );
+    const topNumbered = blocks.filter(b => b.type === 'numberedList');
+    expect(topNumbered).toHaveLength(2);
+    // No description text left stranded at the top level between the items.
+    const topText = blocks.filter(b => b.type === 'text' && b.style === 'body');
+    expect(topText).toHaveLength(0);
+    expect(blocks[0].children?.[0]?.content).toContain('Jumping to 2.5 lots');
+    expect(blocks[1].children?.[0]?.content).toContain('Oct 24');
+  });
+
+  it('nests the continuation under bullets and checklists too', () => {
+    const bullets = parseMarkdownToBlocks('- Point one\nExpanded explanation here.');
+    expect(bullets).toHaveLength(1);
+    expect(bullets[0].type).toBe('bulletList');
+    expect(bullets[0].children?.[0]?.content).toContain('Expanded explanation');
+  });
+
+  it('does NOT nest when a blank line separates the paragraph (real standalone paragraph)', () => {
+    const blocks = parseMarkdownToBlocks('1. Item\n\nStandalone paragraph.');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].type).toBe('numberedList');
+    expect(blocks[0].children ?? []).toHaveLength(0);
+    expect(blocks[1].type).toBe('text');
+  });
+
+  it('keeps two separate numbered lists distinct: list A, paragraph, list B restarts', () => {
+    // Blast-radius guard: a blank-separated paragraph between two lists must
+    // stay a top-level sibling so list B is a fresh list (renders 1,2 again).
+    const blocks = parseMarkdownToBlocks(
+      '1. A\n2. B\n3. C\n\nA separating paragraph.\n\n1. X\n2. Y'
+    );
+    const types = blocks.map(b => b.type);
+    // 3 numbered + 1 text + 2 numbered, all at top level, in order.
+    expect(types).toEqual([
+      'numberedList', 'numberedList', 'numberedList',
+      'text',
+      'numberedList', 'numberedList',
+    ]);
+  });
+
+  it('does not treat a following list item as a continuation of the previous item', () => {
+    // "1. A\n2. B" — B is a sibling item, never a child of A.
+    const blocks = parseMarkdownToBlocks('1. A\n2. B');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].children ?? []).toHaveLength(0);
+  });
+});
+
+describe('mash-up splitter — mid-sentence + / * must not become bullets', () => {
+  it('does not split "EURUSD + EURGBP" prose into a bullet', () => {
+    const blocks = parseMarkdownToBlocks('several EURUSD + EURGBP entries in a window');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('text');
+    expect(blocks[0].content).toContain('EURUSD + EURGBP');
+    expect(blocks.some(b => b.type === 'bulletList')).toBe(false);
+  });
+
+  it('does not split "high conviction + calm sizing" prose', () => {
+    const blocks = parseMarkdownToBlocks('makes sense at high conviction + calm sizing under load');
+    expect(blocks.some(b => b.type === 'bulletList')).toBe(false);
+    expect(blocks[0].content).toContain('conviction + calm');
+  });
+
+  it('still splits genuinely run-together bullet items written with *', () => {
+    const blocks = parseMarkdownToBlocks('* first item\n* second item');
+    expect(blocks).toHaveLength(2);
+    expect(blocks.every(b => b.type === 'bulletList')).toBe(true);
   });
 });
 

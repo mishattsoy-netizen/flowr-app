@@ -124,7 +124,7 @@ export function GenericStackedWidget({ data, onUpdateData }: GenericStackedWidge
                 {/* Remove Button on Hover */}
                 <div
                   onClick={(e) => { e.stopPropagation(); removeWidget(idx); }}
-                  className="absolute -top-1 -right-1 bg-[var(--bone-10)] text-[var(--bone-70)] hover:bg-red-500 hover:text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 shadow-sm transition-all duration-200 z-20"
+                  className="absolute -top-1 -right-1 bg-[var(--bone-10)] text-[var(--bone-70)] hover:bg-red-500 hover:text-[var(--on-accent)] rounded-full p-0.5 opacity-0 group-hover:opacity-100 shadow-sm transition-all duration-200 z-20"
                 >
                   <X className="w-2.5 h-2.5" />
                 </div>

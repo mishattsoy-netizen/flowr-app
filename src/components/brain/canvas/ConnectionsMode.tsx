@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Link2,
   Plus,
   Unlink,
   X,
@@ -199,7 +200,7 @@ export function ConnectionsMode({
               onOpen={() => { onFocusNode(pairEdge.from_node); onSetMode('details'); }}
               onDetach={() => onBreakEdge(pairEdge.id)}
             />
-            <div className="my-2">
+            <div className="my-2 w-full h-9 relative group">
               {editingEdgeId === pairEdge.id ? (
                 <input
                   ref={labelInputRef}
@@ -210,28 +211,38 @@ export function ConnectionsMode({
                     if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
                     if (e.key === 'Escape') setEditingEdgeId(null);
                   }}
-                  className="w-full h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none"
+                  className="absolute inset-0 w-full min-w-0 h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none m-0"
                   placeholder="Label"
                 />
               ) : (
-                <Tooltip content="Edit connection label">
-                  <button
-                    type="button"
-                    onClick={() => startEditLabel(pairEdge)}
-                    className={cn(
-                      "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                      "border-none outline-none transition-colors",
-                      // Idle labels are dimmed (bg too, not just text); hover
-                      // brings the row up to full dark + brighter text.
-                      "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
-                      pairEdge.label
-                        ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
-                        : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
-                    )}
-                  >
-                    {pairEdge.label || 'Add label'}
-                  </button>
-                </Tooltip>
+                <>
+                  <Tooltip content="Edit connection label">
+                    <button
+                      type="button"
+                      onClick={() => startEditLabel(pairEdge)}
+                      className={cn(
+                        "absolute inset-0 w-full min-w-0 h-9 px-3 pr-9 rounded-[10px] text-[12px] text-left truncate m-0",
+                        "border border-transparent outline-none transition-opacity",
+                        "bg-[var(--app-dark)] opacity-50 group-hover:opacity-100 focus:opacity-100",
+                        pairEdge.label
+                          ? "text-[var(--bone-90)]"
+                          : "text-[var(--bone-60)]"
+                      )}
+                    >
+                      {pairEdge.label || 'Add label'}
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Break connection">
+                    <button
+                      type="button"
+                      onClick={() => onBreakEdge(pairEdge.id)}
+                      className="absolute right-1 top-1 w-7 h-7 flex items-center justify-center rounded-[8px] bg-transparent hover:bg-[#E85A5A] text-[var(--bone-60)] hover:text-white opacity-30 hover:opacity-100 transition-all border-none outline-none cursor-pointer group/btn"
+                    >
+                      <Link2 className="w-3.5 h-3.5 block group-hover/btn:hidden" strokeWidth={2} />
+                      <Unlink className="w-3.5 h-3.5 hidden group-hover/btn:block" strokeWidth={2} />
+                    </button>
+                  </Tooltip>
+                </>
               )}
             </div>
             <PairNodeRow
@@ -299,7 +310,7 @@ export function ConnectionsMode({
                   )}
                 />
                 {/* Label row: full width, dark, dim while idle; click to edit. */}
-                <div className="my-2">
+                <div className="my-2 w-full h-9 relative group">
                   {editingEdgeId === row.edge.id ? (
                     <input
                       ref={labelInputRef}
@@ -310,27 +321,38 @@ export function ConnectionsMode({
                         if (e.key === 'Enter') { e.preventDefault(); commitLabel(); }
                         if (e.key === 'Escape') setEditingEdgeId(null);
                       }}
-                      className="w-full h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none"
+                      className="absolute inset-0 w-full min-w-0 h-9 px-3 rounded-[10px] text-[12px] bg-[var(--app-dark)] text-[var(--bone-90)] border border-[var(--bone-12)] outline-none m-0"
                       placeholder="Label"
                     />
                   ) : (
-                    <Tooltip content="Edit connection label">
-                      <button
-                        type="button"
-                        onClick={() => startEditLabel(row.edge)}
-                        className={cn(
-                          "w-full h-9 px-3 rounded-[10px] text-[12px] text-left truncate",
-                          "border-none outline-none transition-colors",
-                          // Idle labels are dimmed (bg too, not just text).
-                          "bg-[var(--bone-5)] hover:bg-[var(--app-dark)]",
-                          row.edge.label
-                            ? "text-[var(--bone-60)] hover:text-[var(--bone-90)]"
-                            : "text-[var(--bone-30)] hover:text-[var(--bone-60)]"
-                        )}
-                      >
-                        {row.edge.label || 'Add label'}
-                      </button>
-                    </Tooltip>
+                    <>
+                      <Tooltip content="Edit connection label">
+                        <button
+                          type="button"
+                          onClick={() => startEditLabel(row.edge)}
+                          className={cn(
+                            "absolute inset-0 w-full min-w-0 h-9 px-3 pr-9 rounded-[10px] text-[12px] text-left truncate m-0",
+                            "border border-transparent outline-none transition-opacity",
+                            "bg-[var(--app-dark)] opacity-50 group-hover:opacity-100 focus:opacity-100",
+                            row.edge.label
+                              ? "text-[var(--bone-90)]"
+                              : "text-[var(--bone-60)]"
+                          )}
+                        >
+                          {row.edge.label || 'Add label'}
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Break connection">
+                        <button
+                          type="button"
+                          onClick={() => onBreakEdge(row.edge.id)}
+                          className="absolute right-1 top-1 w-7 h-7 flex items-center justify-center rounded-[8px] bg-transparent hover:bg-[#E85A5A] text-[var(--bone-60)] hover:text-white opacity-30 hover:opacity-100 transition-all border-none outline-none cursor-pointer group/btn"
+                        >
+                          <Link2 className="w-3.5 h-3.5 block group-hover/btn:hidden" strokeWidth={2} />
+                          <Unlink className="w-3.5 h-3.5 hidden group-hover/btn:block" strokeWidth={2} />
+                        </button>
+                      </Tooltip>
+                    </>
                   )}
                 </div>
 
