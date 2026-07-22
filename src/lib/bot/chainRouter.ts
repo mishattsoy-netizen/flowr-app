@@ -1,7 +1,7 @@
 import { classifyIntentWithModel, classifyIntentV2 } from './classifier'
 import { selectTier, resolveThinkingLevel } from './routerV2'
 import { resolveMaxToolHops as _resolveMaxToolHops } from './toolLoopConfig'
-import { sanitizeOutput, stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
+import { sanitizeOutput, stripToolAnnotations, hasUngroundedActionClaim, normalizeEntityMentions } from './outputGuard'
 import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
 import type { BotMode } from '@/data/store.types'
@@ -1265,6 +1265,7 @@ IMAGE GENERATION:
             if (typeof finalContent === 'string') {
               finalContent = sanitizeOutput(finalContent)
               finalContent = stripToolAnnotations(finalContent)
+              finalContent = normalizeEntityMentions(finalContent)
               if (routeContext.useTools && hasUngroundedActionClaim(finalContent, capturedToolCalls)) {
                 const failedMutations = (capturedToolCalls ?? [])
                   .filter((c: any) => c?.success === false && c?.error)

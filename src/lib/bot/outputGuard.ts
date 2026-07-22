@@ -71,6 +71,12 @@ export function stripToolAnnotations(content: string): string {
     .trim()
 }
 
+/** The pill renderer requires [@Title](flowr:type:id); models sometimes drop the @. */
+export function normalizeEntityMentions(content: string): string {
+  if (!content) return content
+  return content.replace(/\[(?!@)([^\]\n]+)\]\((flowr:(?:note|folder|canvas|workspace):[^)\s]+)\)/g, '[@$1]($2)')
+}
+
 // Conservative: only past/perfect claims of completed content mutations.
 const ACTION_CLAIM_RE =
   /\b(has been|have been|was|were|already)\s+(permanently\s+)?(deleted|created|updated|moved|renamed|placed|added|appended|saved|written|logged|inserted)\b|\b(successfully)\s+(deleted|created|updated|moved|placed|added|appended|saved)\b|\bI\s?(have|'ve) (deleted|created|updated|moved|placed|added|appended|saved|written|logged|inserted)\b|\bI (added|placed|appended|saved|wrote|logged|inserted)\b/i

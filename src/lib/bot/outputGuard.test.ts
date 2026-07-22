@@ -102,7 +102,7 @@ describe('sanitizeOutput', () => {
   })
 })
 
-import { stripToolAnnotations, hasUngroundedActionClaim } from './outputGuard'
+import { stripToolAnnotations, hasUngroundedActionClaim, normalizeEntityMentions } from './outputGuard'
 
 describe('stripToolAnnotations', () => {
   it('removes [Tools: ...] blocks anywhere in the message', () => {
@@ -188,5 +188,22 @@ describe('hasUngroundedActionClaim — extended verbs', () => {
   it('does not flag when a mutation succeeded', () => {
     const calls = [{ tool: 'update_content', success: true }]
     expect(hasUngroundedActionClaim('I added the balance to your note.', calls)).toBe(false)
+  })
+})
+
+describe('normalizeEntityMentions', () => {
+  it('adds the missing @ to flowr entity links', () => {
+    expect(normalizeEntityMentions('See [My Note](flowr:note:doc-123).'))
+      .toBe('See [@My Note](flowr:note:doc-123).')
+  })
+
+  it('leaves correct mentions untouched', () => {
+    const s = 'See [@My Note](flowr:note:doc-123).'
+    expect(normalizeEntityMentions(s)).toBe(s)
+  })
+
+  it('ignores ordinary URLs', () => {
+    const s = 'See [docs](https://example.com).'
+    expect(normalizeEntityMentions(s)).toBe(s)
   })
 })
