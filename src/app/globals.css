@@ -1768,9 +1768,12 @@ a:focus:not(:focus-visible),
   transition: background-color 80ms ease-out;
 }
 
-/* ── Entity mention pills inside note blocks (flowr:<type>:<id> anchors) ──
-   Attribute selector on purpose: also upgrades legacy plain <a> links saved
-   before pills existed. */
+/* ── Entity mention pills inside note blocks ──
+   [data-mention="1"] matches current pills, whose href is "#" (kept off
+   flowr: on purpose so the browser's native status-bar link preview never
+   shows the raw id). [href^="flowr:"] additionally upgrades legacy plain
+   <a> links saved before the data-mention-ref split existed. */
+[data-block-content] a[data-mention="1"],
 [data-block-content] a[href^="flowr:"] {
   display: inline-flex !important;
   align-items: center;
@@ -1789,6 +1792,7 @@ a:focus:not(:focus-visible),
   transition: background-color 0.15s ease !important;
   vertical-align: baseline;
 }
+[data-block-content] a[data-mention="1"]:hover,
 [data-block-content] a[href^="flowr:"]:hover {
   background: var(--bone-10) !important;
 }

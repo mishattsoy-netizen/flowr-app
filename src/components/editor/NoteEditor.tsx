@@ -1849,7 +1849,11 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       }
 
       const a = document.createElement('a');
-      a.href = `flowr:${item.type}:${item.id}`;
+      // href stays "#" (not the real flowr: target) so the browser's native
+      // status-bar link preview never shows the raw entity id on hover —
+      // the actual reference lives in data-mention-ref instead.
+      a.href = '#';
+      a.setAttribute('data-mention-ref', `flowr:${item.type}:${item.id}`);
       a.setAttribute('data-mention', '1');
       a.className = 'entity-pill';
       a.setAttribute('contenteditable', 'false');

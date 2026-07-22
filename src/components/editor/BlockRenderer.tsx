@@ -224,8 +224,9 @@ export function BlockRenderer({
     } else {
       // Also detect plain anchor tags (standard markdown underlined links)
       const anchor = target.closest('a') as HTMLAnchorElement;
-      const anchorHref = anchor?.getAttribute('href') || '';
-      if (anchor && !anchor.classList.contains('inline-link-btn') && !anchorHref.startsWith('flowr:') && contentRef.current?.contains(anchor)) {
+      const isMentionPill = anchor?.getAttribute('data-mention') === '1'
+        || (anchor?.getAttribute('href') || '').startsWith('flowr:');
+      if (anchor && !anchor.classList.contains('inline-link-btn') && !isMentionPill && contentRef.current?.contains(anchor)) {
         if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
         inlineHoverTimeout.current = null;
         const rect = anchor.getBoundingClientRect();
@@ -254,9 +255,10 @@ export function BlockRenderer({
     if (isDraggingGlobal) return;
     const target = e.target as HTMLElement;
     const anchor = target.closest('a');
-    const anchorHref = anchor?.getAttribute('href') || '';
+    const isMentionPill = anchor?.getAttribute('data-mention') === '1'
+      || (anchor?.getAttribute('href') || '').startsWith('flowr:');
 
-    if (anchor && !anchor.classList.contains('inline-link-btn') && !anchorHref.startsWith('flowr:') && contentRef.current?.contains(anchor)) {
+    if (anchor && !anchor.classList.contains('inline-link-btn') && !isMentionPill && contentRef.current?.contains(anchor)) {
       e.preventDefault();
       e.stopPropagation();
 
@@ -349,20 +351,23 @@ export function BlockRenderer({
     lastTypedContent.current = block.content;
   }, [block.content]);
 
-  // Mention pills are stored as bare <a href="flowr:type:id">Title</a> (no
-  // room in static HTML for a live Lucide component). After every content
-  // sync, walk the block's mention anchors and inject the entity's real
-  // icon as a leading inline SVG — same icon source (`getEntityIcon`) chat
-  // mention pills use — so a note's pill matches chat exactly instead of
-  // showing a generic "@" glyph.
+  // Mention pills carry their real target in data-mention-ref (href is "#"
+  // so the browser's native status-bar link preview never shows the raw
+  // flowr: id — see the serializer comment in markdownBlocks.ts). Notes
+  // saved before that existed still have the id in href instead; the
+  // fallback below keeps those working with no data migration. After every
+  // content sync, walk the block's mention anchors and inject the entity's
+  // real icon as a leading inline SVG — same icon source (`getEntityIcon`)
+  // chat mention pills use — so a note's pill matches chat exactly instead
+  // of showing a generic glyph.
   useEffect(() => {
     const host = contentRef.current;
     if (!host) return;
-    const anchors = host.querySelectorAll('a[href^="flowr:"]');
+    const anchors = host.querySelectorAll('a[data-mention="1"], a[href^="flowr:"]');
     anchors.forEach((anchor) => {
       if (anchor.querySelector('[data-mention-icon]')) return; // already injected
-      const href = anchor.getAttribute('href') || '';
-      const parts = href.split(':');
+      const ref = anchor.getAttribute('data-mention-ref') || anchor.getAttribute('href') || '';
+      const parts = ref.split(':');
       const type = parts[1];
       const id = parts.slice(2).join(':');
       if (!type || !id) return;
@@ -634,8 +639,12 @@ export function BlockRenderer({
     if (anchor) {
       e.preventDefault();
       e.stopPropagation();
-      const href = anchor.getAttribute('href') || '';
-      if (openFlowrMention(href)) return;
+      // Mention pills keep the real target in data-mention-ref (href is "#"
+      // so the browser's native status-bar preview never shows the raw
+      // flowr: id). Notes saved before this existed still have the id in
+      // href — fall back to it so those pills keep opening correctly.
+      const mentionRef = anchor.getAttribute('data-mention-ref') || anchor.getAttribute('href') || '';
+      if (openFlowrMention(mentionRef)) return;
       window.open(anchor.href, '_blank', 'noopener,noreferrer');
     }
   }, [isDraggingGlobal, openFlowrMention]);

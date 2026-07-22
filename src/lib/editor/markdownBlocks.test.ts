@@ -465,10 +465,16 @@ describe('flowr entity mention pills', () => {
   it('converts [@Title](flowr:note:id) to a mention-pill anchor', () => {
     const blocks = parseMarkdownToBlocks('See [@Trade History](flowr:note:doc-123) for data.')
     expect(blocks[0].content).toContain('data-mention="1"')
-    expect(blocks[0].content).toContain('href="flowr:note:doc-123"')
+    expect(blocks[0].content).toContain('data-mention-ref="flowr:note:doc-123"')
     expect(blocks[0].content).toContain('contenteditable="false"')
     expect(blocks[0].content).toContain('>Trade History</a>')
     expect(blocks[0].content).not.toContain('target="_blank"')
+  })
+
+  it('keeps href as "#" so the browser status bar never shows the raw flowr: id', () => {
+    const blocks = parseMarkdownToBlocks('See [@Trade History](flowr:note:doc-123) for data.')
+    expect(blocks[0].content).toContain('href="#"')
+    expect(blocks[0].content).not.toContain('href="flowr:')
   })
 
   it('handles a flowr link whose label lacks the @ prefix', () => {
@@ -487,5 +493,16 @@ describe('flowr entity mention pills', () => {
     const blocks = parseMarkdownToBlocks('See [docs](https://example.com).')
     expect(blocks[0].content).toContain('target="_blank"')
     expect(blocks[0].content).not.toContain('data-mention')
+  })
+
+  it('still round-trips a legacy pill (href="flowr:...", no data-mention-ref) saved before this change', () => {
+    const legacyBlock = {
+      id: '1',
+      type: 'text' as const,
+      content: '<a href="flowr:note:doc-123" data-mention="1" class="entity-pill" contenteditable="false">Trade History</a>',
+      style: 'body' as const,
+    };
+    const md = blocksToMarkdown([legacyBlock]);
+    expect(md).toContain('[@Trade History](flowr:note:doc-123)');
   })
 })

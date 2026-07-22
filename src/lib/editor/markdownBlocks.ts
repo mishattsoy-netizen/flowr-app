@@ -81,9 +81,15 @@ function inlineToHtml(text: string): string {
 
     // Entity mentions: [@Title](flowr:type:id) — render as a mention pill,
     // never as a navigable browser link (flowr: is not a real protocol).
+    // The real target lives in data-mention-ref, NOT href — the browser's
+    // native status-bar link preview reads href literally and would show
+    // "flowr:note:doc-…" on hover no matter how the pill is styled. href
+    // stays "#" (a real, harmless anchor target) purely to keep the tag
+    // a clickable/focusable <a> for accessibility and existing hover-detection
+    // code that keys off tag name.
     if (cleanUrl.startsWith('flowr:')) {
       const mentionLabel = displayLabel.startsWith('@') ? displayLabel.slice(1) : displayLabel;
-      return `<a href="${cleanUrl}" data-mention="1" class="entity-pill" contenteditable="false">${mentionLabel}</a>`;
+      return `<a href="#" data-mention-ref="${cleanUrl}" data-mention="1" class="entity-pill" contenteditable="false">${mentionLabel}</a>`;
     }
 
     if (isPill) {
@@ -285,6 +291,12 @@ function htmlToText(html: string): string {
   // Mention pills round-trip as [@Title](flowr:type:id) — must run before the
   // generic entity-pill rules below, since these anchors also carry
   // class="entity-pill" and would otherwise be swallowed by those rules first.
+  // The real target lives in data-mention-ref, not href (href is "#" so the
+  // browser's native status-bar preview doesn't show the raw flowr: id).
+  // Notes saved before this change still have href="flowr:type:id" and no
+  // data-mention-ref — the third rule below keeps those round-tripping.
+  s = s.replace(/<a[^>]*data-mention-ref="(flowr:[^"]*)"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
+  s = s.replace(/<a[^>]*data-mention="1"[^>]*data-mention-ref="(flowr:[^"]*)"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
   s = s.replace(/<a[^>]*data-mention="1"[^>]*href="(flowr:[^"]*)"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
   s = s.replace(/<a[^>]*href="(flowr:[^"]*)"[^>]*data-mention="1"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
 
