@@ -28,6 +28,10 @@ export function getCapturedLogs(): LogEntry[] {
   return capturedLogs
 }
 
+export function getCapturedLogsSince(sinceIso: string): LogEntry[] {
+  return capturedLogs.filter(l => l.timestamp >= sinceIso)
+}
+
 export function clearCapturedLogs(): void {
   capturedLogs.length = 0
 }

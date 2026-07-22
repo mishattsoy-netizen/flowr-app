@@ -6,7 +6,7 @@ import { runAdvisor } from './advisor'
 import { getRouterChain, getFallbackModes, IntentCategory, DEFAULT_STATUS_MESSAGES } from '../router-config'
 import type { BotMode } from '@/data/store.types'
 import { getProviderKeys } from '../vault'
-import { logger } from '../logger'
+import { logger, getCapturedLogsSince } from '../logger'
 import { runGoogle } from './providers/google'
 import { runOpenRouter } from './providers/openrouter'
 import { runGroq } from './providers/groq'
@@ -198,6 +198,7 @@ export async function runChain(
 ): Promise<ChainResponse> {
   const tracer = new TraceCollector()
   let totalCostUsd = 0
+  const requestStartIso = new Date().toISOString()
 
   // Inject current date context to help bot understand knowledge cutoff and current time
   const now = context?.clientTime ? new Date(context.clientTime) : new Date()
@@ -1319,6 +1320,7 @@ IMAGE GENERATION:
               usageType: finalUsageType,
               modelChain: detailedModelChain,
               capturedToolCalls,
+              capturedLogs: getCapturedLogsSince(requestStartIso),
             })
 
             return {
