@@ -1366,8 +1366,10 @@ export function BrainCanvasPage() {
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: '0 0',
           // Only the programmatic centering pan animates; user pan/zoom clear
-          // panAnimate on gesture-start so they stay instant.
-          transition: panAnimate ? 'transform 300ms ease-out' : undefined,
+          // panAnimate on gesture-start so they stay instant. Custom
+          // deceleration curve (quick start, long soft settle) reads as a
+          // deliberate glide rather than a linear/mechanical ease-out.
+          transition: panAnimate ? 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)' : undefined,
         }}
         onTransitionEnd={() => setPanAnimate(false)}
         onMouseMove={connectMode ? handleConnectMouseMove : undefined}
