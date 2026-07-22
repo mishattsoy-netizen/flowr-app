@@ -52,16 +52,28 @@ export function isPendingActionSameNextTurn(pending: { turn_seq?: number } | und
 export function applyPatchOps(markdown: string, ops: { find: string; replace: string }[]): string {
   let result = markdown
   const missing: string[] = []
+  // Models often quote note text as HTML (<strong>x</strong>) while the body
+  // is markdown (**x**). If the raw find misses, retry with tags stripped —
+  // converting <strong>/<b> to ** so the replacement stays formatted.
+  const htmlToMd = (s: string) => s
+    .replace(/<\/?(?:strong|b)>/gi, '**')
+    .replace(/<\/?(?:em|i)>/gi, '*')
+    .replace(/<[^>]+>/g, '')
   for (const op of ops) {
     if (typeof op?.find !== 'string' || typeof op?.replace !== 'string') {
       missing.push(String(op?.find ?? '(invalid op)'))
       continue
     }
-    if (!result.includes(op.find)) {
-      missing.push(op.find)
+    if (result.includes(op.find)) {
+      result = result.replace(op.find, op.replace)
       continue
     }
-    result = result.replace(op.find, op.replace)
+    const strippedFind = htmlToMd(op.find)
+    if (strippedFind !== op.find && result.includes(strippedFind)) {
+      result = result.replace(strippedFind, htmlToMd(op.replace))
+      continue
+    }
+    missing.push(op.find)
   }
   if (missing.length > 0) {
     throw new Error(`Patch failed — these 'find' strings were not found in the note body: ${missing.map(m => JSON.stringify(m)).join(', ')}`)
