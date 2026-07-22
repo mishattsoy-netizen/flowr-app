@@ -2,6 +2,7 @@ import { logger } from '../../logger'
 import { supabaseAdmin } from '../../supabase'
 import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../editor/markdownBlocks'
 import { reattachBlockIds } from '../../editor/reattachBlockIds'
+import { collapseUntitledNotes } from './collapseUntitled'
 import { sanitizeToolContent } from '../services/imagePromptGuard'
 import type { BlockInput } from '../../editor/markdownBlocks'
 import { extractContent } from '../providers/content-extract'
@@ -861,7 +862,18 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
         if (item.type === 'task') delete item.last_modified
         return item
       })
-      return { success: true, count: processedResults.length, items: processedResults }
+
+      let finalResults = processedResults
+      let untitledNotesHidden = 0
+      if (!args.searchQuery && !readContent) {
+        const collapsed = collapseUntitledNotes(finalResults)
+        finalResults = collapsed.items
+        untitledNotesHidden = collapsed.collapsedCount
+      }
+
+      const result: any = { success: true, count: finalResults.length, items: finalResults }
+      if (untitledNotesHidden > 0) result.untitled_notes_hidden = untitledNotesHidden
+      return result
     } catch (e: any) {
       logger.error('list_content failed:', e.message)
       return { error: e.message }
