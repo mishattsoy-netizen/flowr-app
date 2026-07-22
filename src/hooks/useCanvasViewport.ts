@@ -23,7 +23,12 @@ export interface CanvasViewport {
 export function useCanvasViewport(
   containerRef: React.RefObject<HTMLDivElement | null>,
   brainId?: string | null,
+  // Called when the user zooms via ctrl/cmd+wheel, so the caller can cancel
+  // any in-progress programmatic pan animation (keeps zoom instant).
+  onUserGesture?: () => void,
 ) {
+  const onUserGestureRef = useRef(onUserGesture);
+  onUserGestureRef.current = onUserGesture;
   const setBrainViewport = useStore(s => s.setBrainViewport);
   // Seed from the store so a remount restores the last pan/zoom instead of
   // snapping to origin + 100%.
@@ -63,6 +68,7 @@ export function useCanvasViewport(
       if (!(target instanceof Node) || !container.contains(target)) return;
       e.preventDefault();
       e.stopPropagation();
+      onUserGestureRef.current?.();
       const rect = container.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;

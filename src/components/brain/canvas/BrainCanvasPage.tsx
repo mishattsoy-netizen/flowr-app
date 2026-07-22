@@ -156,10 +156,18 @@ export function BrainCanvasPage() {
 
   // ── Brain data (fetched via hook, synced to store's activeBrainId) ──
   const { state, loading, error, selectedBrainId, setSelectedBrainId, load, mutate, addLocalEdge, removeLocalEdge, addLocalNode, removeLocalNode, renameLocalNode, patchLocalNode, patchLocalEdge } = useBrainData();
+  // True only while the programmatic centering pan (editor-open) is animating.
+  // User pan/zoom must stay instant, so this is cleared the moment a gesture
+  // starts (see handleBgPointerDown + the wheel handler in useCanvasViewport).
+  const [panAnimate, setPanAnimate] = useState(false);
   // Keyed off state.brainId (not selectedBrainId — null during the remount's
   // load window) so viewport survives the editor-open remount, same as the
   // node-position store slice.
-  const { viewport, setViewport, viewportRef } = useCanvasViewport(containerRef, state?.brainId ?? null);
+  const { viewport, setViewport, viewportRef } = useCanvasViewport(
+    containerRef,
+    state?.brainId ?? null,
+    () => setPanAnimate(false), // ctrl/cmd+wheel zoom cancels the pan animation
+  );
   const activeBrainId = useStore(s => s.activeBrainId);
   const setActiveBrainId = useStore(s => s.setActiveBrainId);
 
@@ -701,7 +709,16 @@ export function BrainCanvasPage() {
     const rect = container.getBoundingClientRect();
     const cx = pos.x + CARD_W / 2;
     const cy = pos.y + (heights[node.id] ?? CARD_H) / 2;
-    setViewport(v => ({ ...v, x: rect.width / 2 - cx * v.scale, y: rect.height / 2 - cy * v.scale }));
+    // Two-frame split so the pan actually animates: enable the CSS transition
+    // in THIS layout effect (paints the old transform with transition on),
+    // then change the viewport in the next frame so the browser has a prior
+    // painted value to interpolate from. Setting both in one commit would
+    // snap (no old frame to tween).
+    setPanAnimate(true);
+    const raf = requestAnimationFrame(() => {
+      setViewport(v => ({ ...v, x: rect.width / 2 - cx * v.scale, y: rect.height / 2 - cy * v.scale }));
+    });
+    return () => cancelAnimationFrame(raf);
     // nodePositions/heights intentionally omitted: we want this to fire on the
     // open transition (splitViewRightId) and node switch, not on every drag or
     // height re-measure, which would fight the user's manual panning.
@@ -1181,6 +1198,10 @@ export function BrainCanvasPage() {
   }, [connectMode, connectSource, resetConnectTool, searchOpen, wsDescEdit]);
 
   const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
+    // Any user gesture cancels the centering-pan animation so pan/zoom is
+    // instant — and covers the edge case where the pan target equaled the
+    // current position, so no transitionend ever fired to clear the flag.
+    setPanAnimate(false);
     const t = e.target as HTMLElement;
     // Don't pan when interacting with floating chrome (toolbar, pickers, etc.).
     if (t.closest?.('.canvas-floating-panel')) return;
@@ -1344,7 +1365,11 @@ export function BrainCanvasPage() {
         style={{
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: '0 0',
+          // Only the programmatic centering pan animates; user pan/zoom clear
+          // panAnimate on gesture-start so they stay instant.
+          transition: panAnimate ? 'transform 300ms ease-out' : undefined,
         }}
+        onTransitionEnd={() => setPanAnimate(false)}
         onMouseMove={connectMode ? handleConnectMouseMove : undefined}
         onMouseLeave={connectMode ? () => setConnectCursor(null) : undefined}
       >
