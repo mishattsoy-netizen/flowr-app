@@ -633,10 +633,10 @@ a {
   cursor: pointer;
 }
 
-.editor-block a:not(.link-block-btn):not(.inline-link-btn),
+.editor-block a:not(.link-block-btn):not(.inline-link-btn):not(.entity-pill),
 .chat-standard-link,
 .prose a.chat-standard-link,
-.prose a:not(.inline-link-btn):not(.link-block-btn) {
+.prose a:not(.inline-link-btn):not(.link-block-btn):not(.entity-pill) {
   color: var(--bone-100) !important;
   text-decoration: underline !important;
   text-underline-offset: 3px !important;
@@ -649,10 +649,10 @@ a {
   background-color: transparent !important;
 }
 
-.editor-block a:not(.link-block-btn):not(.inline-link-btn):hover,
+.editor-block a:not(.link-block-btn):not(.inline-link-btn):not(.entity-pill):hover,
 .chat-standard-link:hover,
 .prose a.chat-standard-link:hover,
-.prose a:not(.inline-link-btn):not(.link-block-btn):hover {
+.prose a:not(.inline-link-btn):not(.link-block-btn):not(.entity-pill):hover {
   color: var(--bone-100) !important;
   text-decoration-color: var(--bone-100) !important;
   background-color: transparent !important;
@@ -1772,25 +1772,25 @@ a:focus:not(:focus-visible),
    Attribute selector on purpose: also upgrades legacy plain <a> links saved
    before pills existed. */
 [data-block-content] a[href^="flowr:"] {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 4px;
-  padding: 1px 6px;
-  margin: 0 1px;
-  border-radius: 8px;
-  background: var(--bone-6);
-  color: var(--bone-100);
+  padding: 1px 6px !important;
+  margin: 0 1px !important;
+  border-radius: 8px !important;
+  background: var(--bone-6) !important;
+  color: var(--bone-100) !important;
   font-weight: 500;
   font-size: 0.925em;
   letter-spacing: -0.01em;
-  text-decoration: none;
+  text-decoration: none !important;
   cursor: pointer;
   user-select: all;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease !important;
   vertical-align: baseline;
 }
 [data-block-content] a[href^="flowr:"]:hover {
-  background: var(--bone-10);
+  background: var(--bone-10) !important;
 }
 [data-block-content] a[href^="flowr:"]::before {
   content: '@';
