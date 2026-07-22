@@ -1198,10 +1198,6 @@ export function BrainCanvasPage() {
   }, [connectMode, connectSource, resetConnectTool, searchOpen, wsDescEdit]);
 
   const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
-    // Any user gesture cancels the centering-pan animation so pan/zoom is
-    // instant — and covers the edge case where the pan target equaled the
-    // current position, so no transitionend ever fired to clear the flag.
-    setPanAnimate(false);
     const t = e.target as HTMLElement;
     // Don't pan when interacting with floating chrome (toolbar, pickers, etc.).
     if (t.closest?.('.canvas-floating-panel')) return;
@@ -1239,6 +1235,13 @@ export function BrainCanvasPage() {
       && !onNode;
 
     if (e.button === 1 || (e.button === 0 && spaceHeldRef.current) || emptyCanvasPan) {
+      // A real pan gesture is starting — cancel the centering-pan animation so
+      // the drag is instant (no lag/rubber-band). Deliberately NOT at the top
+      // of this handler: pointerdown on a node bubbles here too (no
+      // stopPropagation upstream), and clearing unconditionally cancelled the
+      // in-flight glide on every rapid node-switch click, snapping instead of
+      // retargeting smoothly to the new node.
+      setPanAnimate(false);
       e.preventDefault();
       e.stopPropagation();
       isPanningRef.current = true;
