@@ -964,6 +964,14 @@ export function BrainCanvasPage() {
 
   // New node: click to place on the canvas
   const handleCanvasClick = useCallback(async (e: React.MouseEvent) => {
+    // This handler is on the full-size container, so it also receives events
+    // that bubble up from children. Ignore clicks on a node card (handled by
+    // the card's own onClick) and on floating chrome (toolbar, pickers, left
+    // panel, details panel) so they don't place a node behind a panel or clear
+    // selection. Background clicks fall through.
+    const tgt = e.target as HTMLElement;
+    if (tgt.closest?.('[data-brain-node]')) return;
+    if (tgt.closest?.('.canvas-floating-panel')) return;
     // Space-pan must never place nodes or clear selection.
     if (spaceHeldRef.current || didPanRef.current) {
       didPanRef.current = false;
@@ -1293,6 +1301,12 @@ export function BrainCanvasPage() {
       )}
       data-bg="true"
       onPointerDown={handleBgPointerDown}
+      // Click-to-place lives on the full-size container, NOT the transformed
+      // layer: with pan/zoom the transformed layer shifts/scales partly out of
+      // the viewport, leaving dead zones where a click landed on the container
+      // (which had no onClick) and silently did nothing. The handler derives
+      // canvas coords from containerRef's rect + viewport, so it's correct here.
+      onClick={handleCanvasClick}
       onContextMenu={(e) => {
         // Suppress browser menu while connect tool is active; reset is handled
         // on pointerdown button===2 (works over nodes and empty canvas).
@@ -1331,7 +1345,6 @@ export function BrainCanvasPage() {
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
           transformOrigin: '0 0',
         }}
-        onClick={handleCanvasClick}
         onMouseMove={connectMode ? handleConnectMouseMove : undefined}
         onMouseLeave={connectMode ? () => setConnectCursor(null) : undefined}
       >
