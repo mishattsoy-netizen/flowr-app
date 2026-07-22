@@ -19,10 +19,23 @@
   animation: none !important;
 }
 
+/* Suppress all CSS transitions during View Transition theme switching.
+   Without this, real DOM elements fire their own transitions when the
+   VT pseudo-elements are removed, causing a flash. */
+.vt-transitioning,
+.vt-transitioning *,
+.vt-transitioning *::before,
+.vt-transitioning *::after {
+  transition-duration: 0s !important;
+}
+
 :root {
+  --expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --expo-in: cubic-bezier(0.7, 0, 0.84, 0);
   --app-background: #ebebeb;
+  background-color: var(--app-background);
   --app-panel: #e0e0e2;
-  --app-dark: #cbcbcf;
+  --app-dark: #d3d3d8;
   --card-bg: #e9e9ec;
   --sys-color: #e1e1e2;
   --slider-pill: var(--app-panel);
@@ -95,6 +108,7 @@
 
 .dark {
   --app-background: #1b1b1a;
+  background-color: var(--app-background);
   --app-panel: #2A2A28;
   --app-dark: #121212;
   --card-bg: #363633;
@@ -153,6 +167,7 @@
 
 @layer base {
   body {
+    background-color: var(--app-background);
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -1292,10 +1307,11 @@ body.is-dragging-widget [data-widget-id] * {
   cursor: crosshair;
 }
 
-.selected-block .flex-1.flex.items-start,
-.selected-block .relative.w-full {
+.selected-block > .flex-1.flex.items-start,
+.selected-block > .relative.w-full {
   background-color: var(--bone-6);
   box-shadow: none;
+  user-select: none;
 }
 
 .editor-block.dragging-ghost {
@@ -1746,7 +1762,7 @@ a:focus:not(:focus-visible),
 
 /* Cross-block selection: the native text highlight remains, and every block the
    selection touches gets a faint tint so the span is obvious at a glance. */
-.editor-block:has(::selection) {
+.editor-block:not(.selected-block):has(::selection) {
   background-color: var(--bone-3, rgba(255, 255, 255, 0.03));
   border-radius: var(--radius-medium);
   transition: background-color 80ms ease-out;

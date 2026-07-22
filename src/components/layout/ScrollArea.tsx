@@ -94,10 +94,6 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
   return (
     <div 
       className="relative flex-1 min-h-0 flex flex-col overflow-hidden"
-      style={{
-        maskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent)'
-      }}
     >
       <div
         ref={scrollRef}
@@ -111,6 +107,11 @@ export function ScrollArea({ children, className, innerRef, onScroll }: ScrollAr
         className="absolute right-0 top-0 bottom-0 w-3 z-50 pointer-events-auto cursor-pointer"
         onMouseEnter={() => { isHoveringTrack.current = true; updateThumb(); show(); }}
         onMouseLeave={() => { isHoveringTrack.current = false; if (!isDragging.current) hide(); }}
+        onWheel={(e) => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop += e.deltaY;
+          }
+        }}
       >
         <div
           className="absolute right-[2px] top-0 bottom-0 w-[4px] pointer-events-none"
