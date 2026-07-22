@@ -459,6 +459,58 @@ describe('heading + numbered-list interaction', () => {
     expect(blocks.some(b => b.content === '###')).toBe(false);
     expect(blocks[0].type).toBe('numberedList');
   });
+
+  it('parses #### as a heading (clamped to subheading), not literal text', () => {
+    const blocks = parseMarkdownToBlocks('#### Strictly Protect the Buffer');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('text');
+    expect(blocks[0].style).toBe('subheading');
+    expect(blocks[0].content).toBe('Strictly Protect the Buffer');
+    expect(blocks[0].content).not.toContain('#');
+  });
+
+  it('parses ##### and ###### as headings too (clamped to subheading)', () => {
+    const five = parseMarkdownToBlocks('##### Deep');
+    expect(five[0].style).toBe('subheading');
+    expect(five[0].content).toBe('Deep');
+    const six = parseMarkdownToBlocks('###### Deeper');
+    expect(six[0].style).toBe('subheading');
+    expect(six[0].content).toBe('Deeper');
+  });
+
+  it('keeps "#### 1. Title" as a single subheading, not a stray #### + list', () => {
+    const blocks = parseMarkdownToBlocks('#### 1. Strictly Protect the Buffer');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].style).toBe('subheading');
+    expect(blocks[0].content).toBe('1. Strictly Protect the Buffer');
+    expect(blocks.some(b => b.content === '####')).toBe(false);
+  });
+
+  it('drops a bare #### / ##### / ###### line instead of emitting text', () => {
+    for (const marker of ['####', '#####', '######']) {
+      const blocks = parseMarkdownToBlocks(`${marker}\n1. First item`);
+      expect(blocks.some(b => b.content === marker)).toBe(false);
+      expect(blocks[0].type).toBe('numberedList');
+    }
+  });
+
+  it('treats + as a bullet marker so it does not break a numbered-list run', () => {
+    const blocks = parseMarkdownToBlocks('+ alpha\n+ beta');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].type).toBe('bulletList');
+    expect(blocks[0].content).toBe('alpha');
+    expect(blocks[1].type).toBe('bulletList');
+  });
+
+  it('does not reset numbered-list counter when a + sub-bullet appears mid-list', () => {
+    // Regression: "1. A\n+ note\n2. B" wedged a text block between the list
+    // items, which reset the rendered counter to 1 for item B.
+    const blocks = parseMarkdownToBlocks('1. First\n+ a sub point\n2. Second');
+    const textBlocks = blocks.filter(b => b.type === 'text' && b.content.startsWith('+'));
+    expect(textBlocks).toHaveLength(0);
+    const numbered = blocks.filter(b => b.type === 'numberedList');
+    expect(numbered).toHaveLength(2);
+  });
 });
 
 describe('flowr entity mention pills', () => {

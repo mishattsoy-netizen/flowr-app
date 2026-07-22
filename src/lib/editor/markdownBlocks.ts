@@ -33,7 +33,7 @@ const STYLE_ALIASES: Record<HeadingAlias, BlockStyle> = {
 export function looksLikeMarkdown(text: string): boolean {
   if (!text.trim()) return false;
   const lines = text.split('\n').filter(l => l.trim().length > 0);
-  const mdLineRe = /^(\s*)(-|\*|\d+\.|#{1,3} |\[[ x]\] |>|\|)/;
+  const mdLineRe = /^(\s*)(-|\*|\+|\d+\.|#{1,6} |\[[ x]\] |>|\|)/;
   const matches = lines.filter(l => mdLineRe.test(l));
   return matches.length >= 2;
 }
@@ -145,16 +145,23 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
   if (line.startsWith('```')) return { indent, kind: { kind: 'fenceOpen' } };
   // A bare "#"/"##"/"###" with no heading text (the list-splitter above can
   // strand one when a model writes "### 1. Title") should vanish, not become
-  // a literal "###" text block.
-  if (/^#{1,3}$/.test(line)) return { indent, kind: { kind: 'blank' } };
+  // a literal "###"/"####"/… text block. Covers all CommonMark levels (1-6),
+  // not just 1-3 — models emit #### and deeper for sub-sections.
+  if (/^#{1,6}$/.test(line)) return { indent, kind: { kind: 'blank' } };
 
-  const h = line.match(/^(#{1,3}) (.+)/);
-  if (h) return { indent, kind: { kind: 'heading', level: h[1].length as 1|2|3, text: h[2] } };
+  // Levels 4-6 have no distinct block style (title/heading/subheading only),
+  // so clamp them to subheading (level 3) rather than dropping to plain text.
+  const h = line.match(/^(#{1,6}) (.+)/);
+  if (h) return { indent, kind: { kind: 'heading', level: Math.min(h[1].length, 3) as 1|2|3, text: h[2] } };
 
   const check = line.match(/^([-*+]?\s+)?\[([ xX])\] (.+)/);
   if (check) return { indent, kind: { kind: 'checklist', checked: check[2].toLowerCase() === 'x', text: check[3] } };
 
-  const bullet = line.match(/^[-*] (.+)/);
+  // Include + as a bullet marker: the mash-up splitter in parseMarkdownToBlocks
+  // already breaks "+ item" onto its own line, so classifyLine must recognize
+  // it too — otherwise it falls through to a text block that wedges between
+  // numbered-list items and resets the rendered counter.
+  const bullet = line.match(/^[-*+] (.+)/);
   if (bullet) return { indent, kind: { kind: 'bullet', text: bullet[1] } };
 
   // Only match numeric list markers (1., 2., 3.) - not alpha/roman which over-matches prose
