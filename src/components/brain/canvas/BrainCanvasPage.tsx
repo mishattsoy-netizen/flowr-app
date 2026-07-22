@@ -1459,6 +1459,16 @@ export function BrainCanvasPage() {
                   setSelectedEdgeId(null);
                   return;
                 }
+                // Editor already open: switch it to this node (instead of the
+                // details panel) and let the centering effect pan/animate to
+                // it — matches "browsing" intent once you're already editing.
+                // Falls through to the details panel for nodes with no linked
+                // entity (e.g. sections), which can't be opened in the editor.
+                if (splitViewRightId && node.ref_id) {
+                  setSelectedNodeIds(new Set([node.id]));
+                  openBrainNode(node.ref_id);
+                  return;
+                }
                 // Single-click → details panel (no longer opens editor)
                 openDetailsForNode(node.id, 'details', { replaceSelection: true });
               }}
