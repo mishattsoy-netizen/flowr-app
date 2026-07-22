@@ -460,3 +460,32 @@ describe('heading + numbered-list interaction', () => {
     expect(blocks[0].type).toBe('numberedList');
   });
 });
+
+describe('flowr entity mention pills', () => {
+  it('converts [@Title](flowr:note:id) to a mention-pill anchor', () => {
+    const blocks = parseMarkdownToBlocks('See [@Trade History](flowr:note:doc-123) for data.')
+    expect(blocks[0].content).toContain('data-mention="1"')
+    expect(blocks[0].content).toContain('href="flowr:note:doc-123"')
+    expect(blocks[0].content).toContain('contenteditable="false"')
+    expect(blocks[0].content).toContain('>Trade History</a>')
+    expect(blocks[0].content).not.toContain('target="_blank"')
+  })
+
+  it('handles a flowr link whose label lacks the @ prefix', () => {
+    const blocks = parseMarkdownToBlocks('See [Trade History](flowr:note:doc-123).')
+    expect(blocks[0].content).toContain('data-mention="1"')
+    expect(blocks[0].content).toContain('>Trade History</a>')
+  })
+
+  it('round-trips a mention pill back to [@Title](flowr:type:id) markdown', () => {
+    const md = 'See [@Trade History](flowr:note:doc-123) for data.'
+    const roundTripped = blocksToMarkdown(parseMarkdownToBlocks(md))
+    expect(roundTripped).toContain('[@Trade History](flowr:note:doc-123)')
+  })
+
+  it('leaves ordinary web links untouched', () => {
+    const blocks = parseMarkdownToBlocks('See [docs](https://example.com).')
+    expect(blocks[0].content).toContain('target="_blank"')
+    expect(blocks[0].content).not.toContain('data-mention')
+  })
+})

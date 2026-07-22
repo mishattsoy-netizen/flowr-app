@@ -79,6 +79,13 @@ function inlineToHtml(text: string): string {
     const isPill = label.startsWith('pill:');
     const displayLabel = isPill ? label.slice(5) : label;
 
+    // Entity mentions: [@Title](flowr:type:id) — render as a mention pill,
+    // never as a navigable browser link (flowr: is not a real protocol).
+    if (cleanUrl.startsWith('flowr:')) {
+      const mentionLabel = displayLabel.startsWith('@') ? displayLabel.slice(1) : displayLabel;
+      return `<a href="${cleanUrl}" data-mention="1" class="entity-pill" contenteditable="false">${mentionLabel}</a>`;
+    }
+
     if (isPill) {
       if (!cleanUrl.startsWith('http')) {
         // Internal entity link pill representation
@@ -274,7 +281,13 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
 
 function htmlToText(html: string): string {
   let s = html;
-  
+
+  // Mention pills round-trip as [@Title](flowr:type:id) — must run before the
+  // generic entity-pill rules below, since these anchors also carry
+  // class="entity-pill" and would otherwise be swallowed by those rules first.
+  s = s.replace(/<a[^>]*data-mention="1"[^>]*href="(flowr:[^"]*)"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
+  s = s.replace(/<a[^>]*href="(flowr:[^"]*)"[^>]*data-mention="1"[^>]*>([^<]*)<\/a>/g, '[@$2]($1)');
+
   // Convert custom entity-pill links back to standard markdown link syntax with 'pill:' prefix
   s = s.replace(/<a[^>]*class="[^"]*entity-pill[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, '[pill:$2]($1)');
   s = s.replace(/<a[^>]*href="([^"]*)"[^>]*class="[^"]*entity-pill[^"]*"[^>]*>([^<]*)<\/a>/g, '[pill:$2]($1)');
