@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Entity, EditorBlock, BlockType, BlockStyle, generateId, useStore } from '@/data/store';
 import { SelectionToolbar } from './SelectionToolbar';
 import { SlashCommandMenu } from './SlashCommandMenu';
+import { MentionMenu } from './MentionMenu';
 import { BlockRenderer } from './BlockRenderer';
 import { BlockOptionsMenu } from './BlockOptionsMenu';
 import { flattenRows, nestRows } from './ListBlock';
@@ -479,6 +480,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
 
   const [slashMenu, setSlashMenu] = useState<{ blockId: string; position: { x: number; y: number } } | null>(null);
+  const [mentionMenu, setMentionMenu] = useState<{ blockId: string; position: { x: number; y: number } } | null>(null);
   const [activeOptionsMenu, setActiveOptionsMenu] = useState<{ blockId: string; position: { x: number; y: number } } | null>(null);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
 
@@ -494,7 +496,7 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   }, []);
 
   // Suppress tooltips when a popup menu is open or a block drag is in progress
-  useTooltipSuppression(Boolean(activeOptionsMenu || slashMenu || isDragging));
+  useTooltipSuppression(Boolean(activeOptionsMenu || slashMenu || mentionMenu || isDragging));
   const [activeId, setActiveId] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const blocksHostRef = useRef<HTMLDivElement>(null);
@@ -859,6 +861,15 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
   useEffect(() => {
     slashMenuRef.current = slashMenu;
   }, [slashMenu]);
+
+  // Same rationale as slashMenuRef above: handleHostKeyDown reads this via
+  // the ref (not the closed-over `mentionMenu` state) so it always sees the
+  // current value rather than whatever it was when the callback was last
+  // recreated.
+  const mentionMenuRef = useRef(mentionMenu);
+  useEffect(() => {
+    mentionMenuRef.current = mentionMenu;
+  }, [mentionMenu]);
 
   useEffect(() => {
     const handleDocumentMouseDown = (e: MouseEvent) => {
@@ -1458,6 +1469,43 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
       }
     }
 
+    // Unlike "/", "@" mentions must work ANYWHERE in a block's text (not
+    // just when the block is empty), but only at a word boundary — otherwise
+    // typing an email address like user@domain.com would pop the menu open
+    // mid-word on every "@". Check the character immediately before the
+    // caret (i.e. before the "@" that the browser is about to insert).
+    if (e.key === '@') {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        const prevChar = node.nodeType === Node.TEXT_NODE && range.startOffset > 0
+          ? (node.textContent || '')[range.startOffset - 1]
+          : '';
+        if (prevChar === '' || /\s/.test(prevChar)) {
+          setTimeout(() => {
+            const s = window.getSelection();
+            if (!s || s.rangeCount === 0) return;
+            const caretRect = s.getRangeAt(0).getBoundingClientRect();
+            setMentionMenu({
+              blockId,
+              position: { x: caretRect.left, y: caretRect.bottom + 6 },
+            });
+          }, 10);
+        }
+      }
+    }
+
+    // Close the mention menu when the user backspaces past the "@" or types
+    // a space while the query is still empty — mirrors Notion-style
+    // "@"-mention dismissal. Read via refs (mentionMenuRef/mentionQueryRef)
+    // since this callback isn't recreated on every mentionMenu/mentionQuery
+    // change.
+    const currentMentionMenu = mentionMenuRef.current;
+    if (currentMentionMenu && (e.key === ' ' || (e.key === 'Backspace' && !mentionQueryRef.current))) {
+      setMentionMenu(null);
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       const block = blocks.find(b => b.id === blockId);
       if (!block) return;
@@ -1775,6 +1823,53 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     }, 10);
   }, [blocks, slashMenu, persistBlocks, updateBlock]);
 
+  // Modeled on insertBlock's `type === 'link'` branch above: delete the
+  // typed "@query" trigger text, insert a pill anchor at the caret, restore
+  // the caret after it, then save the block's updated HTML via updateBlock.
+  const insertMention = useCallback((item: { id: string; title: string; type: string }) => {
+    if (!mentionMenu) return;
+    const blockId = mentionMenu.blockId;
+    const el = document.querySelector(`[data-block-id="${blockId}"] [data-block-content]`) as HTMLElement;
+    if (!el) { setMentionMenu(null); return; }
+
+    blocksHostRef.current?.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      const offset = range.startOffset;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        const lastAtIdx = text.lastIndexOf('@', offset);
+        if (lastAtIdx !== -1) {
+          range.setStart(node, lastAtIdx);
+          range.setEnd(node, offset);
+          range.deleteContents();
+        }
+      }
+
+      const a = document.createElement('a');
+      a.href = `flowr:${item.type}:${item.id}`;
+      a.setAttribute('data-mention', '1');
+      a.className = 'entity-pill';
+      a.setAttribute('contenteditable', 'false');
+      a.textContent = item.title;
+      range.insertNode(a);
+
+      const space = document.createTextNode(' ');
+      range.setStartAfter(a);
+      range.collapse(true);
+      range.insertNode(space);
+      range.setStartAfter(space);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    updateBlock(blockId, { content: el.innerHTML });
+    setMentionMenu(null);
+  }, [mentionMenu, updateBlock]);
+
   const duplicateBlock = useCallback((id: string) => {
     const idx = blocks.findIndex(b => b.id === id);
     if (idx === -1) return;
@@ -1982,6 +2077,22 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
     if (lastSlash === -1) return '';
     return text.substring(lastSlash + 1);
   }, [slashMenu, blocks]);
+
+  const mentionQuery = useMemo(() => {
+    if (!mentionMenu) return '';
+    const el = document.querySelector(`[data-block-id="${mentionMenu.blockId}"] [data-block-content]`);
+    const text = el?.textContent ?? '';
+    const lastAt = text.lastIndexOf('@');
+    if (lastAt === -1) return '';
+    return text.substring(lastAt + 1);
+  }, [mentionMenu, blocks]);
+
+  // Read by handleHostKeyDown's Backspace-closes-the-menu check, which isn't
+  // recreated on every mentionQuery change (see mentionMenuRef above).
+  const mentionQueryRef = useRef(mentionQuery);
+  useEffect(() => {
+    mentionQueryRef.current = mentionQuery;
+  }, [mentionQuery]);
 
   const changeBlockStyle = useCallback((style: BlockStyle) => {
     if (activeBlock) {
@@ -2354,6 +2465,16 @@ export function NoteEditor({ entity, isMixed = false, isLoading }: NoteEditorPro
             onClose={() => setSlashMenu(null)}
             onInsertBlock={insertBlock}
             activeBlockStyle={blocks.find(b => b.id === slashMenu.blockId)?.style}
+          />
+        </Portal>
+      )}
+      {mentionMenu && (
+        <Portal>
+          <MentionMenu
+            position={mentionMenu.position}
+            search={mentionQuery}
+            onClose={() => setMentionMenu(null)}
+            onSelect={insertMention}
           />
         </Portal>
       )}
