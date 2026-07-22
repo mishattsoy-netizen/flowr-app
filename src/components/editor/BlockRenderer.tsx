@@ -14,6 +14,8 @@ import { useStore } from '@/data/store';
 import { TableBlock } from './TableBlock';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, type Edge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { getEntityIcon, ICON_MAP } from '@/data/icons';
 
 interface BlockViewProps {
   block: EditorBlock;
@@ -222,7 +224,8 @@ export function BlockRenderer({
     } else {
       // Also detect plain anchor tags (standard markdown underlined links)
       const anchor = target.closest('a') as HTMLAnchorElement;
-      if (anchor && !anchor.classList.contains('inline-link-btn') && contentRef.current?.contains(anchor)) {
+      const anchorHref = anchor?.getAttribute('href') || '';
+      if (anchor && !anchor.classList.contains('inline-link-btn') && !anchorHref.startsWith('flowr:') && contentRef.current?.contains(anchor)) {
         if (inlineHoverTimeout.current) clearTimeout(inlineHoverTimeout.current);
         inlineHoverTimeout.current = null;
         const rect = anchor.getBoundingClientRect();
@@ -251,8 +254,9 @@ export function BlockRenderer({
     if (isDraggingGlobal) return;
     const target = e.target as HTMLElement;
     const anchor = target.closest('a');
+    const anchorHref = anchor?.getAttribute('href') || '';
 
-    if (anchor && !anchor.classList.contains('inline-link-btn') && contentRef.current?.contains(anchor)) {
+    if (anchor && !anchor.classList.contains('inline-link-btn') && !anchorHref.startsWith('flowr:') && contentRef.current?.contains(anchor)) {
       e.preventDefault();
       e.stopPropagation();
 
@@ -318,6 +322,7 @@ export function BlockRenderer({
   };
 
   const entities = useStore(s => s.entities);
+  const spaces = useStore(s => s.spaces);
   const setActiveEntityId = useStore(s => s.setActiveEntityId);
 
   const colorStyle = getBlockColorStyle(block);
@@ -343,6 +348,69 @@ export function BlockRenderer({
     }
     lastTypedContent.current = block.content;
   }, [block.content]);
+
+  // Mention pills are stored as bare <a href="flowr:type:id">Title</a> (no
+  // room in static HTML for a live Lucide component). After every content
+  // sync, walk the block's mention anchors and inject the entity's real
+  // icon as a leading inline SVG — same icon source (`getEntityIcon`) chat
+  // mention pills use — so a note's pill matches chat exactly instead of
+  // showing a generic "@" glyph.
+  useEffect(() => {
+    const host = contentRef.current;
+    if (!host) return;
+    const anchors = host.querySelectorAll('a[href^="flowr:"]');
+    anchors.forEach((anchor) => {
+      if (anchor.querySelector('[data-mention-icon]')) return; // already injected
+      const href = anchor.getAttribute('href') || '';
+      const parts = href.split(':');
+      const type = parts[1];
+      const id = parts.slice(2).join(':');
+      if (!type || !id) return;
+
+      let resolvedType = type;
+      let iconName: string | undefined;
+      if (type === 'workspace') {
+        const space = spaces.find((s: any) => s.id === id);
+        iconName = space?.icon || (space?.type === 'personal' ? 'User' : 'Box');
+      } else {
+        const entity = entities.find((e: any) => e.id === id);
+        if (entity) resolvedType = entity.type;
+        iconName = entity?.icon;
+      }
+
+      // A known Lucide name goes through getEntityIcon → renderToStaticMarkup,
+      // which only ever emits markup for the fixed, hardcoded ICON_MAP set —
+      // safe to inject as HTML. Anything else (emoji override, or an
+      // unrecognized value from an unexpected source) is set via textContent
+      // below instead of interpolated into an HTML string, so it can never
+      // be treated as markup.
+      const isKnownIconName = !!iconName && iconName.length > 2 && iconName in ICON_MAP;
+      const iconSpan = document.createElement('span');
+      iconSpan.setAttribute('data-mention-icon', '1');
+      iconSpan.setAttribute('contenteditable', 'false');
+      iconSpan.className = 'inline-flex items-center shrink-0 pointer-events-none';
+
+      if (isKnownIconName) {
+        const IconComp = getEntityIcon(iconName);
+        iconSpan.innerHTML = renderToStaticMarkup(<IconComp className="w-3 h-3 opacity-70 shrink-0" />);
+      } else if (iconName) {
+        const emojiSpan = document.createElement('span');
+        emojiSpan.className = 'font-emoji text-[11px] leading-none';
+        emojiSpan.textContent = iconName; // safe: never parsed as HTML
+        iconSpan.appendChild(emojiSpan);
+      } else {
+        const FallbackIcon = resolvedType === 'workspace'
+          ? getEntityIcon('Box')
+          : resolvedType === 'folder'
+          ? getEntityIcon('Folder')
+          : resolvedType === 'canvas'
+          ? getEntityIcon('Frame')
+          : getEntityIcon('FileText');
+        iconSpan.innerHTML = renderToStaticMarkup(<FallbackIcon className="w-3 h-3 opacity-70 shrink-0" />);
+      }
+      anchor.insertBefore(iconSpan, anchor.firstChild);
+    });
+  }, [block.content, entities, spaces]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashMenuOpen && (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;

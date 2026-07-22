@@ -1792,8 +1792,3 @@ a:focus:not(:focus-visible),
 [data-block-content] a[href^="flowr:"]:hover {
   background: var(--bone-10) !important;
 }
-[data-block-content] a[href^="flowr:"]::before {
-  content: '@';
-  opacity: 0.55;
-  font-weight: 600;
-}
