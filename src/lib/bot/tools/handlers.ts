@@ -1,6 +1,7 @@
 import { logger } from '../../logger'
 import { supabaseAdmin } from '../../supabase'
 import { parseMarkdownToBlocks, normalizeBlocks, blocksToMarkdown } from '../../editor/markdownBlocks'
+import { reattachBlockIds } from '../../editor/reattachBlockIds'
 import { sanitizeToolContent } from '../services/imagePromptGuard'
 import type { BlockInput } from '../../editor/markdownBlocks'
 import { extractContent } from '../providers/content-extract'
@@ -462,7 +463,7 @@ export const toolHandlers: Record<string, (args: any, context?: any) => Promise<
           }
           const currentMd = blocksToMarkdown(existing.content || [])
           const patchedMd = applyPatchOps(currentMd, patch)
-          updates.content = parseMarkdownToBlocks(patchedMd)
+          updates.content = reattachBlockIds(existing.content || [], parseMarkdownToBlocks(patchedMd))
         }
 
         updates.last_modified = Date.now()
