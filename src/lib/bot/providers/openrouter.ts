@@ -6,6 +6,7 @@ import { FLOWR_TOOLS } from '../tools/definitions'
 import { toolHandlers } from '../tools/handlers'
 import { toOpenRouterReasoning } from '../reasoning'
 import { summarizeToolCalls } from '../services/toolSummary'
+import { shouldFailEmptyToolTurn } from '../services/emptyToolTurn'
 import { resolveMaxToolHops, checkRepeatedFailure, recordToolFailure } from '../toolLoopConfig'
 
 export async function runOpenRouter(
@@ -255,6 +256,9 @@ export async function runOpenRouter(
 
             let finalContent = message.content || ''
             if (!finalContent && capturedToolCalls.length > 0) {
+              if (shouldFailEmptyToolTurn(capturedToolCalls)) {
+                throw new Error('Model ran read-only tools and produced no reply — treating as empty response')
+              }
               finalContent = summarizeToolCalls(capturedToolCalls)
             }
 
