@@ -270,7 +270,15 @@ export async function runGoogle(
                 }
                 toolResults.push({ functionResponse: { name: call.name, response: output } })
                 const isPending = output?.status === 'pending_confirmation'
-                capturedToolCalls.push({ ...call.args, ...output, tool: call.name, success: !output?.error && !isPending })
+                capturedToolCalls.push({
+                  ...call.args,
+                  ...output,
+                  ...(typeof call.args?.content === 'string'
+                    ? { raw_args_content: call.args.content.slice(0, 4000) }
+                    : {}),
+                  tool: call.name,
+                  success: !output?.error && !isPending,
+                })
               }
             }
             if ((context as any)?.onEvent) {
