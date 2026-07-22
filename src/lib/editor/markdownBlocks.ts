@@ -130,6 +130,10 @@ function classifyLine(raw: string): { indent: number; kind: LineKind } {
   if (line === '') return { indent, kind: { kind: 'blank' } };
   if (line === '---') return { indent, kind: { kind: 'divider' } };
   if (line.startsWith('```')) return { indent, kind: { kind: 'fenceOpen' } };
+  // A bare "#"/"##"/"###" with no heading text (the list-splitter above can
+  // strand one when a model writes "### 1. Title") should vanish, not become
+  // a literal "###" text block.
+  if (/^#{1,3}$/.test(line)) return { indent, kind: { kind: 'blank' } };
 
   const h = line.match(/^(#{1,3}) (.+)/);
   if (h) return { indent, kind: { kind: 'heading', level: h[1].length as 1|2|3, text: h[2] } };
@@ -156,8 +160,8 @@ export function parseMarkdownToBlocks(md: string): EditorBlock[] {
   // Option C: Forgiving parser for mashed-up lists.
   // If the LLM generates "- [ ] Item 1 - [ ] Item 2" on one line, split them.
   let cleanedMd = md.replace(/(\S)\s+(-\s*\[\s*[xX ]?\s*\])/g, '$1\n$2');
-  // Numbered lists: "1. ", "2. ", etc.
-  cleanedMd = cleanedMd.replace(/(\S)\s+(\d+\.\s+)/g, '$1\n$2');
+  // Numbered lists: "1. ", "2. ", etc. — but never split a heading like "### 1. Title"
+  cleanedMd = cleanedMd.replace(/([^\s#])\s+(\d+\.\s+)/g, '$1\n$2');
   // Bullet lists using * or + (We avoid "-" for regular bullets because it breaks normal sentences like "Movie - A masterpiece")
   cleanedMd = cleanedMd.replace(/(\S)\s+([*+]\s+)/g, '$1\n$2');
   

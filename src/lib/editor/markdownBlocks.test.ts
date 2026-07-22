@@ -433,8 +433,30 @@ describe('parseMarkdownToBlocks — pill links', () => {
     const block = { id: '1', type: 'text' as const, content: original, style: 'body' as const };
     const md = blocksToMarkdown([block]);
     expect(md).toBe('[pill:Doc Name](doc-id)');
-    
+
     const parsed = parseMarkdownToBlocks(md);
     expect(parsed[0].content).toBe('<a href="doc-id" data-type="entity-link" data-id="doc-id" class="entity-pill">Doc Name</a>');
+  });
+});
+
+describe('heading + numbered-list interaction', () => {
+  it('keeps "### 1. Title" as a single subheading block', () => {
+    const blocks = parseMarkdownToBlocks('### 1. Size that assumed an edge');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('text');
+    expect(blocks[0].style).toBe('subheading');
+    expect(blocks[0].content).toBe('1. Size that assumed an edge');
+  });
+
+  it('still splits mashed numbered lists after prose', () => {
+    const blocks = parseMarkdownToBlocks('Steps: 1. First 2. Second');
+    const numbered = blocks.filter(b => b.type === 'numberedList');
+    expect(numbered).toHaveLength(2);
+  });
+
+  it('drops a bare ### line instead of emitting a text block', () => {
+    const blocks = parseMarkdownToBlocks('###\n1. First item');
+    expect(blocks.some(b => b.content === '###')).toBe(false);
+    expect(blocks[0].type).toBe('numberedList');
   });
 });
