@@ -164,3 +164,29 @@ describe('hasUngroundedActionClaim', () => {
     ])).toBe(true)
   })
 })
+
+describe('hasUngroundedActionClaim — extended verbs', () => {
+  const readOnly = [{ tool: 'list_content', success: true }]
+
+  it('catches "I\'ve placed it in a quote block" with no write call', () => {
+    const reply = "It's right at the top of the note. I've placed it in a quote block immediately below the title."
+    expect(hasUngroundedActionClaim(reply, readOnly)).toBe(true)
+  })
+
+  it('catches "I added the balance to your note"', () => {
+    expect(hasUngroundedActionClaim('I added the balance to your note.', readOnly)).toBe(true)
+  })
+
+  it('catches "has been saved to the folder"', () => {
+    expect(hasUngroundedActionClaim('The report has been saved to the folder.', readOnly)).toBe(true)
+  })
+
+  it('does not flag prose without app entities', () => {
+    expect(hasUngroundedActionClaim('The company was created in 2019 and has been renamed twice.', readOnly)).toBe(false)
+  })
+
+  it('does not flag when a mutation succeeded', () => {
+    const calls = [{ tool: 'update_content', success: true }]
+    expect(hasUngroundedActionClaim('I added the balance to your note.', calls)).toBe(false)
+  })
+})

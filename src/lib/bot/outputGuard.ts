@@ -73,7 +73,7 @@ export function stripToolAnnotations(content: string): string {
 
 // Conservative: only past/perfect claims of completed content mutations.
 const ACTION_CLAIM_RE =
-  /\b(has been|have been|was|were|already)\s+(permanently\s+)?(deleted|created|updated|moved|renamed)\b|\b(successfully)\s+(deleted|created|updated|moved)\b|\bI (have|'ve) (deleted|created|updated|moved)\b/i
+  /\b(has been|have been|was|were|already)\s+(permanently\s+)?(deleted|created|updated|moved|renamed|placed|added|appended|saved|written|logged|inserted)\b|\b(successfully)\s+(deleted|created|updated|moved|placed|added|appended|saved)\b|\bI\s?(have|'ve) (deleted|created|updated|moved|placed|added|appended|saved|written|logged|inserted)\b|\bI (added|placed|appended|saved|wrote|logged|inserted)\b/i
 
 // The claim must be about an app entity — prevents false positives on
 // ordinary prose ("the company was created in 2019" in a search answer).
@@ -82,7 +82,7 @@ const APP_ENTITY_RE = /\b(note|notes|task|tasks|workspace|workspaces|folder|fold
 // Tools that actually mutate user content. A successful READ (list_content)
 // does not ground a claim like "I created your note" — only a successful
 // mutation does.
-const MUTATING_TOOLS = new Set([
+export const MUTATING_TOOLS = new Set([
   'create_content',
   'update_content',
   'append_to_note',
